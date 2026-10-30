@@ -35,7 +35,7 @@ const FILE_MAX_PUBLIC = 8      // au-delà, un visiteur Internet attend que la f
 /** Les routes qui lancent un rendu sur le GPU. */
 const ROUTES_RENDU = new Set([
   'POST /api/jobs', 'POST /api/jobs/:id/retry', 'POST /api/carrousel', 'POST /api/reels',
-  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/edit-video',
+  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/edit-video',
   'POST /api/assets/:id/upscale', 'POST /api/montages/:id/export', 'POST /api/presets/:id/lancer',
   'POST /api/parole', 'POST /api/reshoot', 'POST /api/reels/:id/plans/:k/refaire',
 ])
