@@ -1397,8 +1397,12 @@ export function enqueueReshoot({ source, angle, azimut, elevation, cles, texte, 
    LTX-2.x Community) sur le même graphe que Re-shoot, guidé par le clip lui-même au
    lieu de sa vue déplacée. Le son de la prise d'origine est gardé. */
 const CLEANPLATE_LORA = 'ltx/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors'
+/* Verrou (30/10) : « Retirer » efface ce qu'on lui nomme ; nommer un vêtement reviendrait à dévêtir
+   quelqu'un. Un vêtement, un sous-vêtement ou une partie du corps est refusé, pour tout le monde. */
+const CIBLE_INTERDITE = /\b(cloth(es|ing)?|outfits?|garments?|dress(es)?|shirts?|t-?shirts?|tops?|blouses?|sweaters?|hoodies?|jackets?|coats?|skirts?|pants|trousers|jeans|shorts|leggings|tights|stockings|bikinis?|swimsuits?|swimwear|lingerie|underwear|panties|thongs?|bras?|towels?|robes?|sarongs?|veils?|hijabs?|fabric|skin|chest|breasts?|nipples?|butt|crotch|vêtements?|habits?|robes?|chemises?|jupes?|pantalons?|culottes?|soutien-?gorges?|maillots?|sous-vêtements?)\b/i
 export function enqueueCleanPlate({ source, cible, decor, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'people'
+  if (CIBLE_INTERDITE.test(`${c} ${decor ?? ''}`)) throw new Error('ce mode retire des personnes ou des objets, jamais des vêtements')
   const d = String(decor ?? '').trim().slice(0, 300)
   if (t0Hit(`${c} ${d}`)) throw new Error('texte refusé (liste T0)')
   if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
