@@ -26,12 +26,12 @@ export function EditionVideo({ asset, onClose, onPinceau }: { asset: Asset; onCl
   const [mode, setMode] = useState<'choix' | 'prompt'>('choix')
   const [cible, setCible] = useState('')
   // modifier un élément, le retirer, ou changer le fond autour de la personne
-  const [op, setOp] = useState<'modifier' | 'retirer' | 'fond'>('modifier')
+  const [op, setOp] = useState<'modifier' | 'retirer' | 'fond' | 'detourer'>('modifier')
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const adopter = useAppStore(s => s.adoptServerJob)
-  const pret = op === 'retirer' ? !!cible.trim() : op === 'fond' ? !!prompt.trim() : !!(cible.trim() && prompt.trim())
+  const pret = op === 'detourer' ? true : op === 'retirer' ? !!cible.trim() : op === 'fond' ? !!prompt.trim() : !!(cible.trim() && prompt.trim())
 
   const lancer = async () => {
     setBusy(true); setErr(null)
@@ -68,18 +68,19 @@ export function EditionVideo({ asset, onClose, onPinceau }: { asset: Asset; onCl
         </>) : (<>
           <div style={{ display: 'flex', gap: 6 }}>
             {/* « Retirer » (30/10) : IC-LoRA LTX-2.5 Clean-Plate, le décor reconstruit derrière (cf. enqueueCleanPlate) */}
-            {([['modifier', t('Modifier')], ['retirer', t('Retirer')], ['fond', t('Changer le fond')]] as const).map(([k, l]) => (
+            {([['modifier', t('Modifier')], ['retirer', t('Retirer')], ['fond', t('Changer le fond')], ['detourer', t('Fond vert')]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setOp(k)} style={{ ...bouton, flex: 1, padding: '7px 8px', fontSize: 12.5,
                 background: op === k ? 'rgba(168,85,247,.28)' : 'rgba(127,127,127,.12)', border: op === k ? '1px solid #a855f7' : '1px solid transparent' }}>{l}</button>
             ))}
           </div>
-          {op !== 'fond' && <label style={{ display: 'grid', gap: 4, fontSize: 12, opacity: .85 }}>{op === 'retirer' ? t('Ce qui doit disparaître (en anglais)') : t('Élément à modifier (en anglais, un nom court)')}
+          {op !== 'fond' && op !== 'detourer' && <label style={{ display: 'grid', gap: 4, fontSize: 12, opacity: .85 }}>{op === 'retirer' ? t('Ce qui doit disparaître (en anglais)') : t('Élément à modifier (en anglais, un nom court)')}
             <input style={champ} autoFocus maxLength={80} value={cible} placeholder={op === 'retirer' ? 'people, cars, the woman in the yellow raincoat…' : 'dress, sunglasses, hair, car…'} onChange={e => setCible(e.target.value)} />
           </label>}
-          <label style={{ display: 'grid', gap: 4, fontSize: 12, opacity: .85 }}>{op === 'retirer' ? t('Le décor, en quelques mots (facultatif, en anglais)') : op === 'fond' ? t('Le nouveau décor (en anglais)') : t('Ce qu’il devient (en anglais)')}
+          {op !== 'detourer' && <label style={{ display: 'grid', gap: 4, fontSize: 12, opacity: .85 }}>{op === 'retirer' ? t('Le décor, en quelques mots (facultatif, en anglais)') : op === 'fond' ? t('Le nouveau décor (en anglais)') : t('Ce qu’il devient (en anglais)')}
             <textarea style={{ ...champ, minHeight: 70, resize: 'vertical' }} maxLength={400} value={prompt}
               placeholder={op === 'retirer' ? 'a rainy city street at dusk, neon signs, wet asphalt' : op === 'fond' ? 'a sunny beach with turquoise water and palm trees' : 'a red silk slip dress with thin straps'} onChange={e => setPrompt(e.target.value)} />
-          </label>
+          </label>}
+          {op === 'detourer' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('La personne est suivie image par image et tout le reste passe sur fond vert, prêt pour un montage. Rien n’est redessiné.')}</span>}
           {op === 'retirer' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('Personnes, passants ou véhicules disparaissent et le décor est reconstruit derrière, son d’origine gardé (LTX-2.5 + IC-LoRA Clean-Plate). Environ 2 min.')}</span>}
           {op === 'fond' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('La personne est retrouvée et suivie ; tout le reste de l’image est redessiné. Le mouvement de caméra reste celui du clip.')}</span>}
           <span style={{ fontSize: 11.5, opacity: .6 }}>{t('L’élément doit être visible dans la vidéo : l’édition le transforme, elle n’ajoute pas un objet absent. Clips de 10 s au plus.')}</span>

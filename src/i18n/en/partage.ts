@@ -262,6 +262,8 @@ export const partage: Record<string, string> = {
   '{n} prompts': '{n} prompts',
   'Plusieurs prompts': 'Multi-prompt',
   'Utiliser dans': 'Use in',
+  'Fond vert': 'Green screen',
+  'La personne est suivie image par image et tout le reste passe sur fond vert, prêt pour un montage. Rien n’est redessiné.': 'The person is tracked frame by frame and everything else turns green screen, ready to composite. Nothing is redrawn.',
   'Angle': 'Angle',
   'la même photo, vue d’une autre position de caméra': 'the same photo, seen from another camera position',
   '¾ gauche': '¾ left', '¾ droite': '¾ right', 'Profil': 'Profile', 'De dos': 'From behind',

@@ -26,7 +26,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { enqueueParole, enqueueReshoot, enqueueCleanPlate, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import * as reel from './reel.js'
@@ -1879,10 +1879,16 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
   /* Trois façons (27/10) : modifier un élément, le retirer, ou changer le fond autour de la personne. */
-  const mode = ['retirer', 'fond'].includes(req.body?.mode) ? req.body.mode : 'modifier'
+  const mode = ['retirer', 'fond', 'detourer'].includes(req.body?.mode) ? req.body.mode : 'modifier'
   let prompt = String(req.body?.prompt ?? '').trim(), cible = String(req.body?.cible ?? '').trim()
   let strength = Number(req.body?.strength)
   if (mode === 'fond') cible = cible || 'person'
+  if (mode === 'detourer') {
+    try {
+      const r = deposerAvecCle(cleComfy(req), () => enqueueDetour({ source: path.basename(src), cible, parentAssetId: a.id, personaId: a.persona_id }))
+      return { jobId: r.id }
+    } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  }
   /* Retirer (30/10) : IC-LoRA LTX-2.5 Clean-Plate — personnes, passants, véhicules ;
      le décor est reconstruit derrière, le son d'origine gardé (cf. enqueueCleanPlate). */
   if (mode === 'retirer') {

@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
+import LOOKS from '../data/looks.json'
 import { useAssetNav } from '../components/useAssetNav'
 import { AssetNavArrows } from '../components/AssetNavArrows'
 import { renderTime } from '../lib/renderTime'
@@ -16,7 +17,7 @@ import { createPortal } from 'react-dom'
 import { CarouselPopup } from './popups'
 import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
-import { t } from '../i18n'
+import { t, getLang } from '../i18n'
 import { EditionVideo } from '../components/EditionVideo'
 
 /* `/api/folders` renvoie aussi createdAt et count : la fiche ne les affiche
@@ -148,16 +149,7 @@ const ANGLES = [
   { id: 'serre', label: 'Gros plan', vue: 'front view eye-level shot close-up' },
 ]
 
-/** Looks en un clic : des consignes de retouche prêtes (Qwen-Image-Edit 2511), personnage et cadrage gardés. */
-const LOOKS = [
-  { id: 'or', label: 'Heure dorée', consigne: 'Relight the photo to warm golden hour sunlight with long soft shadows. Keep the person, pose, outfit and framing unchanged.' },
-  { id: 'nuit', label: 'Nuit', consigne: 'Turn the scene into night time with warm city lights and soft moonlight. Keep the person, pose, outfit and framing unchanged.' },
-  { id: 'peluche', label: 'Peluche', consigne: 'Turn the person into a cute soft plush toy with the same hair and outfit colours, visible fabric texture and stitching, sitting in the same place.' },
-  { id: 'figurine', label: 'Figurine', consigne: 'Turn the photo into a collectible 3D figurine of the same person and outfit, standing on a round base on a desk, with its toy packaging box beside it.' },
-  { id: 'bd', label: 'BD', consigne: 'Redraw the photo as a vibrant comic book panel with bold ink outlines, flat colours and halftone shading. Same person, pose and framing.' },
-  { id: 'argile', label: 'Pâte à modeler', consigne: 'Turn the whole scene into stop-motion clay animation style, plasticine textures and fingerprints. Same person, pose and framing.' },
-]
-
+/* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
 export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   asset: Asset
   list: Asset[]
@@ -223,6 +215,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
 
   /* « Ouvrir dans ComfyUI » (30/10) : le graphe exact du rendu en .json, et ses modèles avec leur licence */
   const [modeles, setModeles] = useState<{ fichier: string; licence: string | null }[] | null>(null)
+  const [voirLooks, setVoirLooks] = useState(false)
   const lancerLook = async (consigne: string) => {
     await s.retouchFrom(asset)
     s.setUserPrompt(consigne)
@@ -380,10 +373,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}>{t('🖌 Pinceau')}</button>
             {/* Looks en un clic (30/10) : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
-              {t('Look')}
-              {LOOKS.map(l => (
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => setVoirLooks(v => !v)}>{t('Look')} {voirLooks ? '▴' : `▾ ${LOOKS.length}`}</button>
+              {voirLooks && LOOKS.map(l => (
                 <button key={l.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={l.consigne}
-                  onClick={() => void lancerLook(l.consigne)}>{t(l.label)}</button>
+                  onClick={() => void lancerLook(l.consigne)}>{getLang() === 'en' ? l.en : l.label}</button>
               ))}
             </div>
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>

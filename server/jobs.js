@@ -1415,6 +1415,50 @@ export function enqueueCleanPlate({ source, cible, decor, parentAssetId, persona
   return { id, images }
 }
 
+/* Détourer (30/10) : SAM3 suit la personne, tout le reste passe sur fond vert uni, sans rien
+   redessiner. Sortie MP4 prête pour un incrustateur ; son d'origine gardé. CPU/GPU modestes. */
+export function enqueueDetour({ source, cible, parentAssetId, personaId }) {
+  const c = String(cible ?? '').trim().slice(0, 80) || 'person'
+  if (t0Hit(c)) throw new Error('texte refusé (liste T0)')
+  if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
+  const duree = videoDurationOf(path.join(CONFIG.mediaDir, source))
+  if (!duree) throw new Error('vidéo illisible')
+  const id = `detour-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'detour@v1', workflowFile: null,
+    seed: 1, op: 'detour', videoEngine: 'sam3_detour', reshootSource: source, reshootImages: Math.min(240, Math.floor(duree * 24)),
+    parentAssetId: parentAssetId ?? null, userPrompt: c, userDirectives: null, composedPositive: `green screen: ${c}`, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(15_000 + duree * 6_000),
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runDetour(job, t0) {
+  const src = path.join(CONFIG.mediaDir, job.reshootSource), d = videoSize(src)
+  const W = (d.width || 720) & ~1, H = (d.height || 1280) & ~1, N = job.reshootImages
+  let son = false
+  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* muet */ }
+  const g = {
+    src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 24, custom_width: 0, custom_height: 0, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
+    sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: job.userPrompt } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['src', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, conditioning: ['txt', 0] } },
+    m0: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
+    vert: { class_type: 'EmptyImage', inputs: { width: W, height: H, batch_size: N, color: 0x00d639 } },
+    comp: { class_type: 'ImageCompositeMasked', inputs: { destination: ['vert', 0], source: ['src', 0], x: 0, y: 0, resize_source: false, mask: ['m0', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['comp', 0], ...(son ? { audio: ['src', 2] } : {}), fps: 24 } },
+    save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/detour`, format: 'auto', codec: 'auto' } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [`détourage : SAM3 suit « ${job.userPrompt} », fond vert, ${N} images ${W}×${H}`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 /* Scène 3D d'un clip pour la vue Re-shoot : MoGe-2 sur la 1re image, maillage
    texturé (MoGePointMapToMesh) en GLB, à la même demi-taille que le warp — les
    angles posés à la souris tombent donc sur la géométrie que verra le nœud.
@@ -2225,6 +2269,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'inpaint_video') return await runInpaintVideo(job, t0)
     if (job.op === 'parole') return await runParole(job, t0)
     if (job.op === 'reshoot' || job.op === 'cleanplate') return await runReshoot(job, t0)
+    if (job.op === 'detour') return await runDetour(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)
       return await runUpscaleH3(job, t0)

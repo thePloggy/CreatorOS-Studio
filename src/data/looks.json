@@ -1,0 +1,170 @@
+[
+  {
+    "id": "or",
+    "label": "Heure dorée",
+    "en": "Golden hour",
+    "outil": "Relight",
+    "consigne": "Relight the photo to warm golden hour sunlight with long soft shadows. Keep the person, pose, outfit and framing unchanged."
+  },
+  {
+    "id": "nuit",
+    "label": "Nuit",
+    "en": "Night",
+    "outil": "VFX: relight",
+    "consigne": "Turn the scene into night time with warm city lights and soft moonlight. Keep the person, pose, outfit and framing unchanged."
+  },
+  {
+    "id": "coucher",
+    "label": "Couchant de feu",
+    "en": "Burning sunset",
+    "outil": "Burning Sunset",
+    "consigne": "Change the sky and light to a dramatic burning orange and crimson sunset. Keep the person, pose, outfit and framing unchanged."
+  },
+  {
+    "id": "etal",
+    "label": "Étalonnage ciné",
+    "en": "Film grade",
+    "outil": "Color Grading",
+    "consigne": "Apply a cinematic teal and orange colour grade with rich contrast and fine film grain. Do not change anything else in the image."
+  },
+  {
+    "id": "peau",
+    "label": "Peau soignée",
+    "en": "Skin retouch",
+    "outil": "Skin Enhancer",
+    "consigne": "Retouch the skin naturally: even tone, keep real pores and texture, reduce shine. Do not change the face shape, pose, outfit or background."
+  },
+  {
+    "id": "pro",
+    "label": "Portrait pro",
+    "en": "Pro headshot",
+    "outil": "AI Headshot Generator",
+    "consigne": "Turn this into a professional corporate headshot of the same adult woman: tailored dark blazer, clean soft grey studio backdrop, soft studio lighting, shoulders-up framing."
+  },
+  {
+    "id": "pub",
+    "label": "Visage de pub",
+    "en": "Beauty ad",
+    "outil": "Commercial Faces",
+    "consigne": "Turn this into a high-end beauty commercial close-up of the same adult woman: flawless studio light, clean coloured backdrop, sharp focus on the face."
+  },
+  {
+    "id": "peluche",
+    "label": "Peluche",
+    "en": "Plush toy",
+    "outil": "Plushies",
+    "consigne": "Turn the person into a cute soft plush toy with the same hair and outfit colours, visible fabric texture and stitching, sitting in the same place."
+  },
+  {
+    "id": "figurine",
+    "label": "Figurine",
+    "en": "Figurine",
+    "outil": "3D Figure",
+    "consigne": "Turn the photo into a collectible 3D figurine of the same person and outfit, standing on a round base on a desk, with its toy packaging box beside it."
+  },
+  {
+    "id": "mascotte",
+    "label": "Mascotte",
+    "en": "Mascot",
+    "outil": "Mascot",
+    "consigne": "Turn the person into a friendly round brand mascot character wearing the same outfit colours, clean 3D style, on a plain colour background."
+  },
+  {
+    "id": "pixel",
+    "label": "Pixel art",
+    "en": "Pixel game",
+    "outil": "Pixel Game",
+    "consigne": "Redraw the whole scene as 16-bit pixel art from a retro video game, limited palette, crisp visible pixels. Same composition."
+  },
+  {
+    "id": "briques",
+    "label": "Briques",
+    "en": "Brick toy",
+    "outil": "Brick Cube",
+    "consigne": "Rebuild the whole scene out of small plastic toy bricks, visible studs, same composition and colours."
+  },
+  {
+    "id": "sticker",
+    "label": "Sticker paillettes",
+    "en": "Glitter sticker",
+    "outil": "Glitter Sticker",
+    "consigne": "Turn the person into a die-cut glitter sticker with a thick white border, sparkling holographic texture, on a plain background."
+  },
+  {
+    "id": "bd",
+    "label": "BD",
+    "en": "Comic",
+    "outil": "Comic Book",
+    "consigne": "Redraw the photo as a vibrant comic book panel with bold ink outlines, flat colours and halftone shading. Same person, pose and framing."
+  },
+  {
+    "id": "argile",
+    "label": "Pâte à modeler",
+    "en": "Clay",
+    "outil": "Style transfer",
+    "consigne": "Turn the whole scene into stop-motion clay animation style, plasticine textures and fingerprints. Same person, pose and framing."
+  },
+  {
+    "id": "griffonnage",
+    "label": "Griffonnage fondant",
+    "en": "Melting doodle",
+    "outil": "Melting Doodle",
+    "consigne": "Turn the photo into a playful hand-drawn marker doodle with colours melting and dripping down the page, on white paper."
+  },
+  {
+    "id": "cafe60",
+    "label": "Café années 60",
+    "en": "60s café",
+    "outil": "60s Cafe",
+    "consigne": "Place the same adult woman in a 1960s Parisian café, period clothing, faded Kodachrome colours, soft film grain."
+  },
+  {
+    "id": "giallo",
+    "label": "Giallo",
+    "en": "Giallo horror",
+    "outil": "Giallo Horror",
+    "consigne": "Restyle the photo as a 1970s Italian giallo film still: saturated red and green gels, deep shadows, heavy film grain. Same person and framing."
+  },
+  {
+    "id": "affiche",
+    "label": "Affiche de film",
+    "en": "Movie poster",
+    "outil": "Poster",
+    "consigne": "Turn the photo into a cinematic movie poster with dramatic light, a bold title reading MIDNIGHT RAIN at the bottom and small credits."
+  },
+  {
+    "id": "panneau",
+    "label": "Panneau géant",
+    "en": "Billboard",
+    "outil": "Billboard Ad",
+    "consigne": "Show this exact photo printed on a giant billboard above a busy city avenue at dusk, seen from street level."
+  },
+  {
+    "id": "nuages",
+    "label": "Surf sur les nuages",
+    "en": "Cloud surf",
+    "outil": "Cloud Surf",
+    "consigne": "Show the same adult woman surfing on a board across a sea of white clouds high above the earth, bright sun, same outfit."
+  },
+  {
+    "id": "animaux",
+    "label": "Entourée d’animaux",
+    "en": "Among animals",
+    "outil": "Surrounded by Animals",
+    "consigne": "Surround the same adult woman with friendly wild animals: deer, foxes, rabbits and birds, in the same place and light."
+  },
+  {
+    "id": "tempete",
+    "label": "Créature de tempête",
+    "en": "Storm creature",
+    "outil": "Storm Creature",
+    "consigne": "Add a colossal creature made of storm clouds and lightning towering in the sky behind the person. Keep the person and foreground unchanged."
+  },
+  {
+    "id": "tenue",
+    "label": "Tenue de soirée",
+    "en": "Evening outfit",
+    "outil": "Outfit Swap",
+    "consigne": "Change only her outfit to an elegant long black evening dress with long sleeves and a high neckline. Keep her face, hair, pose and the background unchanged."
+  }
+]
