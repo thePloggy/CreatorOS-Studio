@@ -852,6 +852,16 @@ export function enqueue(job) {
    l'identifiant de l'envoi, que l'interface suit déjà. `motionPlans: false` sur le
    job garde le rendu d'un bloc. */
 export async function enqueueParPlans(job) {
+  /* Mix : départ choisi dans la vidéo source (30/10). Le Mix ne garde que 9,6 s : la source est
+     recoupée à ce départ avant le dépôt, le reste du chemin (plans, masque, tenue) ne change pas. */
+  const debut = Number(job?.mixDebut)
+  if (job?.motionMode === 'replace' && typeof job.motionDriver === 'string' && Number.isFinite(debut) && debut > 0) {
+    const nom = `crs_debut${Math.round(debut * 10)}_${path.basename(job.motionDriver)}`
+    await new Promise((ok, ko) => execFile('ffmpeg', ['-y', '-v', 'error', '-ss', String(debut), '-i', path.join(CONFIG.comfyInput, path.basename(job.motionDriver)),
+      '-c:v', 'libx264', '-crf', '16', '-preset', 'veryfast', '-c:a', 'aac', path.join(CONFIG.comfyInput, nom)], e => e ? ko(e) : ok()))
+    store.noterInput(nom, store.origineInput(path.basename(job.motionDriver)) ?? 'inconnu')
+    job = { ...job, motionDriver: nom }
+  }
   const driver = typeof job?.motionDriver === 'string' ? job.motionDriver.trim() : ''
   const concerne = (job?.mode ?? 'photo') === 'video' && driver
     && !job.motionPlan && job.motionPlans !== false
@@ -2208,6 +2218,10 @@ function grapheMix(job, motion, applied, skipped) {
   mg['63'].inputs.video = job.motionDriver
   mg['57'].inputs.image = motion.refName
   mg['65'].inputs.positive_prompt = job.motionSceneText || (job.composedPositive || '').trim()
+  /* Verrou SFW du Mix (30/10) : sans consigne de tenue, un driver en maillot a rendu un corps
+     dévêtu. Chaque Mix dit que le personnage reste habillé et refuse la nudité. Ne pas retirer. */
+  mg['65'].inputs.positive_prompt = `${mg['65'].inputs.positive_prompt}, an adult woman, fully clothed, same outfit coverage on every frame`.replace(/^, /, '')
+  mg['65'].inputs.negative_prompt = `${mg['65'].inputs.negative_prompt ?? ''}, nude, naked, nudity, topless, bottomless, bare breasts, bare crotch, genitals`.replace(/^, /, '')
     || 'a young woman, photorealistic, natural skin, cinematic'
   mg['27'].inputs.seed = job.seed
   mg['998'].inputs.filename_prefix = `creatoros/${job.id}/out`
@@ -2266,9 +2280,11 @@ async function runJob(job, isRetry = false, connRetried = false) {
   try {
     if (job.op === 'photo_hd') return await runPhotoHd(job, t0)
     if (job.op === 'inpaint') return await runInpaint(job, t0)
-    if (job.op === 'inpaint_video') return await runInpaintVideo(job, t0)
-    if (job.op === 'parole') return await runParole(job, t0)
-    if (job.op === 'reshoot' || job.op === 'cleanplate') return await runReshoot(job, t0)
+    // ces clips sont contrôlés aussi (30/10), sans relance : ils ne se rejouent pas comme un clip ordinaire
+    const controler = n => { void controlerJob(job, null).catch(e => console.warn(`[contrôle] ${String(e.message || e).slice(0, 200)}`)); return n }
+    if (job.op === 'inpaint_video') return controler(await runInpaintVideo(job, t0))
+    if (job.op === 'parole') return controler(await runParole(job, t0))
+    if (job.op === 'reshoot' || job.op === 'cleanplate') return controler(await runReshoot(job, t0))
     if (job.op === 'detour') return await runDetour(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)

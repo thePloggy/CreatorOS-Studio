@@ -329,7 +329,7 @@ const defaultVideo: VideoSelections = {
   motionDriverFile: '', motionDriverError: '', motionPreview: false, motionDriverSeconds: 0, motionDriverFrames: 0,
   extendSource: 'upload', extendVideoFile: '', extendAssetId: null, extendVideoUri: '', extendError: '', extendPick: 'last', extendWarn: '', extendConcat: false,
   motionStillFile: '', motionStillUri: '', motionStillError: '', motionStillAssetId: null,
-  motionSceneText: '', motionPoseStrength: 1, motionRefStrength: 1, motionMode: 'animate',
+  motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, motionRefStrength: 1, motionMode: 'animate',
   multiShot: false, draft: false, videoLoras: [],
   motionOutFps: 'origine', motionOutRes: 'origine',
   motionText: 'respiration douce, léger mouvement des cheveux, sourire vers l’objectif',
@@ -1421,6 +1421,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           motionPreview: s.video.motionPreview,
           motionSceneText: s.video.motionSceneText || undefined,
           motionPoseStrength: s.video.motionPoseStrength,
+          mixDebut: s.video.mixDebut,
           motionRefStrength: s.video.motionRefStrength,
         } : s.mode === 'video' && s.video.task === 't2v' ? {
           /* Plan d'ambiance : seul LTX-2.5 part du texte. Pas de still, pas de

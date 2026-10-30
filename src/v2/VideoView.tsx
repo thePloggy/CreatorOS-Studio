@@ -283,6 +283,12 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               {v.motionDriverSeconds > 9.6
                 ? t('Ta vidéo dure {s} s : le Mix n’en garde que les 9,6 premières secondes.', { s: v.motionDriverSeconds.toFixed(1).replace('.', getLang() === 'fr' ? ',' : '.') })
                 : t('Mix : 9,6 s de vidéo au plus, au-delà la fin est coupée.')}
+              {v.motionDriverSeconds > 9.6 && (
+                <label className="flex items-center gap-2 mt-1" style={{ color: 'var(--muted)' }}>
+                  {t('Commencer à {s} s', { s: v.mixDebut.toFixed(1) })}
+                  <input type="range" min={0} max={Math.max(0, v.motionDriverSeconds - 3)} step={0.5} value={v.mixDebut} onChange={e => s.updateVideo({ mixDebut: Number(e.target.value) })} style={{ flex: 1 }} />
+                </label>
+              )}
             </div>
           )}
           {(v.motionDriverError || v.motionStillError) && (

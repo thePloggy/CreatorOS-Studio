@@ -236,6 +236,8 @@ export interface VideoSelections {
   motionSceneText: string
   /** pose_strength du nœud (0,5–1,5) : adhérence au geste du driver. */
   motionPoseStrength: number
+  /** Mix : seconde de la vidéo source où commencer (le Mix en garde 9,6 s). */
+  mixDebut: number
   /** reference_image_strength (0,5–1) : poids de la still. La baisser
    *  relâche le contexte figé — le prompt peut alors l'animer. */
   motionRefStrength: number
@@ -436,6 +438,7 @@ export interface Job {
   motionPreview?: boolean
   motionSceneText?: string
   motionPoseStrength?: number
+  mixDebut?: number
   motionRefStrength?: number
   motionMode?: 'animate' | 'replace'
   /** Clips de plus de 81 images : enchaînés par morceaux (défaut) ou fenêtres de contexte (ancienne voie). */

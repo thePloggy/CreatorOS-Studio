@@ -262,6 +262,7 @@ export const partage: Record<string, string> = {
   '{n} prompts': '{n} prompts',
   'Plusieurs prompts': 'Multi-prompt',
   'Utiliser dans': 'Use in',
+  'Commencer à {s} s': 'Start at {s} s',
   'Refaire ce plan': 'Redo this shot',
   'Plan {n} : le mouvement à refaire, les autres plans ne bougent pas': 'Shot {n}: the motion to redo, the other shots stay as they are',
   'Fond vert': 'Green screen',
