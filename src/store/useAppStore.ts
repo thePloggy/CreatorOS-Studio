@@ -1376,7 +1376,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         width: s.mode === 'photo' ? s.photoSize?.w : undefined,
         height: s.mode === 'photo' ? s.photoSize?.h : undefined,
         createdAt: Date.now(),
-        personaId: 'default',
+        // une retouche reste rangée sous le personnage de sa photo, pas sous le personnage actif
+        personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || 'default',
         ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine } : {}),
         register,
         mode: s.mode,
