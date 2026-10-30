@@ -262,6 +262,8 @@ export const partage: Record<string, string> = {
   '{n} prompts': '{n} prompts',
   'Plusieurs prompts': 'Multi-prompt',
   'Utiliser dans': 'Use in',
+  'Refaire ce plan': 'Redo this shot',
+  'Plan {n} : le mouvement à refaire, les autres plans ne bougent pas': 'Shot {n}: the motion to redo, the other shots stay as they are',
   'Fond vert': 'Green screen',
   'La personne est suivie image par image et tout le reste passe sur fond vert, prêt pour un montage. Rien n’est redessiné.': 'The person is tracked frame by frame and everything else turns green screen, ready to composite. Nothing is redrawn.',
   'Angle': 'Angle',

@@ -2102,6 +2102,9 @@ const reelOut = r => r && {
 }
 app.get('/api/reels', async req => ({ reels: reel.listerReels(personaDe(req)).map(reelOut) }))
 app.get('/api/reels/:id', async (req, reply) => reelOut(reel.lireReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
+app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
+  try { return reelOut(reel.refairePlan(req.params.id, req.params.k, req.body?.motion)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 app.delete('/api/reels/:id', async (req, reply) => reel.supprimerReel(req.params.id) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels', async (req, reply) => {
   try { return reelOut(reel.realiser({ ...(req.body ?? {}), cle: cleComfy(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }

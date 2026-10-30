@@ -103,6 +103,18 @@ const ETAPES: Reel['etat'][] = ['redaction', 'photos', 'clips', 'export', 'fini'
 const NOM_ETAPE: Record<string, string> = { redaction: 'Rédaction', photos: 'Photos', clips: 'Clips', export: 'Montage', fini: 'Prêt' }
 
 function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: string) => void; onRetirer: () => void }) {
+  // refaire un seul plan (30/10) : sa photo reste, son clip est rendu à nouveau, le reel est remonté
+  const [planRefait, setPlanRefait] = useState<number | null>(null)
+  const [geste, setGeste] = useState('')
+  const [errPlan, setErrPlan] = useState<string | null>(null)
+  const refaire = async () => {
+    if (planRefait === null) return
+    setErrPlan(null)
+    try {
+      await json(await fetch(`/api/reels/${encodeURIComponent(r.id)}/plans/${planRefait}/refaire`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motion: geste }) }))
+      setPlanRefait(null)
+    } catch (e) { setErrPlan(String((e as Error).message)) }
+  }
   const idx = r.etat === 'echec' ? -1 : ETAPES.indexOf(r.etat)
   const photos = r.plans.filter(p => p.photoUri).length, clips = r.plans.filter(p => p.clipUri).length
   const detail = (e: Reel['etat']) => e === 'photos' ? ` ${photos}/${r.plans.length || r.n}` : e === 'clips' ? ` ${clips}/${r.plans.length || r.n}` : ''
@@ -131,9 +143,23 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
               {/* contrôle du plan avant le rendu : ce que la réécriture n'a pas su corriger */}
               {p?.avertissements?.length ? <span title={p.avertissements.map(x => t(x)).join(' · ')}
                 style={{ position: 'absolute', right: 4, top: 4, fontSize: 10, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,182,72,.9)', color: '#111' }}>⚠</span> : null}
+              {p && (r.etat === 'fini' || r.etat === 'echec') && <button title={t('Refaire ce plan')} onClick={() => { setPlanRefait(i); setGeste(p.motion) }}
+                style={{ position: 'absolute', left: 4, top: 4, fontSize: 11, width: 22, height: 22, border: 0, borderRadius: 6, cursor: 'pointer', color: '#fff', background: 'rgba(0,0,0,.65)' }}>↻</button>}
             </div>
           ))}
         </div>
+        {planRefait !== null && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Plan {n} : le mouvement à refaire, les autres plans ne bougent pas', { n: planRefait + 1 })}</span>
+            <textarea value={geste} maxLength={300} rows={2} onChange={e => setGeste(e.target.value)}
+              style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />
+            <div className="flex gap-2 items-center">
+              <button className="pill tool" onClick={() => void refaire()}>↻ {t('Refaire ce plan')}</button>
+              <button className="pill tool" onClick={() => setPlanRefait(null)}>{t('Annuler')}</button>
+              {errPlan && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{errPlan}</span>}
+            </div>
+          </div>
+        )}
         <div className="flex gap-2">
           {r.montageId && <button className="pill tool" onClick={() => goMontage(r.montageId!)}>{t('Ouvrir dans le Montage')}</button>}
           {(r.etat === 'fini' || r.etat === 'echec') && <button className="pill tool" title={t('Les photos et clips restent dans la bibliothèque')} onClick={onRetirer}>✕ {t('Retirer de la liste')}</button>}

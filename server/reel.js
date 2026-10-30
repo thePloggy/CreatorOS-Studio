@@ -211,7 +211,7 @@ function avancer(r) {
           const a = premierAsset(pl.photoJob)
           if (!a) { rates++; continue }
           pl.photoAsset = a.id
-          const j = enqueue(r.id, { id: `${r.id}-c${r.plans.indexOf(pl) + 1}`, mode: 'video', register: 'sfw', personaId: r.personaId, purpose: 'creative', videoEngine: 'ltx_hq', withAudio: true,
+          const j = enqueue(r.id, { id: `${r.id}-c${r.plans.indexOf(pl) + 1}${pl.refait ? `-r${pl.refait}` : ''}`, mode: 'video', register: 'sfw', personaId: r.personaId, purpose: 'creative', videoEngine: 'ltx_hq', withAudio: true,
             sourceImage: versInput(a), composedPositive: `${pl.motion}. single continuous shot, no cuts`, userPrompt: pl.motion, composedNegative: '',
             videoSeconds: r.duree, videoFps: 24, videoAspect: '9:16', reelId: r.id })
           pl.clipJob = j.id; change = true
@@ -258,6 +258,23 @@ export function demarrerSuivi() {
       try { avancer(lireReel(row.id)) } catch (e) { console.warn(`[reel ${row.id}] suivi : ${e.message || e}`) }
     }
   }, 4000).unref()
+}
+
+/** Refait un seul plan d'un reel fini (30/10) : sa photo est gardée, son clip est rendu à nouveau
+ *  (avec un nouveau mouvement si on en donne un), puis le reel est remonté. Les autres clips ne bougent pas. */
+export function refairePlan(id, k, motion) {
+  const r = lireReel(id)
+  if (!r) throw new Error('reel inconnu')
+  if (r.etat !== 'fini' && r.etat !== 'echec') throw new Error('attends la fin du reel pour refaire un plan')
+  const pl = r.plans?.[Number(k)]
+  if (!pl?.photoJob) throw new Error('plan inconnu')
+  const m = String(motion ?? '').trim().slice(0, 300)
+  if (m && t0Hit(m)) throw new Error('mouvement refusé (liste T0)')
+  if (m) pl.motion = m
+  pl.refait = (pl.refait ?? 0) + 1
+  pl.clipJob = null; pl.clipAsset = null
+  ecrire(id, 'clips', { plans: r.plans, reelAsset: null, exportJob: null, erreur: null })
+  return lireReel(id)
 }
 
 /** Retire un reel de la liste (ses photos, clips et montage restent dans la bibliothèque). */
