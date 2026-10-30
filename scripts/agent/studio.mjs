@@ -20,7 +20,7 @@ const ATTENDRE = flag('wait') || !!opt('out')
 
 const AIDE = `CreatorOS Studio command line — talks to a running studio (npm start).
 
-  npm run studio -- photo "<prompt>" [--character id] [--size 768x1344] [--wait] [--out dir]
+  npm run studio -- photo "<prompt>" [--character id] [--engine krea|klein|moss] [--size 768x1344] [--wait] [--out dir]
   npm run studio -- video <libraryId> "<motion>" [--engine ltx_hq|wan] [--seconds 5] [--no-audio] [--wait] [--out dir]
   npm run studio -- reel "<brief>" [--shots 4] [--lang en|fr] [--wait] [--out dir]
   npm run studio -- status <jobId|reelId>
@@ -68,7 +68,7 @@ async function principal() {
   switch (cmd) {
     case 'photo': {
       const [l, h] = (opt('size') ?? '768x1344').split('x').map(Number)
-      const { jobId } = await s.photo({ prompt: args.join(' '), persona: opt('character'), largeur: l, hauteur: h })
+      const { jobId } = await s.photo({ prompt: args.join(' '), persona: opt('character'), largeur: l, hauteur: h, moteur: opt('engine') })
       return finirJob(jobId)
     }
     case 'video': {

@@ -157,6 +157,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               <button className={`spill ${s.photoEngine === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}
                 disabled={!kleinOk} style={kleinOk ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}
                 title={t("FLUX.2 Klein 9B — l'ancienne recette ; les LoRA d'identité entraînées sur Krea n'y agissent pas")}>FLUX.2 Klein</button>
+              <button className={`spill ${s.photoEngine === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')}
+                title={t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
               {s.photoEngine === 'klein' && !kleinOk && (
                 <span className="text-[10px]" style={{ color: 'var(--warn, #e0a84a)' }}>{t('{nom} n’a pas de LoRA Klein : son visage ne sera pas tenu', { nom: s.personaName })}</span>
               )}

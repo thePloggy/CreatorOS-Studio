@@ -20,7 +20,7 @@ CreatorOS Studio is the public, general-audience edition of a production tool us
 - **Re-shoot**: pick a clip, pick an angle (left, right, three-quarter, high, low, or a sweep, descend or orbit move) and get the same moment filmed by a second camera, with the original sound. MoGe-2 reads the clip's geometry, the CrossViewWarp node reprojects it into the new view, and LTX-2.5 with the CrossView-Warp IC-LoRA fills in what the first camera never saw.
 - **Talking avatar**: one photo plus a voice (an audio file or the microphone, up to 20 s); the character speaks with lips in sync (InfiniteTalk on Wan 2.1, chained block by block to the length of the audio). Or just type the line: LTX-2.5 makes the voice and the lip movement in a single 4 to 8 s render, no audio file needed (works best on a close shot).
 - **Editor**: put library clips and photos on a timeline, trim them with the mouse, crop each shot, add cuts, crossfades or fades to black, text per shot and music, with a global timeline and a playhead. Between two shots, a **generated transition**: Wan 2.2 draws a continuous passage from the last frame of one shot to the first frame of the next, and the clip is inserted between them. Export renders on the CPU with ffmpeg as a library asset.
-- **Photo**: text-to-image with Krea 2 (FLUX.2 Klein 9B optional). A local LLM (Ollama) rewrites the prompt first.
+- **Photo**: text-to-image with Krea 2 (FLUX.2 Klein 9B and MOSS Image optional). A local LLM (Ollama) rewrites the prompt first.
 - **Angles and looks on a photo**: one click shows the same photo from another camera position (¾ left or right, profile, from behind, high or low angle, wide, close-up) with the fal Multiple-Angles LoRA on Qwen-Image-Edit-2511, or turns it into one of 24 one-click looks (golden hour, night, burning sunset, film grade, skin retouch, pro headshot, beauty ad, plush toy, figurine, mascot, toy bricks, glitter sticker, comic, pixel art, clay, melting doodle, 60s café, giallo, movie poster, billboard, cloud surf, among animals, storm creature, evening outfit).
 - **Carousels**: from one anchor photo, the app plans a coherent set of shots (same character, same light, varied framing) and renders them as a batch.
 - **Image-to-video**: Wan 2.2 I2V A14B or LTX-2.5 22B (with audio). Each engine has a quick low-resolution draft mode.
@@ -84,6 +84,7 @@ Each recipe names its model files. Open the JSON to see exactly what it loads. T
 |---|---|
 | `PROD_gen_krea_sfw.json` | Krea 2 turbo, Qwen3-VL 4B text encoder, Qwen-Image VAE |
 | `PROD_gen_sfw.json` | FLUX.2 Klein 9B, Qwen3 8B text encoder, FLUX.2 VAE |
+| `PROD_gen_moss_sfw.json` | MOSS Image SFT (int8), Qwen3.5 9B text encoder, FLUX.2 VAE. Apache-2.0, no identity LoRA, needs a ComfyUI from late October 2026 or newer |
 | `PROD_edit.json` | Qwen-Image-Edit 2511, Qwen2.5-VL 7B, Qwen-Image VAE |
 | `PROD_video_wan*.json` | Wan 2.2 I2V 14B high/low noise, UMT5-XXL, Wan 2.1 VAE, lightx2v 4-step LoRAs |
 | `PROD_video_wan_t2v.json` | Wan 2.2 T2V 14B high noise (fp8) and low noise (GGUF Q8), UMT5-XXL, Wan 2.1 VAE, lightx2v T2V LoRA |

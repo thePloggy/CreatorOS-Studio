@@ -147,7 +147,7 @@ export type VideoTask = 'i2v' | 'extend' | 'motion_pure' | 't2v'
 /** Moteurs i2v câblés. Le choix est MANUEL : aucun ne domine les autres,
  *  ils perdent sur des axes différents (cf. server/jobs.js VIDEO_ENGINES). */
 /** Recettes photo de l'édition : Krea 2 (défaut) ou FLUX.2 Klein 9B. */
-export type PhotoEngine = 'krea' | 'klein'
+export type PhotoEngine = 'krea' | 'klein' | 'moss'
 
 /** Crédit d'un personnage : l'auteur de sa LoRA, sa page, la licence. */
 export interface PersonaCredit { auteur: string; url: string; licence: string }

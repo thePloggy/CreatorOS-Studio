@@ -52,6 +52,9 @@
     "controle": {
       "label": "Automatic clip check: face match (OpenCV YuNet + SFace, ~39 MB, CPU)",
       "defaut": true
+    },
+    "photo_moss": {
+      "label": "Photo: MOSS Image (optional engine, needs a recent ComfyUI, no identity LoRA)"
     }
   },
   "noeuds": [
@@ -286,11 +289,13 @@
       "licence": "see repo (Comfy-Org/flux2-dev)",
       "groupes": [
         "photo_klein",
-        "photo_hd"
+        "photo_hd",
+        "photo_moss"
       ],
       "recettes": [
         "PROD_gen_sfw.json",
-        "PROD_photo_hd.json"
+        "PROD_photo_hd.json",
+        "PROD_gen_moss_sfw.json"
       ],
       "verifie": true
     },
@@ -1230,6 +1235,34 @@
         "retouche"
       ],
       "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "moss_image_sft_int8_convrot.safetensors",
+      "dossier": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors",
+      "taille": 5413698958,
+      "licence": "Apache-2.0",
+      "groupes": [
+        "photo_moss"
+      ],
+      "recettes": [
+        "PROD_gen_moss_sfw.json"
+      ],
+      "verifie": true
+    },
+    {
+      "chemin": "qwen3.5_9b_w4a8_gptq.safetensors",
+      "dossier": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_w4a8_gptq.safetensors",
+      "taille": 7343591088,
+      "licence": "Apache-2.0",
+      "groupes": [
+        "photo_moss"
+      ],
+      "recettes": [
+        "PROD_gen_moss_sfw.json"
+      ],
       "verifie": true
     }
   ],

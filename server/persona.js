@@ -131,7 +131,7 @@ function garderobeDe(g) {
 }
 
 /** LoRA d'identité photo d'un personnage pour un moteur photo donné. */
-export const lorasPhoto = (p, moteur) => (moteur === 'klein' ? p.lorasKlein : p.loras)
+export const lorasPhoto = (p, moteur) => (moteur === 'moss' ? [] : moteur === 'klein' ? p.lorasKlein : p.loras)
 
 function idActif(d) {
   return d.personas.some(p => p.id === d.active) ? d.active : d.personas[0]?.id ?? null

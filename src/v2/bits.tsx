@@ -391,7 +391,7 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
 }
 
 /* ---------- badges des vignettes : moteur, brouillon, son, texte, finition ---------- */
-const MOTEUR_COURT: Record<string, string> = { wan: 'Wan', ltx_hq: 'LTX', minimax: 'MiniMax', motion: 'Motion', krea: 'Krea', klein: 'Klein' }
+const MOTEUR_COURT: Record<string, string> = { wan: 'Wan', ltx_hq: 'LTX', minimax: 'MiniMax', motion: 'Motion', moss: 'MOSS', krea: 'Krea', klein: 'Klein' }
 const FINITION: Record<string, string> = { foley: 'bruitage', interpolate: 'fluide', upscale: 'upscale', photo_hd: 'HD' }
 export function badgesOf(a: Asset): { cle: string; txt: string; cls?: string }[] {
   const out: { cle: string; txt: string; cls?: string }[] = []
