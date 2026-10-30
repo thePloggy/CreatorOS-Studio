@@ -18,6 +18,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import readline from 'node:readline/promises'
 import {
   vert, rouge, jaune, gris, gras, titre, ok, ko, alerte, info, octets, tilde, deplier,
@@ -59,7 +60,7 @@ const OUI = drapeau('--yes', '-y')
 
 /* La config du serveur donne les mêmes valeurs par défaut que `npm start`
    (dossier de données, modèles Ollama, URL) : une seule source. */
-const { CONFIG } = await import(path.join(REPO, 'server', 'config.js'))
+const { CONFIG } = await import(pathToFileURL(path.join(REPO, 'server', 'config.js')).href)
 
 /* ---------- questions ---------- */
 
