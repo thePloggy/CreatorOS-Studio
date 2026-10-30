@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
+import QRCode from 'qrcode'
 import { installerVisites } from './visites.js'
 import { CONFIG } from './config.js'
 import { fetchOllama, blocOllama, etat as etatGpu } from './gpu.js'
@@ -48,6 +49,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -612,7 +614,9 @@ function imageSize(buf) {
   return { width: null, height: null }
 }
 
-app.post('/api/upload', async (req, reply) => {
+app.post('/api/upload', async (req, reply) => enregistrerEnvoi(req, reply))
+
+function enregistrerEnvoi(req, reply) {
   const ext = UPLOAD_TYPES[String(req.headers['content-type']).split(';')[0]]
   if (!ext) { reply.code(415); return { error: 'type non accepté (png, jpeg, webp, mp4, mov, webm)' } }
   const buf = req.body
@@ -634,6 +638,45 @@ app.post('/api/upload', async (req, reply) => {
   const video = ext.startsWith('.m') || ext === '.webm' ? driverMeta(filename) : null
   app.log.info(`upload → ${filename} (${(buf.length / 1e6).toFixed(1)} Mo, ${width}x${height}${video ? `, ${video.seconds.toFixed(1)} s / ${video.frames} images` : ''})`)
   return { filename, bytes: buf.length, width, height, ...(video ? { durationS: video.seconds, frames: video.frames, fps: video.fps } : {}) }
+}
+
+/* Filmer un geste au téléphone (30/10) : le propriétaire ouvre un QR code, le téléphone envoie
+   la vidéo vers Motion. Le jeton remplace la clé propriétaire pour UN envoi vidéo, 10 min ; seul
+   le propriétaire peut en créer. Le fichier reste un « upload » : un visiteur ne peut pas s'en servir. */
+const jetonsTelephone = new Map()
+const JETON_MS = 10 * 60 * 1000
+const jetonValide = j => { const e = jetonsTelephone.get(String(j)); return e && e.fin > Date.now() ? e : null }
+
+app.post('/api/telephone', async req => {
+  for (const [j, e] of jetonsTelephone) if (e.fin <= Date.now()) jetonsTelephone.delete(j)
+  const jeton = crypto.randomBytes(24).toString('base64url')
+  jetonsTelephone.set(jeton, { fin: Date.now() + JETON_MS, envoi: null })
+  const hote = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim()
+  const proto = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0].trim()
+  const url = `${proto}://${hote}/telephone/${jeton}`
+  return { jeton, url, svg: await QRCode.toString(url, { type: 'svg', margin: 1 }), local: /^(localhost|127\.|\[::1\])/.test(hote) }
+})
+app.get('/api/telephone/:jeton/etat', async (req, reply) => {
+  const e = jetonsTelephone.get(req.params.jeton)
+  if (!e) { reply.code(404); return { error: 'lien expiré' } }
+  return { envoi: e.envoi, expire: e.fin <= Date.now() }
+})
+app.post('/api/telephone/:jeton', async (req, reply) => {
+  const e = jetonValide(req.params.jeton)
+  if (!e || e.envoi) { reply.code(403); return { error: 'lien expiré ou déjà utilisé' } }
+  if (!String(req.headers['content-type']).startsWith('video/')) { reply.code(415); return { error: 'vidéo seulement' } }
+  const r = enregistrerEnvoi(req, reply)
+  if (r?.filename) e.envoi = r
+  return r
+})
+app.get('/telephone/:jeton', async (req, reply) => {
+  reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-store').header('Referrer-Policy', 'no-referrer')
+  if (!jetonValide(req.params.jeton)) { reply.code(403); return '<!doctype html><meta name=viewport content="width=device-width"><body style="font:16px system-ui;padding:24px">Link expired. Open a new QR code in the studio.' }
+  return `<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Send a move</title>
+<style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#08090b;color:#f2f1ed;font:17px system-ui;padding:24px;box-sizing:border-box;text-align:center}label{background:linear-gradient(120deg,#ff655b,#f24d8a);color:#fff;font-weight:700;padding:18px 30px;border-radius:14px}input{display:none}p{color:#a9abb2;margin:0}</style>
+<h2 style=margin:0>CreatorOS Studio</h2><label>Film a move<input id=f type=file accept=video/* capture=environment></label><p id=m>3 to 30 s, 48 MB at most.</p>
+<script>const m=document.getElementById('m');document.getElementById('f').onchange=async e=>{const v=e.target.files[0];if(!v)return;if(v.size>48*1024*1024){m.textContent='Video over 48 MB: film a shorter one.';return}
+m.textContent='Sending…';try{const r=await fetch(location.pathname.replace('/telephone/','/api/telephone/'),{method:'POST',headers:{'Content-Type':v.type||'video/mp4'},body:v});const d=await r.json();m.textContent=r.ok?'Sent. It is in the studio.':d.error||'Failed.'}catch{m.textContent='Connection lost, try again.'}}</script></html>`
 })
 
 /* ---------- persona ----------
@@ -1865,10 +1908,44 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
       return { jobId: id }
     }
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({
-      sourceFile: inputName, maskFile: maskName, parentAssetId: a.id, prompt, strength: Number(req.body?.strength),
+      sourceFile: inputName, maskFile: maskName, parentAssetId: a.id, prompt, strength: Number(req.body?.strength), personaId: personaDuRendu(a),
     }))
     return { jobId: id }
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
+/** Le personnage d'un rendu : celui de son job, pas le personnage actif du moment. */
+const personaDuRendu = a => { const j = a.job_id ? store.getJob(a.job_id) : null; return a.persona_id ?? j?.persona_id ?? j?.personaId ?? undefined }
+
+/* Agrandir une photo (30/10) : le cadre s'élargit au format demandé, l'image reste au centre et le
+   pinceau redessine les bords (masque blanc, 24 px de recouvrement pour fondre la couture). */
+const FORMATS_AGRANDIR = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5, '+30%': null }
+app.post('/api/assets/:id/agrandir', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier image introuvable' } }
+  const format = String(req.body?.format ?? '')
+  if (!(format in FORMATS_AGRANDIR)) { reply.code(400); return { error: 'format inconnu' } }
+  const { width: w, height: h } = imageSize(fs.readFileSync(src))
+  if (!w || !h) { reply.code(400); return { error: 'image illisible' } }
+  const r = FORMATS_AGRANDIR[format]
+  const pair = n => Math.round(n / 16) * 16
+  let W = r === null ? w * 1.3 : Math.max(w, h * r), H = r === null ? h * 1.3 : Math.max(h, w / r)
+  if (r !== null && (W - w < 32 && H - h < 32)) { reply.code(400); return { error: 'la photo est déjà à ce format' } }
+  const k = Math.min(1, 1600 / Math.max(W, H))          // côté long borné : au-delà la recette sature
+  const iw = pair(w * k), ih = pair(h * k); W = Math.max(pair(W * k), iw); H = Math.max(pair(H * k), ih)
+  const cle = Date.now().toString(36)
+  const entree = `AGR_${cle}.png`, masque = `AGR_${cle}_masque.png`, x = Math.floor((W - iw) / 2), y = Math.floor((H - ih) / 2)
+  const e = [24, 24, 24, 24].map((m, i) => ((i < 2 ? (i ? H > ih : W > iw) : (i === 2 ? W > iw : H > ih)) ? m : 0))
+  const ff = args => execFileSync('ffmpeg', ['-loglevel', 'error', '-y', ...args], { timeout: 30_000 })
+  try {
+    ff(['-i', src, '-filter_complex', `color=0x808080:s=${W}x${H}[f];[0:v]scale=${iw}:${ih}[i];[f][i]overlay=${x}:${y},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, entree)])
+    ff(['-f', 'lavfi', '-i', `color=white:s=${W}x${H}`, '-f', 'lavfi', '-i', `color=black:s=${iw - e[0] - e[2]}x${ih - e[1] - e[3]}`, '-filter_complex', `[0][1]overlay=${x + e[0]}:${y + e[1]},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
+    const consigne = String(req.body?.prompt ?? '').trim() || 'Outpaint: replace the flat grey margins by extending the scene seamlessly, same place, same light, same style, photorealistic. Do not add any person. Keep the center unchanged.'
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({ sourceFile: entree, maskFile: masque, parentAssetId: a.id, prompt: consigne, strength: 1, personaId: personaDuRendu(a), agrandir: true }))
+    return { jobId: id, largeur: W, hauteur: H }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
 /** Édition vidéo au prompt : `cible` = l'élément à modifier, nommé en anglais (SAM3 le

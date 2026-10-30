@@ -1058,12 +1058,12 @@ async function runUpscaleH3(job, t0) {
    remplacée par l'image source encodée, masquée, puis le résultat est recomposé sur
    la source. */
 const INPAINT_DENOISE = 0.9   // 0,75-0,8 gardait la couleur d'origine (banc du 14/10)
-export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, strength }) {
+export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, strength, personaId, agrandir }) {
   if (t0Hit(String(prompt ?? ''))) throw new Error('prompt refusé (liste T0)')
   const id = `inp-${Date.now().toString(36)}`
   const row = {
-    id, createdAt: Date.now(), status: 'queued', personaId: persona().id, register: 'sfw',
-    mode: 'photo', purpose: 'creative', recipeId: 'inpaint@v1', workflowFile: RECIPES.sfw,
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: agrandir ? 'agrandir@v1' : 'inpaint@v1', workflowFile: agrandir ? EDIT_WORKFLOW : RECIPES.sfw,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'inpaint',
     sourceImage: sourceFile, inpaintMask: maskFile,
     inpaintDenoise: Number.isFinite(strength) ? Math.min(1, Math.max(0.3, strength)) : INPAINT_DENOISE,
@@ -1082,7 +1082,36 @@ export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, st
   return { id }
 }
 
+/* Agrandir (30/10) : Qwen Edit voit toute l'image élargie et ne redessine que les marges grises ;
+   la photo d'origine est recollée telle quelle. Sans LoRA ni préambule : le personnage est déjà dans l'image. */
+function grapheAgrandir(job) {
+  const g = comfy.loadWorkflow(job.workflowFile)
+  g['10'].inputs.image = job.sourceImage
+  delete g['12']
+  for (const n of ['30', '31']) for (const [k, v] of Object.entries(g[n].inputs)) if (Array.isArray(v) && v[0] === '12') g[n].inputs[k] = ['10', 0]
+  g['32'].inputs.pixels = ['10', 0]
+  g['30'].inputs.prompt = job.composedPositive
+  g.agr_peint = { class_type: 'LoadImage', inputs: { image: job.inpaintMask } }
+  g.agr_masque = { class_type: 'ImageToMask', inputs: { image: ['agr_peint', 0], channel: 'red' } }
+  g.agr_bord = { class_type: 'GrowMaskWithBlur', inputs: { mask: ['agr_masque', 0], expand: 0, incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 14, lerp_alpha: 1, decay_factor: 1, fill_holes: false } }
+  g.agr_lat = { class_type: 'SetLatentNoiseMask', inputs: { samples: ['32', 0], mask: ['agr_masque', 0] } }
+  Object.assign(g['40'].inputs, { latent_image: ['agr_lat', 0], seed: Number(job.seed) || 42, denoise: 1 })
+  g.agr_colle = { class_type: 'ImageCompositeMasked', inputs: { destination: ['10', 0], source: ['41', 0], x: 0, y: 0, resize_source: false, mask: ['agr_bord', 0] } }
+  Object.assign(g['90'].inputs, { images: ['agr_colle', 0], filename_prefix: `creatoros/${job.id}/agrandir` })
+  return g
+}
+
 async function runInpaint(job, t0) {
+  if (job.recipeId === 'agrandir@v1') {
+    const g = grapheAgrandir(job)
+    const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+    current = { jobId: job.id, promptId }
+    store.markStarted(job.id, promptId)
+    const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+    const n = await harvestJob(job, promptId, history, { applied: ['agrandir : Qwen-Image-Edit 2511, marges redessinées, photo d’origine recollée'], skipped: [], finalWorkflow: g })
+    store.markFinished(job.id, Date.now() - t0)
+    return n
+  }
   const g = comfy.loadWorkflow(job.workflowFile)
   const un = classe => Object.keys(g).filter(k => g[k].class_type === classe)
   const [ks] = un('KSampler'), [dec] = un('VAEDecode'), saves = un('SaveImage')

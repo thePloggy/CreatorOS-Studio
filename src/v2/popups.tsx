@@ -155,7 +155,7 @@ interface ElItem { id: string; label: string; prompt: string }
 const asItems = (xs: { id: string; label: string; labelFr?: string; prompt?: string; framing?: string; lens?: string }[]): ElItem[] =>
   xs.map(x => ({ id: x.id, label: x.labelFr ?? x.label,
     prompt: x.prompt ?? [x.framing, x.lens && `${x.lens} look`].filter(Boolean).join(', ') }))
-const EL_GROUPS = [
+export const EL_GROUPS = [
   { key: 'tenues', label: 'Tenues', items: () => asItems(allOutfits()) },
   { key: 'lieux', label: 'Environnements', items: () => asItems(allEnvironments()) },
   { key: 'poses', label: 'Positions', items: () => asItems(allTextPoses()) },
@@ -222,17 +222,18 @@ export function ElementsPopup({ open, onClose, onInsert }: {
 /* ---------- LoRA picker photo (arch image : flux2/zimage/flux1) ----------
    Empile dans loraPicks (suivies par mkJob). Force 0-2, trigger résolu
    serveur si vide. */
+const ARCH_MOTEUR: Record<string, string> = { krea: 'krea2', klein: 'flux2', moss: 'moss' }
 function LoraPickTab({ q }: { q: string }) {
   const catalog = useAppStore(st => st.loraCatalog)
   const loadLoras = useAppStore(st => st.loadLoras)
   const picks = useAppStore(st => st.loraPicks)
+  const moteur = useAppStore(st => st.photoEngine)
   useEffect(() => { if (!catalog.length) void loadLoras() }, [catalog.length, loadLoras])
-  /* UNIQUEMENT les LoRA compatibles avec la recette t2i en cours : les
-     recettes photo (PROD_gen_*) sont Klein → arch flux2. Les zimage/flux1
-     se chargent sans erreur mais tournent À VIDE sur Klein (constaté).
+  /* UNIQUEMENT les LoRA compatibles avec le moteur photo choisi, d'après l'architecture lue
+     dans l'en-tête du fichier. Une autre se charge sans erreur mais tourne À VIDE (constaté).
      Exclue aussi : la LoRA d'identité, déjà cuite dans la recette. */
   const usable = catalog
-    .filter(l => l.arch === 'flux2')
+    .filter(l => l.arch === ARCH_MOTEUR[moteur])
     .filter(l => l.kind !== 'identite')
     .filter(l => !q || l.name.toLowerCase().includes(q) || (l.trigger ?? '').toLowerCase().includes(q))
   const toggle = (name: string) => useAppStore.setState(st => ({
@@ -250,6 +251,7 @@ function LoraPickTab({ q }: { q: string }) {
     <>
     <LoraStacks cle="photo" picks={picks} apply={items => useAppStore.setState({ loraPicks: items })} />
     <div className="flex flex-col gap-1 mt-2" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
+      {usable.length === 0 && <div className="text-[11px]" style={{ color: 'var(--faint)', padding: 8 }}>{t('Aucune LoRA pour ce moteur : le studio lit chaque fichier et ne propose que celles qui agissent dessus.')}</div>}
       {usable.map(l => {
         const pick = picks.find(x => x.name === l.name)
         return (

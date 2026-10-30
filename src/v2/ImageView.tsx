@@ -4,7 +4,7 @@
    placeholders dans la grille.
    ============================================================ */
 import { useBriefHistory } from '../components/BriefHistory'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -14,6 +14,7 @@ import { EnhancerPopup, ElementsPopup, FramePicker, TriagePopup, CarouselPopup, 
 import { Pinceau } from '../components/Pinceau'
 import { t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
+import { useMentions } from './Mentions'
 
 export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
   const edition = useEdition()
@@ -29,6 +30,11 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   // Retouche = pinceau : une image choisie s'ouvre directement dans l'outil de zone
   const [pinceauDe, setPinceauDe] = useState<Asset | null>(null)
   const kleinOk = s.personaKlein
+  const champPrompt = useRef<HTMLTextAreaElement>(null)
+  const mentions = useMentions({ champ: champPrompt, valeur: s.userPrompt, surChange: s.setUserPrompt, surPersona: async id => {
+    const r = await fetch(`/api/personas/${encodeURIComponent(id)}/activer`, { method: 'POST' })
+    if (r.ok) await s.refreshPersona()
+  } })
   const [q, setQ] = useState('')
   /* un SEUL menu contextuel ouvert à la fois */
   const [ilotMenu, setIlotMenu] = useState<{ kind: 'dims'; x: number; bottom: number } | null>(null)
@@ -185,11 +191,13 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               </span>
             </div>
           )}
-          <textarea
+          <textarea ref={champPrompt}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
             style={{ color: 'var(--text)', minHeight: 40, fieldSizing: 'content' } as React.CSSProperties}
             placeholder={task === 'edit' ? t('Instruction de retouche — « la robe devient rouge »') : multi ? t('Un prompt par ligne : chaque ligne part avec les mêmes réglages') : t('Décrire la scène…')}
-            value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
+            value={s.userPrompt} onChange={e => { s.setUserPrompt(e.target.value); mentions.lire() }} onSelect={mentions.lire}
+            onKeyDown={e => { if (!mentions.touche(e)) briefs.onKeyDown(e) }} />
+          {mentions.panneau}
           {briefs.panel}
           <div className="flex gap-1.5 items-center mt-2 flex-wrap">
             <button className="pill" onPointerDown={e => e.stopPropagation()} onClick={ilotToggle('dims')}>

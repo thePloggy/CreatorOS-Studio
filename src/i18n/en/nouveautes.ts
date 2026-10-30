@@ -266,4 +266,13 @@ export const nouveautes: Record<string, string> = {
   'Optionnel : son attitude pendant qu’elle parle (en anglais, ex. « smiling, enthusiastic, holding a coffee cup »)': 'Optional: her attitude while she talks (e.g. “smiling, enthusiastic, holding a coffee cup”)',
   'Faire parler': 'Make her talk',
   'En file de rendu': 'Queued',
+  'Lumière': 'Light', 'Par la gauche': 'From the left', 'Par la droite': 'From the right', 'Fenêtre': 'Window', 'Studio': 'Studio',
+  'Heure bleue': 'Blue hour', 'Néons': 'Neon', 'Bougie': 'Candlelight', 'la même photo, un autre éclairage': 'the same photo, different light',
+  'Agrandir': 'Expand', 'élargit le cadre et invente la suite de la scène sur les bords': 'widens the frame and invents the rest of the scene at the edges',
+  'photo inconnue': 'unknown photo', 'format inconnu': 'unknown format', 'la photo est déjà à ce format': 'the photo already has this format',
+  'Personnage': 'Character', 'Téléphone': 'Phone', 'filme le geste au téléphone, il arrive ici': 'film the move on your phone, it lands here',
+  'Filmer au téléphone': 'Film on your phone', 'QR code indisponible': 'QR code unavailable',
+  'Tu es sur localhost : le téléphone ne pourra pas joindre ce lien. Ouvre le studio par son adresse réseau.': 'You are on localhost: the phone cannot reach this link. Open the studio by its network address.',
+  'Scanne le code, filme le geste, il arrive ici. Lien valable 10 min, pour une seule vidéo.': 'Scan the code, film the move, it lands here. The link works for 10 min, for one video.',
+  'Aucune LoRA pour ce moteur : le studio lit chaque fichier et ne propose que celles qui agissent dessus.': 'No LoRA for this engine: the studio reads each file and only offers the ones that work on it.',
 }

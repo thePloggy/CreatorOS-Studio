@@ -17,7 +17,7 @@ import { createPortal } from 'react-dom'
 import { CarouselPopup } from './popups'
 import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
-import { t, getLang } from '../i18n'
+import { t, getLang, tServeur } from '../i18n'
 import { EditionVideo } from '../components/EditionVideo'
 
 /* `/api/folders` renvoie aussi createdAt et count : la fiche ne les affiche
@@ -149,6 +149,19 @@ const ANGLES = [
   { id: 'serre', label: 'Gros plan', vue: 'front view eye-level shot close-up' },
 ]
 
+/* Lumière (30/10) : la même photo, un autre éclairage. */
+const GARDE = 'Keep the person, face, pose, outfit, background and framing unchanged.'
+const LUMIERES = [
+  { id: 'gauche', label: 'Par la gauche', consigne: `Relight the photo with soft directional light coming from the left, with shadows falling to the right. ${GARDE}` },
+  { id: 'droite', label: 'Par la droite', consigne: `Relight the photo with soft directional light coming from the right, with shadows falling to the left. ${GARDE}` },
+  { id: 'fenetre', label: 'Fenêtre', consigne: `Relight the photo with soft natural window light from one side. ${GARDE}` },
+  { id: 'studio', label: 'Studio', consigne: `Relight the photo with clean professional softbox studio lighting. ${GARDE}` },
+  { id: 'bleue', label: 'Heure bleue', consigne: `Relight the photo to cool blue hour dusk light. ${GARDE}` },
+  { id: 'neon', label: 'Néons', consigne: `Relight the photo with magenta and cyan neon light from both sides, at night. ${GARDE}` },
+  { id: 'bougie', label: 'Bougie', consigne: `Relight the photo with warm flickering candlelight in a dim room. ${GARDE}` },
+]
+const FORMATS = ['16:9', '9:16', '4:5', '1:1', '+30%']
+
 /* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
 export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   asset: Asset
@@ -227,6 +240,14 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     const avant = useAppStore.getState().loraPicks
     useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
+  }
+  const [agrandirMsg, setAgrandirMsg] = useState('')
+  const agrandir = async (format: string) => {
+    setAgrandirMsg('')
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/agrandir`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { setAgrandirMsg(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    onClose(); goImage()
   }
   const telechargerGraphe = async () => {
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/workflow`)
@@ -385,6 +406,21 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
                 <button key={l.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('la même photo, vue d’une autre position de caméra')}
                   onClick={() => void lancerAngle(l.vue)}>{t(l.label)}</button>
               ))}
+            </div>
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Lumière')}
+              {LUMIERES.map(l => (
+                <button key={l.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('la même photo, un autre éclairage')}
+                  onClick={() => void lancerLook(l.consigne)}>{t(l.label)}</button>
+              ))}
+            </div>
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Agrandir')}
+              {FORMATS.map(f => (
+                <button key={f} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('élargit le cadre et invente la suite de la scène sur les bords')}
+                  onClick={() => void agrandir(f)}>{f}</button>
+              ))}
+              {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
             </div>
           </>
 )}

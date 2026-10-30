@@ -6,7 +6,7 @@
    ============================================================ */
 import { LoraStacks, LoraSwitch, loraFamily } from '../components/LoraStacks'
 import { useBriefHistory } from '../components/BriefHistory'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Asset, VideoAspect } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -15,6 +15,29 @@ import { Ic, rollingEta, fmtDur, SortBar, AssetCard, JobCard, FailCard, failedJo
 import { EnhancerPopup, FramePicker, TriagePopup } from './popups'
 import { getLang, t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
+
+/* Filmer un geste au téléphone (30/10) : un QR code à usage unique, 10 min (cf. /api/telephone). */
+function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: { filename: string; durationS?: number; frames?: number }) => void }) {
+  const [q, setQ] = useState<{ jeton: string; svg: string; local: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  useEffect(() => { void fetch('/api/telephone', { method: 'POST' }).then(async r => { if (!r.ok) throw new Error(); setQ(await r.json()) }).catch(() => setErr(t('QR code indisponible'))) }, [])
+  useEffect(() => {
+    if (!q) return
+    const m = setInterval(() => { void fetch(`/api/telephone/${q.jeton}/etat`).then(r => r.json()).then(d => { if (d.envoi) { clearInterval(m); onRecu(d.envoi); onClose() } }).catch(() => {}) }, 2000)
+    return () => clearInterval(m)
+  }, [q, onRecu, onClose])
+  return (
+    <div className="pop" onClick={onClose}>
+      <div className="pbox" style={{ width: 'min(340px,94%)' }} onClick={e => e.stopPropagation()}>
+        <h3>📱 {t('Filmer au téléphone')} <button className="x" onClick={onClose}>✕</button></h3>
+        {err && <div className="text-[11px]" style={{ color: 'var(--danger)' }}>{err}</div>}
+        {q && <div style={{ background: '#fff', padding: 10, borderRadius: 10 }} dangerouslySetInnerHTML={{ __html: q.svg }} />}
+        {q?.local && <div className="text-[10.5px] mt-2" style={{ color: 'var(--warn, #ffb648)' }}>{t('Tu es sur localhost : le téléphone ne pourra pas joindre ce lien. Ouvre le studio par son adresse réseau.')}</div>}
+        <div className="text-[10.5px] mt-2" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{t('Scanne le code, filme le geste, il arrive ici. Lien valable 10 min, pour une seule vidéo.')}</div>
+      </div>
+    </div>
+  )
+}
 
 /* Durées proposées, filtrées au rendu par le plafond du moteur choisi
    (`engineInfo().maxSeconds`, fourni par le serveur). Une liste figée
@@ -48,6 +71,10 @@ type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre'
 export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
   const edition = useEdition()
   const s = useAppStore()
+  const [telephone, setTelephone] = useState(false)
+  const recuTelephone = useCallback((e: { filename: string; durationS?: number; frames?: number }) => useAppStore.getState().updateVideo({
+    motionDriverFile: e.filename, motionDriverSeconds: Number(e.durationS) || 0, motionDriverFrames: Number(e.frames) || 0, motionDriverError: '', motionRefUri: '', motionRefName: e.filename }), [])
+  const fermerTelephone = useCallback(() => setTelephone(false), [])
   const [review, setReview] = useState<ReviewFilter>(null)
   const [cols, setCols] = useState(() => (window.innerWidth < 821 ? 2 : 5))
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -271,6 +298,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               <input type="file" accept="video/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) void s.uploadMotionDriver(f) }} />
             </label>}
+            {edition && <button className="slot" onClick={() => setTelephone(true)} title={t('filme le geste au téléphone, il arrive ici')}>📱<br />{t('Téléphone')}</button>}
             {v.motionMode !== 'replace' && (
               <button className={`slot ${v.motionStillFile ? 'filled' : ''}`} onClick={() => setFramePick('still')}>
                 {v.motionStillUri ? <img src={v.motionStillUri} alt="" /> : <>＋<br />{t('still de départ')}</>}
@@ -445,6 +473,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           s.setUserPrompt(pos)
         }} />
       <VideoLoraPopup open={elm} onClose={() => setElm(false)} engine={v.engine} />
+      {telephone && <TelephonePopup onClose={fermerTelephone} onRecu={recuTelephone} />}
       <FramePicker open={framePick !== null} onClose={() => setFramePick(null)} assets={s.assets}
         title={framePick === 'end' ? t('Frame de fin (keyframe)') : framePick === 'still' ? t('Still de départ (Rejouer)') : tab === 'etendre' ? t('Vidéo à prolonger') : t('Frame de départ')}
         onPickAsset={a => {
