@@ -30,7 +30,7 @@ export function brancherCleProprietaire() {
     const memeOrigine = url.startsWith('/') || url.startsWith(window.location.origin)
     const chemin = memeOrigine ? new URL(url, window.location.origin).pathname : ''
     // les écritures, plus les lectures réservées au propriétaire (visiteurs du jour, chemins du serveur)
-    const lectureReservee = chemin === '/api/visites' || chemin === '/api/health' || chemin === '/api/uploads' || chemin === '/api/quota'
+    const lectureReservee = chemin === '/api/visites' || chemin === '/api/health' || chemin === '/api/uploads' || chemin === '/api/quota' || chemin.startsWith('/api/corbeille')
     if (cle && (lectureReservee || (methode !== 'GET' && methode !== 'HEAD')) && chemin.startsWith('/api/')) {
       const h = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
       h.set('X-Owner-Key', cle)

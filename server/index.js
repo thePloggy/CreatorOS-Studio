@@ -46,6 +46,8 @@ const ROUTES_PROPRIETAIRE = new Set([
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
+  // Démo publique (31/10) : la bibliothèque est partagée ; un visiteur n'efface pas les rendus et ne fouille pas la corbeille.
+  'DELETE /api/assets/:id', 'POST /api/assets/restore', 'GET /api/corbeille', 'GET /api/corbeille/vue/:file',
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
@@ -974,6 +976,7 @@ app.delete('/api/jobs/:id', async (req, reply) => {
      et affiche le nombre de rendus emportés. */
   const row = store.getJob(req.params.id)
   if (!row) { reply.code(404); return { error: 'job inconnu' } }
+  if (!estProprietaire(req)) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   if (!['done', 'blocked'].includes(row.status)) { reply.code(409); return { error: `job « ${row.status} » : ni annulable ni supprimable` } }
   const files = store.jobAssetFiles(req.params.id)
   for (const f of files) {

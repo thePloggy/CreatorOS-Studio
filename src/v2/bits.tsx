@@ -16,6 +16,7 @@ import { FOLDER_SORTS, trierDossiers } from '../lib/folders'
 import { defautsDe } from '../lib/controle'
 import { t, tp, tServeur } from '../i18n'
 import { Comparer } from '../components/Comparer'
+import { useEdition } from '../lib/proprietaire'
 
 /* ---------- icônes SVG outline (design Higgsfield : trait 2px arrondi) ---------- */
 const IC: Record<string, React.ReactNode> = {
@@ -76,6 +77,7 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
   /** tri brouillon/full (vidéo) — puces affichées seulement si fourni */
   draft?: DraftFilter; setDraft?: (d: DraftFilter) => void
 }) {
+  const edition = useEdition()
   const qRef = useRef<HTMLInputElement>(null)
   // ⌘K / Ctrl+K : focus la recherche (remplace la palette v1 — filtre les prompts)
   useEffect(() => {
@@ -108,7 +110,7 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
       {onTriage && pending > 0 && (
         <button className="spill" style={{ color: 'var(--attention)' }} onClick={onTriage}>⚡ {t('trier {n}', { n: pending })}</button>
       )}
-      {rejected > 0 && (
+      {edition && rejected > 0 && (
         <button className="spill purge" onClick={onPurge}>🗑 {t('supprimer les refusés ({n})', { n: rejected })}</button>
       )}
       <CorbeilleButton />
@@ -672,6 +674,7 @@ export function V2Portal({ children }: { children: React.ReactNode }) {
 /* ---------- menu ⋯ d'une vignette ---------- */
 function CardMenu({ a, at, onClose }: { a: Asset; at: { x: number; y?: number; bottom?: number }; onClose: () => void }) {
   const s = useAppStore()
+  const edition = useEdition()
   const [armed, arm] = useConfirm()
   const [showFolders, setShowFolders] = useState(false)
   useExclusiveMenu(onClose)
@@ -692,11 +695,11 @@ function CardMenu({ a, at, onClose }: { a: Asset; at: { x: number; y?: number; b
       <button style={showFolders ? { background: 'var(--lv4)' } : undefined}
         onMouseEnter={() => setShowFolders(true)}
         onClick={e => { e.stopPropagation(); setShowFolders(f => !f) }}><Ic n="folderIn" /> {t('Déplacer vers…')} ›</button>
-      <div className="sep" />
-      <button style={{ color: 'var(--danger)' }}
+      {edition && <div className="sep" />}
+      {edition && <button style={{ color: 'var(--danger)' }}
         onClick={() => { if (arm()) { void s.removeAsset(a.id); onClose() } }}>
         <Ic n="trash" /> {armed ? t('⚠ Confirmer la suppression') : t('Supprimer')}
-      </button>
+      </button>}
       {showFolders && <FolderMenu nested side={at.x + 210 + 330 > window.innerWidth ? 'left' : 'right'}
         onClose={onClose} assetIds={[a.id]} at={at} />}
     </div>
@@ -930,6 +933,7 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
 }) {
   const review = useAppStore(st => st.reviewAsset)
   const removeAssets = useAppStore(st => st.removeAssets)
+  const edition = useEdition()
   const [delArmed, armDel] = useConfirm()
   const allApproved = items.every(a => a.reviewStatus === 'approved')
   const allRejected = items.every(a => a.reviewStatus === 'rejected')
@@ -987,9 +991,9 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
           <button className="hact ko" title={allRejected ? t('annuler le refus du lot') : t('tout refuser')}
             onClick={e => { e.stopPropagation(); items.forEach(a => review(a.id, allRejected ? 'pending' : 'rejected')) }}><Ic n="x" /></button>
           <button className="hact" title={t('télécharger le lot')} onClick={e => { e.stopPropagation(); void downloadAll() }}><Ic n="download" /></button>
-          <button className="hact" title={delArmed ? t('confirmer la suppression du lot') : t('supprimer le lot')}
+          {edition && <button className="hact" title={delArmed ? t('confirmer la suppression du lot') : t('supprimer le lot')}
             style={delArmed ? { color: 'var(--danger)', background: 'rgba(240,85,72,.2)' } : { color: 'var(--danger)' }}
-            onClick={e => { e.stopPropagation(); if (armDel()) void removeAssets(items.map(a => a.id)) }}><Ic n="trash" /></button>
+            onClick={e => { e.stopPropagation(); if (armDel()) void removeAssets(items.map(a => a.id)) }}><Ic n="trash" /></button>}
         </div>
       </div>
     </div>
@@ -1004,6 +1008,7 @@ interface TacheReels { type: 'captions' | 'livraison'; total: number; faits: num
 
 export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]; assets: Asset[]; folderId?: string; onClear: () => void }) {
   const s = useAppStore()
+  const edition = useEdition()
   const [armed, arm] = useConfirm()
   const [tache, setTache] = useState<TacheReels | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -1090,10 +1095,10 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
         onClick={() => void upscaleAll()}><Ic n="upscale" /> Upscale ({sel.length})</button>
       <button className="pill" style={{ color: 'var(--positif)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'approved')); onClear() }}><Ic n="heart" /> {t('Valider')}</button>
       <button className="pill" style={{ color: 'var(--danger)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'rejected')); onClear() }}><Ic n="x" /> {t('Refuser')}</button>
-      <button className="pill" style={{ color: armed ? 'var(--danger)' : undefined }}
+      {edition && <button className="pill" style={{ color: armed ? 'var(--danger)' : undefined }}
         onClick={() => { if (arm()) { void s.removeAssets(ids); onClear() } }}>
         <Ic n="trash" /> {armed ? t('Confirmer') : t('Supprimer')}
-      </button>
+      </button>}
       <button className="pill tool" style={{ marginLeft: 'auto' }} onClick={onClear}>{t('annuler la sélection')}</button>
       {folderMenu && <FolderMenu at={folderMenu} assetIds={ids} onClose={() => setFolderMenu(null)} />}
       {comparer && <Comparer assets={sel} onClose={() => setComparer(false)} />}

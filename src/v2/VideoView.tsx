@@ -112,7 +112,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
     : v.endFrameFile ? `/api/uploads/${encodeURIComponent(v.endFrameFile)}` : undefined
 
   const purge = async () => {
-    if (!armPurge()) return
+    if (!edition || !armPurge()) return
     const ids = s.assets.filter(a => a.mediaType === 'video' && a.reviewStatus === 'rejected').map(a => a.id)
     await s.removeAssets(ids)
   }

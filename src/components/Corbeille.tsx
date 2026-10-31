@@ -15,14 +15,30 @@ export function CorbeilleButton({ className = 'spill purge' }: { className?: str
   const [open, setOpen] = useState(false)
   // le compteur suit les suppressions et les annulations faites ailleurs dans l'app
   const marque = useAppStore(s => `${s.assets.length}-${s.lastDeleted?.at ?? 0}`)
+  const edition = useEdition()
   useEffect(() => {
+    if (!edition) return
     fetch('/api/corbeille').then(r => r.json()).then(d => setN(d.count ?? 0)).catch(() => setN(null))
-  }, [marque, open])
-  if (n === null && !open) return null
+  }, [marque, open, edition])
+  if (!edition || (n === null && !open)) return null
   return (<>
     <button className={className} onClick={() => setOpen(true)} title={t('éléments supprimés, récupérables pendant 30 jours')}>{t('♻ corbeille ({n})', { n: n ?? 0 })}</button>
     {open && createPortal(<Panneau onClose={() => setOpen(false)} />, document.body)}
   </>)
+}
+
+/** Vignette réservée au propriétaire : une balise img n'envoie pas la clé, on passe par fetch. */
+function Vignette({ filename }: { filename: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let url: string | null = null, annule = false
+    fetch(`/api/corbeille/vue/${encodeURIComponent(filename)}`).then(r => r.ok ? r.blob() : null).then(b => {
+      if (!b || annule) return
+      url = URL.createObjectURL(b); setSrc(url)
+    }).catch(() => {})
+    return () => { annule = true; if (url) URL.revokeObjectURL(url) }
+  }, [filename])
+  return src ? <img alt="" src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null
 }
 
 function Panneau({ onClose }: { onClose: () => void }) {
@@ -97,8 +113,7 @@ function Panneau({ onClose }: { onClose: () => void }) {
           {items?.map(i => (
             <div key={i.id} style={{ borderRadius: 12, overflow: 'hidden', background: '#0f1013', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
               <div style={{ height: 230, flexShrink: 0, background: '#0b0c0e', position: 'relative' }}>
-                {i.filename && <img loading="lazy" alt="" src={`/api/corbeille/vue/${encodeURIComponent(i.filename)}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                {i.filename && <Vignette filename={i.filename} />}
                 {i.filename?.endsWith('.mp4') && <span style={{ position: 'absolute', left: 6, top: 6, fontSize: 9, padding: '2px 6px', borderRadius: 6, background: 'rgba(0,0,0,0.7)' }}>{t('VIDÉO')}</span>}
               </div>
               <div style={{ padding: '7px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>

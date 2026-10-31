@@ -15,6 +15,7 @@ import { getLang, t } from '../i18n'
 import { lancerFinition } from '../v2/bits'
 import { Pinceau } from '../components/Pinceau'
 import { EditionVideo } from '../components/EditionVideo'
+import { useEdition } from '../lib/proprietaire'
 
 interface FolderInfo { id: string; name: string; createdAt: number; count: number }
 
@@ -22,6 +23,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   asset: Asset; list: Asset[]; onGo: (a: Asset) => void; onClose: () => void
   folders: FolderInfo[]; onFoldersChanged: () => void; onTriage?: () => void
 }) {
+  const edition = useEdition()
   const s = useAppStore()
   const [sheet, setSheet] = useState<null | 'more' | 'info' | 'folders' | 'carousel'>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -185,9 +187,9 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           {onTriage && fresh.reviewStatus === 'pending' && (
             <Opt label={t('Trier les médias en attente')} onClick={onTriage} />
           )}
-          <Opt label={armed ? t('⚠ Confirmer la suppression') : t('Supprimer')} onClick={() => {
+          {edition && <Opt label={armed ? t('⚠ Confirmer la suppression') : t('Supprimer')} onClick={() => {
             if (arm()) { void s.removeAsset(fresh.id); setSheet(null); onClose() }
-          }} />
+          }} />}
         </Sheet>
       )}
 

@@ -61,7 +61,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const queueIds = activeJobs.filter(j => j.status === 'queued').map(j => j.id)
 
   const purge = async () => {
-    if (!armPurge()) return
+    if (!edition || !armPurge()) return
     const ids = s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus === 'rejected').map(a => a.id)
     await s.removeAssets(ids)
   }

@@ -19,6 +19,7 @@ import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
 import { t, getLang, tServeur } from '../i18n'
 import { EditionVideo } from '../components/EditionVideo'
+import { useEdition } from '../lib/proprietaire'
 
 /* `/api/folders` renvoie aussi createdAt et count : la fiche ne les affiche
    pas mais le tri partagé en a besoin. */
@@ -457,6 +458,7 @@ function ViewerMenu({ asset, at, onClose, onCarousel, onDeleted }: {
   asset: Asset; at: { x: number; bottom: number }; onClose: () => void
   onCarousel: () => void; onDeleted: () => void
 }) {
+  const edition = useEdition()
   const s = useAppStore()
   const [armed, arm] = useConfirm()
   const [showFolders, setShowFolders] = useState(false)
@@ -478,11 +480,11 @@ function ViewerMenu({ asset, at, onClose, onCarousel, onDeleted }: {
           onMouseEnter={() => setShowFolders(true)}
           onClick={e => { e.stopPropagation(); setShowFolders(f => !f) }}><Ic n="folderIn" /> {t('Déplacer vers… ›')}</button>
         {asset.mediaType === 'photo' && <button onClick={onCarousel}><Ic n="grid" /> {t('Carrousel')}</button>}
-        <div className="sep" />
-        <button style={{ color: 'var(--danger)' }}
+        {edition && <div className="sep" />}
+        {edition && <button style={{ color: 'var(--danger)' }}
           onClick={() => { if (arm()) { void s.removeAsset(asset.id); onDeleted() } }}>
           <Ic n="trash" /> {armed ? t('⚠ Confirmer la suppression') : t('Supprimer')}
-        </button>
+        </button>}
         {showFolders && <FolderMenu nested side={at.x + 210 + 330 > window.innerWidth ? 'left' : 'right'}
           onClose={onClose} assetIds={[asset.id]} at={at} />}
       </div>

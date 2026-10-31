@@ -15,6 +15,7 @@ import { MViewer } from './MViewer'
 import { MTriage } from './MTriage'
 import { t, tp } from '../i18n'
 import { Comparer } from '../components/Comparer'
+import { useEdition } from '../lib/proprietaire'
 
 type TypeFilter = 'all' | 'photo' | 'video'
 type Status = 'all' | 'pending' | 'approved' | 'rejected'
@@ -234,6 +235,7 @@ async function partager(a: Asset): Promise<string | null> {
 
 /* Appui long sur une tuile (13/10) : les gestes du tri sans ouvrir l'image. */
 function TileMenu({ a, onClose, onPick }: { a: Asset; onClose: () => void; onPick: () => void }) {
+  const edition = useEdition()
   const s = useAppStore()
   const [arme, armer] = useConfirm()
   const [msg, setMsg] = useState<string | null>(null)
@@ -247,8 +249,8 @@ function TileMenu({ a, onClose, onPick }: { a: Asset; onClose: () => void; onPic
         onClick={() => { vibrer(); s.reviewAsset(frais.id, frais.reviewStatus === 'rejected' ? 'pending' : 'rejected'); onClose() }} />
       <Opt label={t('Reprendre les réglages')} hint={t('prompt et graine dans Créer')} onClick={() => { s.cloneFrom(frais); onClose() }} />
       <Opt label={t('Sélectionner')} hint={t('pour ranger ou trier plusieurs médias')} onClick={() => { onPick(); onClose() }} />
-      <Opt label={arme ? t('Confirmer la suppression') : t('Supprimer')} hint={t('en corbeille 30 jours')}
-        onClick={() => { if (armer()) { vibrer(20); void s.removeAssets([frais.id]); onClose() } }} />
+      {edition && <Opt label={arme ? t('Confirmer la suppression') : t('Supprimer')} hint={t('en corbeille 30 jours')}
+        onClick={() => { if (armer()) { vibrer(20); void s.removeAssets([frais.id]); onClose() } }} />}
     </Sheet>
   )
 }
@@ -309,6 +311,7 @@ function Tile({ a, picking, picked, onPick, onOpen, onLong }: {
 function SelBar({ ids, assets, folders, onClear, onFoldersChanged }: {
   ids: string[]; assets: Asset[]; folders: FolderInfo[]; onClear: () => void; onFoldersChanged: () => void
 }) {
+  const edition = useEdition()
   const s = useAppStore()
   const [armed, arm] = useConfirm()
   const [sheet, setSheet] = useState<null | 'folders' | 'more'>(null)
@@ -351,8 +354,8 @@ function SelBar({ ids, assets, folders, onClear, onFoldersChanged }: {
             }
             setSheet(null)
           }} />
-          <Opt label={armed ? t('⚠ Confirmer la suppression de {n}', { n: ids.length }) : tp(ids.length, 'Supprimer {n} média', 'Supprimer {n} médias')}
-            onClick={() => { if (arm()) { void s.removeAssets(ids); setSheet(null); onClear() } }} />
+          {edition && <Opt label={armed ? t('⚠ Confirmer la suppression de {n}', { n: ids.length }) : tp(ids.length, 'Supprimer {n} média', 'Supprimer {n} médias')}
+            onClick={() => { if (arm()) { void s.removeAssets(ids); setSheet(null); onClear() } }} />}
         </Sheet>
       )}
       {comparer && <Comparer assets={sel} onClose={() => setComparer(false)} />}
