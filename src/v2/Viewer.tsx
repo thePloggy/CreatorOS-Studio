@@ -242,6 +242,38 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
   }
+  /* Coverage, Push in, Next beat (31/10) : le plan d'après, à partir de cette photo. */
+  const [planMsg, setPlanMsg] = useState('')
+  const coverage = async () => {
+    const avant = useAppStore.getState().loraPicks
+    useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
+    try {
+      for (const id of ['large', 'd34', 'serre']) {
+        await s.retouchFrom(asset)
+        s.setUserPrompt(`<sks> ${ANGLES.find(a => a.id === id)!.vue}`)
+        useAppStore.setState({ promptTouched: true, composedPositive: '' })
+        await s.submitJob()
+      }
+    } finally { useAppStore.setState({ loraPicks: avant }) }
+    onClose(); goImage()
+  }
+  const nextBeat = async () => {
+    setPlanMsg('')
+    try {
+      const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/moment-suivant`, { method: 'POST' })
+      const d = await r.json().catch(() => ({})) as { texte?: string; error?: string }
+      if (!r.ok || !d.texte) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
+      await lancerLook(`The same person, same outfit, same place and same light, a few seconds later: ${d.texte} Keep the same face and photo style.`)
+    } catch (e) { setPlanMsg(String((e as Error).message || e)) }
+  }
+  const [netteMsg, setNetteMsg] = useState('')
+  const nettete = async () => {
+    setNetteMsg('')
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/seedvr`, { method: 'POST' })
+    const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
+    if (!r.ok || !d.jobId) setNetteMsg(tServeur(d.error) ?? `HTTP ${r.status}`)
+    else { await s.adoptServerJob(d.jobId); onClose() }
+  }
   const [agrandirMsg, setAgrandirMsg] = useState('')
   const rouvrirStage = async () => {
     const r = await fetch(`/api/stage/${encodeURIComponent(asset.jobId ?? '')}/scene`)
@@ -403,6 +435,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
               <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => { s.utiliserDans('parole', asset); onClose() }}>{t('Avatar parlant')}</button>
             </>}
             {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => { s.utiliserDans('reshoot', asset); onClose() }}>{t('🎥 Re-shoot')}</button>}
+            {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('SeedVR2 : le clip monte en 1080p, le mouvement ne change pas')} onClick={() => void nettete()}>{t('Netteté 1080p')}</button>}
+            {netteMsg && <span className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
           </div>
           {finMsg && <div className="text-[10.5px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
           {asset.mediaType === 'photo' && (<>
@@ -422,6 +456,14 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
                 <button key={l.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('la même photo, vue d’une autre position de caméra')}
                   onClick={() => void lancerAngle(l.vue)}>{t(l.label)}</button>
               ))}
+            </div>
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Plan suivant')}
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('3 plans de la même scène : large, ¾ et gros plan')} onClick={() => void coverage()}>Coverage</button>
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('le même instant, la caméra plus près')}
+                onClick={() => void lancerLook('Move the camera closer: a tighter shot of the same person at the same moment, framed from the chest up. Keep the same face, outfit, pose, light and background.')}>Push in</button>
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('le moment d’après, imaginé à partir de l’image')} onClick={() => void nextBeat()}>Next beat</button>
+              {planMsg && <span style={{ color: 'var(--danger)' }}>{planMsg}</span>}
             </div>
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
               {t('Lumière')}

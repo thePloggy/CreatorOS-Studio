@@ -34,6 +34,9 @@
     "motion": {
       "label": "Motion transfer: Wan Animate 2"
     },
+    "video_nettete": {
+      "label": "Video sharpen to 1080p (SeedVR2 3B)"
+    },
     "video_retouche": {
       "label": "Video refine, video brush (SAM 3.1 tracking), RIFE smoothing"
     },
@@ -58,6 +61,19 @@
     }
   },
   "noeuds": [
+    {
+      "nom": "ComfyUI-SeedVR2_VideoUpscaler",
+      "depot": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
+      "classes": [
+        "SeedVR2VideoUpscaler",
+        "SeedVR2LoadDiTModel",
+        "SeedVR2LoadVAEModel"
+      ],
+      "groupes": [
+        "video_nettete"
+      ],
+      "note": "Apache-2.0"
+    },
     {
       "nom": "ComfyUI-KJNodes",
       "depot": "https://github.com/kijai/ComfyUI-KJNodes",
@@ -661,6 +677,28 @@
         "PROD_v2v_refine.json",
         "PROD_v2v_refine_masked.json",
         "PROD_wananimate_mix.json"
+      ],
+      "verifie": true
+    },
+    {
+      "chemin": "seedvr2_ema_3b_fp16.safetensors",
+      "dossier": "SEEDVR2",
+      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/seedvr2_ema_3b_fp16.safetensors",
+      "taille": 6783018808,
+      "licence": "Apache-2.0",
+      "groupes": [
+        "video_nettete"
+      ],
+      "verifie": true
+    },
+    {
+      "chemin": "ema_vae_fp16.safetensors",
+      "dossier": "SEEDVR2",
+      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/ema_vae_fp16.safetensors",
+      "taille": 501324814,
+      "licence": "Apache-2.0",
+      "groupes": [
+        "video_nettete"
       ],
       "verifie": true
     },

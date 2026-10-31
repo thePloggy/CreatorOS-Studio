@@ -414,7 +414,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
       </>)
       return isMobile
         ? <MobileSheet key={selecting ? 'sel' : 'norm'} initial={selecting ? 'mini' : 'half'}>{side}</MobileSheet>
-        : <aside className="vside">{side}</aside> })()}
+        : <div className="vside-place"><aside className="vside">{side}</aside></div> })()}
 
       {/* ---------- bibliothèque vidéo ---------- */}
       <div className="flex-1 min-w-0 flex flex-col relative">

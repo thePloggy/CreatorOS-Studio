@@ -29,13 +29,13 @@ import { notifier } from './notif.js'
 const RENDUS_PAR_HEURE = 12
 /* Coût plancher d'une demande dont les jobs naissent plus tard (le reel planifie ses
    plans après la réponse) : 5 photos + 5 clips en moyenne. */
-const COUT_MINIMUM = { 'POST /api/reels': 10 }
+const COUT_MINIMUM = { 'POST /api/reels': 10, 'POST /api/assets/:id/moment-suivant': 0 }   // texte seul : la retouche qui suit est comptée
 const FILE_MAX_PUBLIC = 8      // au-delà, un visiteur Internet attend que la file se vide
 
 /** Les routes qui lancent un rendu sur le GPU. */
 const ROUTES_RENDU = new Set([
   'POST /api/jobs', 'POST /api/jobs/:id/retry', 'POST /api/carrousel', 'POST /api/reels',
-  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
+  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
   'POST /api/assets/:id/upscale', 'POST /api/montages/:id/export', 'POST /api/presets/:id/lancer',
   'POST /api/parole', 'POST /api/reshoot', 'POST /api/reels/:id/plans/:k/refaire',
 ])

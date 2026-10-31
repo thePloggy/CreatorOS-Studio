@@ -19,6 +19,26 @@ const VLM_KEEPALIVE = process.env.CREATOROS_VLM_KEEPALIVE || 0
 const DESC_MODEL = () => CONFIG.visionDescribeModel
 const DESC_OPTS = extra => ({ temperature: 0, ...(CONFIG.visionDescribeCpu ? { num_gpu: 0 } : {}), ...extra })
 
+/* Next beat (31/10) : le moment qui suit cette photo, en une consigne de retouche. Même lieu,
+   même tenue, un geste ordinaire ; le texte repasse par le filtre avant de servir. */
+export async function momentSuivant(absPath) {
+  const b64 = fs.readFileSync(absPath).toString('base64')
+  const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(180000),
+    body: JSON.stringify({
+      model: DESC_MODEL(), stream: false, images: [b64],
+      prompt: 'This photo is one shot of a short film. In one English sentence of at most 18 words, describe what the person does a few seconds later: '
+        + 'one ordinary, fully clothed action in the same place, for example turning, walking on, sitting down, looking at something. '
+        + 'Start with a verb in the present tense, third person. Name nobody. No preamble.',
+      options: DESC_OPTS({ num_predict: 60 }),
+      keep_alive: VLM_KEEPALIVE,
+    }),
+  })
+  if (!res.ok) throw new Error(`modèle de vision : HTTP ${res.status}`)
+  return String((await res.json()).response ?? '').trim().replace(/\s+/g, ' ').slice(0, 200)
+}
+
 /* Description de SCÈNE complète : ce que montre l'image source — action,
    lieu, tenue, ambiance — pour que le LLM comprenne le concept même sur un
    prompt court. */

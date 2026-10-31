@@ -1462,7 +1462,7 @@ export function enqueueCleanPlate({ source, cible, decor, parentAssetId, persona
 
 /* Détourer (30/10) : SAM3 suit la personne, tout le reste passe sur fond vert uni, sans rien
    redessiner. Sortie MP4 prête pour un incrustateur ; son d'origine gardé. CPU/GPU modestes. */
-export function enqueueDetour({ source, cible, parentAssetId, personaId }) {
+export function enqueueDetour({ source, cible, alpha, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'person'
   if (t0Hit(c)) throw new Error('texte refusé (liste T0)')
   if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
@@ -1472,13 +1472,59 @@ export function enqueueDetour({ source, cible, parentAssetId, personaId }) {
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'video', purpose: 'creative', recipeId: 'detour@v1', workflowFile: null,
-    seed: 1, op: 'detour', videoEngine: 'sam3_detour', reshootSource: source, reshootImages: Math.min(240, Math.floor(duree * 24)),
-    parentAssetId: parentAssetId ?? null, userPrompt: c, userDirectives: null, composedPositive: `green screen: ${c}`, composedNegative: null,
+    seed: 1, op: 'detour', videoEngine: 'sam3_detour', reshootSource: source, reshootImages: Math.min(240, Math.floor(duree * 24)), detourAlpha: alpha === true || undefined,
+    parentAssetId: parentAssetId ?? null, userPrompt: c, userDirectives: null, composedPositive: `${alpha === true ? 'transparent background' : 'green screen'}: ${c}`, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(15_000 + duree * 6_000),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
+/* Netteté (31/10) : SeedVR2 3B agrandit n'importe quel clip à 1080 de petit côté, sans changer
+   le mouvement. Apache-2.0. Le refine Wan reste la voie des brouillons. */
+const SEEDVR_COTE = 1080
+export function enqueueSeedvr({ source, parentAssetId, personaId }) {
+  if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
+  const src = path.join(CONFIG.mediaDir, source), duree = videoDurationOf(src), d = videoSize(src)
+  if (!duree) throw new Error('vidéo illisible')
+  if (Math.min(d.width, d.height) >= SEEDVR_COTE) throw new Error('ce clip est déjà en 1080p ou plus')
+  if (duree > 12) throw new Error('12 s au plus')
+  const id = `seedvr-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'seedvr@v1', workflowFile: null,
+    seed: 42, op: 'seedvr', videoEngine: 'seedvr2', reshootSource: source,
+    parentAssetId: parentAssetId ?? null, userPrompt: null, userDirectives: null, composedPositive: `SeedVR2 ${SEEDVR_COTE}p de ${source}`, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(20_000 + duree * 25_000),
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runSeedvr(job, t0) {
+  const src = path.join(CONFIG.mediaDir, job.reshootSource)
+  let son = false, fps = 24
+  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* muet */ }
+  try {
+    const [n, d] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().split('/').map(Number)
+    if (n && d) fps = n / d
+  } catch { /* 24 par défaut */ }
+  const g = {
+    src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 0, custom_width: 0, custom_height: 0, frame_load_cap: 0, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
+    dit: { class_type: 'SeedVR2LoadDiTModel', inputs: { model: 'seedvr2_ema_3b_fp16.safetensors', device: 'cuda:0', offload_device: 'cpu' } },
+    vae: { class_type: 'SeedVR2LoadVAEModel', inputs: { model: 'ema_vae_fp16.safetensors', device: 'cuda:0', decode_tiled: true, decode_tile_size: 1024, decode_tile_overlap: 128, offload_device: 'cpu' } },
+    up: { class_type: 'SeedVR2VideoUpscaler', inputs: { image: ['src', 0], dit: ['dit', 0], vae: ['vae', 0], seed: 42, resolution: SEEDVR_COTE, max_resolution: 1920, batch_size: 33, uniform_batch_size: true, color_correction: 'lab', temporal_overlap: 3, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['up', 0], ...(son ? { audio: ['src', 2] } : {}), fps } },
+    save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/seedvr`, format: 'auto', codec: 'auto' } },
+  }
+  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [`SeedVR2 3B : ${SEEDVR_COTE} de petit côté, mouvement conservé`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 /* Stage (31/10) : une scène décrite par des nombres devient une maquette grise côté serveur
    (scripts/stage_clay.py), puis un plan fini : IC-LoRA LTX-2.5 Layout-to-Render (Lightricks), même
    graphe que Clean-Plate. Aucun fichier n'entre, le verrou d'envoi des visiteurs reste fermé. */
@@ -1575,11 +1621,20 @@ async function runDetour(job, t0) {
     vid: { class_type: 'CreateVideo', inputs: { images: ['comp', 0], ...(son ? { audio: ['src', 2] } : {}), fps: 24 } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/detour`, format: 'auto', codec: 'auto' } },
   }
+  /* Fond transparent (31/10) : même suivi, sortie WebM VP9 avec alpha, lisible dans un navigateur et OBS. */
+  if (job.detourAlpha) {
+    delete g.vert; delete g.comp; delete g.vid; delete g.save
+    g.inv = { class_type: 'InvertMask', inputs: { mask: ['m0', 0] } }
+    g.rgba = { class_type: 'JoinImageWithAlpha', inputs: { image: ['src', 0], alpha: ['inv', 0] } }
+    g.save = { class_type: 'VHS_VideoCombine', inputs: { images: ['rgba', 0], ...(son ? { audio: ['src', 2] } : {}), frame_rate: 24, loop_count: 0, filename_prefix: `creatoros/${job.id}/alpha`, format: 'video/webm', pix_fmt: 'yuva420p', crf: 24, save_metadata: false, trim_to_audio: false, pingpong: false, save_output: true } }
+  }
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
-  const n = await harvestJob(job, promptId, history, { applied: [`détourage : SAM3 suit « ${job.userPrompt} », fond vert, ${N} images ${W}×${H}`], skipped: [], finalWorkflow: g })
+  // VHS range ses vidéos sous `gifs`, le ramassage ne lit que `images`
+  if (job.detourAlpha) for (const o of Object.values(history.outputs ?? {})) if (o.gifs) o.images = o.gifs.filter(f => /\.webm$/i.test(f.filename))
+  const n = await harvestJob(job, promptId, history, { applied: [`détourage : SAM3 suit « ${job.userPrompt} », ${job.detourAlpha ? 'WebM avec alpha' : 'fond vert'}, ${N} images ${W}×${H}`], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
@@ -2446,6 +2501,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'reshoot' || job.op === 'cleanplate' || job.op === 'stage') return controler(await runReshoot(job, t0))
     if (job.op === 'detour') return await runDetour(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
+    if (job.op === 'seedvr') return await runSeedvr(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)
       return await runUpscaleH3(job, t0)

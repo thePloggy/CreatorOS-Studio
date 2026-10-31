@@ -16,7 +16,7 @@ import { installerVisites } from './visites.js'
 import { CONFIG } from './config.js'
 import { fetchOllama, blocOllama, etat as etatGpu } from './gpu.js'
 import * as store from './db.js'
-import { describeOutfit, describeScene, decomposeScene } from './vision.js'
+import { describeOutfit, describeScene, decomposeScene, momentSuivant } from './vision.js'
 import * as comfy from './comfy.js'
 import * as prompts from './prompts.js'
 import * as composer from './composer.js'
@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import * as reel from './reel.js'
@@ -1997,7 +1997,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   if (mode === 'fond') cible = cible || 'person'
   if (mode === 'detourer') {
     try {
-      const r = deposerAvecCle(cleComfy(req), () => enqueueDetour({ source: path.basename(src), cible, parentAssetId: a.id, personaId: a.persona_id }))
+      const r = deposerAvecCle(cleComfy(req), () => enqueueDetour({ source: path.basename(src), cible, alpha: req.body?.alpha === true, parentAssetId: a.id, personaId: a.persona_id }))
       return { jobId: r.id }
     } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
@@ -2040,6 +2040,24 @@ for (const op of ['foley', 'interpolate']) {
     catch (e) { reply.code(400); return { error: String(e.message || e) } }
   })
 }
+
+/** Netteté SeedVR2 : tout clip monte à 1080 de petit côté (cf. enqueueSeedvr). */
+app.post('/api/assets/:id/seedvr', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
+  try { const r = deposerAvecCle(cleComfy(req), () => enqueueSeedvr({ source: path.basename(a.filename ?? a.uri), parentAssetId: a.id, personaId: a.persona_id })); return { jobId: r.id } }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+/** Next beat : le texte du moment suivant ; la retouche part ensuite par /api/jobs, avec ses filtres. */
+app.post('/api/assets/:id/moment-suivant', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
+  try {
+    const texte = await momentSuivant(path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri)))
+    if (!texte || t0Hit(texte)) { reply.code(422); return { error: 'pas de suite proposée pour cette image' } }
+    return { texte }
+  } catch (e) { reply.code(502); return { error: String(e.message || e) } }
+})
 
 app.post('/api/assets/:id/upscale', async (req, reply) => {
   const a = store.getAsset(req.params.id)
