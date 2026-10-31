@@ -2,7 +2,7 @@
 
 A self-hosted creative studio for one recurring character, from a one-line brief to a finished reel: photos, carousels, image-to-video, one-click camera moves and effects, talking avatars, motion transfer, brush retouching and a built-in video editor. It runs on top of a local [ComfyUI](https://github.com/comfyanonymous/ComfyUI), on your own GPU, using open-weights models only. Running on Comfy Cloud with your own key is experimental: the path is wired but not yet verified end to end (Comfy only issues API keys to paid accounts).
 
-![Home: one brief, one reel](docs/screenshots/home.jpg)
+![Home: Stage, reels, effects and every tool](docs/screenshots/home.jpg)
 
 Built for the Comfy **#OpenSourceHiggsfield** challenge.
 
@@ -45,6 +45,8 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 
 | | |
 |---|---|
+| ![Stage](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
+| **Stage**: block a shot from above, set the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow, reopen in Stage |
 | ![Camera & effects gallery](docs/screenshots/camera-effects.jpg) | ![One-click reel](docs/screenshots/reel.jpg) |
 | **Camera & effects**: pick a move, pick a photo | **One-click reel**: brief, shots, clips, edit |
 | ![Editor](docs/screenshots/editor.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |

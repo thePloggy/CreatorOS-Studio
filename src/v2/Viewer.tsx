@@ -243,6 +243,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
   }
   const [agrandirMsg, setAgrandirMsg] = useState('')
+  const rouvrirStage = async () => {
+    const r = await fetch(`/api/stage/${encodeURIComponent(asset.jobId ?? '')}/scene`)
+    if (!r.ok) return
+    s.ouvrirStage(await r.json()); onClose(); goVideo()
+  }
   const transparent = async () => {
     setAgrandirMsg('')
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/transparent`, { method: 'POST' })
@@ -369,6 +374,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             onClick={() => s.toggleExportReady(asset.id)}>⇪ Export{asset.exportReady ? ' ✓' : ''}</button>
         </div>
 
+        {String(asset.jobId).startsWith('stage-') && <button className="b2" onClick={() => void rouvrirStage()}>{t('Ouvrir dans Stage')}</button>}
         <div className="mt-auto flex flex-col gap-1.5">
           {asset.mediaType === 'photo' && (
             <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}

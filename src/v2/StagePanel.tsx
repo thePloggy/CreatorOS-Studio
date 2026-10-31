@@ -1,7 +1,8 @@
 /* Stage (31/10) : on place des blocs et des personnes vus de dessus, on pose le début et la fin
    de la caméra, et le serveur en tire une maquette grise puis un plan fini (POST /api/stage).
    Rien que des nombres partent : aucun fichier, le verrou d'envoi des visiteurs reste fermé. */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
 
 type Objet = { id: number; type: 'personne' | 'boite'; x: number; z: number; h: number; l: number; p: number }
@@ -37,6 +38,16 @@ export function StagePanel() {
   const prise = useRef<Prise>(null)
   const svg = useRef<SVGSVGElement>(null)
   const prochain = useRef(4)
+
+  const repris = useAppStore(s => s.stageRepris)
+  useEffect(() => {
+    if (!repris) return
+    setObjets(repris.objets.map((o, i) => ({ id: i + 1, l: 0.5, p: 0.3, ...o })))
+    prochain.current = repris.objets.length + 1
+    const pt = (c: { oeil: number[] }): Point => ({ x: c.oeil[0], z: c.oeil[2] })
+    setCam([pt(repris.camera[0]), pt(repris.camera[repris.camera.length - 1])])
+    setPrompt(repris.prompt); setChoisi(null)
+  }, [repris])
 
   const bouger = (e: React.PointerEvent) => {
     const p = prise.current, r = svg.current?.getBoundingClientRect()
@@ -76,7 +87,7 @@ export function StagePanel() {
     <svg ref={svg} viewBox={`0 0 ${COTE} ${COTE}`} style={{ width: '100%', background: 'var(--lv2)', borderRadius: 12, touchAction: 'none', cursor: 'grab' }}
       onPointerMove={bouger} onPointerUp={() => { prise.current = null }} onPointerLeave={() => { prise.current = null }}>
       {Array.from({ length: 11 }, (_, i) => (i + 1) * 25).map(n => <g key={n} stroke="rgba(255,255,255,.05)"><line x1={n} y1={0} x2={n} y2={COTE} /><line x1={0} y1={n} x2={COTE} y2={n} /></g>)}
-      {objets.map(o => {
+      {[...objets].sort((a, b) => Number(a.type === 'personne') - Number(b.type === 'personne')).map(o => {
         const [x, y] = versPx(o.x, o.z), on = o.id === choisi
         const saisir = (e: React.PointerEvent) => { e.stopPropagation(); setChoisi(o.id); prise.current = { genre: 'objet', id: o.id } }
         return o.type === 'personne'

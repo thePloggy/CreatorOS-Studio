@@ -46,7 +46,7 @@
    "fov_x_degrees": 0,
    "batch_size": 1,
    "force_projection": true,
-   "apply_mask": true
+   "apply_mask": true, "refine_steps": 0
   }
  },
  "mesh": {

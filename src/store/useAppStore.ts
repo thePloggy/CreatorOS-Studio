@@ -30,6 +30,8 @@ const ongletDe = (s: { mode: string; photo: { task: string }; video: { task: str
 
 /* ---------- État ---------- */
 
+export interface StageScene { objets: { type: 'personne' | 'boite'; x: number; z: number; h: number; l?: number; p?: number }[]; camera: { oeil: number[] }[]; prompt: string }
+
 interface AppState {
   /* Navigation */
   mode: MediaMode
@@ -172,6 +174,9 @@ interface AppState {
   /** « ▷ Animer » depuis une photo : bascule en vidéo i2v avec cette still. */
   animateFrom: (asset: Asset) => Promise<void>
   boucleFrom: (asset: Asset) => Promise<void>
+  stageOuvert: boolean
+  stageRepris: StageScene | null
+  ouvrirStage: (scene?: StageScene | null) => void
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
   retouchFrom: (asset: Asset) => Promise<void>
   /** « ⇥ Prolonger » depuis une vidéo : bascule en vidéo/extend, ce clip en source. */
@@ -562,6 +567,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       set(st => ({ navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
       await get().pickStartFrame(asset.id)
     },
+
+    stageOuvert: false,
+    stageRepris: null,
+    ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
     /* Boucle : la même photo en départ et en arrivée, sur Wan (seul moteur qui porte les deux). */
     boucleFrom: async asset => {

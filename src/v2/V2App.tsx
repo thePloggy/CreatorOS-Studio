@@ -12,6 +12,7 @@ import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { ImageView } from './ImageView'
+import { Pastille } from './bits'
 import { MontageView } from './MontageView'
 import { ReelView } from './ReelView'
 import { PresetsView } from './PresetsView'
@@ -54,9 +55,13 @@ function Telemetry() {
   const ramPct = tel.ram ? (tel.ram.usedMb / tel.ram.totalMb) * 100 : 0
   const dot = <span style={{ color: 'var(--faint)', margin: '0 6px' }}>·</span>
   const cell = { display: 'flex', alignItems: 'center', gap: 6 } as const
-  return (
+  return (<>
+    <div className="hidden lg:flex 2xl:hidden items-center gap-1.5 font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
+      {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.nom}</b>}<TBar pct={vramPct} />
+    </div>
     <div className="hidden 2xl:flex items-center font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
       title={t('GPU util · VRAM · température — CPU util · RAM (5 s)')}>
+      {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
       <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
       {dot}
       <span style={cell}>VRAM <TBar pct={vramPct} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{vramGb} {t('Go')}</b></span>
@@ -65,13 +70,15 @@ function Telemetry() {
       {tel.cpu.util != null && <span className="hidden 2xl:flex items-center">{dot}<span style={cell}>CPU <TBar pct={tel.cpu.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{tel.cpu.util} %</b></span></span>}
       {tel.ram && <span className="hidden 2xl:flex items-center">{dot}<span style={cell}>RAM <TBar pct={ramPct} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{Math.round(tel.ram.usedMb / 1024)}/{Math.round(tel.ram.totalMb / 1024)} {t('Go')}</b></span></span>}
     </div>
-  )
+  </>)
 }
 
 export default function V2App() {
   /* deep-link : ?s=video|persona|config (défaut image). */
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
+  const stageOuvert = useAppStore(st => st.stageOuvert)
+  const ouvrirStage = useAppStore(st => st.ouvrirStage)
   const [section, setSection] = useState<Section>(['accueil', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[] } | null>(null)
   const s = useAppStore()
@@ -122,8 +129,11 @@ export default function V2App() {
             <button key={k}
               className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
               style={{ background: section === k ? 'var(--lv3)' : 'transparent', color: section === k ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              onClick={() => setSection(k)}>{t(label)}</button>
+              onClick={() => { useAppStore.setState({ stageOuvert: false }); setSection(k) }}>{t(label)}</button>
           ))}
+          <button className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
+            style={{ background: section === 'video' && stageOuvert ? 'var(--lv3)' : 'transparent', color: section === 'video' && stageOuvert ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onClick={() => ouvrirStage()}>Stage<Pastille k="new" /></button>
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 10px' }} />
           <button
             className="px-3.5 py-1.5 rounded-[9px] text-[12.5px]"
@@ -159,7 +169,7 @@ export default function V2App() {
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
-        {section === 'accueil' && <HomeView go={setSection} />}
+        {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
         {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}
         {section === 'reel' && <ReelView goMontage={id => { setMontageAOuvrir(id); setSection('montage') }} />}

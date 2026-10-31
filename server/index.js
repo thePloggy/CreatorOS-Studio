@@ -293,9 +293,9 @@ function cpuUtil() {
 app.get('/api/telemetry', async () => {
   let gpu = null
   try {
-    const out = execFileSync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total',
-      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 }).trim().split(',').map(Number)
-    gpu = { util: out[0], temp: out[1], vramUsedMb: out[2], vramTotalMb: out[3] }
+    const out = execFileSync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
+      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 }).trim().split(',').map(x => x.trim())
+    gpu = { util: Number(out[0]), temp: Number(out[1]), vramUsedMb: Number(out[2]), vramTotalMb: Number(out[3]), nom: String(out[4] ?? '').replace(/^NVIDIA\s+(GeForce\s+)?/, '') }
   } catch { /* driver occupé : la topbar garde la dernière valeur */ }
   let cpuTemp = null
   try {
@@ -1958,6 +1958,15 @@ app.post('/api/stage', async (req, reply) => {
     const r = deposerAvecCle(cleComfy(req), () => enqueueStage({ scene: b.scene, prompt: b.prompt, format: b.format, secondes: b.secondes, personaId: b.personaId }))
     return { jobId: r.id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
+
+/** Rouvrir un plan dans Stage : la scène chiffrée et le texte du job. */
+app.get('/api/stage/:id/scene', async (req, reply) => {
+  const job = store.getJob(req.params.id)
+  const f = path.join(CONFIG.mediaDir, '.stage', `${path.basename(req.params.id)}.json`)
+  if (!job || !/^stage-/.test(job.id) || !fs.existsSync(f)) { reply.code(404); return { error: 'scène inconnue' } }
+  const { objets, camera } = JSON.parse(fs.readFileSync(f, 'utf8'))
+  return { objets, camera, prompt: job.user_prompt }
 })
 
 /** Fond transparent : la photo sort en PNG avec alpha (cf. enqueueTransparent). */

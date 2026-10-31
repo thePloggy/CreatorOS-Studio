@@ -643,6 +643,12 @@ export function FailCard({ j }: { j: Job }) {
 /* Un seul menu contextuel ouvert dans toute l'app : chaque menu s'enregistre
    au montage et ferme le précédent (pills d'îlot, ⋯ de vignette, animer ⌄…). */
 let closeCurrentMenu: (() => void) | null = null
+/** Pastille d'un outil : nouveau ou le plus utilisé. */
+export function Pastille({ k }: { k: 'new' | 'top' }) {
+  return <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6, marginLeft: 6, verticalAlign: 'middle', letterSpacing: '.02em',
+    color: k === 'new' ? '#1a0d10' : 'var(--text)', background: k === 'new' ? 'linear-gradient(90deg, #f6a961, #ea4e89)' : 'var(--lv4)' }}>{k === 'new' ? t('Nouveau') : 'Top'}</span>
+}
+
 export function useExclusiveMenu(onClose: () => void, nested = false) {
   /* onClose est recréé à chaque render : s'y abonner en dépendance faisait
      re-tourner l'effet et les menus se fermaient mutuellement en boucle.

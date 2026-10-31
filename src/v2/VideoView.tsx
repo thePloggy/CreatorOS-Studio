@@ -96,7 +96,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   useEffect(() => { if (s.mode !== 'video') s.setMode('video') }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const v = s.video
-  const [surStage, setSurStage] = useState(false)
+  const surStage = s.stageOuvert
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
@@ -133,7 +133,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             <button key={tb}
               className="flex-1 text-center text-[11px] leading-tight py-1.5 px-1 rounded-lg"
               style={{ background: tab === tb ? 'var(--lv4)' : 'transparent', color: tab === tb ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
-              onClick={() => tb === 'stage' ? setSurStage(true) : (setSurStage(false), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
+              onClick={() => tb === 'stage' ? s.ouvrirStage(s.stageRepris) : (useAppStore.setState({ stageOuvert: false }), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
               {tb === 'creer' ? t('Depuis une image') : tb === 'ambiance' ? t('Depuis un texte') : tb === 'rejouer' ? t('Rejouer') : tb === 'stage' ? 'Stage' : t('Étendre')}
             </button>
           ))}
@@ -408,7 +408,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </span>
         </div>
         <button className="cta" style={{ padding: isMobile ? '14px' : '26px 15px', flexDirection: 'row' }} onClick={() => void s.submitJob()}>
-          {tab === 'etendre' ? t('Prolonger') : t('Générer')} <small>{s.batchCount} job{s.batchCount > 1 ? 's' : ''} · ~{fmtDur(s.batchCount * vidEtaMs)}</small>
+          {tab === 'etendre' ? t('Prolonger') : t('Générer')} <small>{v.aspect === 'origine' ? '' : `${v.aspect} · `}{v.durationS} s · {s.batchCount} job{s.batchCount > 1 ? 's' : ''} · ~{fmtDur(s.batchCount * vidEtaMs)}</small>
         </button>
         </>)}
       </>)

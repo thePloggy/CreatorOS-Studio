@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { t as tr } from '../../i18n'
 
 export type Telemetry = {
-  gpu: { util: number; temp: number; vramUsedMb: number; vramTotalMb: number } | null
+  gpu: { util: number; temp: number; vramUsedMb: number; vramTotalMb: number; nom?: string } | null
   cpu: { util: number | null; temp: number | null }
   ram: { usedMb: number; totalMb: number } | null
 }

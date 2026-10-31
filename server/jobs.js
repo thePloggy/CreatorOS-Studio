@@ -1596,7 +1596,7 @@ export function grapheScene(src, W, H, prefixe) {
     src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 24, custom_width: 0, custom_height: 0, frame_load_cap: 1, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
     img: { class_type: 'ImageScale', inputs: { image: ['src', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
     m: { class_type: 'LoadMoGeModel', inputs: { model_name: 'moge_2_vitl_normal_fp16.safetensors' } },
-    geo: { class_type: 'MoGeInference', inputs: { moge_model: ['m', 0], image: ['img', 0], resolution_level: 6, fov_x_degrees: 0, batch_size: 1, force_projection: true, apply_mask: true } },
+    geo: { class_type: 'MoGeInference', inputs: { moge_model: ['m', 0], image: ['img', 0], resolution_level: 6, fov_x_degrees: 0, batch_size: 1, force_projection: true, apply_mask: true, refine_steps: 0 } },
     mesh: { class_type: 'MoGePointMapToMesh', inputs: { moge_geometry: ['geo', 0], batch_index: 0, decimation: 1, discontinuity_threshold: 0.04, texture: true } },
     save: { class_type: 'SaveGLB', inputs: { mesh: ['mesh', 0], filename_prefix: prefixe } },
   }
@@ -1648,7 +1648,7 @@ export function grapheReshoot(job, W, H, sonSource) {
     full: { class_type: 'ImageScale', inputs: { image: ['src', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
     half: { class_type: 'ImageScale', inputs: { image: ['src', 0], upscale_method: 'lanczos', width: w2, height: h2, crop: 'center' } },
     mogem: { class_type: 'LoadMoGeModel', inputs: { model_name: 'moge_2_vitl_normal_fp16.safetensors' } },
-    moge: { class_type: 'MoGeInference', inputs: { moge_model: ['mogem', 0], image: ['half', 0], resolution_level: 6, fov_x_degrees: 0, batch_size: 4, force_projection: true, apply_mask: true } },
+    moge: { class_type: 'MoGeInference', inputs: { moge_model: ['mogem', 0], image: ['half', 0], resolution_level: 6, fov_x_degrees: 0, batch_size: 4, force_projection: true, apply_mask: true, refine_steps: 0 } },
     warp: { class_type: 'CrossViewWarp', inputs: { frames: ['half', 0], moge_geometry: ['moge', 0], azimuth: cam.az ?? 30, elevation: cam.el ?? 0, distance: 1.0, hfov: 0,
       vertical_shift: 0, depth_ratio: 6.0, smooth_depth: false, invert_depth: false, roll_lock: false, pivot_override: false, pivot_x: 0, pivot_y: 0, pivot_z: 1.05,
       use_keyframes: !!cles, frame_count: 0, keyframes: cles ? JSON.stringify(cles) : '', interp_motion: 'ease_in_out', interpolation: 'linear', keep_source_aim: true, preview_size: 384, frame_index: 1 } },

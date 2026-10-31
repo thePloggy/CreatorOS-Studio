@@ -12,10 +12,19 @@ import { getLang, t, tServeur } from '../i18n'
 interface Preset { id: string; famille: 'camera' | 'effet'; nom: string; nomEn: string; icone: string; lora: string | null; apercu: string | null; moteur: 'ltx_hq' | 'wan21' | 'wan21_hq'; deuxRendus?: boolean }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
+const OUTILS_CLIP = [
+  { nom: 'Retirer des personnes', texte: 'Ouvre un clip, Éditer : le décor est reconstruit derrière.' },
+  { nom: 'Changer le fond', texte: 'Ouvre un clip, Éditer : la personne reste, le lieu change.' },
+  { nom: 'Fond vert', texte: 'Ouvre un clip, Éditer : SAM3 suit la personne, rien n’est redessiné.' },
+  { nom: 'Ajouter le son', texte: 'Ouvre un clip sans son : une ambiance calée sur les images.' },
+  { nom: 'Fluidité 48 i/s', texte: 'Ouvre un clip : RIFE double les images.' },
+  { nom: 'Étendre', texte: 'Ouvre un clip : la suite ou le début du plan.' },
+]
+
 export function PresetsView({ goVideo }: { goVideo: () => void }) {
   const [presets, setPresets] = useState<Preset[]>([])
   const [ouvert, setOuvert] = useState<Preset | null>(null)
-  const [famille, setFamille] = useState<'camera' | 'effet'>('camera')
+  const [famille, setFamille] = useState<'camera' | 'effet' | 'clip'>('camera')
   // « Utiliser dans… » depuis la visionneuse : la photo est déjà choisie, il reste le mouvement
   const [photoVenue, setPhotoVenue] = useState<Asset | null>(null)
   useEffect(() => { setPhotoVenue(useAppStore.getState().prendrePasserelle('presets')) }, [])
@@ -36,8 +45,19 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
           <div className="wtabs">
             <button className={`wtab ${famille === 'camera' ? 'on' : ''}`} onClick={() => setFamille('camera')}>{t('Mouvements de caméra')}</button>
             {presets.some(p => p.famille === 'effet') && <button className={`wtab ${famille === 'effet' ? 'on' : ''}`} onClick={() => setFamille('effet')}>{t('Effets')}</button>}
+            <button className={`wtab ${famille === 'clip' ? 'on' : ''}`} onClick={() => setFamille('clip')}>{t('Sur un clip')}</button>
           </div>
         </div>
+        {famille === 'clip' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+            {OUTILS_CLIP.map(o => (
+              <button key={o.nom} onClick={goVideo} style={{ borderRadius: 14, border: 0, padding: 16, cursor: 'pointer', textAlign: 'left', color: 'var(--text)', background: 'var(--lv2)', display: 'grid', gap: 5 }}>
+                <b style={{ fontSize: 14 }}>{t(o.nom)}</b>
+                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{t(o.texte)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
           {liste.map(p => (
             <button key={p.id} onClick={() => setOuvert(p)}
