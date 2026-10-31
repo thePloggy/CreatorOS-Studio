@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "creatoros-studio-mcp": "scripts/agent/mcp.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/precompresser.mjs",

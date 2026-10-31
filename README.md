@@ -211,6 +211,7 @@ npm run studio -- library --n 5 --json
 
 ```bash
 claude mcp add creatoros-studio -- node /path/to/creatoros-studio/scripts/agent/mcp.mjs
+# or, after `npm link` in the repo: claude mcp add creatoros-studio -- creatoros-studio-mcp
 ```
 
 The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `get_status`, `list_library`, `list_characters` and `machine_status`. It has no dependency beyond Node. Set `STUDIO_URL` if the studio is not on `http://127.0.0.1:8787`, and `CREATOROS_OWNER_KEY` if it is locked with an owner key. Without the key, a request from the same machine is treated like any visitor.
