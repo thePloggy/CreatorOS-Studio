@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import * as reel from './reel.js'
@@ -1948,6 +1948,29 @@ app.post('/api/assets/:id/agrandir', async (req, reply) => {
     const consigne = String(req.body?.prompt ?? '').trim() || 'Outpaint: replace the flat grey margins by extending the scene seamlessly, same place, same light, same style, photorealistic. Do not add any person. Keep the center unchanged.'
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({ sourceFile: entree, maskFile: masque, parentAssetId: a.id, prompt: consigne, strength: 1, personaId: personaDuRendu(a), agrandir: true }))
     return { jobId: id, largeur: W, hauteur: H }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
+
+/** Stage : une scène en nombres devient un plan fini (cf. enqueueStage). */
+app.post('/api/stage', async (req, reply) => {
+  try {
+    const b = req.body ?? {}
+    const r = deposerAvecCle(cleComfy(req), () => enqueueStage({ scene: b.scene, prompt: b.prompt, format: b.format, secondes: b.secondes, personaId: b.personaId }))
+    return { jobId: r.id }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
+
+/** Fond transparent : la photo sort en PNG avec alpha (cf. enqueueTransparent). */
+app.post('/api/assets/:id/transparent', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier image introuvable' } }
+  try {
+    const entree = `TRANSP_${Date.now().toString(36)}${path.extname(src) || '.png'}`
+    fs.copyFileSync(src, path.join(CONFIG.comfyInput, entree))
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueTransparent({ sourceFile: entree, parentAssetId: a.id, personaId: a.persona_id }))
+    return { jobId: id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 

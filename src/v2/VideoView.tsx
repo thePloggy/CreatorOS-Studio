@@ -15,6 +15,7 @@ import { Ic, rollingEta, fmtDur, SortBar, AssetCard, JobCard, FailCard, failedJo
 import { EnhancerPopup, FramePicker, TriagePopup } from './popups'
 import { getLang, t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
+import { StagePanel } from './StagePanel'
 
 /* Filmer un geste au téléphone (30/10) : un QR code à usage unique, 10 min (cf. /api/telephone). */
 function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: { filename: string; durationS?: number; frames?: number }) => void }) {
@@ -66,7 +67,7 @@ function PickMenu<T extends string | number>({ at, onClose, options, current, fm
 }
 const ASPECTS: VideoAspect[] = ['origine', '9:16', '2:3', '3:4', '1:1', '16:9']
 
-type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre'
+type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre' | 'stage'
 
 export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
   const edition = useEdition()
@@ -95,7 +96,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   useEffect(() => { if (s.mode !== 'video') s.setMode('video') }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const v = s.video
-  const tab: VTab = v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
+  const [surStage, setSurStage] = useState(false)
+  const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
   const shown = useMemo(() => applyFilters(s.assets, selecting ? 'photo' : 'video', review, q)
@@ -127,15 +129,17 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
       {/* ---------- création : sidebar (desktop) / sheet à crans (mobile) ---------- */}
       {(() => { const side = (<>
         <div className="flex gap-1 rounded-[11px] p-[3px]" style={{ background: 'var(--lv2)' }}>
-          {(['creer', 'ambiance', 'rejouer', 'etendre'] as VTab[]).map(tb => (
+          {(['creer', 'ambiance', 'rejouer', 'etendre', 'stage'] as VTab[]).map(tb => (
             <button key={tb}
               className="flex-1 text-center text-[11px] leading-tight py-1.5 px-1 rounded-lg"
               style={{ background: tab === tb ? 'var(--lv4)' : 'transparent', color: tab === tb ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
-              onClick={() => s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' })}>
-              {tb === 'creer' ? t('Depuis une image') : tb === 'ambiance' ? t('Depuis un texte') : tb === 'rejouer' ? t('Rejouer') : t('Étendre')}
+              onClick={() => tb === 'stage' ? setSurStage(true) : (setSurStage(false), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
+              {tb === 'creer' ? t('Depuis une image') : tb === 'ambiance' ? t('Depuis un texte') : tb === 'rejouer' ? t('Rejouer') : tb === 'stage' ? 'Stage' : t('Étendre')}
             </button>
           ))}
         </div>
+
+        {tab === 'stage' && <StagePanel />}
 
         {/* ============ CRÉER (i2v) ============ */}
         {tab === 'creer' && (<>
@@ -394,6 +398,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         {/* Nombre de rendus — COMMUN aux 3 onglets : cantonné à « Créer », un
             lot posé là restait actif en Rejouer/Étendre sans moyen de le
             corriger (le CTA annonçait « 4 jobs » sans stepper visible). */}
+        {tab !== 'stage' && (<>
         <div className="flex items-center mt-auto mb-2">
           <span className="text-[10.5px]" style={{ color: 'var(--muted)' }}>{t('nombre de rendus')}</span>
           <span className="stepper ml-auto">
@@ -405,6 +410,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         <button className="cta" style={{ padding: isMobile ? '14px' : '26px 15px', flexDirection: 'row' }} onClick={() => void s.submitJob()}>
           {tab === 'etendre' ? t('Prolonger') : t('Générer')} <small>{s.batchCount} job{s.batchCount > 1 ? 's' : ''} · ~{fmtDur(s.batchCount * vidEtaMs)}</small>
         </button>
+        </>)}
       </>)
       return isMobile
         ? <MobileSheet key={selecting ? 'sel' : 'norm'} initial={selecting ? 'mini' : 'half'}>{side}</MobileSheet>

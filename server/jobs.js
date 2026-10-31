@@ -1479,6 +1479,86 @@ export function enqueueDetour({ source, cible, parentAssetId, personaId }) {
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
+/* Stage (31/10) : une scène décrite par des nombres devient une maquette grise côté serveur
+   (scripts/stage_clay.py), puis un plan fini : IC-LoRA LTX-2.5 Layout-to-Render (Lightricks), même
+   graphe que Clean-Plate. Aucun fichier n'entre, le verrou d'envoi des visiteurs reste fermé. */
+const STAGE_LORA = 'ltx/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors'
+const borne = (v, min, max, nom) => {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n < min || n > max) throw new Error(`scène invalide : ${nom}`)
+  return n
+}
+const pointStage = (p, nom) => {
+  if (!Array.isArray(p) || p.length !== 3) throw new Error(`scène invalide : ${nom}`)
+  return [borne(p[0], -30, 30, nom), borne(p[1], 0.1, 20, nom), borne(p[2], -30, 30, nom)]
+}
+export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
+  const t = String(prompt ?? '').trim().slice(0, 1200)
+  if (!t) throw new Error('décris le plan')
+  if (t0Hit(t)) throw new Error('prompt refusé (liste T0)')
+  if (!Array.isArray(scene?.objets) || scene.objets.length < 1 || scene.objets.length > 16) throw new Error('scène invalide : 1 à 16 objets')
+  if (!Array.isArray(scene?.camera) || scene.camera.length < 2 || scene.camera.length > 4) throw new Error('scène invalide : 2 à 4 poses de caméra')
+  const objets = scene.objets.map(o => {
+    const base = { x: borne(o?.x, -30, 30, 'x'), z: borne(o?.z, -30, 30, 'z'), h: borne(o?.h, 0.1, 12, 'hauteur'), rot: borne(o?.rot ?? 0, -360, 360, 'rotation') }
+    return o?.type === 'personne' ? { type: 'personne', ...base, h: Math.min(base.h, 2.2) }
+      : { type: 'boite', ...base, l: borne(o?.l, 0.1, 30, 'largeur'), p: borne(o?.p, 0.1, 30, 'profondeur') }
+  })
+  const camera = scene.camera.map(c => ({ t: borne(c?.t, 0, 1, 't'), oeil: pointStage(c?.oeil, 'caméra'), cible: pointStage(c?.cible, 'cible'), fov: borne(c?.fov ?? 40, 20, 90, 'focale') }))
+    .sort((a, b) => a.t - b.t)
+  const images = Math.floor((Math.min(5, Math.max(2, Number(secondes) || 4)) * 24) / 8) * 8 + 1
+  const [largeur, hauteur] = format === '9:16' ? [704, 1280] : format === '1:1' ? [960, 960] : [1280, 704]
+  const id = `stage-${Date.now().toString(36)}`
+  const dossier = path.join(CONFIG.mediaDir, '.stage')
+  fs.mkdirSync(dossier, { recursive: true })
+  const json = path.join(dossier, `${id}.json`), maquette = path.join('.stage', `${id}.mp4`)
+  fs.writeFileSync(json, JSON.stringify({ largeur, hauteur, images, objets, camera }))
+  const py = fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3'
+  execFileSync(py, [path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'stage_clay.py'), json, path.join(CONFIG.mediaDir, maquette)], { timeout: 30_000 })
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'stage@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'stage', videoEngine: 'ltx_layout',
+    reshootSource: maquette, reshootAngle: 'stage', reshootCamera: { az: 0, el: 0 }, reshootImages: images,
+    parentAssetId: null, userPrompt: t, userDirectives: null, composedPositive: t, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(30_000 + images * 1_100),
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id, images }
+}
+
+/* Fond transparent (31/10) : SAM3 donne le masque de la personne, la photo sort en PNG avec alpha,
+   rien n'est redessiné. BiRefNet plante sur la 5090 (« no kernel image »). */
+export function enqueueTransparent({ sourceFile, parentAssetId, personaId }) {
+  const id = `transp-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'transparent@v1', workflowFile: null,
+    seed: 1, op: 'transparent', sourceImage: sourceFile, parentAssetId: parentAssetId ?? null,
+    userPrompt: 'transparent background', userDirectives: null, composedPositive: null, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 8000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runTransparent(job, t0) {
+  const g = {
+    src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+    sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: 'person' } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['src', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, conditioning: ['txt', 0] } },
+    masque: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
+    inv: { class_type: 'InvertMask', inputs: { mask: ['masque', 0] } },
+    png: { class_type: 'JoinImageWithAlpha', inputs: { image: ['src', 0], alpha: ['inv', 0] } },
+    save: { class_type: 'SaveImage', inputs: { images: ['png', 0], filename_prefix: `creatoros/${job.id}/transparent` } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: ['fond transparent : SAM3, PNG avec alpha, rien de redessiné'], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
 async function runDetour(job, t0) {
   const src = path.join(CONFIG.mediaDir, job.reshootSource), d = videoSize(src)
   const W = (d.width || 720) & ~1, H = (d.height || 1280) & ~1, N = job.reshootImages
@@ -1609,6 +1689,27 @@ export function grapheReshoot(job, W, H, sonSource) {
     vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], audio: sonSource ? ['src', 2] : ['adec', 0], fps: 24 } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/reshoot`, format: 'auto', codec: 'auto' } },
   }
+  if (job.op === 'stage') {
+    // la maquette grise guide seule : pas de géométrie ni de vue déplacée
+    for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
+    Object.assign(g.lora.inputs, { lora_name: STAGE_LORA, strength_model: 1 })
+    g.pos.inputs.text = String(job.composedPositive ?? '')
+    g.neg.inputs.text = 'grey clay, mannequin, blocks, untextured, text, subtitles, logo, watermark, distorted face'
+    g.g2.inputs.positive = ['cond', 0]; g.g2.inputs.negative = ['cond', 1]; g.g2.inputs.latent = ['lat1', 0]
+    g.save.inputs.filename_prefix = `creatoros/${job.id}/stage`
+    // l'image de style, posée en images-clés aux deux passes : le modèle prend son aspect de cette 1re image
+    g.look = { class_type: 'LoadImage', inputs: { image: job.stageLook } }
+    g.lookw2 = { class_type: 'ImageScale', inputs: { image: ['look', 0], upscale_method: 'lanczos', width: w2, height: h2, crop: 'center' } }
+    g.lookw = { class_type: 'ImageScale', inputs: { image: ['look', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } }
+    g.gl1 = { class_type: 'LTXVAddGuide', inputs: { positive: ['g2', 0], negative: ['g2', 1], vae: ['vae', 0], latent: ['g2', 2], image: ['lookw2', 0], frame_idx: 0, strength: 1 } }
+    g.av1.inputs.video_latent = ['gl1', 2]
+    Object.assign(g.gd1.inputs, { positive: ['gl1', 0], negative: ['gl1', 1] })
+    Object.assign(g.crop1.inputs, { positive: ['gl1', 0], negative: ['gl1', 1] })
+    g.gl2 = { class_type: 'LTXVAddGuide', inputs: { positive: ['g3', 0], negative: ['g3', 1], vae: ['vae', 0], latent: ['g3', 2], image: ['lookw', 0], frame_idx: 0, strength: 1 } }
+    g.av2.inputs.video_latent = ['gl2', 2]
+    Object.assign(g.gd2.inputs, { positive: ['gl2', 0], negative: ['gl2', 1] })
+    Object.assign(g.crop2.inputs, { positive: ['gl2', 0], negative: ['gl2', 1] })
+  }
   if (job.op === 'cleanplate') {
     // clean plate : pas de géométrie ni de vue déplacée, le clip guide seul (facteur de réduction 1)
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
@@ -1621,7 +1722,30 @@ export function grapheReshoot(job, W, H, sonSource) {
   return g
 }
 
+/* La 1re image de Stage : Qwen Edit peint la maquette, à la même place, avec le même cadre. */
+async function peindreLook(job) {
+  const clay = `STAGE_${job.id}.png`
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.mediaDir, job.reshootSource), '-frames:v', '1', path.join(CONFIG.comfyInput, clay)], { timeout: 30_000 })
+  const g = comfy.loadWorkflow(EDIT_WORKFLOW)
+  g['10'].inputs.image = clay
+  delete g['12']
+  for (const n of ['30', '31']) for (const [k, v] of Object.entries(g[n].inputs)) if (Array.isArray(v) && v[0] === '12') g[n].inputs[k] = ['10', 0]
+  g['32'].inputs.pixels = ['10', 0]
+  g['30'].inputs.prompt = `Turn this grey 3D blocking into a finished photograph. Keep the exact camera, framing and the position and size of every shape. Each grey block becomes a real object or person of the scene, with real materials and light. Scene: ${job.composedPositive}`
+  g['40'].inputs.seed = Number(job.seed) || 42
+  g['90'].inputs.filename_prefix = `creatoros/${job.id}/look`
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const [img] = comfy.outputsOf(history)
+  if (!img) throw new Error('image de style non produite')
+  const nom = `STAGE_${job.id}_look.png`
+  fs.writeFileSync(path.join(CONFIG.comfyInput, nom), await comfy.readImage(img))
+  return nom
+}
+
 async function runReshoot(job, t0) {
+  if (job.op === 'stage') job.stageLook = await peindreLook(job)
   const src = path.join(CONFIG.mediaDir, job.reshootSource)
   const d = videoSize(src)
   // côté long 1280, multiples de 64 (la passe ×2 part d'une demi-taille multiple de 32)
@@ -1640,7 +1764,7 @@ async function runReshoot(job, t0) {
   console.log(`[job ${job.id}] RE-SHOOT ${angle}, ${job.reshootImages} images ${W}×${H} prompt_id=${promptId}`)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
   const n = await harvestJob(job, promptId, history, {
-    applied: [job.op === 'cleanplate'
+    applied: [job.op === 'stage' ? `stage : maquette grise → LTX-2.5 + IC-LoRA Layout-to-Render (Lightricks), ${job.reshootImages} images ${W}×${H}` : job.op === 'cleanplate'
       ? `clean plate : LTX-2.5 + IC-LoRA Clean-Plate (Lightricks), « ${job.userPrompt} » retiré, ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}`
       : `re-shoot : MoGe-2 → CrossViewWarp → LTX-2.5 + IC-LoRA CrossView-Warp v2 (force 1,3), ${angle}, ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}`],
     skipped: [], finalWorkflow: g,
@@ -2319,8 +2443,9 @@ async function runJob(job, isRetry = false, connRetried = false) {
     const controler = n => { void controlerJob(job, null).catch(e => console.warn(`[contrôle] ${String(e.message || e).slice(0, 200)}`)); return n }
     if (job.op === 'inpaint_video') return controler(await runInpaintVideo(job, t0))
     if (job.op === 'parole') return controler(await runParole(job, t0))
-    if (job.op === 'reshoot' || job.op === 'cleanplate') return controler(await runReshoot(job, t0))
+    if (job.op === 'reshoot' || job.op === 'cleanplate' || job.op === 'stage') return controler(await runReshoot(job, t0))
     if (job.op === 'detour') return await runDetour(job, t0)
+    if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)
       return await runUpscaleH3(job, t0)

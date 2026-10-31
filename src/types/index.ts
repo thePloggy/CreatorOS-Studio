@@ -526,6 +526,7 @@ export interface Asset {
 }
 
 export interface Controle {
+  boucle?: { ssim: number; propre: boolean }
   duree?: number
   problemes: { type: string; debut: number; fin: number; detail: string; grave: boolean }[]
   visage?: { score: number | null; min?: number; mesures?: number; detail?: string } | null

@@ -25,6 +25,7 @@ export function resumeControle(c?: Controle | null): string | null {
   if (!c) return null
   const morceaux = defautsDe(c)
   if (!morceaux.length) morceaux.push(t('rien à signaler'))
+  if (c.boucle) morceaux.push(t(c.boucle.propre ? 'boucle sans jointure ({s})' : 'jointure visible ({s})', { s: c.boucle.ssim.toFixed(2) }))
   if (c.visage?.score != null) morceaux.push(t('visage {s}', { s: c.visage.score.toFixed(2) }))
   if (c.camera) morceaux.push(c.camera.mesure === c.camera.attendu
     ? t('caméra {m} ✓', { m: t(MOUVEMENT[c.camera.mesure] ?? c.camera.mesure) })

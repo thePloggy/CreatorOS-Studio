@@ -51,6 +51,19 @@ export async function controlerClip(clip, ref, mouvement) {
   }
 }
 
+/* Boucle (31/10) : SSIM entre la dernière image du clip et la première, c'est la saute vue à chaque tour. */
+const JOINTURE_PROPRE = 0.9
+async function mesurerJointure(clip) {
+  try {
+    const { stderr } = await run('ffmpeg', ['-hide_banner', '-i', clip, '-sseof', '-0.05', '-i', clip, '-lavfi',
+      '[1:v]trim=end_frame=1,setpts=PTS-STARTPTS[b];[0:v]trim=end_frame=1,setpts=PTS-STARTPTS[a];[a][b]ssim', '-f', 'null', '-'], { timeout: 30_000 })
+    const m = /All:([\d.]+)/.exec(stderr)
+    if (!m) return undefined
+    const ssim = Number(m[1])
+    return { ssim, propre: ssim >= JOINTURE_PROPRE }
+  } catch { return undefined }
+}
+
 const graves = c => (c?.problemes ?? []).filter(p => p.grave)
 const poids = c => graves(c).length * 10 + (c?.problemes ?? []).length
 
@@ -65,6 +78,7 @@ export async function controlerJob(job, relancer) {
     if (!c) continue
     const g = graves(c)
     c.prise = job.priseDe ? 2 : 1
+    if (job.endImage && job.endImage === job.sourceImage) c.boucle = await mesurerJointure(path.join(CONFIG.mediaDir, a.filename))
     if (job.priseDe) c.priseDe = job.priseDe
     store.ecrireControle(a.id, job.id, c)
     console.log(`[contrôle] ${a.id} : ${c.problemes.length ? c.problemes.map(p => p.detail).join(' ; ') : 'rien à signaler'}`

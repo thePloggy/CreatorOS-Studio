@@ -1226,6 +1226,19 @@
       "verifie": true
     },
     {
+      "chemin": "ltx/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
+      "dossier": "loras",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Layout-To-Render/resolve/main/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
+      "taille": 1308787439,
+      "licence": "LTX-2.x Community License",
+      "groupes": [
+        "video_ltx"
+      ],
+      "recettes": [],
+      "gated": true,
+      "verifie": true
+    },
+    {
       "chemin": "qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors",
       "dossier": "loras",
       "url": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors",

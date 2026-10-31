@@ -243,6 +243,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
   }
   const [agrandirMsg, setAgrandirMsg] = useState('')
+  const transparent = async () => {
+    setAgrandirMsg('')
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/transparent`, { method: 'POST' })
+    if (!r.ok) setAgrandirMsg(tServeur((await r.json().catch(() => ({}))).error) ?? `HTTP ${r.status}`)
+  }
   const agrandir = async (format: string) => {
     setAgrandirMsg('')
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/agrandir`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format }) })
@@ -369,6 +374,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}
               onClick={() => { void s.animateFrom(asset); onClose(); goVideo() }}>{t('▶ Animer (i2v)')}</button>
           )}
+          {asset.mediaType === 'photo' && (
+            <button className="b2" title={t('la photo sert de départ et d’arrivée : le clip tourne sans saute')}
+              onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}>{t('∞ Boucle')}</button>
+          )}
           {asset.mediaType === 'video' && (<>
             <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}
               onClick={() => { s.updateVideo({ task: 'extend' }); void s.pickExtendClip(asset.id); onClose(); goVideo() }}>{t('⧉ Étendre')}</button>
@@ -423,6 +432,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
               ))}
               {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
             </div>
+            <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('PNG avec alpha : le sujet est gardé, le fond disparaît, rien n’est redessiné')}
+              onClick={() => void transparent()}>{t('Fond transparent')}</button>
           </>
 )}
           <div className="flex gap-1.5">

@@ -171,6 +171,7 @@ interface AppState {
   clearComposition: () => void
   /** « ▷ Animer » depuis une photo : bascule en vidéo i2v avec cette still. */
   animateFrom: (asset: Asset) => Promise<void>
+  boucleFrom: (asset: Asset) => Promise<void>
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
   retouchFrom: (asset: Asset) => Promise<void>
   /** « ⇥ Prolonger » depuis une vidéo : bascule en vidéo/extend, ce clip en source. */
@@ -560,6 +561,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       get().updateVideo({ task: 'i2v' })
       set(st => ({ navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
       await get().pickStartFrame(asset.id)
+    },
+
+    /* Boucle : la même photo en départ et en arrivée, sur Wan (seul moteur qui porte les deux). */
+    boucleFrom: async asset => {
+      await get().animateFrom(asset)
+      get().updateVideo({ engine: 'wan' })
+      await get().pickEndFrame(asset.id)
     },
 
     retouchFrom: async asset => {
