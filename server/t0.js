@@ -77,12 +77,22 @@ export const T0_SEXE_EXPRESSIONS = [
   'retire sa chemise', 'sans soutien-gorge', 'faire l’amour', "faire l'amour", 'fait l’amour', "fait l'amour",
 ]
 
+/* Tournures de retouche (31/10) : un visiteur a déshabillé un personnage par
+   « remove bikini top », puis l'a réduit par « tiny bikini » et « larger boobies ».
+   Retirer, réduire ou remplacer par de la peau, sur un vêtement. */
+const TENUE = String.raw`(?:bikinis?|swimsuits?|swimwear|bathing suits?|tops?|bra|bras|shirts?|t-shirt|tee|blouses?|dress|dresses|skirts?|pants|trousers|jeans|shorts|bottoms?|clothes|clothing|outfit|garments?|maillots?|haut|soutien-gorge|chemise|robe|jupe|pantalon|vêtements?|habits?|tenue)`
+const RETIRER_TENUE = new RegExp(String.raw`\b(?:remove|removes|removing|erase|erases|erasing|delete|deletes|take off|takes off|taking off|take away|strip|strip off|peel off|pull off|without|no|enlève|enlever|enlevez|retire|retirer|retirez|ôte|ôter|efface|effacer|sans)\s+(?:\w+\s+){0,3}?${TENUE}\b|\b${TENUE}\s+(?:\w+\s+){0,2}?(?:off|removed|gone)\b|\breplace\s+(?:\w+\s+){0,3}?${TENUE}\s+with\s+(?:\w+\s+){0,3}?(?:tattoos?|body ?paint|paint|skin|hands?|flowers?|stickers?|leaves|emojis?)\b|\b(?:tattoos?|body ?paint)\s+(?:\w+\s+){0,3}?(?:cover|covers|covering|instead)\b`, 'u')
+const TENUE_REDUITE = new RegExp(String.raw`\b(?:tiny|micro|mini|smaller|skimpy|skimpier|small|minuscule)\s+(?:\w+\s+){0,2}?(?:bikinis?|swimsuits?|swimwear|maillots?)\b|\b(?:bikinis?|swimsuits?)\s+(?:\w+\s+){0,2}?(?:smaller|tiny|micro|skimpy)\b`, 'u')
+const CORPS_RETOUCHE = /\b(?:bust|cleavage|bosom|chest|butt|buttocks|poitrine|décolleté|fesses)\s+(?:\w+\s+){0,2}?(?:bigger|larger|huge|enormous|plus gros|énorme)\b|\b(?:bigger|larger|huge|enormous|giant|massive|plus grosse?s?|énormes?|gros|grosse)\s+(?:\w+\s+){0,2}?(?:boobies|booby|boobie|bust|cleavage|bosom|chest|butt|buttocks|poitrine|fesses)\b|\b(?:boobies|booby|boobie|busty)\b/u
+
 /** Rend le terme sexuel trouvé, ou null. */
 export function t0Sexe(text) {
   const lower = String(text ?? '').toLowerCase().normalize('NFC')
   // « without clothes » et ses fautes de frappe
   const sansHabits = lower.match(/\b(?:w\w{0,3}out|with out|no|not wearing any|zero)\s+(?:any\s+)?(?:clothes|clothing|clothe|outfit|garments?)\b|\b(?:clothes|clothing)\s+off\b|\bsans\s+(?:aucun\s+)?(?:vêtements?|habits?)\b/u)
   if (sansHabits) return sansHabits[0]
+  const retrait = lower.match(RETIRER_TENUE) ?? lower.match(TENUE_REDUITE) ?? lower.match(CORPS_RETOUCHE)
+  if (retrait) return retrait[0]
   const exp = T0_SEXE_EXPRESSIONS.find(e => lower.includes(e))
   if (exp) return exp
   const mots = new Set([...lower.split(/[^\p{L}\p{N}@$!|]+/u), ...DECHIFFRER(lower).split(/[^\p{L}\p{N}]+/u), ...lower.replace(/[-_.]/g, '').split(/[^\p{L}\p{N}]+/u)])
