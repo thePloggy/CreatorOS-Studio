@@ -13,6 +13,7 @@ import { vignetteOf } from '../components/AssetMedia'
 import { fetchAssetsDe } from '../worker/apiWorker'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
+import { GenererMusique } from './GenererMusique'
 
 type Transition = 'coupe' | 'fondu' | 'noir'
 interface Plan {
@@ -333,6 +334,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
             <b style={{ fontSize: 15, color: 'var(--text)' }}>{t('Montage')}</b><br />
             {t('Mets bout à bout des clips et des photos de ta bibliothèque, coupe-les, ajoute des fondus, du texte et une musique, puis exporte le reel.')}
             {err && <div style={{ color: 'var(--danger)', marginTop: 10 }}>{err}</div>}
+            <div style={{ width: 320, marginTop: 18, textAlign: 'left' }}><GenererMusique surPret={() => void fetch('/api/montage/musiques').then(json).then(r => setMusiques(r.musiques ?? []))} /></div>
           </div>
         </div>
       ) : (
@@ -455,6 +457,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                   <option value="">{t('aucune')}</option>
                   {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom} ({fmt(m.duree)})</option>)}
                 </select>
+                <GenererMusique surPret={() => void fetch('/api/montage/musiques').then(json).then(r => setMusiques(r.musiques ?? []))} />
                 {edition && <label className="pill tool" style={{ justifyContent: 'center', cursor: 'pointer' }}>＋ {t('ajouter une musique…')}
                   <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void deposerMusique(f); e.target.value = '' }} />
                 </label>}

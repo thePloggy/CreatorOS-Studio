@@ -27,9 +27,10 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
+import { master } from './master.js'
 import * as reel from './reel.js'
 import * as presets from './presets.js'
 
@@ -51,7 +52,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -136,6 +137,8 @@ const assetOut = r => r && ({
   aspect: r.aspect, register: 'sfw', reviewStatus: r.review_status,
   exportReady: !!r.export_ready,
   op: r.op ?? 'generate', videoEngine: r.video_engine ?? undefined,
+  // objet 3D : le GLB à côté de son tour en maquette
+  modele3d: r.job_op === 'objet3d' ? `/media/${r.job_id}.glb` : undefined,
   // Brouillon 0,4 MP : lu du payload du job (json_extract) — pas de colonne
   // dédiée, le job est la source de vérité et le badge doit être rétroactif.
   videoDraft: r.video_draft ? true : undefined,
@@ -876,7 +879,7 @@ app.post('/api/cloud/taches/:id', async req => tacheCloud(exigerCle(req), req.pa
 /* Visiteur (sans la clé) : seulement ce que le studio a généré lui-même — jamais
    un upload, même ancien : jamais la photo d'une personne réelle. */
 function inputEtranger(b, proprietaire) {
-  const noms = [b.sourceImage, b.endImage, b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null]
+  const noms = [b.sourceImage, b.endImage, b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null, ...(Array.isArray(b.references) ? b.references : [])]
   const admis = n => proprietaire ? store.estInputStudio(n) : store.estInputGenere(n)
   return noms.find(n => typeof n === 'string' && n.trim() && !admis(path.basename(n.trim()))) ?? null
 }
@@ -1902,12 +1905,20 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
   const video = a.media_type === 'video'
   const cle = Date.now().toString(36)
   const inputName = `INP_${cle}${path.extname(src) || '.png'}`, maskName = `INP_${cle}_masque.png`
+  /* Objet peint dans un clip (01/11) : la photo de référence vient de la bibliothèque. */
+  let objet = null
+  if (video && req.body?.objetAsset) {
+    const o = store.getAsset(String(req.body.objetAsset))
+    if (!o || o.media_type !== 'photo') { reply.code(400); return { error: 'choisis une photo de l’objet dans la bibliothèque' } }
+    objet = `INP_${cle}_objet${path.extname(o.filename) || '.png'}`
+    fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(o.filename)), path.join(CONFIG.comfyInput, objet))
+  }
   fs.copyFileSync(src, path.join(CONFIG.comfyInput, inputName))
   fs.writeFileSync(path.join(CONFIG.comfyInput, maskName), Buffer.from(m[1], 'base64'))
   try {
     if (video) {
       const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaintVideo({ sourceFile: inputName, maskFile: maskName, parentAssetId: a.id,
-        prompt, strength: Number(req.body?.strength), suivi: req.body?.suivi !== false }))
+        prompt, strength: objet && !Number.isFinite(Number(req.body?.strength)) ? 0.5 : Number(req.body?.strength), suivi: req.body?.suivi !== false, objet, objetNom: req.body?.objetNom }))
       return { jobId: id }
     }
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({
@@ -1967,6 +1978,76 @@ app.get('/api/stage/:id/scene', async (req, reply) => {
   if (!job || !/^stage-/.test(job.id) || !fs.existsSync(f)) { reply.code(404); return { error: 'scène inconnue' } }
   const { objets, camera } = JSON.parse(fs.readFileSync(f, 'utf8'))
   return { objets, camera, prompt: job.user_prompt }
+})
+
+/* Stage en 3D (01/11) : les modèles utilisables, objets du studio et .glb importés. */
+app.get('/api/stage/modeles', async () => {
+  const objets = fs.readdirSync(CONFIG.mediaDir).filter(f => /^objet3d-[a-z0-9]+\.glb$/.test(f)).reverse().slice(0, 60)
+    .map(f => ({ nom: f, titre: store.getJob(f.replace(/\.glb$/, ''))?.user_prompt ?? f, url: `/media/${f}` }))
+  const d = path.join(CONFIG.mediaDir, '.stage')
+  const importes = fs.existsSync(d) ? fs.readdirSync(d).filter(f => /^imp_.*\.glb$/.test(f)).map(f => ({ nom: f, titre: f.replace(/^imp_[a-z0-9]+_/, ''), url: `/api/stage/modeles/${f}` })) : []
+  return { modeles: [...importes, ...objets].filter(m => cheminModele(m.nom)) }
+})
+app.get('/api/stage/modeles/:nom', async (req, reply) => {
+  const f = cheminModele(req.params.nom)
+  if (!f) { reply.code(404); return { error: 'modèle inconnu' } }
+  reply.type('model/gltf-binary')
+  return fs.createReadStream(f)
+})
+/** Import d'un .glb : réservé au propriétaire, comme tout envoi de fichier. */
+app.addContentTypeParser('model/gltf-binary', { parseAs: 'buffer', bodyLimit: 200 * 1024 * 1024 }, (req, corps, done) => done(null, corps))
+app.post('/api/stage/glb', async (req, reply) => {
+  const b = req.body
+  if (!Buffer.isBuffer(b) || b.subarray(0, 4).toString('latin1') !== 'glTF') { reply.code(415); return { error: 'fichier .glb attendu' } }
+  const racine = String(req.query?.name ?? 'modele').replace(/\.[^.]*$/, '').normalize('NFD').replace(/[^\w-]+/g, '_').slice(0, 40) || 'modele'
+  const d = path.join(CONFIG.mediaDir, '.stage'), nom = `imp_${Date.now().toString(36)}_${racine}.glb`
+  fs.mkdirSync(d, { recursive: true })
+  fs.writeFileSync(path.join(d, nom), b)
+  return { nom }
+})
+
+/** Objet 3D : une photo devient un GLB (cf. enqueueObjet3d). */
+app.post('/api/assets/:id/objet3d', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier image introuvable' } }
+  try {
+    const entree = `OBJ3D_${Date.now().toString(36)}${path.extname(src) || '.png'}`
+    fs.copyFileSync(src, path.join(CONFIG.comfyInput, entree))
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueObjet3d({ sourceFile: entree, cible: req.body?.cible, parentAssetId: a.id, personaId: a.persona_id }))
+    return { jobId: id }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
+
+/** Musique ou bruitage généré : rejoint les musiques du montage (cf. enqueueMusique). */
+app.post('/api/musique', async (req, reply) => {
+  try {
+    const b = req.body ?? {}
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueMusique({ prompt: b.prompt, paroles: b.paroles, secondes: b.secondes, genre: b.genre }))
+    return { jobId: id }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
+
+/** Master d'un clip : POST le lance, GET en donne l'état, ?dl=1 le télécharge (cf. master.js). */
+const fichierClip = a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+app.post('/api/assets/:id/master', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
+  try { const { etat, erreur } = master(a.id, fichierClip(a), String(req.body?.format ?? '')); return { etat, erreur } }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/assets/:id/master/:format', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
+  try {
+    const r = master(a.id, fichierClip(a), req.params.format, false)
+    if (req.query.dl !== '1') return { etat: r.etat, erreur: r.erreur }
+    if (r.etat !== 'pret') { reply.code(409); return { error: 'master pas encore prêt' } }
+    reply.header('Content-Disposition', `attachment; filename="${path.basename(r.fichier)}"`)
+    reply.type('application/octet-stream')
+    return fs.createReadStream(r.fichier)
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
 /** Fond transparent : la photo sort en PNG avec alpha (cf. enqueueTransparent). */

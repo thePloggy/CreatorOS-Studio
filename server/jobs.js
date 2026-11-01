@@ -10,6 +10,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { execFile, execFileSync } from 'node:child_process'
+import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
 import * as comfy from './comfy.js'
 import { pourRendu } from './gpu.js'
@@ -22,6 +23,7 @@ import * as wildcards from './wildcards.js'
 import * as vision from './vision.js'
 import { t0Hit } from './t0.js'
 import * as plans from './plans.js'
+import { MUSIQUES_DIR } from './montage.js'
 
 const CLIENT_ID = 'creatoros-' + crypto.randomUUID()
 
@@ -560,6 +562,7 @@ export async function recoverQueue() {
 /** Enregistre le job et le met en file. Retourne immédiatement :
  *  le front suit l'avancement par /api/jobs/:id. */
 export function enqueue(job) {
+  if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: 'klein', workflowFile: undefined }   // seule la recette Klein prend des références
   /* Idempotence d'envoi : si la clé du client a DÉJÀ produit un job, on rend
      celui-là au lieu d'en créer un second. Le client mobile la génère avant
      son premier POST et la réutilise sur toute reprise de transport (réponse
@@ -703,7 +706,14 @@ export function enqueue(job) {
     // Prequel : le rendu ARRIVE sur la 1re frame de la source (endImage) et passe devant
     prequel: mode === 'video' && !isMotion && job.prequel === true,
     // recette photo demandée (Krea 2 / FLUX.2 Klein) : décide aussi des LoRA d'identité empilées
-    photoEngine: mode === 'photo' && op !== 'edit' && RECIPES_PAR_MOTEUR[job.photoEngine] ? job.photoEngine : undefined,
+    photoEngine: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) && job.references.length ? 'klein'
+      : mode === 'photo' && op !== 'edit' && RECIPES_PAR_MOTEUR[job.photoEngine] ? job.photoEngine : undefined,
+    // jusqu'à 6 images de référence (FLUX.2 Klein), noms nus du dossier input
+    references: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) ? job.references.filter(n => typeof n === 'string' && n && !/[\\/]/.test(n) && !n.startsWith('.')).slice(0, 6) : undefined,
+    // Mix à plusieurs : rang de la personne (de gauche à droite), nombre de personnes, personnages restants
+    mixRang: isMotion && Number.isInteger(job.mixRang) ? job.mixRang : undefined,
+    mixTotal: isMotion && Number.isInteger(job.mixTotal) ? job.mixTotal : undefined,
+    mixSuite: isMotion && Array.isArray(job.mixSuite) ? job.mixSuite.map(String).slice(0, 2) : undefined,
     // preset de caméra ou d'effet d'origine : le contrôle des clips y lit le mouvement attendu
     presetId: typeof job.presetId === 'string' ? job.presetId.slice(0, 40) : undefined,
     // banc basse VRAM : profil forcé pour CE job (le serveur ne le laisse passer qu'au propriétaire)
@@ -1162,7 +1172,7 @@ const INPAINT_VIDEO_MAX_IMAGES = 161
    trouve d'après `cible` (« dress », « sunglasses »…) sur chaque image et la suit ;
    le prompt dit ce qui doit s'y trouver. Rien à modifier si la cible n'est pas à
    l'image : on ne fait pas apparaître un objet absent. */
-export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer }) {
+export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer, objet, objetNom }) {
   if (t0Hit(`${prompt ?? ''} ${cible ?? ''}`)) throw new Error('prompt refusé (liste T0)')
   const zoneTexte = String(cible ?? '').trim().slice(0, 80) || null
   if (!maskFile && !zoneTexte) throw new Error('rien à éditer : ni zone peinte ni élément à modifier')
@@ -1179,12 +1189,14 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
     inpaintInverser: !!inverser && !!zoneTexte,
     // « retirer » : la zone est d'abord brouillée avec les couleurs voisines, sinon le modèle redessine l'objet
     inpaintRetirer: !!retirer && !!zoneTexte && !inverser,
+    // objet à poser : photo de référence (input) et nom pour SAM3 ; le collage se fond à force modérée
+    inpaintObjet: objet ?? null, inpaintObjetNom: objet ? String(objetNom ?? '').trim().slice(0, 80) || 'main object' : null,
     inpaintDenoise: Number.isFinite(strength) ? Math.min(1, Math.max(0.3, strength)) : INPAINT_VIDEO_DENOISE,
     parentAssetId: parentAssetId ?? null,
     userPrompt: String(prompt ?? '').trim() || null, userDirectives: null,
     composedPositive: String(prompt ?? '').trim() || null, composedNegative: null,
     selections: null, loras: [], videoLoras: [],
-    estimatedMs: Math.round(60_000 + m.frames * 2500),
+    estimatedMs: Math.round((objet ? 90_000 : 60_000) + m.frames * 2500),
   }
   store.createJob(row)
   retenirCle(row.id)
@@ -1194,6 +1206,7 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
 }
 
 async function runInpaintVideo(job, t0) {
+  if (job.inpaintObjet) await preparerObjet(job)
   const g = comfy.loadWorkflow(REFINE_MASKED_RECIPE)
   const req = (id, classe) => { if (g[id]?.class_type !== classe) throw new Error(`retouche vidéo : la recette « ${REFINE_MASKED_RECIPE} » a changé (nœud ${id} ≠ ${classe})`) }
   req('20', 'VHS_LoadVideo'); req('12', 'KSampler'); req('8', 'CLIPTextEncode'); req('14', 'VAEDecode'); req('15', 'CreateVideo'); req('trk', 'SAM3_VideoTrack')
@@ -1546,6 +1559,12 @@ export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
   if (!Array.isArray(scene?.camera) || scene.camera.length < 2 || scene.camera.length > 4) throw new Error('scène invalide : 2 à 4 poses de caméra')
   const objets = scene.objets.map(o => {
     const base = { x: borne(o?.x, -30, 30, 'x'), z: borne(o?.z, -30, 30, 'z'), h: borne(o?.h, 0.1, 12, 'hauteur'), rot: borne(o?.rot ?? 0, -360, 360, 'rotation') }
+    if (o?.type === 'modele') {
+      const modele = String(o?.modele ?? '')
+      const fichier = cheminModele(modele)
+      if (!fichier) throw new Error('modèle 3D inconnu')
+      return { type: 'modele', ...base, modele, fichier, y: borne(o?.y ?? 0, 0, 12, 'élévation') }
+    }
     return o?.type === 'personne' ? { type: 'personne', ...base, h: Math.min(base.h, 2.2) }
       : { type: 'boite', ...base, l: borne(o?.l, 0.1, 30, 'largeur'), p: borne(o?.p, 0.1, 30, 'profondeur') }
   })
@@ -1558,18 +1577,197 @@ export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
   fs.mkdirSync(dossier, { recursive: true })
   const json = path.join(dossier, `${id}.json`), maquette = path.join('.stage', `${id}.mp4`)
   fs.writeFileSync(json, JSON.stringify({ largeur, hauteur, images, objets, camera }))
-  const py = fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3'
-  execFileSync(py, [path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'stage_clay.py'), json, path.join(CONFIG.mediaDir, maquette)], { timeout: 30_000 })
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'video', purpose: 'creative', recipeId: 'stage@v1', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'stage', videoEngine: 'ltx_layout',
-    reshootSource: maquette, reshootAngle: 'stage', reshootCamera: { az: 0, el: 0 }, reshootImages: images,
+    reshootSource: maquette, stageScene: json, reshootAngle: 'stage', reshootCamera: { az: 0, el: 0 }, reshootImages: images,
     parentAssetId: null, userPrompt: t, userDirectives: null, composedPositive: t, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(30_000 + images * 1_100),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id, images }
+}
+
+const executer = promisify(execFile)
+const SCRIPTS = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts')
+const pythonComfy = () => (fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3')
+const rendreClay = (json, sortie) => executer(pythonComfy(), [path.join(SCRIPTS, 'stage_clay.py'), json, sortie], { timeout: 180_000 })
+
+/* Modèles de Stage : un objet 3D du studio (media/<job>.glb) ou un .glb importé par le
+   propriétaire (media/.stage/imp_*.glb). Le client ne donne qu'un nom, jamais un chemin. */
+export function cheminModele(nom) {
+  const n = path.basename(String(nom))
+  if (n !== nom || !/^[\w.-]+\.glb$/.test(n)) return null
+  const f = /^imp_/.test(n) ? path.join(CONFIG.mediaDir, '.stage', n) : path.join(CONFIG.mediaDir, n)
+  return fs.existsSync(f) ? f : null
+}
+
+/* Objet 3D (01/11) : une photo devient un GLB avec TRELLIS.2 (Microsoft, MIT), nœuds du cœur de
+   ComfyUI. SAM3 isole l'objet nommé, BiRefNet plantant sur la 5090. Le GLB reste à côté du média ;
+   la bibliothèque reçoit un tour complet en maquette grise. */
+export function enqueueObjet3d({ sourceFile, cible, parentAssetId, personaId }) {
+  const c = String(cible ?? '').trim().slice(0, 80) || 'main object'
+  if (t0Hit(c)) throw new Error('texte refusé (liste T0)')
+  const id = `objet3d-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'objet3d@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffff), op: 'objet3d', videoEngine: 'trellis2', sourceImage: sourceFile,
+    parentAssetId: parentAssetId ?? null, userPrompt: c, userDirectives: null, composedPositive: `objet 3D : ${c}`, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 60_000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+function grapheObjet3d(job) {
+  const s = Number(job.seed) || 42
+  const ech = (pas, cfg, ordo, model, pos, neg, latent) => ({ class_type: 'KSampler', inputs: { seed: s, steps: pas, cfg, sampler_name: 'euler', scheduler: ordo, denoise: 1, model, positive: pos, negative: neg, latent_image: latent } })
+  return {
+    src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+    sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: job.userPrompt } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['src', 0], model: ['sam3', 0], detection_threshold: 0.3, max_objects: 1, detect_interval: 1, conditioning: ['txt', 0] } },
+    masque: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
+    crop: { class_type: 'ImageCropToMask', inputs: { images: ['src', 0], masks: ['masque', 0], width: 1024, height: 1024, pad_factor: 1.1, grow_mask: 0, background: '#000000' } },
+    cv: { class_type: 'CLIPVisionLoader', inputs: { clip_name: 'dino_v3_vit_l.safetensors' } },
+    cond: { class_type: 'Trellis2Conditioning', inputs: { clip_vision_model: ['cv', 0], image: ['crop', 0] } },
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'trellis_2_int8_convrot.safetensors', weight_dtype: 'default' } },
+    vs: { class_type: 'VAELoader', inputs: { vae_name: 'trellis_2_shape_vae_bf16.safetensors' } },
+    vt: { class_type: 'VAELoader', inputs: { vae_name: 'trellis_2_texture_vae_bf16.safetensors' } },
+    o1: { class_type: 'CFGOverride', inputs: { model: ['unet', 0], cfg: 1, start_percent: 0.667, end_percent: 1 } },
+    r1: { class_type: 'RescaleCFG', inputs: { model: ['o1', 0], multiplier: 0.7 } },
+    ms: { class_type: 'ModelSamplingSD3', inputs: { model: ['r1', 0], shift: 5 } },
+    o2: { class_type: 'CFGOverride', inputs: { model: ['unet', 0], cfg: 1, start_percent: 0.769, end_percent: 1 } },
+    r2: { class_type: 'RescaleCFG', inputs: { model: ['o2', 0], multiplier: 0.5 } },
+    e0: { class_type: 'EmptyTrellis2LatentStructure', inputs: { batch_size: 1 } },
+    k0: ech(12, 7.5, 'normal', ['ms', 0], ['cond', 0], ['cond', 1], ['e0', 0]),
+    vox: { class_type: 'VaeDecodeStructureTrellis2', inputs: { samples: ['k0', 0], vae: ['vs', 0], resolution: '32' } },
+    sh: { class_type: 'Trellis2ShapeStage', inputs: { positive: ['cond', 0], negative: ['cond', 1], voxel: ['vox', 0] } },
+    k1: ech(20, 7.5, 'normal', ['r2', 0], ['sh', 0], ['sh', 1], ['sh', 2]),
+    up: { class_type: 'Trellis2UpsampleStage', inputs: { positive: ['sh', 0], negative: ['sh', 1], shape_latent: ['k1', 0], vae: ['vs', 0], target_resolution: 1024 } },
+    k2: ech(12, 7.5, 'simple', ['r2', 0], ['up', 0], ['up', 1], ['up', 2]),
+    dm: { class_type: 'VaeDecodeShapeTrellis', inputs: { samples: ['k2', 0], vae: ['vs', 0] } },
+    tx: { class_type: 'Trellis2TextureStage', inputs: { positive: ['up', 0], negative: ['up', 1], shape_latent: ['k2', 0] } },
+    k3: ech(12, 1, 'normal', ['unet', 0], ['tx', 0], ['tx', 1], ['tx', 2]),
+    dt: { class_type: 'VaeDecodeTextureTrellis', inputs: { samples: ['k3', 0], vae: ['vt', 0], shape_subdivides: ['dm', 1] } },
+    dec: { class_type: 'DecimateMesh', inputs: { mesh: ['dm', 0], target_face_count: 200000, placement_mode: 'midpoint' } },
+    sm: { class_type: 'MeshSmoothNormals', inputs: { mesh: ['dec', 0], crease_angle: 180 } },
+    pt: { class_type: 'PaintMesh', inputs: { mesh: ['sm', 0], voxel_colors: ['dt', 0] } },
+    save: { class_type: 'SaveGLB', inputs: { mesh: ['pt', 0], filename_prefix: `creatoros/${job.id}/objet` } },
+  }
+}
+/** Le GLB de ComfyUI embarque le graphe et ses chemins dans asset.extras : on le retire avant de le servir. */
+function glbPropre(b) {
+  const lj = b.readUInt32LE(12)
+  const js = JSON.parse(b.subarray(20, 20 + lj).toString('utf8'))
+  if (js.asset) delete js.asset.extras
+  let txt = JSON.stringify(js); while (Buffer.byteLength(txt) % 4) txt += ' '
+  const tete = Buffer.alloc(20), jb = Buffer.from(txt), reste = b.subarray(20 + lj)
+  tete.writeUInt32LE(0x46546C67, 0); tete.writeUInt32LE(2, 4); tete.writeUInt32LE(20 + jb.length + reste.length, 8)
+  tete.writeUInt32LE(jb.length, 12); tete.writeUInt32LE(0x4E4F534A, 16)
+  return Buffer.concat([tete, jb, reste])
+}
+async function runObjet3d(job, t0) {
+  const g = grapheObjet3d(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { timeoutMs: 20 * 60_000, onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const f = Object.values(history.outputs ?? {}).flatMap(o => o['3d'] ?? []).find(x => x.filename?.endsWith('.glb'))
+  if (!f) throw new Error('modèle 3D non produit')
+  const glb = path.join(CONFIG.mediaDir, `${job.id}.glb`)
+  fs.writeFileSync(glb, glbPropre(fs.readFileSync(path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename))))
+  // un tour complet en maquette grise pour la bibliothèque
+  const dossier = path.join(CONFIG.comfyOutput, 'creatoros', job.id)
+  fs.mkdirSync(dossier, { recursive: true })
+  const json = path.join(dossier, 'tour.json'), mp4 = path.join(dossier, 'tour.mp4')
+  const camera = Array.from({ length: 13 }, (_, i) => { const a = i / 12 * 2 * Math.PI; return { t: i / 12, oeil: [3.4 * Math.sin(a), 1.3, 3.4 * Math.cos(a)], cible: [0, 0.75, 0], fov: 32 } })
+  fs.writeFileSync(json, JSON.stringify({ largeur: 720, hauteur: 720, images: 97, objets: [{ type: 'modele', fichier: glb, x: 0, z: 0, h: 1.5 }], camera, lineaire: true }))
+  await rendreClay(json, mp4)
+  history.outputs.tour = { images: [{ filename: 'tour.mp4', subfolder: `creatoros/${job.id}`, type: 'output' }] }
+  const n = await harvestJob(job, promptId, history, { applied: [`objet 3D : SAM3 isole « ${job.userPrompt} », TRELLIS.2 construit le GLB, tour en maquette grise`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
+/* Musique et bruitages (01/11) : ACE-Step 1.5 turbo (MIT), nœuds du cœur de ComfyUI. Le morceau
+   rejoint le dossier des musiques du montage et du reel. */
+export function enqueueMusique({ prompt, paroles, secondes, genre, personaId }) {
+  const texte = String(prompt ?? '').trim().slice(0, 400)
+  const mots = String(paroles ?? '').trim().slice(0, 2000)
+  if (!texte) throw new Error('décris le morceau')
+  if (t0Hit(`${texte} ${mots}`)) throw new Error('prompt refusé (liste T0)')
+  const bruit = genre === 'bruitage'
+  const duree = Math.round(Math.min(bruit ? 20 : 120, Math.max(bruit ? 2 : 5, Number(secondes) || (bruit ? 6 : 30))))
+  const id = `musique-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'audio', purpose: 'creative', recipeId: 'musique@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffff), op: 'musique', videoEngine: null, musiqueSecondes: duree, musiqueParoles: mots, musiqueBruitage: bruit,
+    parentAssetId: null, userPrompt: texte, userDirectives: null, composedPositive: texte, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(12_000 + duree * 500),
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runMusique(job, t0) {
+  const d = job.musiqueSecondes, s = Number(job.seed) || 42
+  const tags = job.musiqueBruitage ? `sound effect, foley, no music, no vocals, ${job.userPrompt}` : job.userPrompt
+  const g = {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'acestep_v1.5_turbo.safetensors', weight_dtype: 'default' } },
+    ms: { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['unet', 0], shift: 3 } },
+    clip: { class_type: 'DualCLIPLoader', inputs: { clip_name1: 'qwen_0.6b_ace15.safetensors', clip_name2: 'qwen_4b_ace15.safetensors', type: 'ace', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'ace_1.5_vae.safetensors' } },
+    txt: { class_type: 'TextEncodeAceStepAudio1.5', inputs: { clip: ['clip', 0], tags, lyrics: job.musiqueParoles || '[instrumental]', seed: s, bpm: 110, duration: d, timesignature: '4', language: 'en', keyscale: 'E minor', generate_audio_codes: true, cfg_scale: 2, temperature: 0.85, top_p: 0.9, top_k: 0, min_p: 0 } },
+    neg: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['txt', 0] } },
+    lat: { class_type: 'EmptyAceStep1.5LatentAudio', inputs: { seconds: d, batch_size: 1 } },
+    k: { class_type: 'KSampler', inputs: { seed: s, steps: 8, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1, model: ['ms', 0], positive: ['txt', 0], negative: ['neg', 0], latent_image: ['lat', 0] } },
+    dec: { class_type: 'VAEDecodeAudio', inputs: { samples: ['k', 0], vae: ['vae', 0] } },
+    save: { class_type: 'SaveAudioMP3', inputs: { audio: ['dec', 0], filename_prefix: `creatoros/${job.id}/musique`, quality: 'V0' } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const f = Object.values(history.outputs ?? {}).flatMap(o => o.audio ?? [])[0]
+  if (!f) throw new Error('aucun son en sortie')
+  const racine = job.userPrompt.normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'musique'
+  fs.mkdirSync(MUSIQUES_DIR, { recursive: true })
+  // ACE-Step sort à 0 dB : niveau ramené à celui d'une musique de fond, sans saturation
+  await executer('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-q:a', '2', path.join(MUSIQUES_DIR, `${racine}_${job.id.slice(-6)}.mp3`)], { timeout: 60_000 })
+  store.markFinished(job.id, Date.now() - t0)
+  return 1
+}
+
+/* Objet peint dans un clip (01/11) : la zone peinte est suivie par SAM3, l'objet de la photo de
+   référence y est détouré et collé image par image, puis la retouche Wan le fond dans la scène. */
+async function preparerObjet(job) {
+  const dossier = `creatoros/${job.id}`
+  const g = {
+    src: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: 0, custom_height: 0, frame_load_cap: 0, skip_first_frames: 0, select_every_nth: 1 } },
+    peint: { class_type: 'LoadImage', inputs: { image: job.inpaintMask } },
+    zone: { class_type: 'ImageToMask', inputs: { image: ['peint', 0], channel: 'red' } },
+    sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['src', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, initial_mask: ['zone', 0] } },
+    m0: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
+    mi: { class_type: 'MaskToImage', inputs: { mask: job.inpaintSuivi ? ['m0', 0] : ['zone', 0] } },
+    mv: { class_type: 'VHS_VideoCombine', inputs: { images: ['mi', 0], frame_rate: 16, loop_count: 0, filename_prefix: `${dossier}/zone`, format: 'video/h264-mp4', pix_fmt: 'yuv420p', crf: 10, save_metadata: false, trim_to_audio: false, pingpong: false, save_output: true } },
+    ref: { class_type: 'LoadImage', inputs: { image: job.inpaintObjet } },
+    t2: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: job.inpaintObjetNom } },
+    trk2: { class_type: 'SAM3_VideoTrack', inputs: { images: ['ref', 0], model: ['sam3', 0], detection_threshold: 0.3, max_objects: 1, detect_interval: 1, conditioning: ['t2', 0] } },
+    m1: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk2', 0], object_indices: '0' } },
+    inv: { class_type: 'InvertMask', inputs: { mask: ['m1', 0] } },
+    png: { class_type: 'JoinImageWithAlpha', inputs: { image: ['ref', 0], alpha: ['inv', 0] } },
+    sv: { class_type: 'SaveImage', inputs: { images: ['png', 0], filename_prefix: `${dossier}/objet` } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  const h = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const fichier = (cle, champ) => { const o = h.outputs?.[cle]?.[champ]?.find(x => /\.(mp4|png)$/.test(x.filename)); if (!o) throw new Error('objet : zone ou détourage non produit'); return path.join(CONFIG.comfyOutput, o.subfolder ?? '', o.filename) }
+  const colle = `OBJ_${job.id}.mp4`
+  await executer(pythonComfy(), [path.join(SCRIPTS, 'coller_objet.py'), path.join(CONFIG.comfyInput, job.inpaintVideo), fichier('mv', 'gifs'), fichier('sv', 'images'), path.join(CONFIG.comfyInput, colle), '16'], { timeout: 300_000 })
+  job.inpaintVideo = colle
 }
 
 /* Fond transparent (31/10) : SAM3 donne le masque de la personne, la photo sort en PNG avec alpha,
@@ -1779,6 +1977,8 @@ export function grapheReshoot(job, W, H, sonSource) {
 
 /* La 1re image de Stage : Qwen Edit peint la maquette, à la même place, avec le même cadre. */
 async function peindreLook(job) {
+  // la maquette se dessine ici : avec des modèles 3D elle prend plusieurs secondes
+  await rendreClay(job.stageScene, path.join(CONFIG.mediaDir, job.reshootSource))
   const clay = `STAGE_${job.id}.png`
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.mediaDir, job.reshootSource), '-frames:v', '1', path.join(CONFIG.comfyInput, clay)], { timeout: 30_000 })
   const g = comfy.loadWorkflow(EDIT_WORKFLOW)
@@ -2321,7 +2521,8 @@ async function pump() {
   /* La carte est prise pour ComfyUI le temps du job (cf. server/gpu.js). */
   /* Clé de visiteur → Comfy Cloud par le SDK ; transport SDK global → proxy
      local ; sinon ComfyUI local, la carte arbitrée avec Ollama (gpu.js). */
-  const cle = clesComfy.get(job.id)
+  // TRELLIS.2 et ACE-Step tournent ici, avec des fichiers d'ici : jamais sur le cloud du visiteur
+  const cle = ['objet3d', 'musique'].includes(job.op) ? null : clesComfy.get(job.id)
   try {
     const lancer = () => profilDuJob.run(job.profilVram ?? null, () => runJob(job))
     if (cle || sdk.TRANSPORT === 'sdk') await sdk.avecSdk(cle, lancer)
@@ -2405,7 +2606,9 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
     const notes = [...meta.matchAll(/signalstats\.YAVG=([0-9.]+)/g)].map(m => Number(m[1]))
     for (let i = 1; i < notes.length; i++) if (notes[i] > notes[idx]) idx = i
   } catch { idx = 0 }
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', driverPath, '-vf', `select=eq(n\\,${idx})`, '-vframes', '1',
+  // Mix à plusieurs : la tenue se lit sur la bande de la personne visée, pas sur celle de sa voisine
+  const bande = job.mixTotal ? `,crop=iw/${job.mixTotal}:ih:iw*${job.mixRang ?? 0}/${job.mixTotal}:0` : ''
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', driverPath, '-vf', `select=eq(n\\,${idx})${bande}`, '-vframes', '1',
     path.join(CONFIG.comfyInput, src)], { stdio: ['ignore', 'ignore', 'pipe'] })
   store.setStatus(job.id, 'rendering')
   const tenue = await vision.describeOutfit(path.join(CONFIG.comfyInput, src))
@@ -2475,7 +2678,7 @@ function grapheMix(job, motion, applied, skipped) {
   mg['150'].inputs.value = mw; mg['151'].inputs.value = mh
   // masque automatique : GroundingDINO trouve le sujet → points SAM2
   try {
-    const raw = execFileSync(COMFY_PY, [GDINO_POINTS, path.join(CONFIG.comfyInput, job.motionDriver), String(mw), String(mh), 'woman'],
+    const raw = execFileSync(COMFY_PY, [GDINO_POINTS, path.join(CONFIG.comfyInput, job.motionDriver), String(mw), String(mh), job.mixTotal ? 'person' : 'woman', ...(job.mixTotal ? [String(job.mixRang ?? 0), String(job.mixTotal)] : [])],
       { encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, COMFY_DIR: CONFIG.comfyDir } })
     const pts = JSON.parse(raw.trim().split('\n').pop())
     Object.assign(mg['107'].inputs, { width: mw, height: mh, normalize: false,
@@ -2483,10 +2686,40 @@ function grapheMix(job, motion, applied, skipped) {
     delete mg['104'].inputs.coordinates_negative
     applied.push(`masque automatique : sujet « woman », ${pts.positive.length} points`)
   } catch (e) {
+    if (job.mixTotal) throw new Error(`Mix à plusieurs : personnes non trouvées sur le clip (${String(e.stderr || e.message || e).slice(-100)})`)
     skipped.push(`masque automatique indisponible (${String(e.message || e).slice(0, 80)}) : points par défaut de la recette`)
   }
   applied.push(`Mix WanAnimate : la still « ${motion.refName} » dans le décor du driver (${n} images), ${mw}×${mh}`)
   return mg
+}
+
+/* Images de référence (01/11) : chacune passe dans le latent et s'ajoute au conditionnement
+   (ReferenceLatent en chaîne), à la manière d'un plateau de FLUX.2. */
+function appliquerReferences(g, noms, applied) {
+  const k = Object.values(g).find(n => n.class_type === 'KSampler')
+  const vae = Object.entries(g).find(([, n]) => n.class_type === 'VAELoader')?.[0]
+  if (!k || !vae) throw new Error('références : la recette n’a ni KSampler ni VAE')
+  let pos = k.inputs.positive
+  noms.forEach((image, i) => {
+    g[`ref${i}`] = { class_type: 'LoadImage', inputs: { image } }
+    g[`refs${i}`] = { class_type: 'ImageScaleToTotalPixels', inputs: { image: [`ref${i}`, 0], upscale_method: 'lanczos', megapixels: 1, resolution_steps: 16 } }
+    g[`refl${i}`] = { class_type: 'VAEEncode', inputs: { pixels: [`refs${i}`, 0], vae: [vae, 0] } }
+    g[`refc${i}`] = { class_type: 'ReferenceLatent', inputs: { conditioning: pos, latent: [`refl${i}`, 0] } }
+    pos = [`refc${i}`, 0]
+  })
+  k.inputs.positive = pos
+  applied.push(`${noms.length} image(s) de référence sur FLUX.2 Klein (ReferenceLatent)`)
+}
+
+/** Mix à plusieurs : le clip rendu devient la source de la passe suivante, pour la personne d'à côté. */
+function lancerMixSuivant(job, livre) {
+  const [perso, ...reste] = job.mixSuite
+  const nom = `MIXS_${job.id}.mp4`
+  fs.copyFileSync(livre.full, path.join(CONFIG.comfyInput, nom))
+  store.noterInput(nom)
+  enqueue({ mode: 'video', register: 'sfw', purpose: 'creative', personaId: perso, motionDriver: nom, motionMode: 'replace', motionPreview: false,
+    motionSceneText: job.motionSceneText || undefined, composedPositive: job.composedPositive, userPrompt: job.userPrompt,
+    mixRang: job.mixRang + 1, mixTotal: job.mixTotal, mixSuite: reste })
 }
 
 async function runJob(job, isRetry = false, connRetried = false) {
@@ -2500,6 +2733,8 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'parole') return controler(await runParole(job, t0))
     if (job.op === 'reshoot' || job.op === 'cleanplate' || job.op === 'stage') return controler(await runReshoot(job, t0))
     if (job.op === 'detour') return await runDetour(job, t0)
+    if (job.op === 'objet3d') return await runObjet3d(job, t0)
+    if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
@@ -2653,6 +2888,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
     }
+    if (job.references?.length) appliquerReferences(workflow, job.references, applied)
     if (speech?.note) applied.unshift(speech.note)
     if (drawn.draws.length) applied.unshift(...wildcardNotes.filter(n => n.startsWith('tirage')))
     if (drawn.unknown.length) skipped.push(...wildcardNotes.filter(n => !n.startsWith('tirage')))
@@ -2782,6 +3018,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       current = null
       return runJob(job, true)
     }
+    if (/^HTTP 40[13]$/.test(String(e.message))) e = new Error('clé Comfy Cloud refusée : la corriger ou l’effacer dans Paramètres → Comfy Cloud')
     store.markFailed(job.id, Date.now() - t0, e.message || e)
     console.error(`[job ${job.id}] ÉCHEC — ${e.message || e}`)
   } finally {
@@ -2893,6 +3130,8 @@ async function harvestJob(job, promptId, history, extras = {}) {
       )
     }
 
+
+  if (job.mixSuite?.length && deliveredFirst) lancerMixSuivant(job, deliveredFirst)
 
   /* Extension vidéo, plan complet : source + continuation concaténées en un
      fichier, livré comme SECOND asset du job (id `a-<job>-full`). Un échec de

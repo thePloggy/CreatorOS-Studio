@@ -546,3 +546,10 @@
 .v2 .rs-barre label input[type=range] { flex: 1; min-width: 80px; accent-color: var(--accent); }
 .v2 .rs-barre label b { color: var(--text); font-weight: 600; min-width: 40px; text-align: right; }
 .v2 .rs-alerte { font-size: 11px; color: var(--attention); margin-top: 6px; }
+
+/* menus d'outils (01/11) */
+.nav-outil { display: grid; gap: 1px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.nav-outil:hover, .nav-outil:focus-visible { background: var(--lv3); }
+.nav-outil b { font-size: 12.5px; font-weight: 600; }
+.nav-outil span { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.nav-outil span[style] { color: inherit; }

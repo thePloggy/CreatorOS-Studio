@@ -3,7 +3,7 @@
    revue, ponts (Animer / frames / recréer / cloner). Navigation
    ← → sur la liste FILTRÉE (useAssetNav, fix inclus).
    ============================================================ */
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import LOOKS from '../data/looks.json'
@@ -18,6 +18,9 @@ import { CarouselPopup } from './popups'
 import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
 import { t, getLang, tServeur } from '../i18n'
+import { Masters } from './Masters'
+
+const Objet3D = lazy(() => import('./Objet3D'))
 import { EditionVideo } from '../components/EditionVideo'
 import { useEdition } from '../lib/proprietaire'
 
@@ -274,6 +277,15 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     if (!r.ok || !d.jobId) setNetteMsg(tServeur(d.error) ?? `HTTP ${r.status}`)
     else { await s.adoptServerJob(d.jobId); onClose() }
   }
+  const [voir3d, setVoir3d] = useState(false)
+  const [cible3d, setCible3d] = useState('')
+  const objet3d = async () => {
+    setAgrandirMsg('')
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/objet3d`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cible: cible3d }) })
+    const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
+    if (!r.ok || !d.jobId) setAgrandirMsg(tServeur(d.error) ?? `HTTP ${r.status}`)
+    else { await s.adoptServerJob(d.jobId); onClose() }
+  }
   const [agrandirMsg, setAgrandirMsg] = useState('')
   const rouvrirStage = async () => {
     const r = await fetch(`/api/stage/${encodeURIComponent(asset.jobId ?? '')}/scene`)
@@ -438,6 +450,16 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('SeedVR2 : le clip monte en 1080p, le mouvement ne change pas')} onClick={() => void nettete()}>{t('Netteté 1080p')}</button>}
             {netteMsg && <span className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
           </div>
+          {asset.mediaType === 'video' && <Masters asset={asset} />}
+          {asset.modele3d && (
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Objet 3D')}
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => setVoir3d(v => !v)}>{t('Voir en 3D')}</button>
+              <a className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} href={asset.modele3d} download>{t('Télécharger le GLB')}</a>
+            </div>
+          )}
+          {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: '#0b0c0e' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
+            <button className="pill" style={{ position: 'absolute', top: 16, right: 16 }} onClick={() => setVoir3d(false)}>{t('fermer')}</button></div>, document.body)}
           {finMsg && <div className="text-[10.5px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
           {asset.mediaType === 'photo' && (<>
             <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}>{t('✎ Éditer (retouche)')}</button>
@@ -479,6 +501,13 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
                   onClick={() => void agrandir(f)}>{f}</button>
               ))}
               {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
+            </div>
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Objet 3D')}
+              <input value={cible3d} onChange={e => setCible3d(e.target.value)} placeholder={t('quel objet ? en anglais')} maxLength={80}
+                style={{ flex: 1, minWidth: 120, padding: '4px 8px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 10.5 }} />
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans Stage')} onClick={() => void objet3d()}>{t('Créer le GLB')}</button>
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('à joindre au prompt photo, 6 au plus')} onClick={() => { void s.ajouterReference(asset); onClose() }}>{t('Référence')}</button>
             </div>
             <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('PNG avec alpha : le sujet est gardé, le fond disparaît, rien n’est redessiné')}
               onClick={() => void transparent()}>{t('Fond transparent')}</button>

@@ -9,10 +9,13 @@ import { useAppStore } from '../store/useAppStore'
 import { vignetteOf } from '../components/AssetMedia'
 import { t } from '../i18n'
 import { Pastille } from './bits'
+import type { Asset } from '../types'
+import { ChoixMedia, GROUPES, useOuvrirOutil, type Section } from './Navigation'
 
 type Cible = 'reel' | 'presets' | 'parole' | 'montage' | 'image' | 'video' | 'assets' | 'stage' | 'reshoot' | 'cinema'
 
-export function HomeView({ go }: { go: (s: Cible) => void }) {
+export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller: (s: Section) => void; onPick: (a: Asset) => void }) {
+  const { ouvrir, choix, fermerChoix } = useOuvrirOutil(aller)
   const s = useAppStore()
   const videos = useMemo(() => s.assets.filter(a => a.mediaType === 'video' && a.reviewStatus !== 'rejected')
     .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt), [s.assets])
@@ -38,20 +41,6 @@ export function HomeView({ go }: { go: (s: Cible) => void }) {
     { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), media: reel && { uri: reel.uri, video: true, poster: vignetteOf(reel) } },
     CARTES[0], CARTES[1],
     { cible: 'reshoot', titre: 'Re-shoot', texte: t('Replace la caméra sur un clip déjà tourné.'), media: autres[3] && { uri: autres[3].uri, video: true, poster: vignetteOf(autres[3]) } },
-  ]
-  const OUTILS: { cible: Cible; titre: string; texte: string; pastille?: 'new' | 'top' }[] = [
-    { cible: 'stage', titre: 'Stage', texte: t('Place des formes vues de dessus, pose la caméra : plan fini.'), pastille: 'new' },
-    { cible: 'image', titre: t('Boucle'), texte: t('Une photo devient un clip qui tourne sans saute, jointure mesurée.'), pastille: 'new' },
-    { cible: 'image', titre: t('Fond transparent'), texte: t('Le sujet en PNG avec alpha, rien n’est redessiné.'), pastille: 'new' },
-    { cible: 'reel', titre: 'Reel', texte: t('Un brief, un reel monté.'), pastille: 'top' },
-    { cible: 'presets', titre: t('Caméra & effets'), texte: t('Mouvements, effets, angles et looks en un clic.'), pastille: 'top' },
-    { cible: 'video', titre: t('Vidéo'), texte: t('Image → vidéo, transfert de mouvement, prequel / sequel.') },
-    { cible: 'image', titre: t('Photo'), texte: t('Ton personnage, cohérent d’une image à l’autre.') },
-    { cible: 'cinema', titre: t('Studio ciné'), texte: t('Plateau, lumière et objectif pour un plan de film.') },
-    { cible: 'reshoot', titre: 'Re-shoot', texte: t('Replace la caméra sur un clip déjà tourné.') },
-    { cible: 'parole', titre: t('Avatar parlant'), texte: t('Une photo, une voix : les lèvres suivent.') },
-    { cible: 'montage', titre: t('Montage'), texte: t('Coupe, fondus, texte, recadrage, musique.') },
-    { cible: 'assets', titre: t('Bibliothèque'), texte: t('Tous tes rendus, avec leur workflow ComfyUI.') },
   ]
   const legende = (titre: string, texte: string, grand = false) => (
     <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: grand ? '90px 26px 24px' : '50px 16px 15px', background: 'linear-gradient(transparent, rgba(0,0,0,.88))', display: 'grid', gap: 5 }}>
@@ -81,18 +70,21 @@ export function HomeView({ go }: { go: (s: Cible) => void }) {
             </button>
           ))}
         </div>
-        {/* ---------- tous les outils ---------- */}
-        <div style={{ display: 'grid', gap: 12 }}>
-          <b style={{ fontSize: 20, fontWeight: 800 }}>{t('Outils')}</b>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-            {OUTILS.map(o => (
-              <button key={o.titre} onClick={() => go(o.cible)} style={{ borderRadius: 13, border: '1px solid var(--lv3)', padding: '13px 15px', cursor: 'pointer', textAlign: 'left', color: 'var(--text)', background: 'var(--lv1)', display: 'grid', gap: 4 }}>
-                <b style={{ fontSize: 13.5 }}>{o.titre}{o.pastille && <Pastille k={o.pastille} />}</b>
-                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{o.texte}</span>
-              </button>
-            ))}
+        {/* ---------- tous les outils, rangés comme les menus ---------- */}
+        {GROUPES.map(g => (
+          <div key={g.titre} style={{ display: 'grid', gap: 12 }}>
+            <b style={{ fontSize: 20, fontWeight: 800 }}>{t(g.titre)}</b>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+              {g.outils.map(o => (
+                <button key={o.label} onClick={() => ouvrir(o)} style={{ borderRadius: 13, border: '1px solid var(--lv3)', padding: '13px 15px', cursor: 'pointer', textAlign: 'left', background: 'var(--lv1)', color: 'var(--text)', display: 'grid', gap: 3, font: 'inherit' }}>
+                  <b style={{ fontSize: 13.5 }}>{t(o.label)}{o.pastille && <Pastille k={o.pastille} />}</b>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{t(o.texte)}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ))}
+        <ChoixMedia choix={choix} onClose={fermerChoix} onPick={onPick} />
       </div>
     </div>
   )

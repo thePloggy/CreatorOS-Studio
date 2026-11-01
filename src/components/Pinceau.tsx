@@ -30,6 +30,11 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
   const dernier = useRef<{ x: number; y: number } | null>(null)
   const pile = useRef<ImageData[]>([])
   const adopter = useAppStore(s => s.adoptServerJob)
+  /* Poser un objet (01/11) : une photo de la bibliothèque et son nom, collés dans la zone suivie. */
+  const photos = useAppStore(s => s.assets).filter(a => a.mediaType === 'photo').slice(0, 24)
+  const [objet, setObjet] = useState<string | null>(null)
+  const [objetNom, setObjetNom] = useState('')
+  const [poser, setPoser] = useState(false)
   /* Téléphone : image en haut, réglages dessous (le panneau de 320 px à droite
      ne tient pas sur un écran étroit). Le pinceau suit le doigt (pointer events). */
   const [etroit, setEtroit] = useState(() => window.innerWidth < 760)
@@ -107,7 +112,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
       for (let i = 0; i < src.data.length; i += 4) if (src.data[i + 3] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = 255 }
       ctx.putImageData(out, 0, 0)
       const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/inpaint`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mask: m.toDataURL('image/png'), prompt: prompt.trim(), strength: force, ...(video ? { suivi } : {}) }) })
+        body: JSON.stringify({ mask: m.toDataURL('image/png'), prompt: prompt.trim(), strength: poser && objet ? 0.5 : force, ...(video ? { suivi } : {}), ...(poser && objet ? { objetAsset: objet, objetNom } : {}) }) })
       const b = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
       if (!r.ok || !b.jobId) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`)
       await adopter(b.jobId)
@@ -149,6 +154,14 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
               title={t('la zone reste au même endroit du cadre')}>{t('zone fixe')}</button>
           </div>
         )}
+        {video && <button style={{ ...bouton, background: poser ? 'rgba(255,61,154,0.3)' : bouton.background }} onClick={() => setPoser(p => !p)}>{t('Poser un objet d’une photo')}</button>}
+        {video && poser && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4, maxHeight: 120, overflowY: 'auto' }}>
+            {photos.map(a => <button key={a.id} onClick={() => setObjet(a.id)} style={{ padding: 0, border: objet === a.id ? '2px solid #ea4e89' : '2px solid transparent', borderRadius: 6, overflow: 'hidden', cursor: 'pointer', background: 'none', aspectRatio: '1' }}><img src={a.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}
+          </div>
+          <input value={objetNom} onChange={e => setObjetNom(e.target.value)} placeholder={t('nom de l’objet, en anglais : sunglasses')} maxLength={80}
+            style={{ padding: 8, borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: '#0b0c0e', color: '#f2f2f4', fontSize: 12 }} />
+        </>)}
         <div style={{ display: 'flex', gap: 6 }}>
           <button style={{ ...bouton, background: !gomme ? 'rgba(255,61,154,0.3)' : bouton.background }} onClick={() => setGomme(false)}>{t('pinceau')}</button>
           <button style={{ ...bouton, background: gomme ? 'rgba(255,255,255,0.25)' : bouton.background }} onClick={() => setGomme(true)}>{t('gomme')}</button>

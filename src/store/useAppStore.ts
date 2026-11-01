@@ -199,6 +199,10 @@ interface AppState {
    *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null
   utiliserDans: (cible: 'presets' | 'parole' | 'reshoot', asset: Asset) => void
+  /** Images de référence de la prochaine photo (FLUX.2 Klein), 6 au plus. */
+  references: { file: string; uri: string }[]
+  ajouterReference: (asset: Asset) => Promise<void>
+  retirerReference: (file: string) => void
   prendrePasserelle: (cible: 'presets' | 'parole' | 'reshoot') => Asset | null
   setMode: (m: MediaMode) => void
   /** prompts séparés par mode : chaque section retrouve son texte (image XXX / vidéo YYY). */
@@ -335,7 +339,7 @@ const defaultVideo: VideoSelections = {
   motionDriverFile: '', motionDriverError: '', motionPreview: false, motionDriverSeconds: 0, motionDriverFrames: 0,
   extendSource: 'upload', extendVideoFile: '', extendAssetId: null, extendVideoUri: '', extendError: '', extendPick: 'last', extendWarn: '', extendConcat: false,
   motionStillFile: '', motionStillUri: '', motionStillError: '', motionStillAssetId: null,
-  motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, motionRefStrength: 1, motionMode: 'animate',
+  motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, mixPersonnes: [], motionRefStrength: 1, motionMode: 'animate',
   multiShot: false, draft: false, videoLoras: [],
   motionOutFps: 'origine', motionOutRes: 'origine',
   motionText: 'respiration douce, léger mouvement des cheveux, sourire vers l’objectif',
@@ -551,6 +555,14 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
        demande de navigation que le clone. Le desktop passe déjà ses propres
        callbacks (goVideo/goImage) et ignore le champ — l'ajouter ne change
        rien pour lui ; le mobile, lui, n'a que ce canal. */
+    references: [],
+    ajouterReference: async asset => {
+      if (get().references.length >= 6) return
+      const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/to-input`, { method: 'POST' })
+      const d = await r.json().catch(() => ({})) as { filename?: string }
+      if (d.filename && !get().references.some(x => x.file === d.filename)) set({ references: [...get().references, { file: d.filename, uri: asset.uri ?? '' }], mode: 'photo' })
+    },
+    retirerReference: file => set({ references: get().references.filter(x => x.file !== file) }),
     utiliserDans: (cible, asset) =>
       set(st => ({ passerelle: { cible, assetId: asset.id }, navRequest: { section: cible, nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
     prendrePasserelle: cible => {
@@ -1395,7 +1407,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         createdAt: Date.now(),
         // une retouche reste rangée sous le personnage de sa photo, pas sous le personnage actif
         personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || 'default',
-        ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine } : {}),
+        ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine, ...(s.references.length ? { references: s.references.map(x => x.file) } : {}) } : {}),
         register,
         mode: s.mode,
         purpose: 'creative',
@@ -1439,6 +1451,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           motionSceneText: s.video.motionSceneText || undefined,
           motionPoseStrength: s.video.motionPoseStrength,
           mixDebut: s.video.mixDebut,
+          // Mix à plusieurs : de gauche à droite, une passe par personne
+          ...(s.video.motionMode === 'replace' && s.video.mixPersonnes.length > 1 ? { personaId: s.video.mixPersonnes[0], mixRang: 0, mixTotal: s.video.mixPersonnes.length, mixSuite: s.video.mixPersonnes.slice(1) } : {}),
           motionRefStrength: s.video.motionRefStrength,
         } : s.mode === 'video' && s.video.task === 't2v' ? {
           /* Plan d'ambiance : seul LTX-2.5 part du texte. Pas de still, pas de

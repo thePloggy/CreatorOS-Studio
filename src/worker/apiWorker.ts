@@ -33,6 +33,7 @@ export interface ApiAsset {
   t2v?: boolean
   photoEngine?: Asset['photoEngine']
   postOp?: Asset['postOp']
+  modele3d?: string
   batchId?: string
   parentAssetId?: string
   batchIds?: string[]
@@ -127,6 +128,7 @@ export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
     t2v: a.t2v || undefined,
     photoEngine: a.photoEngine || undefined,
     postOp: a.postOp || undefined,
+    modele3d: a.modele3d || undefined,
     batchId: a.batchId || undefined,
     parentAssetId: a.parentAssetId || undefined,
     batchIds: a.batchIds || undefined,

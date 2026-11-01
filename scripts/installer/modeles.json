@@ -58,6 +58,12 @@
     },
     "photo_moss": {
       "label": "Photo: MOSS Image (optional engine, needs a recent ComfyUI, no identity LoRA)"
+    },
+    "objet3d": {
+      "label": "Objet 3D: TRELLIS.2, a photo becomes a GLB (about 8 GB)"
+    },
+    "musique": {
+      "label": "Music and sound effects: ACE-Step 1.5 turbo"
     }
   },
   "noeuds": [
@@ -709,7 +715,8 @@
       "taille": 1745546848,
       "licence": "SAM License (Meta)",
       "groupes": [
-        "video_retouche"
+        "video_retouche",
+        "objet3d"
       ],
       "recettes": [
         "PROD_v2v_refine_masked.json"
@@ -1314,6 +1321,102 @@
       "recettes": [
         "PROD_gen_moss_sfw.json"
       ],
+      "verifie": true
+    },
+    {
+      "chemin": "trellis_2_int8_convrot.safetensors",
+      "dossier": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/diffusion_models/trellis_2_int8_convrot.safetensors",
+      "taille": 5253048192,
+      "licence": "MIT",
+      "groupes": [
+        "objet3d"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "dino_v3_vit_l.safetensors",
+      "dossier": "clip_vision",
+      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/clip_vision/dino_v3_vit_l.safetensors",
+      "taille": 1212559776,
+      "licence": "MIT",
+      "groupes": [
+        "objet3d"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "trellis_2_shape_vae_bf16.safetensors",
+      "dossier": "vae",
+      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_shape_vae_bf16.safetensors",
+      "taille": 1095844024,
+      "licence": "MIT",
+      "groupes": [
+        "objet3d"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "trellis_2_texture_vae_bf16.safetensors",
+      "dossier": "vae",
+      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_texture_vae_bf16.safetensors",
+      "taille": 948461364,
+      "licence": "MIT",
+      "groupes": [
+        "objet3d"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "acestep_v1.5_turbo.safetensors",
+      "dossier": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_turbo.safetensors",
+      "taille": 4787825604,
+      "licence": "MIT",
+      "groupes": [
+        "musique"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "qwen_0.6b_ace15.safetensors",
+      "dossier": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_0.6b_ace15.safetensors",
+      "taille": 1191588248,
+      "licence": "MIT",
+      "groupes": [
+        "musique"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "qwen_4b_ace15.safetensors",
+      "dossier": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_4b_ace15.safetensors",
+      "taille": 8379154232,
+      "licence": "MIT",
+      "groupes": [
+        "musique"
+      ],
+      "recettes": [],
+      "verifie": true
+    },
+    {
+      "chemin": "ace_1.5_vae.safetensors",
+      "dossier": "vae",
+      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/vae/ace_1.5_vae.safetensors",
+      "taille": 337431732,
+      "licence": "MIT",
+      "groupes": [
+        "musique"
+      ],
+      "recettes": [],
       "verifie": true
     }
   ],

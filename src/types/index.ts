@@ -238,6 +238,8 @@ export interface VideoSelections {
   motionPoseStrength: number
   /** Mix : seconde de la vidéo source où commencer (le Mix en garde 9,6 s). */
   mixDebut: number
+  /** Mix à plusieurs : les personnages, de gauche à droite. */
+  mixPersonnes: string[]
   /** reference_image_strength (0,5–1) : poids de la still. La baisser
    *  relâche le contexte figé — le prompt peut alors l'animer. */
   motionRefStrength: number
@@ -461,6 +463,8 @@ export interface Job {
 /* ---------- Asset (§10) : la bibliothèque, livrable du POC ---------- */
 
 export interface Asset {
+  /** Objet 3D : l'URL du GLB à côté du tour en maquette. */
+  modele3d?: string
   /** Recette, moteur, opération et LoRA, en minuscules : pour la recherche. */
   search?: string
   id: string

@@ -84,6 +84,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   const [triage, setTriage] = useState(false)
   const [elm, setElm] = useState(false)
   const [framePick, setFramePick] = useState<null | 'start' | 'end' | 'still'>(null)
+  const [personas, setPersonas] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => { void fetch('/api/personas').then(r => r.json()).then((d: { personas?: { id: string; name: string }[] }) => setPersonas(d.personas ?? [])).catch(() => {}) }, [])
   const [engOpen, setEngOpen] = useState(false)
   const [vMenu, setVMenu] = useState<{ kind: 'dur' | 'fps' | 'aspect'; x: number; bottom: number } | null>(null)
   const [purgeArmed, armPurge] = useConfirm()
@@ -323,6 +325,21 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               )}
             </div>
           )}
+          {v.motionMode === 'replace' && (
+            <div className="flex flex-col gap-1 text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              <div className="flex gap-1.5 items-center">
+                {t('Personnes à remplacer')}
+                {[1, 2, 3].map(n => <button key={n} className="pill" style={Math.max(1, v.mixPersonnes.length) === n ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined}
+                  onClick={() => s.updateVideo({ mixPersonnes: n === 1 ? [] : Array.from({ length: n }, (_, i) => v.mixPersonnes[i] ?? personas[i]?.id ?? personas[0]?.id ?? 'default') })}>{n}</button>)}
+              </div>
+              {v.mixPersonnes.map((id, i) => <label key={i} className="flex items-center gap-2">{t(['à gauche', i === 1 && v.mixPersonnes.length === 2 ? 'à droite' : 'au milieu', 'à droite'][i])}
+                <select value={id} onChange={e => s.updateVideo({ mixPersonnes: v.mixPersonnes.map((x, k) => k === i ? e.target.value : x) })}
+                  style={{ flex: 1, padding: 5, borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 11 }}>
+                  {personas.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select></label>)}
+              {v.mixPersonnes.length > 1 && <span>{t('Une passe par personne : compte le temps d’un Mix pour chacune.')}</span>}
+            </div>
+          )}
           {(v.motionDriverError || v.motionStillError) && (
             <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.motionDriverError || v.motionStillError}</div>
           )}
@@ -418,6 +435,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
       {/* ---------- bibliothèque vidéo ---------- */}
       <div className="flex-1 min-w-0 flex flex-col relative">
+        {surStage && !isMobile && <div id="stage-vues" style={{ flex: '0 0 62vh', minHeight: 0 }} />}
         <SortBar assets={s.assets.filter(a => a.mediaType === 'video')} draft={draft} setDraft={setDraft}
           review={review} setReview={setReview}
           cols={cols} setCols={setCols} picking={picking} setPicking={() => setPicked(new Set())}

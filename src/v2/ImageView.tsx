@@ -27,6 +27,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const [triage, setTriage] = useState(false)
   const [elm, setElm] = useState(false)
   const [srcPick, setSrcPick] = useState(false)
+  const [refPick, setRefPick] = useState(false)
   // Retouche = pinceau : une image choisie s'ouvre directement dans l'outil de zone
   const [pinceauDe, setPinceauDe] = useState<Asset | null>(null)
   const kleinOk = s.personaKlein
@@ -191,6 +192,15 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               </span>
             </div>
           )}
+          {task !== 'edit' && s.references.length > 0 && (
+            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+              {t('Références')}
+              {s.references.map(r => <button key={r.file} title={t('retirer')} onClick={() => s.retirerReference(r.file)} style={{ width: 38, height: 38, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--lv3)', padding: 0, cursor: 'pointer' }}><img src={r.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}
+              {s.references.length < 6 && <button className="pill" style={{ fontSize: 10, padding: '4px 9px' }} onClick={() => setRefPick(true)}>＋</button>}
+              <span>{t('FLUX.2 Klein, nomme-les dans le prompt')}</span>
+            </div>
+          )}
+          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 10, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}>＋ {t('Images de référence')}</button>}
           <textarea ref={champPrompt}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
             style={{ color: 'var(--text)', minHeight: 40, fieldSizing: 'content' } as React.CSSProperties}
@@ -252,6 +262,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
         }} />
       <ElementsPopup open={elm} onClose={() => setElm(false)}
         onInsert={t => s.setUserPrompt((s.userPrompt ? `${s.userPrompt}, ${t}` : t).replace(/,\s*,+/g, ',').replace(/\s{2,}/g, ' '))} />
+      <FramePicker open={refPick} onClose={() => setRefPick(false)} assets={s.assets.filter(a => a.mediaType === 'photo')} title={t('Image de référence')}
+        onPickAsset={a => { void s.ajouterReference(a); setRefPick(false) }} onPickUpload={() => setRefPick(false)} />
       <FramePicker open={srcPick} onClose={() => setSrcPick(false)} assets={s.assets}
         title={t('Image à retoucher')}
         onPickAsset={a => { void s.pickEditSource(a.id); setPinceauDe(a) }}
