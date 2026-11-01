@@ -4,13 +4,27 @@
    dans la bibliothèque (onglet Vidéo). Les presets vivent côté serveur
    (server/presets.js) ; ici on choisit et on lance.
    ============================================================ */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
+import { vignetteOf } from '../components/AssetMedia'
 
 interface Preset { id: string; famille: 'camera' | 'effet'; nom: string; nomEn: string; icone: string; lora: string | null; apercu: string | null; moteur: 'ltx_hq' | 'wan21' | 'wan21_hq'; deuxRendus?: boolean }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
+
+/** Un aperçu ne se télécharge et ne joue que lorsqu'il est à l'écran. */
+function VideoVisible({ src, style }: { src: string; style: React.CSSProperties }) {
+  const v = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const el = v.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) void el.play().catch(() => {}); else el.pause() }, { rootMargin: '100px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return <video ref={v} src={src} muted loop playsInline preload="none" style={style} />
+}
 
 const OUTILS_CLIP = [
   { nom: 'Retirer des personnes', texte: 'Ouvre un clip, Éditer : le décor est reconstruit derrière.' },
@@ -64,7 +78,7 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
               style={{ position: 'relative', aspectRatio: '9 / 14', borderRadius: 16, overflow: 'hidden', border: 0, padding: 0, cursor: 'pointer', color: '#fff', textAlign: 'left',
                 background: 'linear-gradient(160deg, var(--lv3), var(--lv1))' }}>
               {p.apercu
-                ? <video src={p.apercu} muted loop autoPlay playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <VideoVisible src={p.apercu} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, opacity: .5 }}>{p.icone}</span>}
               <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px 11px', background: 'linear-gradient(transparent, rgba(0,0,0,.8))', fontSize: 13.5, fontWeight: 700 }}>
                 {nom(p)}{p.lora && <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
@@ -116,7 +130,7 @@ function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: s
           <div className="pkgrid" style={{ maxHeight: 300 }}>
             {photos.map(a => (
               <button key={a.id} className="pk" onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
-                <img src={a.uri} alt="" loading="lazy" />
+                <img src={vignetteOf(a)} alt="" loading="lazy" />
               </button>
             ))}
             {!photos.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 11, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}

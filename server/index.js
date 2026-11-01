@@ -31,11 +31,14 @@ import { enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueRes
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
+import zlib from 'node:zlib'
+import { promisify } from 'node:util'
 import * as reel from './reel.js'
 import * as presets from './presets.js'
 
 // 256 Mo : les drivers du Motion Control sont des vidéos (8 Mo suffisaient
 // pour les JPEG mais un clip mp4 les dépasse → 413 à l'upload).
+const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -70,6 +73,18 @@ app.addHook('onRequest', async (req, reply) => {
 app.post('/api/proprietaire', async req => ({ verrou: !!CONFIG.cleProprietaire, proprietaire: estProprietaire(req) }))
 // visiteurs par jour, limite de rendus des visiteurs Internet (cf. visites.js)
 const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id) })
+
+/* JSON de l'API compressé (01/11) : la bibliothèque pèse des centaines de Ko à chaque visite.
+   Déclaré après installerVisites : son onSend doit lire le texte clair. */
+app.addHook('onSend', async (req, reply, payload) => {
+  const type = String(reply.getHeader('content-type') ?? '')
+  if (typeof payload !== 'string' || payload.length < 2048 || !type.includes('json') || reply.getHeader('content-encoding')) return payload
+  const accepte = String(req.headers['accept-encoding'] ?? '')
+  reply.header('Vary', 'Accept-Encoding')
+  if (accepte.includes('br')) { reply.header('Content-Encoding', 'br'); return brotli(payload, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) }
+  if (accepte.includes('gzip')) { reply.header('Content-Encoding', 'gzip'); return gzip(payload, { level: 6 }) }
+  return payload
+})
 
 /* Filtre de contenu sur le texte BRUT de chaque demande (23/10) : avant, le
    contrôle ne portait que sur le prompt réécrit, que le modèle de langue avait

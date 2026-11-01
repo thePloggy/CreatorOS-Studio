@@ -44,7 +44,8 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
           {BANDEAUX.map(b => (
             <button key={b.titre} onClick={() => go(b.cible)} className="bandeau">
               <span className="bandeau-media">{b.media && (b.media.mediaType === 'video'
-                ? <video src={b.media.uri} poster={vignetteOf(b.media)} muted loop autoPlay playsInline />
+                ? <video src={b.media.uri} poster={vignetteOf(b.media)} muted loop playsInline preload="none"
+                    onMouseEnter={e => void e.currentTarget.play().catch(() => {})} onMouseLeave={e => e.currentTarget.pause()} />
                 : <img src={b.media.uri} alt="" />)}</span>
               <b>{b.titre}</b>
               <span>{b.texte}</span>

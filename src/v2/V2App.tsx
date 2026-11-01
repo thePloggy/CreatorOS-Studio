@@ -6,25 +6,11 @@ import { PersonaMenu } from '../components/PersonaMenu'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
 import { RenderIsland, useTabTitle } from '../components/RenderWatch'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import './v2.css'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
-import { ImageView } from './ImageView'
-import { MontageView } from './MontageView'
-import { ReelView } from './ReelView'
-import { PresetsView } from './PresetsView'
-import { CinemaView } from './CinemaView'
-import { ReshootView } from './ReshootView'
-import { HomeView } from './HomeView'
-import { ParoleView } from './ParoleView'
-import { VideoView } from './VideoView'
-import { AssetsView } from './AssetsView'
-import { Viewer } from './Viewer'
-import { PersonaView } from '../features/persona/PersonaView'
-import { ConfigView } from '../features/config/ConfigView'
-import { CreateurView } from '../features/createur/CreateurView'
 import { useTelemetry } from '../components/shell/useTelemetry'
 import { VoyantMachine } from './Diagnostic'
 import { QuotaDemo } from '../components/QuotaDemo'
@@ -32,6 +18,22 @@ import { Ic } from './bits'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
 import { MenusOutils, type Section } from './Navigation'
+
+/* Un écran se charge quand on l'ouvre : la démo n'envoie pas tout le studio à chaque visite. */
+const ImageView = lazy(() => import('./ImageView').then(m => ({ default: m.ImageView })))
+const MontageView = lazy(() => import('./MontageView').then(m => ({ default: m.MontageView })))
+const ReelView = lazy(() => import('./ReelView').then(m => ({ default: m.ReelView })))
+const PresetsView = lazy(() => import('./PresetsView').then(m => ({ default: m.PresetsView })))
+const CinemaView = lazy(() => import('./CinemaView').then(m => ({ default: m.CinemaView })))
+const ReshootView = lazy(() => import('./ReshootView').then(m => ({ default: m.ReshootView })))
+const HomeView = lazy(() => import('./HomeView').then(m => ({ default: m.HomeView })))
+const ParoleView = lazy(() => import('./ParoleView').then(m => ({ default: m.ParoleView })))
+const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.VideoView })))
+const AssetsView = lazy(() => import('./AssetsView').then(m => ({ default: m.AssetsView })))
+const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
+const PersonaView = lazy(() => import('../features/persona/PersonaView').then(m => ({ default: m.PersonaView })))
+const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => ({ default: m.ConfigView })))
+const CreateurView = lazy(() => import('../features/createur/CreateurView').then(m => ({ default: m.CreateurView })))
 
 /** Mini-barre de charge (seuils 70/90). */
 function TBar({ pct }: { pct: number }) {
@@ -160,6 +162,7 @@ export default function V2App() {
            c'est ce qui faisait glisser la barre de tri sous le header sans
            aucun moyen de remonter. Tout scroll résiduel est annulé net. */
         onScroll={e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}>
+        <Suspense fallback={null}>
         {section === 'image' && <ImageView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
@@ -173,16 +176,17 @@ export default function V2App() {
         {section === 'persona' && <div className="layer1 flex-1 min-h-0 overflow-y-auto"><PersonaView /></div>}
         {section === 'config' && <div className="layer1 flex-1 min-h-0 overflow-y-auto"><ConfigView /></div>}
         {section === 'createur' && <div className="layer1 flex-1 min-h-0 overflow-y-auto"><div className="p-4 max-w-[720px]"><CreateurView /></div></div>}
+        </Suspense>
       </div>
 
       {parcours && <Parcours onClose={() => setParcours(false)} aller={setSection} />}
       <UndoDelete />
       <RenderIsland visible={!!focusFresh || section === 'persona' || section === 'config' || section === 'createur'} onOpen={a => setFocus({ a, list: s.assets.filter(x => x.mediaType === a.mediaType && x.reviewStatus !== 'rejected') })} />
-      {focusFresh && (
+      {focusFresh && (<Suspense fallback={null}>
         <Viewer asset={focusFresh} list={navList}
           onGo={a => setFocus(f => (a && f ? { a, list: f.list } : null))} onClose={() => setFocus(null)}
           goVideo={() => setSection('video')} goImage={() => setSection('image')} />
-      )}
+      </Suspense>)}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { t, tc, tServeur } from '../i18n'
+import { vignetteOf } from './AssetMedia'
 
 export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void }) {
   const toile = useRef<HTMLCanvasElement>(null)
@@ -157,7 +158,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
         {video && <button style={{ ...bouton, background: poser ? 'rgba(255,61,154,0.3)' : bouton.background }} onClick={() => setPoser(p => !p)}>{t('Poser un objet d’une photo')}</button>}
         {video && poser && (<>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4, maxHeight: 120, overflowY: 'auto' }}>
-            {photos.map(a => <button key={a.id} onClick={() => setObjet(a.id)} style={{ padding: 0, border: objet === a.id ? '2px solid #ea4e89' : '2px solid transparent', borderRadius: 6, overflow: 'hidden', cursor: 'pointer', background: 'none', aspectRatio: '1' }}><img src={a.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}
+            {photos.map(a => <button key={a.id} onClick={() => setObjet(a.id)} style={{ padding: 0, border: objet === a.id ? '2px solid #ea4e89' : '2px solid transparent', borderRadius: 6, overflow: 'hidden', cursor: 'pointer', background: 'none', aspectRatio: '1' }}><img src={vignetteOf(a)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}
           </div>
           <input value={objetNom} onChange={e => setObjetNom(e.target.value)} placeholder={t('nom de l’objet, en anglais : sunglasses')} maxLength={80}
             style={{ padding: 8, borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: '#0b0c0e', color: '#f2f2f4', fontSize: 12 }} />

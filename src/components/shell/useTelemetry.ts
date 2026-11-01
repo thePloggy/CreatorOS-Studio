@@ -21,7 +21,7 @@ export function useTelemetry(everyMs = 5000) {
       } catch { /* la dernière valeur reste affichée */ }
     }
     void tick()
-    const iv = setInterval(tick, everyMs)
+    const iv = setInterval(() => { if (!document.hidden) void tick() }, everyMs)
     return () => { alive = false; clearInterval(iv) }
   }, [everyMs])
   return t

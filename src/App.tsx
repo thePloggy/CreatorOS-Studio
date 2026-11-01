@@ -5,7 +5,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useLang } from './i18n'
-import MApp from './m/MApp'
+const MApp = lazy(() => import('./m/MApp'))
 /* Chargement PARESSEUX de la console desktop : un téléphone n'a aucune
    raison de la télécharger pour afficher la bibliothèque. */
 const V2App = lazy(() => import('./v2/V2App'))
@@ -48,6 +48,6 @@ export default function App() {
 
   /* `?desktop=1` force la console desktop sur un téléphone (utile pour comparer). */
   const forceDesktop = new URLSearchParams(window.location.search).get('desktop') === '1'
-  if (isMobile && !forceDesktop) return <MApp key={lang} />
+  if (isMobile && !forceDesktop) return <Suspense fallback={<Booting />}><MApp key={lang} /></Suspense>
   return <Suspense fallback={<Booting />}><V2App key={lang} /></Suspense>
 }

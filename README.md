@@ -51,7 +51,7 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 | | |
 |---|---|
 | ![Stage](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
-| **Stage**: block a shot from above, set the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow, reopen in Stage |
+| **Stage**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow, reopen in Stage |
 | ![Camera & effects gallery](docs/screenshots/camera-effects.jpg) | ![One-click reel](docs/screenshots/reel.jpg) |
 | **Camera & effects**: pick a move, pick a photo | **One-click reel**: brief, shots, clips, edit |
 | ![Editor](docs/screenshots/editor.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |
