@@ -121,7 +121,7 @@ export function StagePanel() {
       <div className="flex gap-4 items-center text-[12px]">
         {(['plateau', 'camera'] as const).map(v => <button key={v} className={`onglet ${vue === v ? 'on' : ''}`} onClick={() => setVue(v)}>{t(v === 'plateau' ? 'Plateau' : 'Caméra')}</button>)}
         <span style={{ flex: 1 }} />
-        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue === 'plateau' ? 'Glisse un accessoire ou un repère orange. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
+        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue === 'plateau' ? 'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}><Suspense fallback={null}>
         <Stage3D objets={objets} poses={poses} instant={instant} vue={vue} choisi={choisi} format={format} onChoisir={setChoisi}

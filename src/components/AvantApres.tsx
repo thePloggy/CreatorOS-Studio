@@ -40,8 +40,8 @@ export function AvantApres({ avant, apres, className, style }: { avant: Asset; a
         : <img src={avant.uri} alt="" draggable={false} style={calque} />}
       <span style={{ ...etiquette, left: 10 }}>{t('AVANT')}{avant.width ? ` · ${avant.width}×${avant.height}` : ''}</span>
       <span style={{ ...etiquette, right: 10 }}>{t('APRÈS')}{apres.width ? ` · ${apres.width}×${apres.height}` : ''}</span>
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${x}%`, width: 2, marginLeft: -1, background: '#ffab5e', boxShadow: '0 0 8px rgba(0,0,0,0.6)', pointerEvents: 'none' }}>
-        <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 30, height: 30, borderRadius: 99, background: '#ffab5e', color: '#111',
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${x}%`, width: 2, marginLeft: -1, background: '#fff', boxShadow: '0 0 8px rgba(0,0,0,0.6)', pointerEvents: 'none' }}>
+        <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 30, height: 30, borderRadius: 99, background: '#fff', color: '#111',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, lineHeight: 1 }}>⇆</span>
       </div>
     </div>

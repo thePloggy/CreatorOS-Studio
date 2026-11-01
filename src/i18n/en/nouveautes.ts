@@ -6,7 +6,7 @@ export const nouveautes: Record<string, string> = {
   'Exporter un master': 'Export a master',
   '← → pour parcourir · Échap pour fermer · {n} médias': '← → to browse · Esc to close · {n} items',
   'Plateau': 'Set',
-  'Glisse un accessoire ou un repère orange. Glisse le vide pour tourner, molette pour zoomer.': 'Drag a prop or an orange marker. Drag empty ground to orbit, scroll to zoom.',
+  'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.': 'Drag a prop or a pink marker. Drag empty ground to orbit, scroll to zoom.',
   'Ce que verra la caméra à cet instant.': 'What the camera sees at this moment.',
   'Lecture': 'Play',
   'Le plan': 'The shot',

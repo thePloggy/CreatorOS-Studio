@@ -44,7 +44,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
   ]
   const legende = (titre: string, texte: string, grand = false) => (
     <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: grand ? '90px 26px 24px' : '50px 16px 15px', background: 'linear-gradient(transparent, rgba(0,0,0,.88))', display: 'grid', gap: 5 }}>
-      <b className="home-titre" style={{ fontSize: grand ? 72 : 34, lineHeight: .98 }}>{titre}</b>
+      <b style={{ fontSize: grand ? 54 : 22, fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1.02 }}>{titre}</b>
       <span style={{ fontSize: grand ? 14.5 : 12.5, opacity: .85, lineHeight: 1.45, maxWidth: 520 }}>{texte}</span>
     </span>
   )
@@ -73,7 +73,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
         {/* ---------- tous les outils, rangés comme les menus ---------- */}
         {GROUPES.map(g => (
           <div key={g.titre} style={{ display: 'grid', gap: 12 }}>
-            <b className="home-titre" style={{ fontSize: 26 }}>{t(g.titre)}</b>
+            <b style={{ fontSize: 20, fontWeight: 800 }}>{t(g.titre)}</b>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
               {g.outils.map(o => (
                 <button key={o.label} onClick={() => ouvrir(o)} style={{ borderRadius: 13, border: '1px solid var(--lv3)', padding: '13px 15px', cursor: 'pointer', textAlign: 'left', background: 'var(--lv1)', color: 'var(--text)', display: 'grid', gap: 3, font: 'inherit' }}>

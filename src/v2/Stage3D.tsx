@@ -10,7 +10,7 @@ export type PoseCam = { oeil: number[]; cible: number[]; fov: number }
 
 const gris = new THREE.MeshStandardMaterial({ color: 0xb4b6bc, roughness: 0.9 })
 const perso = new THREE.MeshStandardMaterial({ color: 0xd8d9de, roughness: 0.7 })
-const vif = new THREE.MeshStandardMaterial({ color: 0xffab5e, roughness: 0.6, emissive: 0x402000 })
+const vif = new THREE.MeshStandardMaterial({ color: 0xea4e89, roughness: 0.6, emissive: 0x3a0c20 })
 const lisse = (k: number) => k * k * (3 - 2 * k)
 export const poseA = (poses: PoseCam[], t: number): PoseCam => {
   const k = lisse(t), [a, b] = poses, mix = (u: number[], v: number[]) => u.map((x, i) => x + (v[i] - x) * k)
@@ -129,10 +129,10 @@ export default function Stage3D({ objets, poses, instant, vue, choisi, format, o
     e.reperes.clear()
     poses.forEach((c, n) => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), vif); m.position.set(c.oeil[0], c.oeil[1], c.oeil[2]); m.userData.cam = n
-      const pied = new THREE.Line(new THREE.BufferGeometry().setFromPoints([m.position.clone(), new THREE.Vector3(c.oeil[0], 0, c.oeil[2])]), new THREE.LineBasicMaterial({ color: 0xffab5e }))
+      const pied = new THREE.Line(new THREE.BufferGeometry().setFromPoints([m.position.clone(), new THREE.Vector3(c.oeil[0], 0, c.oeil[2])]), new THREE.LineBasicMaterial({ color: 0xea4e89 }))
       e.reperes.add(m, pied)
     })
-    e.reperes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(poses.map(c => new THREE.Vector3(c.oeil[0], c.oeil[1], c.oeil[2]))), new THREE.LineBasicMaterial({ color: 0xffab5e })))
+    e.reperes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(poses.map(c => new THREE.Vector3(c.oeil[0], c.oeil[1], c.oeil[2]))), new THREE.LineBasicMaterial({ color: 0xea4e89 })))
     e.dessiner()
   }, [poses, instant, vue])
   return <div style={{ height: '100%', display: 'flex', justifyContent: 'center' }}>
