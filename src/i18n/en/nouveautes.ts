@@ -2,6 +2,7 @@
    fluidité), garde-robe, crédits, page Créateur, parcours guidé. */
 export const nouveautes: Record<string, string> = {
   'sans LoRA': 'no LoRA',
+  'Chercher un outil': 'Search a tool',
   'Plus…': 'More…',
   'Exporter un master': 'Export a master',
   '← → pour parcourir · Échap pour fermer · {n} médias': '← → to browse · Esc to close · {n} items',

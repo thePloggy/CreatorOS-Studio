@@ -4,7 +4,7 @@
    de la bibliothèque du personnage actif (derniers clips, dernier reel) :
    rien n'est figé dans le code, la vitrine montre ce que la machine a rendu.
    ============================================================ */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { vignetteOf } from '../components/AssetMedia'
 import { t } from '../i18n'
@@ -17,70 +17,59 @@ type Cible = 'reel' | 'presets' | 'parole' | 'montage' | 'image' | 'video' | 'as
 export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller: (s: Section) => void; onPick: (a: Asset) => void }) {
   const { ouvrir, choix, fermerChoix } = useOuvrirOutil(aller)
   const s = useAppStore()
+  const [groupe, setGroupe] = useState<string | null>(null)
+  const [cherche, setCherche] = useState('')
   const videos = useMemo(() => s.assets.filter(a => a.mediaType === 'video' && a.reviewStatus !== 'rejected' && !a.modele3d)
     .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt), [s.assets])
   const photos = useMemo(() => s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected')
     .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt), [s.assets])
   const reel = videos.find(a => String(a.jobId).startsWith('mtg-')) ?? videos[0]
-  const autres = videos.filter(a => a.id !== reel?.id && !String(a.jobId).startsWith('stage-'))
-  const CARTES: { cible: Cible; titre: string; texte: string; media?: { uri: string; video: boolean; poster?: string } }[] = [
-    { cible: 'presets', titre: t('Caméra & effets'), texte: t('Un mouvement de caméra de cinéma sur n’importe quelle photo, en un clic.'),
-      media: autres[0] && { uri: autres[0].uri, video: true, poster: vignetteOf(autres[0]) } },
-    { cible: 'parole', titre: t('Avatar parlant'), texte: t('Une photo, ta voix : elle parle face caméra, lèvres calées. La pub UGC en un clic.'),
-      media: autres.find(a => String(a.jobId).startsWith('parole-')) ? { uri: autres.find(a => String(a.jobId).startsWith('parole-'))!.uri, video: true }
-        : photos[0] && { uri: photos[0].uri, video: false } },
-    { cible: 'montage', titre: t('Montage'), texte: t('Coupe, fondus, texte, recadrage, musique : le reel se termine ici.'),
-      media: autres[1] && { uri: autres[1].uri, video: true, poster: vignetteOf(autres[1]) } },
-    { cible: 'image', titre: t('Photo'), texte: t('Ton personnage, cohérent d’une image à l’autre, en séances complètes.'),
-      media: photos[0] && { uri: photos[0].uri, video: false } },
-    { cible: 'video', titre: t('Vidéo'), texte: t('Image → vidéo, transfert de mouvement, prequel / sequel, retouche au pinceau suivie.'),
-      media: autres[2] && { uri: autres[2].uri, video: true, poster: vignetteOf(autres[2]) } },
-  ]
   const stage = videos.find(a => String(a.jobId).startsWith('stage-'))
-  const VITRINE: typeof CARTES = [
-    { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), media: reel && { uri: reel.uri, video: true, poster: vignetteOf(reel) } },
-    CARTES[0], CARTES[1],
-    { cible: 'reshoot', titre: 'Re-shoot', texte: t('Replace la caméra sur un clip déjà tourné.'), media: autres[3] && { uri: autres[3].uri, video: true, poster: vignetteOf(autres[3]) } },
+  const autre = videos.find(a => a.id !== reel?.id && a.id !== stage?.id)
+  const BANDEAUX: { cible: Cible; titre: string; texte: string; media?: Asset }[] = [
+    { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), media: reel },
+    { cible: 'stage', titre: 'Stage', texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), media: stage },
+    { cible: 'presets', titre: t('Caméra & effets'), texte: t('Un mouvement de caméra de cinéma sur n’importe quelle photo, en un clic.'), media: autre },
   ]
-  const legende = (titre: string, texte: string, grand = false) => (
-    <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: grand ? '90px 26px 24px' : '50px 16px 15px', background: 'linear-gradient(transparent, rgba(0,0,0,.88))', display: 'grid', gap: 5 }}>
-      <b style={{ fontSize: grand ? 54 : 22, fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1.02 }}>{titre}</b>
-      <span style={{ fontSize: grand ? 14.5 : 12.5, opacity: .85, lineHeight: 1.45, maxWidth: 520 }}>{texte}</span>
-    </span>
-  )
-  const fond: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
-  const carte: React.CSSProperties = { position: 'relative', borderRadius: 18, overflow: 'hidden', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', color: '#fff', background: 'linear-gradient(160deg, var(--lv3), var(--lv1))' }
+  // vignettes fixes : le catalogue ne lance aucune vidéo, seuls les bandeaux tournent
+  const vignettes = useMemo(() => [...videos, ...photos].sort((x, y) => y.createdAt - x.createdAt).filter(a => vignetteOf(a) || a.uri), [videos, photos])
+  const mot = cherche.trim().toLowerCase()
+  const groupes = GROUPES.filter(g => !groupe || g.titre === groupe)
+    .map(g => ({ ...g, outils: g.outils.filter(o => !mot || `${t(o.label)} ${t(o.texte)}`.toLowerCase().includes(mot)) })).filter(g => g.outils.length)
+  let n = 0
   return (
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
-      <div style={{ maxWidth: 1240, margin: '0 auto', display: 'grid', gap: 26 }}>
-        <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', opacity: .6 }}>{t('Open source · modèles ouverts · sur ton GPU')}</div>
-        {/* ---------- vitrine : Stage en grand, quatre cartes autour ---------- */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))', gridAutoRows: 220, gap: 12 }}>
-          <button onClick={() => go('stage')} style={{ ...carte, gridColumn: 'span 2', gridRow: 'span 2' }}>
-            {stage && <video src={stage.uri} poster={vignetteOf(stage)} muted loop autoPlay playsInline style={fond} />}
-            <span style={{ position: 'absolute', left: 22, top: 20 }}><Pastille k="new" /></span>
-            {legende('STAGE', t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), true)}
-          </button>
-          {VITRINE.map(c => (
-            <button key={c.titre} onClick={() => go(c.cible)} style={carte}>
-              {c.media && (c.media.video
-                ? <video src={c.media.uri} poster={c.media.poster} muted loop autoPlay playsInline style={fond} />
-                : <img src={c.media.uri} alt="" style={fond} />)}
-              {legende(c.titre, c.texte)}
+      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 28 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+          {BANDEAUX.map(b => (
+            <button key={b.titre} onClick={() => go(b.cible)} className="bandeau">
+              <span className="bandeau-media">{b.media && (b.media.mediaType === 'video'
+                ? <video src={b.media.uri} poster={vignetteOf(b.media)} muted loop autoPlay playsInline />
+                : <img src={b.media.uri} alt="" />)}</span>
+              <b>{b.titre}</b>
+              <span>{b.texte}</span>
             </button>
           ))}
         </div>
-        {/* ---------- tous les outils, rangés comme les menus ---------- */}
-        {GROUPES.map(g => (
+        <div className="flex gap-2 items-center flex-wrap">
+          <input value={cherche} onChange={e => setCherche(e.target.value)} placeholder={t('Chercher un outil')} className="cherche-outil" />
+          <button className={`wtab ${!groupe ? 'on' : ''}`} onClick={() => setGroupe(null)}>{t('Tout')}</button>
+          {GROUPES.map(g => <button key={g.titre} className={`wtab ${groupe === g.titre ? 'on' : ''}`} onClick={() => setGroupe(g.titre)}>{t(g.titre)}</button>)}
+        </div>
+        {groupes.map(g => (
           <div key={g.titre} style={{ display: 'grid', gap: 12 }}>
             <b style={{ fontSize: 20, fontWeight: 800 }}>{t(g.titre)}</b>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-              {g.outils.map(o => (
-                <button key={o.label} onClick={() => ouvrir(o)} style={{ borderRadius: 13, border: '1px solid var(--lv3)', padding: '13px 15px', cursor: 'pointer', textAlign: 'left', background: 'var(--lv1)', color: 'var(--text)', display: 'grid', gap: 3, font: 'inherit' }}>
-                  <b style={{ fontSize: 13.5 }}>{t(o.label)}{o.pastille && <Pastille k={o.pastille} />}</b>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{t(o.texte)}</span>
-                </button>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
+              {g.outils.map(o => {
+                const a = vignettes.length ? vignettes[n++ % vignettes.length] : undefined
+                return (
+                  <button key={o.label} onClick={() => ouvrir(o)} className="carte-outil">
+                    <span className="carte-image">{a && <img src={vignetteOf(a) ?? a.uri} alt="" loading="lazy" />}{o.pastille && <i><Pastille k={o.pastille} /></i>}</span>
+                    <b>{t(o.label)}</b>
+                    <span>{t(o.texte)}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ))}
