@@ -36,7 +36,7 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
       <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div className="flex items-end gap-4 flex-wrap">
           <div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{t('Caméra & effets')}</h2>
+            <h2 className="titre-outil">{t('Caméra & effets')}</h2>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{photoVenue
               ? t('Photo choisie : il reste à choisir un mouvement.')
               : t('Choisis un mouvement, choisis une photo : le clip arrive dans ta bibliothèque.')}</div>
@@ -67,7 +67,7 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
                 ? <video src={p.apercu} muted loop autoPlay playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, opacity: .5 }}>{p.icone}</span>}
               <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px 11px', background: 'linear-gradient(transparent, rgba(0,0,0,.8))', fontSize: 13.5, fontWeight: 700 }}>
-                {nom(p)}{p.lora && <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
+                <span className="home-titre" style={{ fontSize: 22, lineHeight: 1 }}>{nom(p)}</span>{p.lora && <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
               </span>
             </button>
           ))}

@@ -4,6 +4,7 @@ import { ecouterErreurs } from './lib/journalBug'
 import './index.css'
 import App from './App.tsx'
 import { brancherCleComfy } from './lib/comfyKey'
+import '@fontsource/barlow-condensed/latin-700.css'
 import { brancherCleProprietaire } from './lib/proprietaire'
 
 brancherCleComfy()

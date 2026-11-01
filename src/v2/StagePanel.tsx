@@ -12,20 +12,27 @@ const Stage3D = lazy(() => import('./Stage3D'))
 type Objet = { id: number; type: 'personne' | 'boite' | 'modele'; x: number; z: number; h: number; l: number; p: number; rot?: number; y?: number; modele?: string; url?: string }
 type Modele = { nom: string; titre: string; url: string }
 type Point = { x: number; z: number }
-type Prise = { genre: 'objet'; id: number } | { genre: 'cam'; n: 0 | 1 } | null
 
-const COTE = 300, DEMI = 6, Z_HAUT = -8                          // la vue couvre 12 × 12 m
-const versPx = (x: number, z: number) => [(x + DEMI) / (2 * DEMI) * COTE, (z - Z_HAUT) / (2 * DEMI) * COTE]
-const versM = (px: number, py: number) => ({ x: px / COTE * 2 * DEMI - DEMI, z: py / COTE * 2 * DEMI + Z_HAUT })
 const rond = (n: number) => Math.round(n * 10) / 10
-const borne = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n))
 
-const MOUVEMENTS: { id: string; label: string; cam: [Point, Point] }[] = [
-  { id: 'avance', label: 'Avancer', cam: [{ x: 0, z: 3.4 }, { x: 0, z: 1.6 }] },
-  { id: 'recule', label: 'Reculer', cam: [{ x: 0, z: 1.6 }, { x: 0, z: 3.4 }] },
-  { id: 'travelling', label: 'Travelling', cam: [{ x: -2, z: 3 }, { x: 2, z: 3 }] },
-  { id: 'fixe', label: 'Fixe', cam: [{ x: 0, z: 3 }, { x: 0, z: 3.01 }] },
+/* Les mouvements : les deux poses de caméra, position au sol et hauteur. */
+type Mouvement = { id: string; label: string; cam: [Point, Point]; h: [number, number] }
+const MOUVEMENTS: Mouvement[] = [
+  { id: 'avance', label: 'Avancer', cam: [{ x: 0, z: 3.6 }, { x: 0, z: 1.6 }], h: [1.5, 1.5] },
+  { id: 'recule', label: 'Reculer', cam: [{ x: 0, z: 1.6 }, { x: 0, z: 3.6 }], h: [1.5, 1.5] },
+  { id: 'orbiteg', label: 'Orbite gauche', cam: [{ x: 2, z: 2.6 }, { x: -2, z: 2.6 }], h: [1.5, 1.5] },
+  { id: 'orbited', label: 'Orbite droite', cam: [{ x: -2, z: 2.6 }, { x: 2, z: 2.6 }], h: [1.5, 1.5] },
+  { id: 'grue', label: 'Grue', cam: [{ x: 0, z: 3.4 }, { x: 0, z: 3 }], h: [0.5, 3.4] },
+  { id: 'travelling', label: 'Travelling', cam: [{ x: -2.4, z: 3 }, { x: 2.4, z: 3 }], h: [1.5, 1.5] },
+  { id: 'fixe', label: 'Fixe', cam: [{ x: 0, z: 3 }, { x: 0, z: 3.01 }], h: [1.5, 1.5] },
 ]
+const ACCESSOIRES: { label: string; o: Pick<Objet, 'type' | 'h' | 'l' | 'p'> }[] = [
+  { label: 'Personne', o: { type: 'personne', h: 1.7, l: 0.5, p: 0.3 } },
+  { label: 'Bloc', o: { type: 'boite', h: 1.2, l: 1, p: 1 } },
+  { label: 'Pilier', o: { type: 'boite', h: 4, l: 0.6, p: 0.6 } },
+  { label: 'Mur', o: { type: 'boite', h: 3, l: 8, p: 0.3 } },
+]
+const nomDe = (o: Objet) => (o.type === 'personne' ? 'Personne' : o.type === 'modele' ? 'Objet 3D' : o.l > 4 ? 'Mur' : o.h > 2.5 ? 'Pilier' : 'Bloc')
 
 export function StagePanel() {
   const [objets, setObjets] = useState<Objet[]>([
@@ -40,14 +47,14 @@ export function StagePanel() {
   const [secondes, setSecondes] = useState(4)
   const [msg, setMsg] = useState('')
   const [occupe, setOccupe] = useState(false)
-  const prise = useRef<Prise>(null)
-  const svg = useRef<SVGSVGElement>(null)
   const prochain = useRef(4)
   const edition = useEdition()
   const [hauteurs, setHauteurs] = useState<[number, number]>([1.5, 1.5])
   const [viseH, setViseH] = useState(1)
   const [focale, setFocale] = useState(40)
-  const [vue, setVue] = useState<0 | 1>(0)
+  const [vue, setVue] = useState<'plateau' | 'camera'>('plateau')
+  const [instant, setInstant] = useState(0)
+  const [lecture, setLecture] = useState(false)
   const [modeles, setModeles] = useState<Modele[]>([])
   const charger = () => fetch('/api/stage/modeles').then(r => r.json()).then((d: { modeles?: Modele[] }) => setModeles(d.modeles ?? [])).catch(() => {})
   useEffect(() => { void charger() }, [])
@@ -73,17 +80,9 @@ export function StagePanel() {
     setPrompt(repris.prompt); setChoisi(null)
   }, [repris])
 
-  const bouger = (e: React.PointerEvent) => {
-    const p = prise.current, r = svg.current?.getBoundingClientRect()
-    if (!p || !r) return
-    const m = versM((e.clientX - r.left) / r.width * COTE, (e.clientY - r.top) / r.height * COTE)
-    const x = rond(borne(m.x, -DEMI, DEMI)), z = rond(borne(m.z, Z_HAUT, Z_HAUT + 2 * DEMI))
-    if (p.genre === 'objet') setObjets(l => l.map(o => o.id === p.id ? { ...o, x, z } : o))
-    else setCam(c => (p.n === 0 ? [{ x, z }, c[1]] : [c[0], { x, z }]))
-  }
-  const ajouter = (type: Objet['type']) => {
+  const ajouter = (o: Pick<Objet, 'type' | 'h' | 'l' | 'p'>) => {
     const id = prochain.current++
-    setObjets(l => l.length >= 16 ? l : [...l, type === 'personne' ? { id, type, x: -1, z: 0, h: 1.7, l: 0.5, p: 0.3 } : { id, type, x: -1.5, z: -1, h: 1.2, l: 1, p: 1 }])
+    setObjets(l => l.length >= 16 ? l : [...l, { id, ...o, x: rond(-1.5 + l.length * 0.4), z: -1 }])
     setChoisi(id)
   }
   const sel = objets.find(o => o.id === choisi)
@@ -109,66 +108,42 @@ export function StagePanel() {
 
   const [cible, setCible] = useState<HTMLElement | null>(null)
   useEffect(() => { setCible(document.getElementById('stage-vues')) }, [])
-  const [c0x, c0y] = versPx(cam[0].x, cam[0].z), [c1x, c1y] = versPx(cam[1].x, cam[1].z)
-  /* Les deux vues vont dans la grande zone de droite (cf. #stage-vues dans VideoView) ; sur téléphone, dans le volet. */
+  useEffect(() => {
+    if (!lecture) return
+    const debut = performance.now(); let id = 0
+    const pas = (n: number) => { const k = (n - debut) / (secondes * 1000); setInstant(Math.min(1, k)); if (k < 1) id = requestAnimationFrame(pas); else setLecture(false) }
+    id = requestAnimationFrame(pas)
+    return () => cancelAnimationFrame(id)
+  }, [lecture, secondes])
+  /* Le plateau occupe la grande zone de droite (cf. #stage-vues dans VideoView) ; sur téléphone, le volet. */
   const vues = (
-    <div style={{ display: 'grid', gridTemplateColumns: cible ? 'minmax(0, 2fr) minmax(0, 1fr)' : '1fr', gap: 12, height: cible ? '100%' : 620, padding: cible ? '10px 16px' : 0 }}>
-      <div className="flex flex-col gap-2" style={{ minHeight: 0 }}>
-    <div className="flex gap-1.5 items-center text-[11px]" style={{ color: 'var(--muted)' }}>
-      {t('Vue caméra')}
-      {([0, 1] as const).map(n => <button key={n} className="pill" style={vue === n ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined} onClick={() => setVue(n)}>{n === 0 ? t('début') : t('fin')}</button>)}
-    </div>
-    <div style={{ flex: 1, minHeight: 0 }}><Suspense fallback={null}><Stage3D objets={objets} pose={poses[vue]} format={format} /></Suspense></div>
+    <div className="flex flex-col gap-2" style={{ height: cible ? '100%' : 460, padding: cible ? '12px 16px 6px' : 0, minHeight: 0 }}>
+      <div className="flex gap-4 items-center text-[12px]">
+        {(['plateau', 'camera'] as const).map(v => <button key={v} className={`onglet ${vue === v ? 'on' : ''}`} onClick={() => setVue(v)}>{t(v === 'plateau' ? 'Plateau' : 'Caméra')}</button>)}
+        <span style={{ flex: 1 }} />
+        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue === 'plateau' ? 'Glisse un accessoire ou un repère orange. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
       </div>
-      <div className="flex flex-col gap-2" style={{ minHeight: 0 }}>
-    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{t('Vue de dessus : glisse les formes et les deux caméras.')}</div>
-    <svg ref={svg} viewBox={`0 0 ${COTE} ${COTE}`} style={{ flex: 1, minHeight: 0, width: '100%', background: 'var(--lv2)', borderRadius: 12, touchAction: 'none', cursor: 'grab' }}
-      onPointerMove={bouger} onPointerUp={() => { prise.current = null }} onPointerLeave={() => { prise.current = null }}>
-      {Array.from({ length: 11 }, (_, i) => (i + 1) * 25).map(n => <g key={n} stroke="rgba(255,255,255,.05)"><line x1={n} y1={0} x2={n} y2={COTE} /><line x1={0} y1={n} x2={COTE} y2={n} /></g>)}
-      {[...objets].sort((a, b) => Number(a.type === 'personne') - Number(b.type === 'personne')).map(o => {
-        const [x, y] = versPx(o.x, o.z), on = o.id === choisi
-        const saisir = (e: React.PointerEvent) => { e.stopPropagation(); setChoisi(o.id); prise.current = { genre: 'objet', id: o.id } }
-        return o.type === 'personne'
-          ? <circle key={o.id} cx={x} cy={y} r={8} fill="#f6a961" stroke={on ? '#fff' : 'none'} strokeWidth={2} onPointerDown={saisir} />
-          : o.type === 'modele' ? <rect key={o.id} x={x - 10} y={y - 10} width={20} height={20} rx={5} fill="#62c9b0" stroke={on ? '#fff' : 'none'} strokeWidth={2} onPointerDown={saisir} />
-          : <rect key={o.id} x={x - o.l * 12.5} y={y - o.p * 12.5} width={o.l * 25} height={o.p * 25} fill="#8a8d96" stroke={on ? '#fff' : 'none'} strokeWidth={2} onPointerDown={saisir} />
-      })}
-      <line x1={c0x} y1={c0y} x2={c1x} y2={c1y} stroke="#ea4e89" strokeDasharray="4 4" />
-      {([[c0x, c0y], [c1x, c1y]] as const).map(([x, y], n) => (
-        <g key={n} onPointerDown={e => { e.stopPropagation(); prise.current = { genre: 'cam', n: n as 0 | 1 } }}>
-          <circle cx={x} cy={y} r={10} fill="#ea4e89" />
-          <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#fff" style={{ pointerEvents: 'none' }}>{n + 1}</text>
-        </g>
-      ))}
-    </svg>
+      <div style={{ flex: 1, minHeight: 0 }}><Suspense fallback={null}>
+        <Stage3D objets={objets} poses={poses} instant={instant} vue={vue} choisi={choisi} format={format} onChoisir={setChoisi}
+          onBouger={(id, x, z) => setObjets(l => l.map(o => o.id === id ? { ...o, x, z } : o))}
+          onCam={(n, x, z) => setCam(c => (n === 0 ? [{ x, z }, c[1]] : [c[0], { x, z }]))} />
+      </Suspense></div>
+      <div className="flex gap-3 items-center text-[11px]" style={{ color: 'var(--muted)' }}>
+        <button className="pill" aria-label={t('Lecture')} onClick={() => { setInstant(0); setVue('camera'); setLecture(true) }}>▶</button>
+        <input type="range" className="flex-1" min={0} max={1} step={0.01} value={instant} onChange={e => { setLecture(false); setInstant(Number(e.target.value)) }} />
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(instant * secondes).toFixed(1)} s / {secondes} s</span>
       </div>
     </div>
   )
   return (<>
     {cible ? createPortal(vues, cible) : vues}
+    <h2 className="titre-outil">Stage</h2>
+    <div className="etiquette">{t('Le plan')}</div>
+    <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4} maxLength={1200} style={{ width: '100%' }}
+      placeholder={t('Décris ce que chaque forme devient : le lieu, la personne, la lumière…')} />
+    <div className="etiquette">{t('Caméra')}</div>
     <div className="flex gap-1.5 flex-wrap">
-      <button className="pill" onClick={() => ajouter('personne')}>{t('+ Personne')}</button>
-      <button className="pill" onClick={() => ajouter('boite')}>{t('+ Bloc')}</button>
-      {modeles.length > 0 && <select value="" onChange={e => { const m = modeles.find(x => x.nom === e.target.value); if (m) ajouterModele(m) }} className="pill" style={{ maxWidth: 150 }}>
-        <option value="">{t('+ Objet 3D')}</option>
-        {modeles.map(m => <option key={m.nom} value={m.nom}>{m.titre.slice(0, 32)}</option>)}
-      </select>}
-      {edition && <label className="pill" style={{ cursor: 'pointer' }}>{t('Importer .glb')}
-        <input type="file" accept=".glb,model/gltf-binary" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importer(f); e.target.value = '' }} /></label>}
-      {sel && objets.length > 1 && <button className="pill" onClick={() => { setObjets(l => l.filter(o => o.id !== choisi)); setChoisi(null) }}>{t('Retirer')}</button>}
-    </div>
-    {sel && (
-      <div className="flex flex-col gap-1 text-[11px]" style={{ color: 'var(--muted)' }}>
-        <label className="flex items-center gap-2">{t('Hauteur')}<input type="range" className="flex-1" min={0.3} max={sel.type === 'personne' ? 2.2 : 6} step={0.1} value={sel.h} onChange={e => regler('h', Number(e.target.value))} /></label>
-        {sel.type === 'boite' && <label className="flex items-center gap-2">{t('Largeur')}<input type="range" className="flex-1" min={0.3} max={12} step={0.1} value={sel.l} onChange={e => regler('l', Number(e.target.value))} /></label>}
-        <label className="flex items-center gap-2">{t('Rotation')}<input type="range" className="flex-1" min={-180} max={180} step={5} value={sel.rot ?? 0} onChange={e => regler('rot', Number(e.target.value))} /></label>
-        {sel.type === 'modele' && <label className="flex items-center gap-2">{t('Élévation')}<input type="range" className="flex-1" min={0} max={4} step={0.1} value={sel.y ?? 0} onChange={e => regler('y', Number(e.target.value))} /></label>}
-        {sel.type === 'boite' && <label className="flex items-center gap-2">{t('Profondeur')}<input type="range" className="flex-1" min={0.2} max={8} step={0.1} value={sel.p} onChange={e => regler('p', Number(e.target.value))} /></label>}
-      </div>
-    )}
-    <div className="flex gap-1.5 items-center flex-wrap text-[11px]" style={{ color: 'var(--muted)' }}>
-      {t('Caméra')}
-      {MOUVEMENTS.map(m => <button key={m.id} className="pill" onClick={() => setCam(m.cam)}>{t(m.label)}</button>)}
+      {MOUVEMENTS.map(m => <button key={m.id} className="pill" onClick={() => { setCam(m.cam); setHauteurs(m.h) }}>{t(m.label)}</button>)}
     </div>
     <div className="flex flex-col gap-1 text-[11px]" style={{ color: 'var(--muted)' }}>
       <label className="flex items-center gap-2">{t('Hauteur au début')}<input type="range" className="flex-1" min={0.2} max={6} step={0.1} value={hauteurs[0]} onChange={e => setHauteurs(h => [Number(e.target.value), h[1]])} /></label>
@@ -176,13 +151,34 @@ export function StagePanel() {
       <label className="flex items-center gap-2">{t('Hauteur visée')}<input type="range" className="flex-1" min={0} max={4} step={0.1} value={viseH} onChange={e => setViseH(Number(e.target.value))} /></label>
       <label className="flex items-center gap-2">{t('Focale')}<input type="range" className="flex-1" min={20} max={90} step={1} value={focale} onChange={e => setFocale(Number(e.target.value))} /></label>
     </div>
-    <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4} maxLength={1200} style={{ width: '100%' }}
-      placeholder={t('Décris ce que chaque forme devient : le lieu, la personne, la lumière…')} />
     <div className="flex gap-1.5 flex-wrap">
       {['16:9', '9:16', '1:1'].map(f => <button key={f} className="pill" style={format === f ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined} onClick={() => setFormat(f)}>{f}</button>)}
       {[3, 4, 5].map(n => <button key={n} className="pill" style={secondes === n ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined} onClick={() => setSecondes(n)}>{n} s</button>)}
     </div>
+    <div className="etiquette">{t('Accessoires')} · {objets.length}</div>
+    <div className="flex gap-1.5 flex-wrap">
+      {ACCESSOIRES.map(a => <button key={a.label} className="pill" onClick={() => ajouter(a.o)}>+ {t(a.label)}</button>)}
+      {modeles.length > 0 && <select value="" onChange={e => { const m = modeles.find(x => x.nom === e.target.value); if (m) ajouterModele(m) }} className="pill" style={{ maxWidth: 150 }}>
+        <option value="">{t('+ Objet 3D')}</option>
+        {modeles.map(m => <option key={m.nom} value={m.nom}>{m.titre.slice(0, 32)}</option>)}
+      </select>}
+      {edition && <label className="pill" style={{ cursor: 'pointer' }}>{t('Importer .glb')}
+        <input type="file" accept=".glb,model/gltf-binary" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void importer(f); e.target.value = '' }} /></label>}
+    </div>
+    <div className="flex gap-1.5 flex-wrap">
+      {objets.map(o => <button key={o.id} className="pill tool" style={o.id === choisi ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined} onClick={() => setChoisi(o.id)}>{t(nomDe(o))} <small>{rond(o.h)} m</small></button>)}
+    </div>
+    {sel && (
+      <div className="flex flex-col gap-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+        <label className="flex items-center gap-2">{t('Hauteur')}<input type="range" className="flex-1" min={0.3} max={sel.type === 'personne' ? 2.2 : 6} step={0.1} value={sel.h} onChange={e => regler('h', Number(e.target.value))} /></label>
+        <label className="flex items-center gap-2">{t('Rotation')}<input type="range" className="flex-1" min={-180} max={180} step={5} value={sel.rot ?? 0} onChange={e => regler('rot', Number(e.target.value))} /></label>
+        {sel.type === 'modele' && <label className="flex items-center gap-2">{t('Élévation')}<input type="range" className="flex-1" min={0} max={4} step={0.1} value={sel.y ?? 0} onChange={e => regler('y', Number(e.target.value))} /></label>}
+        {sel.type === 'boite' && <label className="flex items-center gap-2">{t('Largeur')}<input type="range" className="flex-1" min={0.3} max={12} step={0.1} value={sel.l} onChange={e => regler('l', Number(e.target.value))} /></label>}
+        {sel.type === 'boite' && <label className="flex items-center gap-2">{t('Profondeur')}<input type="range" className="flex-1" min={0.2} max={8} step={0.1} value={sel.p} onChange={e => regler('p', Number(e.target.value))} /></label>}
+        {objets.length > 1 && <button className="pill" style={{ alignSelf: 'flex-start' }} onClick={() => { setObjets(l => l.filter(o => o.id !== choisi)); setChoisi(null) }}>{t('Retirer')}</button>}
+      </div>
+    )}
     {msg && <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{msg}</div>}
-    <button className="cta" style={{ padding: '14px', flexDirection: 'row' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{t('Tourner le plan')}</button>
+    <button className="cta" style={{ padding: '14px', flexDirection: 'row' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{t('Tourner le plan')} <small>{format} · {secondes} s · ~3 min</small></button>
   </>)
 }

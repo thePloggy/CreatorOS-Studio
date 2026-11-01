@@ -9,6 +9,7 @@ import { useAppStore } from '../store/useAppStore'
 import LOOKS from '../data/looks.json'
 import { useAssetNav } from '../components/useAssetNav'
 import { AssetNavArrows } from '../components/AssetNavArrows'
+import { posterOf } from '../components/AssetMedia'
 import { renderTime } from '../lib/renderTime'
 import { resumeControle } from '../lib/controle'
 import { trierDossiers } from '../lib/folders'
@@ -181,6 +182,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   /* Agrandissement : l'image d'origine, si elle est encore en bibliothèque. */
   const parent = asset.parentAssetId ? s.assets.find(a => a.id === asset.parentAssetId && a.mediaType === asset.mediaType) ?? null : null
   const [compare, setCompare] = useState(false)
+  // un clip affiné s'ouvre sur son avant / après : c'est ce qu'on vient voir
+  useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2') }, [asset.id, asset.videoEngine])
   const [pinceau, setPinceau] = useState(false)
   const [editer, setEditer] = useState(false)
   const [finMsg, setFinMsg] = useState<{ ok: boolean; txt: string } | null>(null)
@@ -322,7 +325,9 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     <div className="fixed inset-0 z-50 flex max-[820px]:flex-col" style={{ background: 'var(--bg)' }}>
       {pinceau && <Pinceau asset={asset} onClose={() => setPinceau(false)} />}
       {editer && <EditionVideo asset={asset} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
-      <div className="flex-1 relative flex items-center justify-center" style={{ background: '#08090b' }}>
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: '#08090b' }}>
+        {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
+        <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
         <button className="absolute top-3 left-3 z-10 b2" onClick={onClose}>{t('‹ retour')}</button>
         {nav.index >= 0 && (
           <span className="absolute top-4 left-1/2 -translate-x-1/2 pill9">{nav.index + 1} / {nav.total} · ← →</span>
@@ -335,9 +340,9 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
         {parent && compare
           ? <AvantApres avant={parent} apres={asset} className="max-h-[92vh] max-w-full rounded-[10px]" style={{ maxWidth: '86%', boxShadow: 'var(--sh-md)' }} />
           : asset.mediaType === 'video'
-          ? <video src={asset.uri} controls autoPlay loop playsInline className="max-h-[92vh] max-w-[86%] rounded-[10px]" style={{ boxShadow: 'var(--sh-md)' }}
+          ? <video src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6)' }}
               onLoadedMetadata={e => { const el = e.target as HTMLVideoElement; setClip({ w: el.videoWidth, h: el.videoHeight, dur: el.duration }) }} />
-          : <img src={asset.uri} alt="" className="max-h-[92vh] max-w-[86%] rounded-[10px] object-contain" style={{ boxShadow: 'var(--sh-md)' }} />}
+          : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6)' }} />}
         <AssetNavArrows {...nav} />
       </div>
 
@@ -450,7 +455,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('SeedVR2 : le clip monte en 1080p, le mouvement ne change pas')} onClick={() => void nettete()}>{t('Netteté 1080p')}</button>}
             {netteMsg && <span className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
           </div>
-          {asset.mediaType === 'video' && <Masters asset={asset} />}
+          {asset.mediaType === 'video' && <details className="plus"><summary>{t('Exporter un master')}</summary><div><Masters asset={asset} /></div></details>}
           {asset.modele3d && (
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
               {t('Objet 3D')}
@@ -461,7 +466,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
           {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: '#0b0c0e' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
             <button className="pill" style={{ position: 'absolute', top: 16, right: 16 }} onClick={() => setVoir3d(false)}>{t('fermer')}</button></div>, document.body)}
           {finMsg && <div className="text-[10.5px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
-          {asset.mediaType === 'photo' && (<>
+          {asset.mediaType === 'photo' && <details className="plus"><summary>{t('Plus…')}</summary><div>
             <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}>{t('✎ Éditer (retouche)')}</button>
             <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}>{t('🖌 Pinceau')}</button>
             {/* Looks en un clic (30/10) : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
@@ -511,8 +516,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             </div>
             <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('PNG avec alpha : le sujet est gardé, le fond disparaît, rien n’est redessiné')}
               onClick={() => void transparent()}>{t('Fond transparent')}</button>
-          </>
-)}
+          </div></details>}
           <div className="flex gap-1.5">
             {asset.mediaType === 'photo' && (<>
               <button className="b2 flex-1" onClick={() => { void s.pickStartFrame(asset.id); onClose(); goVideo() }}>{t('Frame départ')}</button>
@@ -532,6 +536,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
               }}><Ic n="dots" /></button>
           </div>
         </div>
+        {nav.index >= 0 && <div className="aide-clavier">{t('← → pour parcourir · Échap pour fermer · {n} médias', { n: nav.total })}</div>}
       </aside>
       {menu && <ViewerMenu asset={asset} at={menu} onClose={() => setMenu(null)}
         onCarousel={() => { setMenu(null); setCarousel(true) }}

@@ -108,7 +108,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
     <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
       <div style={{ maxWidth: 980, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{t('Avatar parlant')}</h2>
+          <h2 className="titre-outil">{t('Avatar parlant')}</h2>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t('Une photo, une voix : {nom} parle, les lèvres calées sur l’audio. Idéal pour une pub UGC face caméra.', { nom: s.personaName })}</div>
         </div>
         <div style={{ display: 'grid', gap: 8, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>

@@ -187,7 +187,7 @@ export function ReshootView() {
     <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
       <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>🎥 {t('Re-shoot')}</h2>
+          <h2 className="titre-outil">{t('Re-shoot')}</h2>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t('Un clip, un nouvel angle : le même instant filmé par une deuxième caméra.')}</div>
         </div>
         <div className="carte-reel" style={{ background: 'var(--lv1)', borderRadius: 18, padding: 16, display: 'grid', gap: 14 }}>

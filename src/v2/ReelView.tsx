@@ -58,7 +58,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
       <div style={{ maxWidth: 980, margin: '0 auto', display: 'grid', gap: 18 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{t('Reel en un clic')}</h2>
+          <h2 className="titre-outil">{t('Reel en un clic')}</h2>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>
             {t('Décris la scène : {nom} est photographiée plan par plan, chaque plan est animé avec le son, puis le reel est monté avec fondus, accroche et musique.', { nom: s.personaName })}
           </div>

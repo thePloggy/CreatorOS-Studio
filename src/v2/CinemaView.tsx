@@ -95,7 +95,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
     <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
       <div className="cine" style={{ maxWidth: 1240, margin: '0 auto' }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>🎬 {t('Studio ciné')}</h2>
+          <h2 className="titre-outil">{t('Studio ciné')}</h2>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t('Règle le plan comme sur un tournage — caméra, optique, lumière, pellicule, étalonnage. {nom} joue la scène.', { nom: s.personaName })}</div>
         </div>
 

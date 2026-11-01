@@ -130,6 +130,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
       {briefs.panel}
       {/* ---------- création : sidebar (desktop) / sheet à crans (mobile) ---------- */}
       {(() => { const side = (<>
+        {tab !== 'stage' && <h2 className="titre-outil">{tab === 'creer' ? t('Vidéo') : tab === 'ambiance' ? t('Depuis un texte') : tab === 'rejouer' ? (v.motionMode === 'replace' ? 'Mix' : 'Move') : t('Étendre')}</h2>}
         <div className="flex gap-1 rounded-[11px] p-[3px]" style={{ background: 'var(--lv2)' }}>
           {(['creer', 'ambiance', 'rejouer', 'etendre', 'stage'] as VTab[]).map(tb => (
             <button key={tb}
@@ -435,7 +436,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
       {/* ---------- bibliothèque vidéo ---------- */}
       <div className="flex-1 min-w-0 flex flex-col relative">
-        {surStage && !isMobile && <div id="stage-vues" style={{ flex: '0 0 62vh', minHeight: 0 }} />}
+        {surStage && !isMobile && <div id="stage-vues" style={{ flex: '0 0 70vh', minHeight: 0 }} />}
         <SortBar assets={s.assets.filter(a => a.mediaType === 'video')} draft={draft} setDraft={setDraft}
           review={review} setReview={setReview}
           cols={cols} setCols={setCols} picking={picking} setPicking={() => setPicked(new Set())}

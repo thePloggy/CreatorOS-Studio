@@ -1615,7 +1615,7 @@ export function enqueueObjet3d({ sourceFile, cible, parentAssetId, personaId }) 
     mode: 'video', purpose: 'creative', recipeId: 'objet3d@v1', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffff), op: 'objet3d', videoEngine: 'trellis2', sourceImage: sourceFile,
     parentAssetId: parentAssetId ?? null, userPrompt: c, userDirectives: null, composedPositive: `objet 3D : ${c}`, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: 60_000,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 75_000,
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
@@ -1653,8 +1653,11 @@ function grapheObjet3d(job) {
     dt: { class_type: 'VaeDecodeTextureTrellis', inputs: { samples: ['k3', 0], vae: ['vt', 0], shape_subdivides: ['dm', 1] } },
     dec: { class_type: 'DecimateMesh', inputs: { mesh: ['dm', 0], target_face_count: 200000, placement_mode: 'midpoint' } },
     sm: { class_type: 'MeshSmoothNormals', inputs: { mesh: ['dec', 0], crease_angle: 180 } },
-    pt: { class_type: 'PaintMesh', inputs: { mesh: ['sm', 0], voxel_colors: ['dt', 0] } },
-    save: { class_type: 'SaveGLB', inputs: { mesh: ['pt', 0], filename_prefix: `creatoros/${job.id}/objet` } },
+    // vraie texture cuite : peintes sur les sommets, les couleurs sortent tachées
+    uw: { class_type: 'UnwrapMesh', inputs: { mesh: ['sm', 0], segmenter: 'pec', resolution: 2048, padding: 1, weld_distance: 0.0002 } },
+    bk: { class_type: 'BakeTextureFromVoxel', inputs: { mesh: ['uw', 0], voxel_colors: ['dt', 0], reference_mesh: ['dm', 0], texture_size: 2048 } },
+    ap: { class_type: 'ApplyTextureToMesh', inputs: { mesh: ['uw', 0], base_color: ['bk', 0], metallic: ['bk', 1], roughness: ['bk', 2] } },
+    save: { class_type: 'SaveGLB', inputs: { mesh: ['ap', 0], filename_prefix: `creatoros/${job.id}/objet` } },
   }
 }
 /** Le GLB de ComfyUI embarque le graphe et ses chemins dans asset.extras : on le retire avant de le servir. */
