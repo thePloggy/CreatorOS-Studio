@@ -4,11 +4,6 @@
    Appel réel à POST /api/compose, qui fait tourner un LLM local
    (cf. server/composer.js).
 
-   Le rewriter vivait dans la recette ComfyUI (nœud OllamaGenerateV2).
-   Il a disparu le 21/08 quand les recettes v5 ont été reconstruites, et
-   ce fichier est resté un PASSTHROUGH pendant ce temps : le bouton
-   « Composer » ne faisait que concaténer prompt + directives, et le
-   champ « Directive au LLM » n'allait nulle part.
 
    Aucun préfixe d'identité n'est ajouté ici : il est injecté par le
    serveur (cf. server/persona.js). Le LLM a d'ailleurs
@@ -44,8 +39,7 @@ export interface PromptComposer {
 }
 
 /* Le négatif de repli par registre vit côté serveur (server/composer.js) et
-   revient dans la réponse de /api/compose : plus de copie ici. Le
-   PassthroughComposer a été retiré — il n'était plus branché. */
+   revient dans la réponse de /api/compose. */
 
 /** Composeur réel : le LLM tourne côté serveur, sur CPU.
  *

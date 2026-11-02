@@ -20,6 +20,7 @@ import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
 import { t, getLang, tServeur } from '../i18n'
 import { Masters } from './Masters'
+import type { ActionOutil } from './Navigation'
 
 const Objet3D = lazy(() => import('./Objet3D'))
 import { EditionVideo } from '../components/EditionVideo'
@@ -140,7 +141,7 @@ function CaptionCard({ asset }: { asset: Asset }) {
   )
 }
 
-/** Angles (30/10) : la même photo vue d'une autre position de caméra — Qwen-Image-Edit 2511 avec la LoRA
+/** Angles : la même photo vue d'une autre position de caméra — Qwen-Image-Edit 2511 avec la LoRA
  *  Multiple-Angles de fal (Apache-2.0, 96 poses apprises sur des rendus Gaussian Splatting). */
 const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
 const ANGLES = [
@@ -154,7 +155,7 @@ const ANGLES = [
   { id: 'serre', label: 'Gros plan', vue: 'front view eye-level shot close-up' },
 ]
 
-/* Lumière (30/10) : la même photo, un autre éclairage. */
+/* Lumière : la même photo, un autre éclairage. */
 const GARDE = 'Keep the person, face, pose, outfit, background and framing unchanged.'
 const LUMIERES = [
   { id: 'gauche', label: 'Par la gauche', consigne: `Relight the photo with soft directional light coming from the left, with shadows falling to the right. ${GARDE}` },
@@ -168,8 +169,10 @@ const LUMIERES = [
 const FORMATS = ['16:9', '9:16', '4:5', '1:1', '+30%']
 
 /* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
-export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
+export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }: {
   asset: Asset
+  /** l'outil choisi depuis l'accueil ou les menus : son panneau s'ouvre tout seul */
+  action?: ActionOutil
   list: Asset[]
   onGo: (a: Asset | null) => void
   onClose: () => void
@@ -185,7 +188,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   // un clip affiné s'ouvre sur son avant / après : c'est ce qu'on vient voir
   useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2') }, [asset.id, asset.videoEngine])
   const [pinceau, setPinceau] = useState(false)
-  const [editer, setEditer] = useState(false)
+  const [editer, setEditer] = useState(action === 'retouche' || action === 'detour')
+  const [plusOuvert, setPlusOuvert] = useState(action === 'looks')
   const [finMsg, setFinMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   useEffect(() => { setFinMsg(null) }, [asset.id])
   const finition = async (op: 'foley' | 'interpolate') => {
@@ -233,7 +237,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   const [carousel, setCarousel] = useState(false)
   const p = asset.provenance
 
-  /* « Ouvrir dans ComfyUI » (30/10) : le graphe exact du rendu en .json, et ses modèles avec leur licence */
+  /* « Ouvrir dans ComfyUI » : le graphe exact du rendu en .json, et ses modèles avec leur licence */
   const [modeles, setModeles] = useState<{ fichier: string; licence: string | null }[] | null>(null)
   const [voirLooks, setVoirLooks] = useState(false)
   const lancerLook = async (consigne: string) => {
@@ -248,7 +252,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
     useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
   }
-  /* Coverage, Push in, Next beat (31/10) : le plan d'après, à partir de cette photo. */
+  /* Coverage, Push in, Next beat : le plan d'après, à partir de cette photo. */
   const [planMsg, setPlanMsg] = useState('')
   const coverage = async () => {
     const avant = useAppStore.getState().loraPicks
@@ -282,6 +286,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   }
   const [voir3d, setVoir3d] = useState(false)
   const [cible3d, setCible3d] = useState('')
+  const [guide3d, setGuide3d] = useState(action === 'objet3d')
+  const placerDansStage = () => {
+    s.ouvrirStage({ objets: [{ type: 'modele', modele: `${asset.jobId}.glb`, x: 0, z: 0, h: 1.5, rot: 180 }], camera: [{ oeil: [0.5, 1.5, 3.4] }, { oeil: [-0.3, 1.5, 1.8] }], prompt: '' })
+    onClose()
+  }
   const objet3d = async () => {
     setAgrandirMsg('')
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/objet3d`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cible: cible3d }) })
@@ -324,7 +333,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
   return (
     <div className="fixed inset-0 z-50 flex max-[820px]:flex-col" style={{ background: 'var(--bg)' }}>
       {pinceau && <Pinceau asset={asset} onClose={() => setPinceau(false)} />}
-      {editer && <EditionVideo asset={asset} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
+      {editer && <EditionVideo asset={asset} detourDirect={action === 'detour'} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: '#08090b' }}>
         {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
         <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
@@ -347,6 +356,28 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
       </div>
 
       <aside className="viewer-panel flex-none flex flex-col gap-2.5 p-4 overflow-y-auto" style={{ width: 330, background: 'var(--lv1)' }}>
+          {guide3d && asset.mediaType === 'photo' && (
+            <div className="guide-outil">
+              <b>{t('Objet 3D')}</b>
+              <ol>
+                <li>{t('Écris en anglais l’objet à garder sur la photo, par exemple toy robot.')}</li>
+                <li>{t('Lance la création : environ 1 minute.')}</li>
+                <li>{t('Ouvre le résultat dans la bibliothèque : fais-le tourner, télécharge le GLB ou pose-le dans Stage.')}</li>
+              </ol>
+              <input value={cible3d} onChange={e => setCible3d(e.target.value)} placeholder={t('quel objet ? en anglais')} maxLength={80} />
+              <button className="pill" title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans Stage')} disabled={!cible3d.trim()} onClick={() => void objet3d()}>{t('Créer le modèle 3D')}</button>
+              {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
+            </div>
+          )}
+          {action === 'nette' && asset.mediaType === 'video' && (
+            <div className="guide-outil">
+              <b>{t('Netteté 1080p')}</b>
+              <p>{t('SeedVR2 monte le clip en 1080p, le mouvement ne change pas.')}</p>
+              <button className="pill" onClick={() => void nettete()}>{t('Lancer la netteté')}</button>
+              {netteMsg && <span style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
+            </div>
+          )}
+          {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
         {/* ---------- la chaîne du prompt, dans l'ordre où elle s'est faite ----------
             Brief → ce que le VLM a lu dans la still → prompt composé. Les deux
             premiers blocs n'apparaissent que s'ils existent ET apportent
@@ -444,7 +475,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
                 onClick={() => void finition('interpolate')}>{t('≈ Fluidité 48 i/s')}</button>}
             </div>
           </>)}
-          {/* « Utiliser dans… » (30/10) : ce média ouvre une autre section, déjà choisi comme source */}
+          {/* « Utiliser dans… » : ce média ouvre une autre section, déjà choisi comme source */}
           <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
             {t('Utiliser dans')}
             {asset.mediaType === 'photo' && <>
@@ -455,21 +486,22 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
             {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('SeedVR2 : le clip monte en 1080p, le mouvement ne change pas')} onClick={() => void nettete()}>{t('Netteté 1080p')}</button>}
             {netteMsg && <span className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
           </div>
-          {asset.mediaType === 'video' && <details className="plus"><summary>{t('Exporter un master')}</summary><div><Masters asset={asset} /></div></details>}
+          {asset.mediaType === 'video' && action !== 'master' && <details className="plus"><summary>{t('Exporter un master')}</summary><div><Masters asset={asset} /></div></details>}
           {asset.modele3d && (
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
               {t('Objet 3D')}
               <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => setVoir3d(v => !v)}>{t('Voir en 3D')}</button>
               <a className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} href={asset.modele3d} download>{t('Télécharger le GLB')}</a>
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={placerDansStage}>{t('Placer dans Stage')}</button>
             </div>
           )}
           {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: '#0b0c0e' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
             <button className="pill" style={{ position: 'absolute', top: 16, right: 16 }} onClick={() => setVoir3d(false)}>{t('fermer')}</button></div>, document.body)}
           {finMsg && <div className="text-[10.5px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
-          {asset.mediaType === 'photo' && <details className="plus"><summary>{t('Plus…')}</summary><div>
+          {asset.mediaType === 'photo' && <details className="plus" open={plusOuvert} onToggle={e => setPlusOuvert(e.currentTarget.open)}><summary>{t('Plus…')}</summary><div>
             <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}>{t('✎ Éditer (retouche)')}</button>
             <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}>{t('🖌 Pinceau')}</button>
-            {/* Looks en un clic (30/10) : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
+            {/* Looks en un clic : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
               <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => setVoirLooks(v => !v)}>{t('Look')} {voirLooks ? '▴' : `▾ ${LOOKS.length}`}</button>
               {voirLooks && LOOKS.map(l => (
@@ -508,10 +540,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage }: {
               {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
             </div>
             <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
-              {t('Objet 3D')}
-              <input value={cible3d} onChange={e => setCible3d(e.target.value)} placeholder={t('quel objet ? en anglais')} maxLength={80}
-                style={{ flex: 1, minWidth: 120, padding: '4px 8px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 10.5 }} />
-              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans Stage')} onClick={() => void objet3d()}>{t('Créer le GLB')}</button>
+              <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} onClick={() => setGuide3d(true)}>{t('Objet 3D')}</button>
               <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t('à joindre au prompt photo, 6 au plus')} onClick={() => { void s.ajouterReference(asset); onClose() }}>{t('Référence')}</button>
             </div>
             <button className="pill" style={{ fontSize: 10.5, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('PNG avec alpha : le sujet est gardé, le fond disparaît, rien n’est redessiné')}

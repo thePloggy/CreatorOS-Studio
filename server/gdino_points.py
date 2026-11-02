@@ -14,7 +14,7 @@ from PIL import Image
 
 driver, GW, GH = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 sujet = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4].strip() else "woman"
-# Mix à plusieurs (01/11) : rang de la personne, de gauche à droite, parmi `total`
+# Mix à plusieurs : rang de la personne, de gauche à droite, parmi `total`
 rang = int(sys.argv[5]) if len(sys.argv) > 5 else None
 total = int(sys.argv[6]) if len(sys.argv) > 6 else None
 

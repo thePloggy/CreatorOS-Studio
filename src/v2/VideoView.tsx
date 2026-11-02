@@ -11,13 +11,14 @@ import type { Asset, VideoAspect } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { engineInfo, moteurT2v, VIDEO_ENGINES } from '../features/console/video/engines'
+import { ChoixPersonnage } from './ChoixPersonnage'
 import { Ic, rollingEta, fmtDur, SortBar, AssetCard, JobCard, FailCard, failedJobs, SeedPill, JustifiedGrid, ratioOf, MobileSheet, SelectionBar, applyFilters, useConfirm, V2Portal, useExclusiveMenu, type ReviewFilter, type DraftFilter } from './bits'
 import { EnhancerPopup, FramePicker, TriagePopup } from './popups'
 import { getLang, t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { StagePanel } from './StagePanel'
 
-/* Filmer un geste au téléphone (30/10) : un QR code à usage unique, 10 min (cf. /api/telephone). */
+/* Filmer un geste au téléphone : un QR code à usage unique, 10 min (cf. /api/telephone). */
 function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: { filename: string; durationS?: number; frames?: number }) => void }) {
   const [q, setQ] = useState<{ jeton: string; svg: string; local: boolean } | null>(null)
   const [err, setErr] = useState('')
@@ -42,8 +43,7 @@ function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: 
 
 /* Durées proposées, filtrées au rendu par le plafond du moteur choisi
    (`engineInfo().maxSeconds`, fourni par le serveur). Une liste figée
-   masquait les durées qu'un moteur sait tenir : H3 est passé à 12 s le 21/09
-   et le menu s'arrêtait toujours à 10. Même liste que le mobile. */
+   masquerait les durées qu'un moteur sait tenir. Même liste que le mobile. */
 const DUR = [3, 4, 5, 6, 8, 10, 12, 16, 20]
 
 /* Menu contextuel générique des pills vidéo (durée/fps/format) — même
@@ -102,9 +102,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
-  const shown = useMemo(() => applyFilters(s.assets, selecting ? 'photo' : 'video', review, q)
+  const shown = useMemo(() => applyFilters(s.assets.filter(a => a.personaId === s.personaId), selecting ? 'photo' : 'video', review, q)
     .filter(a => selecting || draft === 'all' || (draft === 'draft' ? !!a.videoDraft : !a.videoDraft)),
-  [s.assets, review, q, selecting, draft])
+  [s.assets, s.personaId, review, q, selecting, draft])
   const activeJobs = s.jobs.filter(j => j.mode === 'video' && STATUTS_ACTIFS.includes(j.status))
   const queueIds = activeJobs.filter(j => j.status === 'queued').map(j => j.id)
   const failed = failedJobs(s.jobs, true)
@@ -168,6 +168,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             <b>{t('Multi-plan')}</b> <span className="text-[9.5px]">{t('plans [Shot 1..n] chaînés')}</span><span className="sw" />
           </button>
           <div className="varea">
+            <ChoixPersonnage />
             <textarea placeholder={t('Mouvement — une action claire, temps réel…')}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2 flex-wrap">
@@ -239,6 +240,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             </div>
           )}
           <div className="varea">
+            <ChoixPersonnage />
             <textarea placeholder={t('Ex. : vagues au coucher du soleil sur une plage déserte, lent travelling latéral, bruit des vagues')}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2 flex-wrap">
@@ -345,7 +347,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.motionDriverError || v.motionStillError}</div>
           )}
           {/* Le texte PART au modèle : il doit être visible ici. Sans ce champ,
-              le prompt resté dans « Créer » était envoyé à l'insu de l'opérateur. */}
+              le prompt resté dans « Créer » serait envoyé à l'insu de l'opérateur. */}
           <div className="varea">
               <textarea placeholder={t('Facultatif — ce que montre la vidéo source : action, objets tenus. Vide = le geste seul.')}
                 value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} />
@@ -369,7 +371,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
         {/* ============ ÉTENDRE ============ */}
         {tab === 'etendre' && (<>
-          {/* Prequel | Sequel (pattern Higgsfield « Edit video ») : sequel =
+          {/* Prequel | Sequel : sequel =
              dernière frame → frame de départ, le rendu suit le clip ; prequel =
              1re frame → frame de FIN, le rendu arrive sur le clip et passe devant
              (Wan : WanFirstLastFrameToVideo). */}
@@ -414,8 +416,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
         {s.t0Error && <div className="text-[11px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
         {/* Nombre de rendus — COMMUN aux 3 onglets : cantonné à « Créer », un
-            lot posé là restait actif en Rejouer/Étendre sans moyen de le
-            corriger (le CTA annonçait « 4 jobs » sans stepper visible). */}
+            lot posé là resterait actif en Rejouer/Étendre sans moyen de le
+            corriger (le CTA annoncerait « 4 jobs » sans stepper visible). */}
         {tab !== 'stage' && (<>
         <div className="flex items-center mt-auto mb-2">
           <span className="text-[10.5px]" style={{ color: 'var(--muted)' }}>{t('nombre de rendus')}</span>

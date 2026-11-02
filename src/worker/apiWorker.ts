@@ -184,10 +184,9 @@ class ApiWorker implements GenerationWorker {
     let lastApercu: number | undefined
     let lastRang: number | undefined
     let pannes = 0
-    /* Le suivi ne doit JAMAIS mourir en silence (10/10) : une exception hors de
-       l'appel réseau (réponse inattendue, erreur à l'émission) arrêtait la
-       boucle, et la carte restait « en rendu » avec un chrono qui tournait —
-       482-r9jh affiché à 479 min alors qu'il était livré depuis 7 h. Toute
+    /* Le suivi ne doit JAMAIS mourir en silence : une exception hors de
+       l'appel réseau (réponse inattendue, erreur à l'émission) arrêterait la
+       boucle, et la carte resterait « en rendu » avec un chrono qui tourne. Toute
        erreur relance le suivi ; on n'abandonne qu'après 40 échecs de suite. */
     const tick = async () => {
       try {
@@ -268,7 +267,7 @@ export async function fetchAssetsDe(persona: string): Promise<Asset[]> {
 }
 
 export async function fetchAssets(): Promise<Asset[]> {
-  const { assets } = await api<{ assets: ApiAsset[] }>('/api/assets?limit=1500')
+  const { assets } = await api<{ assets: ApiAsset[] }>('/api/assets?limit=3000&persona=all')
   return assets.map(a => toAsset(a))
 }
 

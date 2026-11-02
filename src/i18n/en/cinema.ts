@@ -1,4 +1,4 @@
-/* Studio ciné (21/10). */
+/* Studio ciné. */
 export const cinema: Record<string, string> = {
   '🎬 Ciné': '🎬 Cinematic',
   'Studio ciné': 'Cinematic Studio',

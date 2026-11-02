@@ -2,7 +2,7 @@
    v2 — Assets : la bibliothèque COMPLÈTE (images + vidéos),
    groupée par mois, avec sidebar de filtres combinables et
    dossiers (appartenances multiples).
-   Règles UX tranchées (17/09) : dossier = radio avec le statut
+   Règles UX : dossier = radio avec le statut
    (Tous/Validés/Refusés) ; types = multi-coche
    (aucun coché = tous) ; les filtres s'appliquent AUSSI dans un
    dossier ; groupement mensuel partout ; supprimer un dossier ne
@@ -14,6 +14,9 @@ import { useAppStore } from '../store/useAppStore'
 import { AssetCard, FolderSortButton, Ic, JustifiedGrid, useProgressif, ratioOf, SelectionBar, useConfirm, V2Portal, useExclusiveMenu, type FolderInfo, matchSearch } from './bits'
 import { trierDossiers } from '../lib/folders'
 import { t, tp } from '../i18n'
+import { SANS_PERSONNAGE } from '../lib/personnage'
+import { usePersonnages } from './ChoixPersonnage'
+import { Musiques } from './Musiques'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -31,6 +34,8 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
   const [folderId, setFolderId] = useState<string | null>(null)
   const [types, setTypes] = useState<Set<'photo' | 'video'>>(new Set())
   const [q, setQ] = useState('')
+  const [personnage, setPersonnage] = useState<string | null>(null)
+  const personnages = usePersonnages()
   const [cols, setCols] = useState(6)
   const [folders, setFolders] = useState<FolderInfo[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -60,6 +65,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return s.assets.filter(a => {
+      if (personnage && a.personaId !== personnage) return false
       if (folderId === ORPHANS) { if ((a.folders ?? []).length) return false }
       else if (folderId && !(a.folders ?? []).includes(folderId)) return false
       if (status === 'pending' && a.reviewStatus !== 'pending') return false
@@ -69,7 +75,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
       if (needle && !matchSearch(a, needle)) return false
       return true
     }).sort((a, b) => b.createdAt - a.createdAt)
-  }, [s.assets, folderId, status, types, q])
+  }, [s.assets, personnage, folderId, status, types, q])
 
   /* groupes JOURNALIERS, récents en premier. Le mois seul mettait des
      centaines de rendus sous un même titre : à ce rythme de production, la
@@ -134,6 +140,12 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     <div className="flex-1 min-h-0 flex layer1" style={{ overflow: 'hidden' }}>
       {/* ---------- sidebar ---------- */}
       <aside className="aside-assets flex-none flex flex-col gap-1 p-3 overflow-y-auto" style={{ width: 220 }}>
+        <div className="text-[10.5px] mt-2 mb-0.5 px-2" style={{ color: 'var(--faint)' }}>{t('Personnages')}</div>
+        <button className={`sitem ${!personnage ? 'on' : ''}`} onClick={() => setPersonnage(null)}>{t('Tous les personnages')}</button>
+        {[...personnages, { id: SANS_PERSONNAGE, name: t('Sans personnage') }].map(p => {
+          const n = s.assets.filter(a => a.personaId === p.id).length
+          return n ? <button key={p.id} className={`sitem ${personnage === p.id ? 'on' : ''}`} onClick={() => setPersonnage(c => c === p.id ? null : p.id)}>{p.name} <span style={{ opacity: .5 }}>{n}</span></button> : null
+        })}
         <input ref={qRef} className="pin" style={{ marginTop: 0 }} placeholder={t('⌘K prompt, moteur, LoRA…')} title={t('cherche dans le prompt, le brief, la recette, le moteur et les LoRA')}
           value={q} onChange={e => setQ(e.target.value)} />
         <div className="stitle">{t('Bibliothèque')}</div>
@@ -150,7 +162,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
         <div className="stitle">{t('Types')}</div>
         {side('Images', types.has('photo'), () => toggleSet(types, 'photo', setTypes))}
         {side('Vidéos', types.has('video'), () => toggleSet(types, 'video', setTypes))}
-        <button className="sitem" disabled style={{ opacity: .35, cursor: 'not-allowed' }}>{t('Audio')} <small className="ml-auto">{t('bientôt')}</small></button>
+        <button className={`sitem ${s.ongletMusiques ? 'on' : ''}`} onClick={() => useAppStore.setState({ ongletMusiques: !s.ongletMusiques })}>{t('Audio')}</button>
         <div className="stitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {t('Dossiers')} <FolderSortButton />
         </div>
@@ -197,6 +209,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
         {folders.length === 0 && <div style={{ fontSize: 10.5, color: 'var(--faint)', padding: '2px 8px' }}>{t('aucun dossier — « Déplacer vers… » sur une vignette')}</div>}
       </aside>
 
+      {s.ongletMusiques ? <Musiques /> : <>
       {/* ---------- grille ---------- */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -234,6 +247,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
       {fMenu && <FolderRowMenu at={fMenu} folder={folders.find(f => f.id === fMenu.id)}
         onClose={() => setFMenu(null)}
         onChanged={() => { loadFolders(); if (folderId === fMenu.id) setFolderId(null) }} />}
+      </>}
     </div>
   )
 }

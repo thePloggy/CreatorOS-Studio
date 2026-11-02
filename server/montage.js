@@ -1,5 +1,5 @@
 /* ============================================================
-   Montage (20/10) — un petit éditeur de reel dans l'app : des clips et des
+   Montage — un petit éditeur de reel dans l'app : des clips et des
    photos de la bibliothèque mis bout à bout, coupés (début / fin), reliés par
    une coupe franche, un fondu enchaîné ou un passage au noir, un texte par
    plan, une musique par-dessus. L'export est un rendu ffmpeg sur le CPU — la

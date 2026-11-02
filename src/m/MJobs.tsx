@@ -1,7 +1,7 @@
 /* ============================================================
    Jobs — calcul en cours, attente, échecs, historique.
 
-   Deux règles de la spec qui pilotent tout cet écran :
+   Deux règles pilotent tout cet écran :
    · les mesures de la machine sont EN TÊTE, sans bouton « Machine » en plus ;
    · une barre de progression ne ment pas — voir `Progress` plus bas.
    ============================================================ */

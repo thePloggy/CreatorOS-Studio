@@ -4,7 +4,7 @@
    Image : Générer · Retoucher
    Vidéo : Animer · Rejouer (motion control) · Prolonger
 
-   Le brouillon est conservé par opération (spec p. 12) : changer d'onglet ne perd jamais le travail en cours,
+   Le brouillon est conservé par opération : changer d'onglet ne perd jamais le travail en cours,
    puisque tout vit dans le store partagé avec le desktop.
    ============================================================ */
 import { useEffect, useState } from 'react'
@@ -38,7 +38,7 @@ export function MCreate({ goJobs }: { goJobs: () => void }) {
   const [sent, setSent] = useState<null | string>(null)
   /* Hors ligne : on BLOQUE l'envoi et on le dit, plutôt que de laisser partir
      une requête qui échouera. Le brouillon, lui, reste intact — et on ne
-     relance jamais automatiquement au retour du réseau (spec p. 21) : c'est
+     relance jamais automatiquement au retour du réseau : c'est
      à l'opérateur de décider, l'envoi coûte du GPU. */
   const [online, setOnline] = useState(() => navigator.onLine !== false)
   useEffect(() => {

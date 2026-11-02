@@ -1,5 +1,5 @@
 /* ============================================================
-   Studio ciné (21/10) — une fiche de plan au lieu d'un prompt.
+   Studio ciné — une fiche de plan au lieu d'un prompt.
 
    Caméra (boîtier, optique, focale, ouverture), plan, lumière, pellicule,
    look et étalonnage, une palette de couleurs : la fiche compose la phrase
@@ -14,6 +14,7 @@ import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { JobCard, PHOTO_SIZES } from './bits'
 import { t } from '../i18n'
+import { ChoixPersonnage } from './ChoixPersonnage'
 import {
   BALAYAGE, BOITIERS, DEPARTS, ETALONNAGES, FICHE_DEFAUT, FOCALES, LOOKS, LUMIERES, OPTIQUES, OUVERTURES, PELLICULES, PLANS,
   composerFiche, couleursDominantes, type Fiche, type Opt,
@@ -105,6 +106,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
               <span className="text-[10.5px]" style={{ color: 'var(--faint)', alignSelf: 'center' }}>{t('Plans de départ')}</span>
               {DEPARTS.map(d => <button key={d.id} className="pill tool" onClick={() => setF(x => ({ ...x, ...d.fiche }))}>{t(d.label)}</button>)}
             </div>
+            <ChoixPersonnage />
             <textarea className="cine-scene" value={f.scene} onChange={e => maj({ scene: e.target.value })} rows={2}
               placeholder={t('La scène, en anglais : où elle est, ce qu’elle fait…')} />
             <div className="flex items-center gap-2 flex-wrap" style={{ margin: '10px 0 4px' }}>

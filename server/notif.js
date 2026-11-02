@@ -1,5 +1,5 @@
 /* ============================================================
-   Notifications au propriétaire (22/10) — sur son téléphone, par ntfy.
+   Notifications au propriétaire — sur son téléphone, par ntfy.
 
    CREATOROS_NOTIF_URL = l'adresse d'un sujet ntfy (https://ntfy.sh/<sujet>,
    ou un serveur ntfy à soi). Sans elle, rien ne part : la notification reste

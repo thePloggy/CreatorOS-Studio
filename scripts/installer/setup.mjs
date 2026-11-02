@@ -412,7 +412,7 @@ function etatModeles(comfyDir) {
   }
 }
 
-/* « Ta carte peut-elle le faire ? » (27/10) : estimation, pas mesure. Le plus gros modèle
+/* « Ta carte peut-elle le faire ? » : estimation, pas mesure. Le plus gros modèle
    de diffusion du groupe doit tenir en VRAM, plus ~3 Go pour les activations et le VAE ;
    ComfyUI décharge les encodeurs de texte. Sous 75 % du besoin, le déchargement partiel
    devient trop lent ou finit en manque de mémoire. */
@@ -452,7 +452,7 @@ async function choisirGroupes(modeles, vram, profil = 24) {
   return [...new Set(r.split(/[\s,]+/).map(Number).filter(n => n >= 1 && n <= noms.length).map(n => noms[n - 1]))]
 }
 
-/* Petites cartes (30/10) : le profil (24, 16, 12, 8 Go) décide quelles variantes
+/* Petites cartes : le profil (24, 16, 12, 8 Go) décide quelles variantes
    allégées du manifeste (`leger`) remplacent les modèles lourds. Le serveur fait la
    même substitution à l'envoi (server/allege.js) ; ici on ne télécharge que ce qui
    servira. Mêmes marches que le serveur. */

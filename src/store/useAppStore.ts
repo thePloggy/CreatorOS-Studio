@@ -15,6 +15,7 @@ import { GARDEROBE_VIDE } from '../types'
 import { composer } from '../core/composer'
 import type { FolderSort } from '../lib/folders'
 import { validateT0 } from '../core/validator'
+import { SANS_PERSONNAGE, personnageChoisi, retenirPersonnage } from '../lib/personnage'
 import { worker, fetchAssets, pushReview, deleteAsset as apiDeleteAsset, cancelJob as apiCancelJob } from '../worker/apiWorker'
 import { OUTFITS, ENVIRONMENTS, STYLES, MUSIC_LIBRARY, firstId } from '../data/vocabularies'
 import { allTextPoses, allStyles } from './useVocabStore'
@@ -30,7 +31,7 @@ const ongletDe = (s: { mode: string; photo: { task: string }; video: { task: str
 
 /* ---------- État ---------- */
 
-export interface StageScene { objets: { type: 'personne' | 'boite'; x: number; z: number; h: number; l?: number; p?: number }[]; camera: { oeil: number[] }[]; prompt: string }
+export interface StageScene { objets: { type: 'personne' | 'boite' | 'modele'; x: number; z: number; h: number; l?: number; p?: number; rot?: number; modele?: string }[]; camera: { oeil: number[] }[]; prompt: string }
 
 interface AppState {
   /* Navigation */
@@ -55,6 +56,8 @@ interface AppState {
   uploadPersonaAvatar: (file: File) => Promise<void>
   /** Relit le personnage actif (nom, photo) — après un changement de personnage. */
   refreshPersona: () => Promise<void>
+  /** Personnage des prochains rendus, propre à ce navigateur. */
+  choisirPersonnage: (id: string) => Promise<void>
   /** Asset à ouvrir en grande vue (palette ⌘K → galerie). Consommé puis remis à null. */
   focusAssetId: string | null
   setFocusAsset: (id: string | null) => void
@@ -175,6 +178,8 @@ interface AppState {
   animateFrom: (asset: Asset) => Promise<void>
   boucleFrom: (asset: Asset) => Promise<void>
   stageOuvert: boolean
+  /** la bibliothèque s'ouvre sur ses musiques */
+  ongletMusiques: boolean
   stageRepris: StageScene | null
   ouvrirStage: (scene?: StageScene | null) => void
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
@@ -195,7 +200,7 @@ interface AppState {
    *  invisible. Le nonce force la prise en compte même si la cible ne
    *  change pas. Consommée par le shell (V2App). */
   navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot'; nonce: number } | null
-  /** « Utiliser dans… » (30/10) : le média que la section cible reprend à son ouverture,
+  /** « Utiliser dans… » : le média que la section cible reprend à son ouverture,
    *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null
   utiliserDans: (cible: 'presets' | 'parole' | 'reshoot', asset: Asset) => void
@@ -450,7 +455,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     set(s => ({
       jobs: s.jobs.map(j => (j.id === job.id ? job : j)),
       // le rendu d'un autre personnage (lancé avant un changement) n'entre pas dans la grille
-      assets: asset && (!asset.personaId || !s.personaId || asset.personaId === s.personaId) ? [asset, ...s.assets] : s.assets,
+      assets: asset ? [asset, ...s.assets] : s.assets,
       // En mode aléatoire la seed est tirée côté serveur : sans ce retour,
       // l'opérateur voit une image qu'il ne peut plus reproduire.
       lastSeed: Number.isFinite(job.seed?.value) ? (job.seed!.value as number) : s.lastSeed,
@@ -524,9 +529,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     t0Error: null,
     soulLayer: null,
     moodLayer: null,
-    /* Défaut ALÉATOIRE. Il était sur « lock » avec une valeur en dur : tous
-       les jobs d'une session partageaient donc la seed 1837442, et les rendus
-       se ressemblaient sans raison visible. Le verrou reste à un clic, mais
+    /* Défaut ALÉATOIRE : une seed figée ferait se ressembler les rendus sans
+       raison visible. Le verrou reste à un clic, mais
        il doit être un geste délibéré, pas l'état de départ. */
     seedMode: 'random',
     seedValue: Math.floor(Math.random() * 0xffffffffffff),
@@ -581,6 +585,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     stageOuvert: false,
+    ongletMusiques: false,
     stageRepris: null,
     ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
@@ -675,16 +680,21 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
     refreshPersona: async () => {
       try {
-        const p = await (await fetch('/api/persona')).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]
+        const choisi = personnageChoisi()
+        const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]
           videoLoras?: unknown[]; credit?: PersonaCredit | null; garderobe?: Garderobe }
         set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE })
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
         // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
         set({ personaKlein: klein, ...(klein ? {} : { photoEngine: 'krea' as const }) })
-        set({ personaName: p.name?.trim() || t('Personnage'), personaAvatar: p.avatar ?? null, personaId: p.id ?? null })
+        set({ personaName: p.id === SANS_PERSONNAGE ? t('Sans personnage') : p.name?.trim() || t('Personnage'), personaAvatar: p.id === SANS_PERSONNAGE ? null : p.avatar ?? null, personaId: p.id ?? null })
         if (change) set({ assets: await fetchAssets() })
       } catch { /* hors ligne : on garde l'affichage */ }
+    },
+    choisirPersonnage: async id => {
+      retenirPersonnage(id)
+      await get().refreshPersona()
     },
 
     hydrate: async () => {
@@ -712,6 +722,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           ...((h.persona?.lorasKlein as unknown[] | undefined)?.length ? {} : { photoEngine: 'krea' as const }),
           ...(nom?.trim() ? { personaName: nom.trim() } : {}) })
       } catch (e) { console.warn('[store] catalogue moteurs non chargé :', e) }
+      if (personnageChoisi()) await get().refreshPersona()
       try { set({ assets: await fetchAssets() }) }
       catch (e) { console.error('[store] bibliothèque non chargée :', e) }
       /* Les jobs aussi — TOUS, y compris ceux en vol : la base est la source
@@ -739,10 +750,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 
     /** Clone : réinjecte toute la lignée d'un asset dans la console.
      *
-     *  Un SEUL `set` : passer par updatePhoto + setComposed ne marchait pas.
+     *  Un SEUL `set` : passer par updatePhoto + setComposed ne marche pas.
      *  updatePhoto ne régénère `userPrompt` que si `promptTouched` est faux —
-     *  donc dès que l'utilisateur avait édité le prompt à la main, le champ
-     *  restait figé sur l'ancien texte. On écrit ici `userPrompt` explicitement
+     *  donc dès que l'utilisateur a édité le prompt à la main, le champ
+     *  resterait figé sur l'ancien texte. On écrit ici `userPrompt` explicitement
      *  et on pose `promptTouched: true` pour qu'aucune reconstruction
      *  automatique ne vienne écraser la valeur clonée juste après.
      *
@@ -777,8 +788,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           let sel = p.selections as Partial<VideoSelections> | undefined
           let source = (p as { sourceImage?: string }).sourceImage
           /* La provenance INLINE des vignettes n'a PAS les selections (trop
-             lourdes pour la liste) : sans ce fetch, `task` n'était jamais
-             restaurée et un clone d'un rendu « Créer » laissait la sidebar
+             lourdes pour la liste) : sans ce fetch, `task` ne serait jamais
+             restaurée et un clone d'un rendu « Créer » laisserait la sidebar
              sur l'onglet Rejouer en cours. */
           if (!sel || !sel.task) {
             try {
@@ -794,8 +805,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           const startId = sel?.startAssetId
           if (startId && get().assets.some(a => a.id === startId)) { void get().pickStartFrame(startId); return }
           const file = sel?.startFrameFile || source
-          // Dims remises à zéro : celles de la still PRÉCÉDENTE restaient et
-          // faussaient le format « origine » (#443-eh8a, écrasement 16 %).
+          // Dims remises à zéro : celles de la still PRÉCÉDENTE resteraient et
+          // fausseraient le format « origine ».
           // Le serveur sonde le fichier réel au dispatch de toute façon.
           if (file) get().updateVideo({ startAssetId: null, startFrameFile: file,
             startFrameW: (sel?.startFrameW as number | undefined) ?? 0,
@@ -808,7 +819,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     setMode: mode =>
       set(s => {
         if (mode === s.mode) return {}
-        /* Prompts SÉPARÉS par mode (demande 15/09) : le texte du mode quitté
+        /* Prompts SÉPARÉS par mode : le texte du mode quitté
            est rangé, celui du mode rejoint est restauré s'il avait été édité
            à la main — sinon prompt auto du mode. */
         const promptStash = { ...s.promptStash, [s.mode]: { text: s.userPrompt, touched: s.promptTouched } }
@@ -1254,7 +1265,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
          vivent PAS au niveau racine du Job : elles sont dans `selections`.
          Les remonter est ce qui rend la relance possible — sans ça le
          serveur reçoit un job vidéo nu et le refuse en 400, et le clone
-         passe « blocked » à la seconde (constaté le 24/08). */
+         passe « blocked » à la seconde. */
       const sel = (src.selections ?? {}) as Partial<VideoSelections> & Partial<PhotoSelections>
       const video = src.mode === 'video'
       const isMotion = video && sel.task === 'motion_pure'
@@ -1300,12 +1311,11 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       }
 
       /* Un composé n'est envoyé que s'il a été réécrit depuis CE prompt.
-         Sinon c'est le texte brut qui part : un composé périmé l'emportait
-         en silence sur le texte affiché : des vidéos rendues sur la scène
-         d'une ancienne still alors que le téléphone montrait autre chose. Sur
+         Sinon c'est le texte brut qui part : un composé périmé l'emporterait
+         en silence sur le texte affiché. Sur
          mobile le composé n'est même pas visible : ce qui est à l'écran doit
          être ce qui part. */
-      /* …et seulement dans l'onglet où il a été écrit (20/10) : un composé tiré de
+      /* …et seulement dans l'onglet où il a été écrit : un composé tiré de
          l'image dans « Créer » à partir d'un brief VIDE passait pour frais dans
          « Rejouer » au champ vide ('' === ''), et le prompt de Créer partait. */
       const fresh = !!s.composedPositive && s.composedFrom === s.userPrompt && s.composedFor === ongletDe(s)
@@ -1336,10 +1346,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       // propre source — anime une image : sans start-frame le serveur 400.
       // On couvre TOUS ces tasks (pas juste 'i2v') pour ne pas laisser un
       // 'generate' résiduel filer jusqu'au 400 → « blocked » opaque.
-      /* MiniMax H3 accepte la frame de FIN seule (le clip arrive sur elle) :
-         vérifié au banc du 30/09. Les autres moteurs partent d'une image. */
-      /* Vignette de fin choisie sans copie vers ComfyUI (état gardé d'avant le
-         30/09, ou copie pas encore revenue) : on la fait maintenant. */
+      /* MiniMax H3 accepte la frame de FIN seule (le clip arrive sur elle).
+         Les autres moteurs partent d'une image. */
+      /* Vignette de fin choisie sans copie vers ComfyUI (état restauré, ou copie
+         pas encore revenue) : on la fait maintenant. */
       if (s.mode === 'video' && s.video.endAssetId && !s.video.endFrameFile) await get().pickEndFrame(s.video.endAssetId)
       const finSeule = H3.includes(get().video.engine) && !!get().video.endFrameFile
       /* Prequel : seul Wan (WanFirstLastFrameToVideo) sait arriver sur une
@@ -1389,10 +1399,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
          Sans le suffixe, les 4 jobs d'un lot partageraient la même clé et le
          serveur n'en créerait qu'un seul. */
       /* Un envoi encore en cours garde SA clé : un second appui pendant ce
-         temps est une nouvelle intention, pas une reprise. Le 29/09, un lot
-         lancé pendant l'envoi du précédent a repris sa clé : le serveur a
-         rendu les jobs déjà créés, et deux vignettes sont restées « en
-         attente » sur des jobs qui n'existaient pas. */
+         temps est une nouvelle intention, pas une reprise. Reprendre sa
+         clé ferait rendre au serveur les jobs déjà créés, et des vignettes
+         resteraient « en attente » sur des jobs inexistants. */
       const reprise = envoiEnCours ? null : s.requestId
       const reqBase = reprise ?? `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
       if (!envoiEnCours) set({ requestId: reqBase })
@@ -1406,7 +1415,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         height: s.mode === 'photo' ? s.photoSize?.h : undefined,
         createdAt: Date.now(),
         // une retouche reste rangée sous le personnage de sa photo, pas sous le personnage actif
-        personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || 'default',
+        personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || s.personaId || 'default',
         ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine, ...(s.references.length ? { references: s.references.map(x => x.file) } : {}) } : {}),
         register,
         mode: s.mode,
@@ -1472,9 +1481,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           videoLoras: s.video.videoLoras.filter(l => !l.off),
           withAudio: audioEffective(s.video.engine, s.video.withAudio),
           sourceImage: s.video.startFrameFile || undefined,
-          /* Keyframe d'arrivée : jusqu'au 30/09 l'interface la montrait sans
-             jamais l'envoyer (seul l'id d'asset partait, que le serveur ne
-             lit pas). Seuls les moteurs MiniMax H3 ont une entrée last_frame. */
+          /* Keyframe d'arrivée : le serveur lit le fichier, pas l'id d'asset.
+             Seuls les moteurs MiniMax H3 ont une entrée last_frame. */
           endImage: prequel ? s.video.extendEndFile || undefined
             : H3.includes(s.video.engine) ? get().video.endFrameFile || undefined : undefined,
           ...(prequel ? { prequel: true } : {}),
@@ -1502,7 +1510,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
             : {}),
           /* « origine » part TEL QUEL : le serveur sonde le fichier réel de la
              still au dispatch (les dims du front, jointes en repli, peuvent
-             être périmées — #443-eh8a). */
+             être périmées). */
           videoAspect: s.video.aspect,
           ...(s.video.aspect === 'origine' && s.video.startFrameW && s.video.startFrameH
             ? { videoSrcW: s.video.startFrameW, videoSrcH: s.video.startFrameH } : {}),
@@ -1582,7 +1590,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 }, {
   name: 'creatoros-ui',
   partialize: s => ({
-    /* Spec mobile §10 : la composition survit au rechargement — mode, tâche,
+    /* La composition survit au rechargement — mode, tâche,
        sélections, prompt édité, nombre de rendus. */
     mode: s.mode,
     photo: s.photo,
@@ -1615,8 +1623,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
   /* Un état sauvé par un bundle ANTÉRIEUR ne connaît pas les champs ajoutés
      depuis. Comme partialize persiste les
      objets photo/video/son ENTIERS, la rehydratation par défaut les REMPLACE
-     et un accès non protégé (`.trim()`) plantait submitJob en silence — le
-     bouton « Envoyer » ne faisait rien. On fusionne
+     et un accès non protégé (`.trim()`) planterait submitJob en silence. On fusionne
      donc le persisté PAR-DESSUS les défauts : tout champ manquant est comblé. */
   merge: (persisted, current) => {
     const p = (persisted ?? {}) as Partial<typeof current>

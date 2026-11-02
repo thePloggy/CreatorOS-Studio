@@ -55,9 +55,9 @@ def plages(drapeaux, fps, min_s):
     return out
 
 
-# Mouvement de caméra (30/10) : flux optique Farneback, une paire d'images sur deux, en 192 px.
+# Mouvement de caméra : flux optique Farneback, une paire d'images sur deux, en 192 px.
 # Cumuls ramenés à 48 paires (~4 s) : rad > 0 = l'image s'ouvre (on avance), dx/dy = translation.
-# Seuils calés le 30/10 sur les aperçus des presets (push-in rad +92, pull-out −47, latéral dx 84-87,
+# Seuils calés sur les aperçus des presets (push-in rad +92, pull-out −47, latéral dx 84-87,
 # grue dy ±37 à 120, plan fixe tout sous 5).
 def mouvement_camera(gris):
     prev = None; dx = dy = rad = 0.0; n = 0

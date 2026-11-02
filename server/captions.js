@@ -1,5 +1,5 @@
 /* ============================================================
-   Captions des reels — le texte gravé à l'écran (29/09).
+   Captions des reels — le texte gravé à l'écran.
 
    L'opérateur produit, trie, range ses vidéos dans un dossier, sélectionne
    tout, lance les captions. Rien n'est écrit à la génération : la plupart

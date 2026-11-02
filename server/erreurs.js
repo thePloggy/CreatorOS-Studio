@@ -1,11 +1,9 @@
 /* ============================================================
-   Erreurs de ComfyUI dites en clair (10/10).
+   Erreurs de ComfyUI dites en clair.
 
-   Avant : un job « bloqué » portait le JSON brut de ComfyUI, tronqué —
-   « exécution non terminée (error) {"prompt_id":"…","node_id":"261:19",
-   "executed":[…25 identifiants…] ». La cause était dedans, illisible.
+   Le JSON brut de ComfyUI noie la cause : un job « bloqué » porte une phrase.
 
-   Maintenant : une phrase « nœud N (type) : message », et pour les pannes
+   Forme : « nœud N (type) : message », et pour les pannes
    connues un conseil. Le détail brut part dans le journal du serveur, où il
    reste entier pour le diagnostic.
    ============================================================ */

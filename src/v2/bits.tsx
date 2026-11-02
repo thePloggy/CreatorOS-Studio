@@ -18,7 +18,7 @@ import { t, tp, tServeur } from '../i18n'
 import { Comparer } from '../components/Comparer'
 import { useEdition } from '../lib/proprietaire'
 
-/* ---------- icônes SVG outline (design Higgsfield : trait 2px arrondi) ---------- */
+/* ---------- icônes SVG outline (trait 2px arrondi) ---------- */
 const IC: Record<string, React.ReactNode> = {
   hd: <><path d="M3 7v10" /><path d="M9 7v10" /><path d="M3 12h6" /><path d="M13 7h3a5 5 0 0 1 0 10h-3z" /></>,
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
@@ -159,7 +159,7 @@ export function Masonry({ cols, children }: { cols: number; children: React.Reac
   )
 }
 
-/* ---------- grille « justified rows » (style Higgsfield) ----------
+/* ---------- grille « justified rows » ----------
    Lignes de hauteur ~fixe (cible dérivée de la densité), chaque vignette
    garde son RATIO exact et la ligne est mise à l'échelle pour remplir
    pile la largeur — zéro crop, zéro trou, rangées toujours alignées. */
@@ -169,7 +169,7 @@ export const ratioOf = (a: Asset): number => {
   return m ? Number(m[1]) / Number(m[2]) : 9 / 16
 }
 
-/** Chargement progressif d'une grille (15/10) : les `depart` premières cartes,
+/** Chargement progressif d'une grille : les `depart` premières cartes,
  *  puis `pas` de plus chaque fois que la sentinelle (posée sous la grille)
  *  approche de l'écran — une ligne à la fois, jamais tout d'un coup. Sans ça,
  *  une bibliothèque de 1 800 rendus montait 1 800 cartes et leurs images.
@@ -198,7 +198,7 @@ export function JustifiedGrid({ cols, items: recus, progressif = true }: {
   progressif?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  /* Réorganisation différée (13/10) : un rendu qui arrive pendant que le pointeur
+  /* Réorganisation différée : un rendu qui arrive pendant que le pointeur
      travaille dans la grille décalerait la carte visée juste avant le clic. Tant que
      le pointeur bouge dessus, les cartes NOUVELLES attendent ; un retrait (tri,
      suppression : un geste de l'opérateur) s'applique tout de suite. Relâché dès que
@@ -323,7 +323,7 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   /* Coches OPTIMISTES : l'état local est la vérité de CE menu — dépendre du
-     hydrate() global (1-2 s) faisait disparaître la coche entre deux clics. */
+     hydrate() global (1-2 s) ferait disparaître la coche entre deux clics. */
   const [checked, setChecked] = useState<Record<string, boolean>>(() => {
     const sel = useAppStore.getState().assets.filter(a => assetIds.includes(a.id))
     const out: Record<string, boolean> = {}
@@ -474,8 +474,7 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   const reorder = useAppStore(st => st.reorderJobs)
   const [over, setOver] = useState(false)
   /* Tick local 1 s : le poll n'émet QUE sur changement de statut/progression —
-     sans ce tick, compteur et barre restent figés sur leur valeur de naissance
-     (constaté 17/09 : « bloqué à 5min19 » alors que le rendu tournait). */
+     sans ce tick, compteur et barre restent figés sur leur valeur de naissance. */
   const [, forceTick] = useState(0)
   useEffect(() => {
     const iv = window.setInterval(() => forceTick(n => n + 1), 1000)
@@ -581,8 +580,7 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
 }
 
 /* ---------- rendu en échec : la carte reste dans la galerie ----------
-   Avant le 11/10 un job `blocked` disparaissait des vues du bureau : seul
-   l'onglet Jobs du mobile le montrait. La carte porte la phrase du serveur
+   Un job `blocked` garde sa carte dans les vues du bureau. Elle porte la phrase du serveur
    (server/erreurs.js : « cause — conseil ») et les gestes de reprise. Une
    annulation par l'opérateur n'est pas un échec : elle n'a pas de carte. */
 export function failedJobs(jobs: Job[], video: boolean): Job[] {
@@ -650,8 +648,8 @@ export function Pastille({ k }: { k: 'new' | 'top' }) {
 }
 
 export function useExclusiveMenu(onClose: () => void, nested = false) {
-  /* onClose est recréé à chaque render : s'y abonner en dépendance faisait
-     re-tourner l'effet et les menus se fermaient mutuellement en boucle.
+  /* onClose est recréé à chaque render : s'y abonner en dépendance ferait
+     re-tourner l'effet et les menus se fermeraient mutuellement en boucle.
      Ref stable + effet AU MONTAGE seulement (un menu monté = ouvert).
      `nested` : le menu REMPLACE son parent (Déplacer vers… depuis un ⋯) —
      fermer « le précédent » démonterait le parent et nous avec. */
@@ -909,8 +907,8 @@ export function useConfirm(timeout = 4000): [boolean, () => boolean] {
 
 /* ---------- lots : groupement + vignette mosaïque ----------
    Les assets d'un même batchId (lot > 1 / carrousel) se replient en UNE
-   vignette-mosaïque ; le clic ouvre la vue du lot. Modèle Higgsfield
-   « Shots ». Les assets sans batchId restent des vignettes simples. */
+   vignette-mosaïque ; le clic ouvre la vue du lot. Les
+   assets sans batchId restent des vignettes simples. */
 export type GridItem = { kind: 'asset'; a: Asset } | { kind: 'batch'; id: string; items: Asset[] }
 
 export function groupBatches(assets: Asset[]): GridItem[] {

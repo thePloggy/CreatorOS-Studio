@@ -1,4 +1,4 @@
-/* Piles de LoRA nommées (11/10) — communes aux sélecteurs photo et vidéo.
+/* Piles de LoRA nommées — communes aux sélecteurs photo et vidéo.
    Une pile = les LoRA choisies avec leurs forces, enregistrée sous un nom pour
    une famille de moteur (`cle`). Un clic la recharge. Enregistrées dans le
    navigateur (préférences d'affichage), pas sur le serveur. */

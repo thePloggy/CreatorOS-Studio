@@ -1,8 +1,8 @@
 /* ============================================================
    CreatorOS v2 — design system « dark minimal »
    Élévation par LUMINANCE (zéro bordure), ombres douces,
-   accent iridescent unique. Validé sur maquette le 15/09/2026.
-   Réf. muzli dark-UI : pas de noir pur, pas de blanc pur,
+   accent iridescent unique.
+   Pas de noir pur, pas de blanc pur,
    couleurs désaturées, hiérarchie par la lumière.
    ============================================================ */
 .v2 {
@@ -322,7 +322,7 @@
 }
 .v2 .fbar .fmain { display: flex; flex-direction: column; min-height: 0; }
 .v2 .fbar textarea { flex: 1; min-height: 40px; max-height: calc(50vh - 130px); overflow-y: auto !important; }
-/* Le volet s'élargit au survol jusqu'à 35 % de l'écran (31/10) : il passe par-dessus la
+/* Le volet s'élargit au survol jusqu'à 35 % de l'écran : il passe par-dessus la
    bibliothèque au lieu de la pousser, les vignettes ne bougent pas. Il reste ouvert
    tant qu'on écrit dedans, même si la souris en sort. */
 .v2 .vside-place { width: 356px; flex: none; position: relative; min-height: 0; }
@@ -385,7 +385,7 @@
   background: rgba(10, 11, 13, 0.78); padding: 3px 7px; border-radius: 7px;
   pointer-events: none; white-space: nowrap; }
 
-/* justified rows (style Higgsfield) */
+/* justified rows */
 .v2 .jgrid { display: flex; flex-direction: column; gap: 8px; }
 .v2 .jrow { display: flex; gap: 8px; }
 .v2 .jcell { position: relative; overflow: hidden; border-radius: 12px; flex: none; }
@@ -438,8 +438,8 @@
 .v2 .frow { display: flex; align-items: center; gap: 6px; width: 100%; }
 .v2 .frow input.pin { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
 .v2 .frow .pill { flex: none; width: fit-content; }
-/* la règle générique .menu button{width:100%} gonflait le bouton « créer »
-   à toute la largeur et écrasait le champ à 20px (mesuré CDP). */
+/* la règle générique .menu button{width:100%} gonflerait le bouton « créer »
+   à toute la largeur et écraserait le champ à 20px. */
 
 /* icônes de la sidebar Assets : blanc, teintées au hover de la ligne */
 .v2 .sik { display: inline-flex; flex: none; color: var(--text); }
@@ -547,14 +547,14 @@
 .v2 .rs-barre label b { color: var(--text); font-weight: 600; min-width: 40px; text-align: right; }
 .v2 .rs-alerte { font-size: 11px; color: var(--attention); margin-top: 6px; }
 
-/* menus d'outils (01/11) */
+/* menus d'outils */
 .nav-outil { display: grid; gap: 1px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
 .nav-outil:hover, .nav-outil:focus-visible { background: var(--lv3); }
 .nav-outil b { font-size: 12.5px; font-weight: 600; }
 .nav-outil span { font-size: 11px; color: var(--muted); line-height: 1.35; }
 .nav-outil span[style] { color: inherit; }
 
-/* Panneaux (01/11) : le réglage à gauche, le résultat à droite, aux couleurs et à la typo de CreatorOS. */
+/* Panneaux : le réglage à gauche, le résultat à droite, aux couleurs et à la typo de CreatorOS. */
 .v2 .titre-outil { font-size: 22px; font-weight: 800; margin: 0; }
 .v2 .etiquette { font-size: 11px; color: var(--muted); margin-top: 6px; }
 .v2 .onglet { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 4px 0 7px; font: inherit; font-weight: 600; cursor: pointer; }
@@ -574,15 +574,53 @@
 .v2 .slot:not(.filled):hover { outline-color: #ea4e89; }
 @media (max-width: 760px) { .v2 .vside { margin: 0; border-radius: 0; } .v2 .vwrap2 > .flex-1 { margin: 0; border-radius: 0; } }
 
-/* Accueil (01/11) : bandeaux légendés dessous, puis le catalogue avec recherche et filtres. */
+/* Accueil : bandeaux légendés dessous, puis le catalogue avec recherche et filtres. */
 .v2 .bandeau, .v2 .carte-outil { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
-.v2 .bandeau-media { display: block; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--lv2); margin-bottom: 8px; }
+.v2 .bandeau-media { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--lv2); margin-bottom: 8px; }
 .v2 .bandeau-media video, .v2 .bandeau-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
-.v2 .bandeau:hover .bandeau-media video, .v2 .bandeau:hover .bandeau-media img, .v2 .carte-outil:hover img { transform: scale(1.03); }
+.v2 .bandeau:hover .bandeau-media video, .v2 .bandeau:hover .bandeau-media img, .v2 .carte-outil:hover .carte-image > img { transform: scale(1.03); }
 .v2 .bandeau b { font-size: 15px; font-weight: 800; }
 .v2 .bandeau > span:last-child, .v2 .carte-outil > span:last-child { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .v2 .carte-image { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: var(--lv2); margin-bottom: 6px; }
 .v2 .carte-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
-.v2 .carte-image i { position: absolute; top: 8px; left: 2px; font-style: normal; }
+.v2 .carte-image > i { position: absolute; z-index: 2; top: 8px; left: 2px; font-style: normal; }
 .v2 .carte-outil b { font-size: 13px; }
+.v2 .guide-outil { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--lv2); border: 1px solid var(--lv3); font-size: 12px; line-height: 1.45; }
+.v2 .guide-outil b { font-size: 14px; }
+.v2 .guide-outil ol { margin: 0; padding-left: 18px; color: var(--muted); }
+.v2 .guide-outil p { margin: 0; color: var(--muted); }
+.v2 .guide-outil input { padding: 7px 9px; border-radius: 8px; background: var(--lv1); border: 1px solid var(--lv3); color: var(--text); font: inherit; }
+.v2 .guide-outil button:disabled { opacity: .45; cursor: not-allowed; }
+.v2 .elements-prompt { position: relative; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.v2 .element { display: inline-flex; align-items: center; border-radius: 999px; background: var(--lv3); font-size: 12px; font-weight: 600; }
+.v2 .element > button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.v2 .element img, .v2 .element i, .v2 .elements-choix img, .v2 .elements-choix i { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: var(--lv2); flex: none; }
+.v2 .element .element-x { padding: 3px 9px 3px 0; color: var(--muted); }
+.v2 .element-ajout { padding: 5px 11px; border-radius: 999px; border: 1px dashed var(--lv3); background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.v2 .elements-choix { position: absolute; top: 100%; left: 0; z-index: 60; margin-top: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 300px; padding: 6px; border-radius: 12px; background: var(--lv2); border: 1px solid var(--lv3); box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+.v2 .elements-choix button { display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border: 0; border-radius: 9px; background: none; color: var(--text); font: inherit; font-size: 11px; cursor: pointer; }
+.v2 .elements-choix button:hover, .v2 .elements-choix button.on { background: var(--lv3); }
+.v2 .elements-choix img, .v2 .elements-choix i { width: 46px; height: 46px; }
+.v2 .musiques { display: grid; gap: 14px; padding: 18px; max-width: 760px; }
+.v2 .musique { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--lv1); font-size: 12.5px; }
+.v2 .musique audio { width: 100%; height: 34px; }
+/* Aperçus : avant/après à la souris, consigne ou réglages en surimpression. */
+.v2 .apercu { position: absolute; inset: 0; display: block; overflow: hidden; --coupe: 50%; }
+.v2 .apercu img, .v2 .apercu video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.v2 .apercu .couche { position: absolute; inset: 0; display: block; }
+.v2 .apercu .couche.dessus { clip-path: inset(0 calc(100% - var(--coupe)) 0 0); }
+.v2 .apercu.compare { cursor: ew-resize; touch-action: pan-y; }
+.v2 .apercu .trait { position: absolute; top: 0; bottom: 0; left: var(--coupe); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,.5); }
+.v2 .apercu .trait i { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #111; font-style: normal; font-size: 12px; }
+.v2 .apercu .leg { position: absolute; bottom: 7px; max-width: 46%; padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,.62); color: #fff; font-size: 10.5px; font-style: normal; font-weight: 600; line-height: 1.35; }
+.v2 .apercu .leg.gauche { left: 7px; }
+.v2 .apercu .leg.droite { right: 7px; }
+.v2 .apercu .prompt { position: absolute; left: 7px; right: 7px; bottom: 7px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.66); color: #fff; font-size: 11px; line-height: 1.35; }
+.v2 .apercu .puces { position: absolute; left: 7px; right: 7px; bottom: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+.v2 .apercu .puces em { padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,.62); color: #fff; font-size: 10.5px; font-style: normal; font-weight: 600; }
+.v2 .apercu .refs { position: absolute; top: 8px; right: 8px; display: grid; justify-items: end; gap: 3px; }
+.v2 .apercu .refs img { width: 58px; height: 58px; border-radius: 8px; border: 2px solid #fff; }
+.v2 .apercu .refs small { padding: 1px 6px; border-radius: 5px; background: rgba(0,0,0,.62); color: #fff; font-size: 9.5px; }
+.v2 .apercu.onde { background: var(--lv3); }
+.v2 .apercu.onde img { position: absolute; top: 12%; height: 62%; object-fit: fill; mix-blend-mode: screen; }
 .v2 .cherche-outil { width: 220px; padding: 7px 12px; border-radius: 999px; border: 0; background: var(--lv2); color: var(--text); font: inherit; font-size: 12px; }

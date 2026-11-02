@@ -24,7 +24,7 @@ import * as carrousel from './carrousel.js'
 import * as captions from './captions.js'
 import { ensurePoster } from './poster.js'
 import { T0_BLOCKLIST, t0Hit } from './t0.js'
-import { persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
+import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
 import { enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
@@ -50,7 +50,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
-  // Démo publique (31/10) : la bibliothèque est partagée ; un visiteur n'efface pas les rendus et ne fouille pas la corbeille.
+  // Démo publique : la bibliothèque est partagée ; un visiteur n'efface pas les rendus et ne fouille pas la corbeille.
   'DELETE /api/assets/:id', 'POST /api/assets/restore', 'GET /api/corbeille', 'GET /api/corbeille/vue/:file',
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
@@ -74,7 +74,7 @@ app.post('/api/proprietaire', async req => ({ verrou: !!CONFIG.cleProprietaire, 
 // visiteurs par jour, limite de rendus des visiteurs Internet (cf. visites.js)
 const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id) })
 
-/* JSON de l'API compressé (01/11) : la bibliothèque pèse des centaines de Ko à chaque visite.
+/* JSON de l'API compressé : la bibliothèque pèse des centaines de Ko à chaque visite.
    Déclaré après installerVisites : son onSend doit lire le texte clair. */
 app.addHook('onSend', async (req, reply, payload) => {
   const type = String(reply.getHeader('content-type') ?? '')
@@ -86,9 +86,9 @@ app.addHook('onSend', async (req, reply, payload) => {
   return payload
 })
 
-/* Filtre de contenu sur le texte BRUT de chaque demande (23/10) : avant, le
-   contrôle ne portait que sur le prompt réécrit, que le modèle de langue avait
-   « adouci », et un terme interdit pouvait passer. Tout texte envoyé à l'API est lu, sauf
+/* Filtre de contenu sur le texte BRUT de chaque demande : le prompt
+   réécrit ne suffit pas, le modèle de langue peut l'« adoucir » et laisser
+   passer un terme interdit. Tout texte envoyé à l'API est lu, sauf
    les négatifs (qui nomment justement ce qu'on exclut) et les réglages du
    propriétaire (recettes, textes, personnages). */
 const sansFiltreContenu = new Set([...ROUTES_PROPRIETAIRE, 'POST /api/proprietaire'])
@@ -207,7 +207,7 @@ const personaPublique = (id) => {
 
 /* Diagnostic de la machine : GET rend le dernier (ou en lance un s'il a plus
    de 2 min) ; ?frais=1 force un contrôle complet (~4 s). Lecture seule. */
-/* Journal pour un rapport de bug (27/10) : ce qu'un utilisateur colle dans une issue
+/* Journal pour un rapport de bug : ce qu'un utilisateur colle dans une issue
    GitHub. Rien de privé : les chemins absolus sont masqués, aucune clé, aucun prompt. */
 const VERSION_STUDIO = (() => {
   let v = '0'
@@ -230,7 +230,7 @@ app.get('/api/diagnostic', async (req) => ({
   ...await diagnostiquer({ recettes: recettesServies(), frais: req.query?.frais === '1' }),
   liaison: { ...comfy.etatLiaison(), bilan: bilanRetour },
 }))
-/* Bilan après un redémarrage de ComfyUI (13/10) : dès qu'il répond de nouveau, le
+/* Bilan après un redémarrage de ComfyUI : dès qu'il répond de nouveau, le
    diagnostic complet est refait — une extension qui ne charge plus, un nœud de
    recette disparu sont annoncés tout de suite, pas au premier rendu qui échoue. */
 let bilanRetour = null
@@ -248,7 +248,7 @@ app.post('/api/diagnostic/figer', async () => {
   return r
 })
 
-/* Machines modestes (30/10) : profil de VRAM et variantes allégées prêtes ou manquantes. */
+/* Machines modestes : profil de VRAM et variantes allégées prêtes ou manquantes. */
 app.get('/api/machine/allegement', async () => etatAllegement())
 
 app.get('/api/health', async req => {
@@ -343,8 +343,8 @@ app.get('/api/loras', async () => comfy.listLoras())
 /** Réécriture de prompt par LLM local, sur CPU. Synchrone à dessein : le
  *  front attend le texte pour l'afficher dans « Prompt composé », où
  *  l'opérateur le relit et le corrige avant d'envoyer le job. */
-/* Cache court des compositions. Le LLM tourne sur CPU (50 à 105 s mesurés
-   le 25/08) et un téléphone verrouille son écran avant la réponse : le fetch
+/* Cache court des compositions. Le LLM tourne sur CPU (50 à 105 s mesurés)
+   et un téléphone verrouille son écran avant la réponse : le fetch
    est abandonné côté client, mais Ollama, lui, va au bout. On garde donc la
    promesse EN VOL et le résultat 10 min par (registre, prompt, directives) :
    un second tap rend la réponse déjà calculée au lieu de relancer 100 s.
@@ -363,8 +363,8 @@ app.post('/api/compose', async (req, reply) => {
   /* ---------- contexte visuel ----------
      Une still de départ (i2v, Move) ou une image source (retouche) est
      décrite par le VLM AVANT la réécriture, et la description est cousue dans
-     le message utilisateur. Sans elle le réécriveur inventait la tenue et la
-     pose : il changeait une robe, ou faisait se lever un sujet assis.
+     le message utilisateur. Sans elle le réécriveur invente la tenue et la
+     pose : il change une robe, ou fait se lever un sujet assis.
      Le VLM tourne sur CPU (num_gpu 0, comme le réécriveur) : il ne peut pas
      entrer en concurrence avec un rendu ComfyUI. */
   /* On décrit LE FICHIER QUE LE RENDU UTILISERA, pas une vignette choisie
@@ -444,7 +444,7 @@ app.post('/api/compose', async (req, reply) => {
    validation côté serveur, avant écriture, et pas seulement dans le navigateur. */
 
 /** Qui utilise ce fichier. C'est ce qui distingue une recette de production
- *  d'un fichier de bench oublié dans le même dossier. */
+ *  d'un fichier d'essai oublié dans le même dossier. */
 function workflowUsage(file) {
   const uses = []
   for (const [reg, f] of Object.entries(RECIPES))
@@ -660,7 +660,7 @@ function enregistrerEnvoi(req, reply) {
   return { filename, bytes: buf.length, width, height, ...(video ? { durationS: video.seconds, frames: video.frames, fps: video.fps } : {}) }
 }
 
-/* Filmer un geste au téléphone (30/10) : le propriétaire ouvre un QR code, le téléphone envoie
+/* Filmer un geste au téléphone : le propriétaire ouvre un QR code, le téléphone envoie
    la vidéo vers Motion. Le jeton remplace la clé propriétaire pour UN envoi vidéo, 10 min ; seul
    le propriétaire peut en créer. Le fichier reste un « upload » : un visiteur ne peut pas s'en servir. */
 const jetonsTelephone = new Map()
@@ -725,7 +725,10 @@ app.put('/api/createur', async (req, reply) => {
   if (t0Hit(tout)) { reply.code(400); return { error: 'terme interdit' } }
   return ecrireCreateur(c)
 })
-app.get('/api/persona', async () => personaPublique())
+app.get('/api/persona', async req => {
+  const id = String(req.query?.id ?? '')
+  return personaPublique(id && (id === SANS_PERSONNAGE || personas().list.some(p => p.id === id)) ? id : undefined)
+})
 app.put('/api/persona', async (req, reply) => {
   const refus = corpsPersonaRefuse(req.body)
   if (refus) { reply.code(400); return { error: refus } }
@@ -901,7 +904,8 @@ function inputEtranger(b, proprietaire) {
 app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
-  if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil de banc : propriétaire seulement
+  if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
+  if (personnageInterdit(req, req.body?.personaId)) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   try {
     const r = await deposerAvecCle(cleComfy(req), () => enqueueParPlans(req.body || {}))   // une vidéo de mouvement montée part en un job par plan
     /* 200 (et non 202) quand la clé d'idempotence avait déjà été vue : le
@@ -1127,7 +1131,7 @@ app.post('/api/decompose', async (req, reply) => {
 
 app.post('/api/rewrite', async (req, reply) => {
   /* `writerModel` : override de MESURE uniquement (comparer deux rédacteurs
-     sur le même corpus). Absent du front — le routage de prod reste
+     sur le même corpus). Absent du front — le routage normal reste
      `composer.modelFor()`. */
   const { prompt, vary, n, anchorUri, anchorOutfit, shoot, writerModel } = req.body || {}
   if (!prompt || !Array.isArray(vary) || !vary.length) {
@@ -1260,7 +1264,7 @@ app.post('/api/rewrite', async (req, reply) => {
         'full length, seen at a distance', 'head and shoulders', 'medium shot',
       ])
       /* L'angle « dans un miroir » n'entre dans le tirage QUE si le décor
-         verrouillé en contient un : assigné à tour de rôle, il faisait écrire
+         verrouillé en contient un : assigné à tour de rôle, il ferait écrire
          un miroir sur une allée de gravier. */
       const decorTexte = [dims.location, dims.props].filter(Boolean).join(' ').toLowerCase()
       const ANGLES = melange([
@@ -1628,8 +1632,7 @@ app.get('/api/wildcards', async () => {
   return { wildcards: out }
 })
 
-/* La bibliothèque est celle du personnage ACTIF : ?persona=<id> pour un
-   autre, ?persona=all pour tout. */
+/* La bibliothèque : ?persona=<id> pour un seul personnage, ?persona=all pour tout. */
 app.get('/api/assets', async req => {
   const q = String(req.query.persona ?? '')
   const pid = q === 'all' ? undefined : q || personas().active || undefined
@@ -1639,7 +1642,7 @@ app.get('/api/assets', async req => {
 /* Suppression réelle : ligne d'asset, provenance, ET fichier sur disque.
    Ne pas effacer le fichier laisserait un média orphelin que plus rien ne
    référence — invisible dans l'interface, et pourtant sur le disque. */
-/* Suppression = mise à la corbeille (11/10). Le fichier part dans
+/* Suppression = mise à la corbeille. Le fichier part dans
    media/.corbeille/, la ligne dans la table `corbeille` ; rien n'est effacé
    avant 30 jours. `POST /api/assets/restore` annule. */
 const CORBEILLE = path.join(CONFIG.mediaDir, '.corbeille')
@@ -1726,7 +1729,7 @@ setInterval(purgerCorbeille, 6 * 3600_000).unref()
 const origineDe = videoPath => path.dirname(path.resolve(videoPath)) === path.resolve(CONFIG.comfyInput)
   ? (store.origineInput(path.basename(videoPath)) ?? 'inconnu') : 'genere'
 function extractLastFrame(videoPath, pick = 'last') {
-  /* Prequel (20/10) : la PREMIÈRE frame, qui devient la frame de fin du rendu. */
+  /* Prequel : la PREMIÈRE frame, qui devient la frame de fin du rendu. */
   if (pick === 'first') {
     const stem = path.basename(videoPath).replace(/\.[^.]*$/, '').replace(/[^\w-]+/g, '_').slice(0, 40)
     const filename = `crs_firstframe_${Date.now().toString(36)}_${stem}.png`
@@ -1802,7 +1805,7 @@ app.post('/api/assets/:id/to-input', async (req, reply) => {
   return { filename, width: row.width, height: row.height }
 })
 
-/* « Ouvrir dans ComfyUI » (30/10) : le graphe exact envoyé pour ce rendu, au format API,
+/* « Ouvrir dans ComfyUI » : le graphe exact envoyé pour ce rendu, au format API,
    à glisser dans ComfyUI ; chemins absolus réduits au nom du fichier. Avec la liste des
    modèles qu'il charge et leur licence, lue dans le manifeste de l'assistant. */
 const MANIFESTE_MODELES = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'scripts', 'installer', 'modeles.json'), 'utf8')).modeles
@@ -1920,7 +1923,7 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
   const video = a.media_type === 'video'
   const cle = Date.now().toString(36)
   const inputName = `INP_${cle}${path.extname(src) || '.png'}`, maskName = `INP_${cle}_masque.png`
-  /* Objet peint dans un clip (01/11) : la photo de référence vient de la bibliothèque. */
+  /* Objet peint dans un clip : la photo de référence vient de la bibliothèque. */
   let objet = null
   if (video && req.body?.objetAsset) {
     const o = store.getAsset(String(req.body.objetAsset))
@@ -1933,7 +1936,7 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
   try {
     if (video) {
       const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaintVideo({ sourceFile: inputName, maskFile: maskName, parentAssetId: a.id,
-        prompt, strength: objet && !Number.isFinite(Number(req.body?.strength)) ? 0.5 : Number(req.body?.strength), suivi: req.body?.suivi !== false, objet, objetNom: req.body?.objetNom }))
+        prompt, strength: objet && !Number.isFinite(Number(req.body?.strength)) ? 0.5 : Number(req.body?.strength), suivi: req.body?.suivi !== false, objet, objetNom: req.body?.objetNom, loin: req.body?.loin === true }))
       return { jobId: id }
     }
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({
@@ -1946,7 +1949,7 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
 /** Le personnage d'un rendu : celui de son job, pas le personnage actif du moment. */
 const personaDuRendu = a => { const j = a.job_id ? store.getJob(a.job_id) : null; return a.persona_id ?? j?.persona_id ?? j?.personaId ?? undefined }
 
-/* Agrandir une photo (30/10) : le cadre s'élargit au format demandé, l'image reste au centre et le
+/* Agrandir une photo : le cadre s'élargit au format demandé, l'image reste au centre et le
    pinceau redessine les bords (masque blanc, 24 px de recouvrement pour fondre la couture). */
 const FORMATS_AGRANDIR = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5, '+30%': null }
 app.post('/api/assets/:id/agrandir', async (req, reply) => {
@@ -1981,7 +1984,7 @@ app.post('/api/assets/:id/agrandir', async (req, reply) => {
 app.post('/api/stage', async (req, reply) => {
   try {
     const b = req.body ?? {}
-    const r = deposerAvecCle(cleComfy(req), () => enqueueStage({ scene: b.scene, prompt: b.prompt, format: b.format, secondes: b.secondes, personaId: b.personaId }))
+    const r = deposerAvecCle(cleComfy(req), () => enqueueStage({ scene: b.scene, prompt: b.prompt, format: b.format, secondes: b.secondes, personaId: personaDe(req) }))
     return { jobId: r.id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
@@ -1995,7 +1998,7 @@ app.get('/api/stage/:id/scene', async (req, reply) => {
   return { objets, camera, prompt: job.user_prompt }
 })
 
-/* Stage en 3D (01/11) : les modèles utilisables, objets du studio et .glb importés. */
+/* Stage en 3D : les modèles utilisables, objets du studio et .glb importés. */
 app.get('/api/stage/modeles', async () => {
   const objets = fs.readdirSync(CONFIG.mediaDir).filter(f => /^objet3d-[a-z0-9]+\.glb$/.test(f)).reverse().slice(0, 60)
     .map(f => ({ nom: f, titre: store.getJob(f.replace(/\.glb$/, ''))?.user_prompt ?? f, url: `/media/${f}` }))
@@ -2086,7 +2089,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
-  /* Trois façons (27/10) : modifier un élément, le retirer, ou changer le fond autour de la personne. */
+  /* Trois façons : modifier un élément, le retirer, ou changer le fond autour de la personne. */
   const mode = ['retirer', 'fond', 'detourer'].includes(req.body?.mode) ? req.body.mode : 'modifier'
   let prompt = String(req.body?.prompt ?? '').trim(), cible = String(req.body?.cible ?? '').trim()
   let strength = Number(req.body?.strength)
@@ -2097,7 +2100,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
       return { jobId: r.id }
     } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
-  /* Retirer (30/10) : IC-LoRA LTX-2.5 Clean-Plate — personnes, passants, véhicules ;
+  /* Retirer : IC-LoRA LTX-2.5 Clean-Plate — personnes, passants, véhicules ;
      le décor est reconstruit derrière, le son d'origine gardé (cf. enqueueCleanPlate). */
   if (mode === 'retirer') {
     try {
@@ -2166,13 +2169,12 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
   let w = r16((a.width || 544) * 1.5), h = r16((a.height || 800) * 1.5)
   const cap = 1280 / Math.max(w, h)
   if (cap < 1) { w = r16(w * cap); h = r16(h * cap) }
-  /* Voie LATENT NATIF H3 (qualité supérieure, bench 17/09) : parent minimax
+  /* Voie LATENT NATIF H3 (qualité supérieure) : parent minimax
      dont la passe 1 est REJOUABLE — workflowJson en provenance et still
      d'entrée encore dans input/. Sinon : refine Wan (fallback universel). */
-  /* Voie H3 désactivée par défaut (17/09 soir) : sur les scènes à fort
+  /* Voie H3 désactivée par défaut : sur les scènes à fort
      mouvement (vagues, eau), l'upscaler latent strie les hautes fréquences
-     sur TOUT le clip (6 jobs gaufrés) — le bench balcon (statique) ne le
-     montrait pas. Réactivable au cas par cas : POST ...?path=h3 */
+     sur TOUT le clip. Réactivable au cas par cas : POST ...?path=h3 */
   let h3 = false
   if (req.query?.path === 'h3' && /^minimax/.test(a.video_engine ?? '')) {
     try {
@@ -2209,7 +2211,9 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
 
 /* ---------- dossiers ---------- */
 /* Comme la bibliothèque : les dossiers du personnage ACTIF (?persona=<id> pour un autre). */
-const personaDe = req => String(req.query?.persona ?? '') || personas().active || null
+const personaDe = req => String(req.query?.persona ?? '') || decodeURIComponent(String(req.headers['x-personnage'] ?? '')) || personas().active || null
+/** Un rendu sans personnage échappe au préambule d'adulte : le propriétaire seul y a droit. */
+const personnageInterdit = (req, id) => id === SANS_PERSONNAGE && !estProprietaire(req)
 app.get('/api/folders', async req => ({ folders: store.listFolders(personaDe(req)).map(f => ({ id: f.id, name: f.name, createdAt: f.created_at, count: f.count })) }))
 app.post('/api/folders', async (req, reply) => {
   const name = String(req.body?.name ?? '').trim()
@@ -2333,7 +2337,8 @@ app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
 })
 app.delete('/api/reels/:id', async (req, reply) => reel.supprimerReel(req.params.id) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels', async (req, reply) => {
-  try { return reelOut(reel.realiser({ ...(req.body ?? {}), cle: cleComfy(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  try { return reelOut(reel.realiser({ ...(req.body ?? {}), personaId: personaDe(req), cle: cleComfy(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/montage/musiques', async () => ({ musiques: montage.listerMusiques() }))
 app.post('/api/montage/musiques', async (req, reply) => {
@@ -2409,11 +2414,7 @@ if (hasDist) {
 
 /* ---------- démarrage ---------- */
 
-/* L'ancien faucheur reapOrphans() marquait ici TOUS les « queued » en
-   bloqué — il datait d'avant la persistance de file et fauchait précisément
-   ce que recoverQueue() sait maintenant relancer (constaté le 24/08 : un
-   job en attente perdu à chaque redémarrage). recoverQueue() fait les deux
-   gestes dans le bon ordre : les morts en plein rendu sont marqués, les
+/* recoverQueue() fait les deux gestes dans le bon ordre : les morts en plein rendu sont marqués, les
    « queued » repartent. */
 
 /* Textes de façonnage : on écrit ceux qui MANQUENT, jamais ceux qui existent.

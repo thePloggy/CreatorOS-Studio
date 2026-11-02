@@ -1,0 +1,26 @@
+/* Personnage choisi pour les prochains rendus. Il appartient au navigateur :
+   deux visiteurs peuvent travailler sur deux personnages à la fois. Chaque
+   appel à l'API le porte dans l'en-tête X-Personnage. */
+const CLE = 'creatoros.personnageChoisi'
+export const SANS_PERSONNAGE = 'aucun'
+
+let choisi: string | null = null
+try { choisi = localStorage.getItem(CLE) } catch { /* stockage indisponible */ }
+
+export const personnageChoisi = () => choisi
+
+export function retenirPersonnage(id: string) {
+  choisi = id
+  try { localStorage.setItem(CLE, id) } catch { /* stockage indisponible */ }
+}
+
+export function installerPersonnage() {
+  const origine = window.fetch.bind(window)
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (!choisi || !/^(\/|https?:\/\/[^/]+\/)api\//.test(url) || new URL(url, location.href).origin !== location.origin) return origine(input, init)
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    headers.set('X-Personnage', encodeURIComponent(choisi))
+    return origine(input, { ...init, headers })
+  }
+}

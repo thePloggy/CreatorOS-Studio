@@ -1,4 +1,4 @@
-/* Découpage par plans d'une vidéo de mouvement (12/10).
+/* Découpage par plans d'une vidéo de mouvement.
    Une source MONTÉE (plusieurs plans) rendue d'un seul bloc lisse les coupes :
    une coupe qui tombe au milieu d'une fenêtre de contexte fait fondre deux plans
    l'un dans l'autre. Rendue plan par plan, chaque coupe de la source reste une

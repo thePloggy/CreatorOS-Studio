@@ -1,4 +1,4 @@
-/* Stage (31/10) : on place des blocs et des personnes vus de dessus, on pose le début et la fin
+/* Stage : on place des blocs et des personnes vus de dessus, on pose le début et la fin
    de la caméra, et le serveur en tire une maquette grise puis un plan fini (POST /api/stage).
    Rien que des nombres partent : aucun fichier, le verrou d'envoi des visiteurs reste fermé. */
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'

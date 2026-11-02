@@ -2,10 +2,9 @@
    Tirage des wildcards « au hasard » — côté serveur, avec la seed du job.
 
    Les items 🎲 des vocabulaires portent un TOKEN au lieu d'une ligne :
-   `__tenues*__`, `{__a__|__b__}`. Le plan d'origine confiait leur
-   résolution à ImpactWildcardProcessor dans ComfyUI… mais aucune recette
-   servie ne porte ce nœud : le token partait tel quel
-   dans CLIPTextEncode, ou le LLM le paraphrasait. On tire donc ICI, avant
+   `__tenues*__`, `{__a__|__b__}`. Aucune recette
+   servie ne porte ImpactWildcardProcessor : le token partirait tel quel
+   dans CLIPTextEncode, ou le LLM le paraphraserait. On tire donc ICI, avant
    l'injection, avec un générateur déterministe alimenté par la seed du job :
    même seed → même tirage, et la ligne tirée est journalisée dans
    `applied` (provenance). Le comportement est celui de l'Impact Pack :

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   Labo (30/10) : chaque recette tourne une fois, graine fixe, sur la machine
+   Labo : chaque recette tourne une fois, graine fixe, sur la machine
    qui sert le studio ; on garde son temps de rendu réel et sa VRAM de crête,
    avec les poids complets. Les poids allégés (12 Go) passent par
    labo-petite-carte.mjs, sur un ComfyUI bridé à 12 Go.

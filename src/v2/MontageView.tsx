@@ -1,5 +1,5 @@
 /* ============================================================
-   Montage — mini-éditeur de reel (20/10). Les plans viennent de la
+   Montage — mini-éditeur de reel. Les plans viennent de la
    bibliothèque (clips et photos) ; on les ordonne, on les coupe, on choisit
    la transition vers le suivant, un texte par plan et une musique. L'aperçu
    rejoue la suite dans le navigateur (coupes et textes ; les fondus ne sont
@@ -87,7 +87,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
   useEffect(() => { if (ouvrirId) void ouvrir(ouvrirId) }, [ouvrirId]) // eslint-disable-line react-hooks/exhaustive-deps
   const maj = (f: (d: Donnees) => Donnees) => setProjet(p => p && { ...p, data: f(p.data) })
   const majPlan = (i: number, patch: Partial<Plan>) => maj(d => ({ ...d, clips: d.clips.map((c, k) => k === i ? { ...c, ...patch } : c) }))
-  /* Transition générée (30/10) : Wan 2.2 relie la dernière image d'un plan à la première du
+  /* Transition générée : Wan 2.2 relie la dernière image d'un plan à la première du
      suivant (WanFirstLastFrameToVideo) ; le clip rendu est inséré entre les deux, en coupes franches.
      Clé = le plan de départ (son asset), pour retrouver sa place si l'ordre a bougé entre-temps. */
   const [transitions, setTransitions] = useState<Record<string, { jobId: string; vers: string }>>({})

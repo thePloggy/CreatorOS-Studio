@@ -1,4 +1,4 @@
-/* Suivre un rendu sans rester devant la galerie (11/10).
+/* Suivre un rendu sans rester devant la galerie.
    - useTabTitle : le titre de l'onglet porte le nombre de rendus en cours, puis
      le nombre de rendus arrivés pendant que l'onglet était en arrière-plan ;
    - RenderIsland : pastille flottante « rendu · 42 % », puis « prêt → voir »

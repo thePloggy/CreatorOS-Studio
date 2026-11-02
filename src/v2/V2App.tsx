@@ -2,7 +2,6 @@
    CreatorOS Studio — shell desktop : sections Assets · Image ·
    Vidéo · Personnage · Paramètres, bibliothèque au cœur.
    ============================================================ */
-import { PersonaMenu } from '../components/PersonaMenu'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
 import { RenderIsland, useTabTitle } from '../components/RenderWatch'
@@ -17,7 +16,7 @@ import { QuotaDemo } from '../components/QuotaDemo'
 import { Ic } from './bits'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
-import { MenusOutils, type Section } from './Navigation'
+import { MenusOutils, type ActionOutil, type Section } from './Navigation'
 
 /* Un écran se charge quand on l'ouvre : la démo n'envoie pas tout le studio à chaque visite. */
 const ImageView = lazy(() => import('./ImageView').then(m => ({ default: m.ImageView })))
@@ -45,7 +44,7 @@ function TBar({ pct }: { pct: number }) {
   )
 }
 
-/** GPU util · VRAM · température — CPU util · RAM (polling 5 s, comme v5). */
+/** GPU util · VRAM · température — CPU util · RAM (relevé toutes les 5 s). */
 function Telemetry() {
   const tel = useTelemetry()
   if (!tel?.gpu) return null
@@ -56,7 +55,7 @@ function Telemetry() {
   const dot = <span style={{ color: 'var(--faint)', margin: '0 6px' }}>·</span>
   const cell = { display: 'flex', alignItems: 'center', gap: 6 } as const
   return (<>
-    <div className="hidden lg:flex 2xl:hidden items-center gap-1.5 font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
+    <div className="hidden lg:max-[1500px]:flex items-center gap-1.5 font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.nom}</b>}<TBar pct={vramPct} />
     </div>
     <div className="hidden min-[1500px]:flex items-center font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
@@ -79,7 +78,7 @@ export default function V2App() {
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
   const [section, setSection] = useState<Section>(['accueil', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur'].includes(initial) ? initial : 'accueil')
-  const [focus, setFocus] = useState<{ a: Asset; list: Asset[] } | null>(null)
+  const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
 
@@ -120,17 +119,14 @@ export default function V2App() {
         <span className="text-[15px] font-bold tracking-tight select-none" style={{ color: 'var(--text)', cursor: 'pointer' }} onClick={() => setSection('accueil')}>
           Creator<span style={{ background: 'var(--grad)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>OS</span>
         </span>
-        <PersonaMenu onEdit={() => setSection('persona')}
-          className="flex items-center gap-1.5 rounded-full py-[3px] pr-2.5 pl-1 text-[12px]"
-          style={{ background: section === 'persona' ? 'var(--lv3)' : 'var(--lv2)', border: 0, cursor: 'pointer', color: 'var(--text)' }} />
         <nav className="flex gap-0.5 ml-2 items-center">
-          {([['accueil', 'Accueil'], ['assets', 'Bibliothèque']] as [Section, string][]).map(([k, label]) => (
+          {([['accueil', 'Accueil'], ['assets', 'Bibliothèque'], ['persona', 'Personnages']] as [Section, string][]).map(([k, label]) => (
             <button key={k} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
               style={{ background: section === k ? 'var(--lv3)' : 'transparent', color: section === k ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
               onClick={() => { useAppStore.setState({ stageOuvert: false }); setSection(k) }}>{t(label)}</button>
           ))}
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 6px' }} />
-          <MenusOutils section={section} aller={setSection} onPick={a => setFocus({ a, list: [a] })} />
+          <MenusOutils section={section} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 10px' }} />
           <button
             className="px-3.5 py-1.5 rounded-[9px] text-[12.5px]"
@@ -158,16 +154,15 @@ export default function V2App() {
           contenu hors header. */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden"
         /* Ceinture+bretelles : un conteneur overflow-hidden reste scrollable
-           PROGRAMMATIQUEMENT (focus d'un input hors-champ, scrollIntoView) —
-           c'est ce qui faisait glisser la barre de tri sous le header sans
-           aucun moyen de remonter. Tout scroll résiduel est annulé net. */
+           PROGRAMMATIQUEMENT (focus d'un input hors-champ, scrollIntoView) :
+           tout scroll résiduel est annulé, la barre de tri reste sous le header. */
         onScroll={e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}>
         <Suspense fallback={null}>
         {section === 'image' && <ImageView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
-        {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={a => setFocus({ a, list: [a] })} />}
+        {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
         {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}
         {section === 'reel' && <ReelView goMontage={id => { setMontageAOuvrir(id); setSection('montage') }} />}
@@ -183,7 +178,7 @@ export default function V2App() {
       <UndoDelete />
       <RenderIsland visible={!!focusFresh || section === 'persona' || section === 'config' || section === 'createur'} onOpen={a => setFocus({ a, list: s.assets.filter(x => x.mediaType === a.mediaType && x.reviewStatus !== 'rejected') })} />
       {focusFresh && (<Suspense fallback={null}>
-        <Viewer asset={focusFresh} list={navList}
+        <Viewer key={focus?.action ?? 'libre'} action={focus?.action} asset={focusFresh} list={navList}
           onGo={a => setFocus(f => (a && f ? { a, list: f.list } : null))} onClose={() => setFocus(null)}
           goVideo={() => setSection('video')} goImage={() => setSection('image')} />
       </Suspense>)}

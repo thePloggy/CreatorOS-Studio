@@ -1,5 +1,5 @@
 /* ============================================================
-   Avatar parlant (21/10) — une photo + une voix (fichier ou micro) : le
+   Avatar parlant — une photo + une voix (fichier ou micro) : le
    personnage dit le texte, lèvres calées sur l'audio (InfiniteTalk, Wan 2.1).
    Le rendu passe par la file ordinaire et arrive dans l'onglet Vidéo.
    ============================================================ */
@@ -23,7 +23,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
   const [enreg, setEnreg] = useState<{ rec: MediaRecorder; t0: number } | null>(null)
   const [secondes, setSecondes] = useState(0)
   const morceaux = useRef<Blob[]>([])
-  /* Réplique écrite (30/10) : LTX-2.5 fait la voix et les lèvres d'un coup, sans fichier audio.
+  /* Réplique écrite : LTX-2.5 fait la voix et les lèvres d'un coup, sans fichier audio.
      Ouverte aux visiteurs (rien n'est envoyé d'autre qu'une phrase) ; la voix enregistrée
      (InfiniteTalk) reste au propriétaire. */
   const [source, setSource] = useState<'replique' | 'voix'>(edition ? 'voix' : 'replique')

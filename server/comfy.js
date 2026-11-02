@@ -174,9 +174,9 @@ function positiveTextEncoders(out) {
    `positiveTextEncoders` ne reconnaît qu'un encodeur branché DIRECTEMENT sur
    un KSampler. Les recettes vidéo n'ont ni l'un ni l'autre : LTX passe par un
    LTXVDualCFGGuider, MiniMax par un BasicGuider, Wan interpose un
-   WanImageToVideo. Toutes tombaient donc sur le repli « premier CLIPTextEncode
-   littéral » — qui, sur LTX, est le NÉGATIF. Le prompt de mouvement serait
-   parti dans le négatif et le rendu aurait eu l'air simplement raté.
+   WanImageToVideo. Toutes tomberaient donc sur le repli « premier CLIPTextEncode
+   littéral » — qui, sur LTX, est le NÉGATIF. Le prompt de mouvement partirait
+   dans le négatif et le rendu aurait l'air simplement raté.
 
    On remonte donc le graphe depuis les échantillonneurs, en ne suivant que
    les entrées qui portent le conditionnement POSITIF. Traverser toutes les
@@ -343,7 +343,7 @@ function setVideoAspect(out, ratio) {
 
 /** Format « origine » : dimensions calées sur le ratio EXACT de la still.
  *  Le ResolutionSelector ne connaît que ses ratios ronds : snapper une still
- *  4:7 (768×1344) sur 9:16 puis arrondir aux multiples de 32 donnait 480×864
+ *  4:7 (768×1344) sur 9:16 puis arrondir aux multiples de 32 donnerait 480×864
  *  (5:9) — la still étirée de ~3 % en largeur. Ici on
  *  calcule des dimensions multiples de 32 à la surface visée, au plus près du
  *  ratio de la still, et on remplace les LIENS vers le sélecteur (et les
@@ -524,8 +524,8 @@ function instructionEncoders(out) {
  *  COPIE de la recette. Retourne la recette injectée et le JOURNAL des
  *  injections : ce qui a été écrit, et ce qui n'a PAS pu l'être — signalé,
  *  jamais masqué. */
-/* ---------- pilotage DÉCLARÉ d'une recette (11/10) ----------
-   L'injection suit le câblage du graphe (injectJob). Une recette de banc ou un
+/* ---------- pilotage DÉCLARÉ d'une recette ----------
+   L'injection suit le câblage du graphe (injectJob). Une recette d'essai ou un
    moteur nouveau peut en plus DÉCLARER, dans un fichier voisin
    `<recette>.pilotage.json`, quelle entrée de quel nœud reçoit chaque valeur :
      { "prompt": ["6", "text"], "negative": ["7", "text"], "seed": ["3", "seed"],
@@ -562,7 +562,7 @@ export function empilerLoras(out, loras, applied = [], skipped = []) {
   // À défaut — recette sans aucune LoRA — on empile directement sur
   // l'UNETLoader (chaîne MODEL de départ). Ainsi les LoRA s'appliquent même
   // sur une recette nue.
-  /* Paire Wan haut / bas bruit (20/10) : une LoRA dont le NOM dit son étage
+  /* Paire Wan haut / bas bruit : une LoRA dont le NOM dit son étage
      (« …high_noise… », « …low_noise… ») va sur la chaîne de cet étage, une à la
      fois. Les autres gardent l'ancrage historique ci-dessous. */
   const etage = n => /high[_-]?noise/i.test(n) ? 'high' : /low[_-]?noise/i.test(n) ? 'low' : null
@@ -636,7 +636,7 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
 
   /* -- nombre de pas d'échantillonnage --
      Piloté par le moteur (et par le mode brouillon) plutôt que figé dans la
-     recette, pour que brouillon et production ne soient plus deux fichiers à
+     recette, pour que brouillon et production ne soient pas deux fichiers à
      tenir synchronisés. On n'écrit QUE si l'appelant le demande : un moteur
      qui ne déclare rien garde la valeur de sa recette, inchangée.
      Toute écriture est journalisée — sur une recette à deux étages, le compte
@@ -790,11 +790,11 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
   if (!wildcards.length) {
     /* Trois niveaux, du plus sûr au plus approximatif :
          1. remontée du câblage depuis l'échantillonneur (couvre photo ET vidéo)
-         2. encodeur branché en direct sur un KSampler (ancien chemin)
+         2. encodeur branché en direct sur un KSampler
          3. premier CLIPTextEncode littéral — signalé, parce que c'est un pari.
-       Le niveau 1 a été ajouté pour la vidéo : sans lui, LTX recevait le
-       prompt dans son encodeur NÉGATIF et rendait une vidéo plausible mais
-       sans rapport avec le brief. */
+       Le niveau 1 sert la vidéo : sans lui, LTX recevrait le prompt dans son
+       encodeur NÉGATIF et rendrait une vidéo plausible mais sans rapport avec
+       le brief. */
     const wired = positiveTextSlots(out)
     const encoders = positiveTextEncoders(out).map(id => `${id}.text`)
     const fallback = findByClass(out, 'CLIPTextEncode')
@@ -822,10 +822,8 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
     /* Reconnaissance par MOTIF, pas par liste fermée : chaque nouvelle
        architecture apporte son propre nœud de latent vide
        (EmptyFlux2LatentImage, EmptyHunyuanLatentVideo, EmptyLTXVLatentVideo…),
-       et une liste en dur les rate en silence — le job rendait alors la
-       dimension de la recette en faisant croire que le réglage avait porté.
-       Constaté sur Klein : `EmptyFlux2LatentImage` n'était dans aucune des
-       deux entrées, et toutes les demandes de dimensions étaient ignorées. */
+       et une liste en dur les rate en silence — le job rendrait alors la
+       dimension de la recette en faisant croire que le réglage a porté. */
     const latents = Object.entries(out)
       .filter(([, n]) => /^Empty.*Latent/.test(n.class_type)
         && 'width' in (n.inputs ?? {}) && 'height' in (n.inputs ?? {}))
@@ -884,7 +882,7 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
 
      Le « type » n'est pas un paramètre du nœud — le modèle Union déduit la
      modalité de la carte reçue. Choisir depth ou openpose revient donc à
-     choisir le PRÉPROCESSEUR. Et `control_context_scale` du mandat s'appelle
+     choisir le PRÉPROCESSEUR. Et `control_context_scale` s'appelle
      `strength` ici : c'est le même curseur. */
   if (controlNet?.file) {
     const { file, type = 'depth', strength = 0.7 } = controlNet
@@ -941,7 +939,7 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
     ...findByClass(out, 'ClownsharKSampler_Beta'),
   ]
   for (const id of samplers) {
-    /* KSamplerAdvanced lit `noise_seed`, pas `seed` (20/10) : écrire `seed`
+    /* KSamplerAdvanced lit `noise_seed`, pas `seed` : écrire `seed`
        laissait ComfyUI sur la graine figée de la recette — tous les rendus Wan
        partaient du même bruit, et la provenance affichait une graine qui
        n'avait pas servi. */
@@ -987,7 +985,7 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
   if (endImage) {
     const targets = Object.entries(out).filter(([, n]) => /ImageToVideo/.test(n.class_type)
       && (n.inputs && ('last_frame' in n.inputs || 'end_image' in n.inputs || n.class_type === 'MiniMaxH3ImageToVideo')))
-    /* Wan 2.2 (20/10, Prequel) : WanImageToVideo n'a pas d'entrée de fin, mais
+    /* Wan 2.2 (Prequel) : WanImageToVideo n'a pas d'entrée de fin, mais
        le nœud cœur WanFirstLastFrameToVideo a les mêmes entrées PLUS end_image.
        La bascule de classe se fait en fin de patch (flfWan) : les réglages de
        durée et de format, plus bas, reconnaissent encore « ImageToVideo ». */
@@ -1068,15 +1066,12 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
   return { workflow: out, applied, skipped }
 }
 
-/* ---------- rendu photo en 2 MP (30/09) ----------
+/* ---------- rendu photo en 2 MP ----------
    Krea rend DIRECTEMENT en 2 MP : le latent est agrandi au ratio demandé,
    1088 de petit côté en portrait (recadré à 1080 de large — 1080 n'est pas
-   un multiple de 16), 1920 de large en paysage (règle opérateur : cadrage
-   gardé). Banc BANC_KREA_2MP_2026-09-30, 8 rendus variés (plans larges, vue
-   plongeante, portraits) : ni doublon ni corps étiré, même cadrage qu'en
-   1 MP, identité égale ou meilleure, ~14,6 s par image — plus rapide que la
-   chaîne SeedVR2 + visage (~18,5 s) essayée juste avant, et sans rien à
-   maintenir. Remplace le bouton « Passer en HD ». */
+   un multiple de 16), 1920 de large en paysage (cadrage
+   gardé). Ni doublon ni corps étiré, même cadrage qu'en 1 MP, ~14,6 s par
+   image, plus rapide qu'une chaîne SeedVR2 + visage (~18,5 s). */
 export function rendre2MP(out) {
   const lat = [...findByClass(out, 'EmptySD3LatentImage'), ...findByClass(out, 'EmptyLatentImage')][0]
   const save = findByClass(out, 'SaveImage')[0]
@@ -1139,11 +1134,11 @@ export async function interrupt(promptId) {
    ComfyUI pousse `progress` (value/max, par nœud) sur sa WebSocket. Ce n'est
    pas une estimation fiable de bout en bout — value/max ne couvrent que le
    nœud en cours — mais c'est exactement ce que l'interface de ComfyUI
-   affiche, et l'opérateur a demandé cette idée-là plutôt que rien.
+   affiche.
    L'ETA est déduite du rythme observé sur le nœud courant. */
 const progressByPrompt = new Map()
 let ws = null
-/* Aperçu en direct (13/10). ComfyUI n'envoie ses images d'aperçu qu'au client qui a
+/* Aperçu en direct. ComfyUI n'envoie ses images d'aperçu qu'au client qui a
    soumis le rendu : l'écoute et les soumissions partagent donc le même identifiant.
    L'aperçu est demandé rendu par rendu (`preview_method` dans extra_data), sans
    toucher au lancement de ComfyUI. On garde la dernière image de chaque rendu. */
@@ -1167,7 +1162,7 @@ function noteApercu(data) {
 }
 /** Dernier aperçu d'un rendu, s'il a moins de deux minutes. */
 export const getApercu = promptId => { const a = apercus.get(promptId); return a && Date.now() - a.at < 120_000 ? a : null }
-/* Liaison avec ComfyUI (13/10) : la WebSocket tombe quand il s'arrête et revient
+/* Liaison avec ComfyUI : la WebSocket tombe quand il s'arrête et revient
    quand il a redémarré. On en tire un état « redémarre » distinct de « en panne »,
    et un signal de retour sur lequel le serveur relance le diagnostic. */
 const liaison = { coupeLe: null, revenuLe: null, coupureMs: null }
@@ -1217,7 +1212,7 @@ function connectProgress() {
 }
 connectProgress()
 
-/* ---------- phase en clair (11/10) ----------
+/* ---------- phase en clair ----------
    « rendu » ne dit rien sur une vidéo de 40 minutes : on nomme ce que fait le
    nœud en cours, d'après sa classe dans le graphe soumis. Tant qu'aucun nœud
    ne s'est signalé, les modèles se chargent. */
@@ -1266,8 +1261,8 @@ export async function ping() {
 /** Attend que ComfyUI réponde. Au boot de la machine, les deux services
  *  partent ensemble : `After=comfyui.service` ne garantit que l'ORDRE de
  *  lancement, pas que le serveur écoute — ComfyUI met ~10 s à charger ses
- *  nœuds, CreatorOS 2 s à se construire. Le 24/08 (coupure de courant), la
- *  reprise a tiré 8 s trop tôt : 3 jobs « fetch failed ». */
+ *  nœuds, CreatorOS 2 s à se construire : une reprise trop tôt finit en
+ *  « fetch failed ». */
 export async function waitReady({ maxMs = 10 * 60 * 1000, everyMs = 2000 } = {}) {
   if (sdk.surSdk()) return 0
   const t0 = Date.now()
@@ -1344,9 +1339,8 @@ export async function waitForPrompt(promptId, { onPhase, timeoutMs = CONFIG.jobT
 
     /* Le délai ne s'applique qu'à un prompt DISPARU sans historique — un
        crash, pas un long rendu. Tant que ComfyUI le tient (en cours ou en
-       attente), on attend : le 24/08, deux rendus motion de 513 images ont
-       été marqués « bloqués » à 35 min alors qu'ils rendaient encore — les
-       fichiers existaient, les assets non. */
+       attente), on attend : un long rendu motion ne doit pas passer pour
+       « bloqué ». */
     if (!running && !pending && Date.now() - t0 > timeoutMs)
       throw new Error(`délai dépassé (${Math.round(timeoutMs / 1000)} s) sans résultat`)
     await sleep(1000)
@@ -1417,7 +1411,7 @@ export function pngSize(buf) {
         Z-Image : diffusion_model.layers.<n>.attention|feed_forward
         Flux 1  : lora_unet_double_blocks_*
         Flux 2  : diffusion_model.double_blocks.*
-      Le nom de fichier ne prouve rien (cf. models-verification-habit).
+      Le nom de fichier ne prouve rien.
 
    2. Lire 150 en-têtes à chaque appel serait gâché : on mémorise par
       (taille, mtime), donc un fichier remplacé est reclassé, pas servi périmé. */

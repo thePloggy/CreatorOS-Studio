@@ -1,4 +1,4 @@
-/* Stage en 3D (01/11) : le plateau où l'on déplace tout à la main, et la vue de la caméra à
+/* Stage en 3D : le plateau où l'on déplace tout à la main, et la vue de la caméra à
    l'instant choisi. Chargé à la demande. Le rendu final est fait côté serveur à partir des mêmes nombres. */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'

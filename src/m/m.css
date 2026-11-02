@@ -1,6 +1,5 @@
 /* ============================================================
    CreatorOS mobile — design system.
-   Valeurs de la spec développeur du 19/09/2026 (p. 17).
    Portée : tout est scopé `.m`, pour cohabiter avec la v2 desktop
    sans qu'aucune règle ne fuite d'un monde à l'autre.
    ============================================================ */
@@ -67,8 +66,7 @@
 .m .tap-sm { min-height: 36px; }     /* dérogation explicite, zone étendue par padding */
 
 /* Boutons à ICÔNE SEULE : sans largeur minimale, la cible ne fait que celle
-   du pictogramme — 24 px — et on rate le bouton au pouce (constaté sur le
-   « ⋯ » de la visionneuse, qui « ne marchait pas »). La hauteur seule ne
+   du pictogramme — 24 px — et on rate le bouton au pouce. La hauteur seule ne
    suffit pas : il faut les deux dimensions. */
 .m .vtop button, .m .htitle .row button, .m .iconbtn {
   min-width: 44px; display: inline-flex; align-items: center; justify-content: center;
@@ -241,8 +239,8 @@
      55  barre d'actions de sélection
      70  visionneuse (plein écran)
      90  FEUILLES modales — au-dessus de TOUT, y compris de la visionneuse.
-   À 60, une feuille ouverte depuis la visionneuse s'affichait DERRIÈRE
-   elle : le bouton répondait, la feuille existait, mais restait invisible. */
+   À 60, une feuille ouverte depuis la visionneuse s'afficherait DERRIÈRE
+   elle, invisible. */
 .m .sheetwrap, .m.sheetwrap { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; justify-content: flex-end; }
 .m .sheetwrap .veil, .m.sheetwrap .veil { position: absolute; inset: 0; background: rgba(6,7,9,.6); }
 .m .sheet {
@@ -344,7 +342,7 @@
 .m .chipline { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .m .chip {
   background: var(--card); border-radius: 999px; padding: 11px 15px; font-size: 14px;
-  /* 44 px comme les autres cibles : la spec vise 44-48 de confort, et une
+  /* 44 px comme les autres cibles : 44-48 de confort, et une
      puce reste une commande à part entière. */
   color: var(--tx2); min-height: 44px; display: inline-flex; align-items: center; gap: 6px;
 }

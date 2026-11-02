@@ -230,7 +230,7 @@ function LoraPickTab({ q }: { q: string }) {
   const moteur = useAppStore(st => st.photoEngine)
   useEffect(() => { if (!catalog.length) void loadLoras() }, [catalog.length, loadLoras])
   /* UNIQUEMENT les LoRA compatibles avec le moteur photo choisi, d'après l'architecture lue
-     dans l'en-tête du fichier. Une autre se charge sans erreur mais tourne À VIDE (constaté).
+     dans l'en-tête du fichier. Une autre se charge sans erreur mais tourne À VIDE.
      Exclue aussi : la LoRA d'identité, déjà cuite dans la recette. */
   const usable = catalog
     .filter(l => l.arch === ARCH_MOTEUR[moteur])
@@ -282,15 +282,17 @@ function LoraPickTab({ q }: { q: string }) {
 /* ---------- Picker de frame : Générations | Uploads ---------- */
 interface UploadRow { name: string; mtime: number; bytes: number }
 
-export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickUpload, onUploadFile, accept = 'image/*' }: {
+export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickUpload, onUploadFile, accept = 'image/*', media = 'photo' }: {
   open: boolean; onClose: () => void
   assets: Asset[]
   title: string
+  /** ce qu'on choisit : un clip pour les outils vidéo */
+  media?: 'photo' | 'video'
   /** un asset de la galerie est choisi (sera copié vers input via to-input) */
   onPickAsset: (a: Asset) => void
   /** un upload existant (nom de fichier input) est choisi */
   onPickUpload: (name: string) => void
-  /** un NOUVEAU fichier pris sur le disque (l'onglet Uploads ne montrait que les envois passés) */
+  /** un NOUVEAU fichier pris sur le disque (l'onglet Uploads ne montre que les envois passés) */
   onUploadFile?: (f: File) => void
   accept?: string
 }) {
@@ -301,7 +303,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
     if (open && tab === 'up') void fetch('/api/uploads').then(r => r.json()).then(d => setUploads(d.uploads ?? []))
   }, [open, tab])
   if (!open) return null
-  const photos = assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected')
+  const photos = assets.filter(a => a.mediaType === media && a.reviewStatus !== 'rejected')
   return (
     <div className="pop" onClick={onClose}>
       <div className="pbox" style={{ width: 'min(680px,94%)' }} onClick={e => e.stopPropagation()}>
@@ -311,6 +313,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
           {edition && <button className={`wtab ${tab === 'up' ? 'on' : ''}`} onClick={() => setTab('up')}>{t('Uploads')}</button>}
         </div>
         <div className="pkgrid">
+          {tab === 'gen' && !photos.length && <p style={{ gridColumn: '1 / -1', margin: 0, padding: '24px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>{t(media === 'video' ? 'Aucun clip pour ce personnage : génère-en un d’abord.' : 'Aucune photo pour ce personnage : génères-en une d’abord.')}</p>}
           {tab === 'gen' && photos.map(a => (
             <button key={a.id} className="pk" onClick={() => { onPickAsset(a); onClose() }}>
               <img src={vignetteOf(a)} alt="" loading="lazy" />
@@ -456,15 +459,12 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
   /* Cadenas FERMÉ = la dimension reste CONSTANTE dans tout le shooting ;
      ouvert = le rédacteur en fait ce qu'il veut. `props` (les accessoires
      autour d'elle — la voiture, l'îlot, la baignoire) est une dimension à
-     part entière depuis le 25/09 : elle était noyée dans le décor, donc
-     indissociable de lui. */
-  /* `light` : la lumière est une dimension à part depuis le carrousel v2
-     (28/09) — elle était mêlée au décor ET au style. */
+     part entière, dissociable du décor. */
+  /* `light` : la lumière est une dimension à part, ni décor ni style. */
   const [keep, setKeep] = useState({ outfit: true, env: true, props: true, light: true, pose: false, style: false, seed: false, lora: true })
-  /* Mode SHOOTING : le writer n'édite plus le prompt, il écrit des PLANS
+  /* Mode SHOOTING : le writer n'édite pas le prompt, il écrit des PLANS
      (action, pose, cadrage, angle) calibrés sur un corpus de référence.
-     Défaut ACTIVÉ : l'ancien mode ne variait ni le cadrage ni l'action —
-     19 segments sur 21 identiques d'une variante à l'autre (24/09). */
+     Défaut ACTIVÉ : le mode variation ne varie ni le cadrage ni l'action. */
   const [shoot, setShoot] = useState(true)
   /* Décomposition montrée AVANT les cadenas : sans elle on verrouille à
      l'aveugle, sans savoir si « appuyée contre l'îlot » a été rangé dans la
@@ -500,7 +500,7 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
   const [elapsed, setElapsed] = useState(0)
   const [variants, setVariants] = useState<string[]>([])
   /* LoRA attribuée par la grille à chaque plan (carrousel v2) ; null = le
-     catalogue devine au rendu, comme avant. */
+     catalogue devine au rendu. */
   const [lorasPlans, setLorasPlans] = useState<({ name: string; strength: number; trigger: string }[] | null)[]>([])
   const [tab, setTab] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -754,7 +754,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
           <SelectionBar ids={[...picked]} assets={items} onClear={() => setPicked(new Set())} />
         </div>
       )}
-      {/* ---- panneau détails du lot (façon Higgsfield « Shots ») ---- */}
+      {/* ---- panneau détails du lot ---- */}
       <aside className="flex-none flex flex-col gap-2.5 p-4 overflow-y-auto" style={{ width: 300, background: 'var(--lv1)' }}>
         <div className="rounded-xl p-3 text-[11px]" style={{ background: 'var(--lv2)' }}>
           {([

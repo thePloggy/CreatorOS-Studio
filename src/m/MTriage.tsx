@@ -1,7 +1,7 @@
 /* ============================================================
    Tri rapide — une file de médias en attente, trois décisions.
 
-   Règles (spec p. 5) : Valider et Refuser avancent, Passer ne change
+   Règles : Valider et Refuser avancent, Passer ne change
    pas le statut, Annuler revient sur LA DERNIÈRE décision seulement, et
    Refuser ne supprime jamais le fichier.
    ============================================================ */

@@ -1,4 +1,4 @@
-/* Masters (01/11) : HLG, ProRes, EXR ACEScg, et ProRes 4444 pour un clip à fond transparent.
+/* Masters : HLG, ProRes, EXR ACEScg, et ProRes 4444 pour un clip à fond transparent.
    Fabriqués sur le CPU ; le lien de téléchargement apparaît quand le fichier est prêt. */
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'

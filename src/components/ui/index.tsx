@@ -1,6 +1,6 @@
 /* ============================================================
    Design system — primitives UI.
-   Style shadcn-like (variants via cva), tokens depuis index.css.
+   Variants via cva, tokens depuis index.css.
    Tout composant d'écran DOIT passer par ces primitives pour
    garantir cohérence visuelle et ergonomie.
    ============================================================ */

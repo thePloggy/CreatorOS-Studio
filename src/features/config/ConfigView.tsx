@@ -1,7 +1,7 @@
 /* ============================================================
    Configuration de l'outil — ce qui n'est pas une tâche de création :
    vocabulaires (catalogues + ajouts), recettes et textes de façonnage
-   (Workbench). Regroupés sous ⚙ config depuis la refonte du 26/08.
+   (Workbench). Regroupés sous ⚙ config.
    ============================================================ */
 import { useState } from 'react'
 import { cn } from '../../lib/cn'

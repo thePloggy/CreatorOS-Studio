@@ -57,15 +57,14 @@ export function buildVideoPrompt(sel: VideoSelections): string {
   const parts: string[] = []
   if (sel.task === 'motion_pure') {
     /* Ce texte part TEL QUEL au moteur (261:222, la branche pose) : c'est le
-       driver qui décrit le geste, le texte ne fait que préciser. L'ancienne
-       version listait mode/réf/sortie — du débogage que l'encodeur aurait
-       pris pour une consigne. */
+       driver qui décrit le geste, le texte ne fait que préciser. Pas de
+       débogage ici : l'encodeur le prendrait pour une consigne. */
     return sel.motionText.trim()
   }
 
   /* i2v — ce texte part TEL QUEL au moteur quand l'opérateur ne passe pas par
-     le composeur. On écrit donc un brief, pas une ligne de débogage : plus de
-     « from start #442 », plus de durée ni de format (ils sont dans la recette,
+     le composeur. On écrit donc un brief, pas une ligne de débogage : ni
+     « from start #442 », ni durée, ni format (ils sont dans la recette,
      les répéter dans le prompt ne fait que diluer le mouvement demandé).
 
      Le brief audio rejoint le même texte : LTX-2.5 comme MiniMax H3 n'ont

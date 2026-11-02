@@ -1,5 +1,5 @@
 /* ============================================================
-   Machines modestes (30/10) — la même recette, des poids plus légers.
+   Machines modestes — la même recette, des poids plus légers.
 
    Les recettes sont écrites pour une carte de 24 Go et plus. Sur une carte
    plus petite, juste avant l'envoi à ComfyUI, chaque chargeur de modèle lourd
@@ -12,7 +12,7 @@
    si son fichier est installé ; sinon une variante plus légère encore, sinon
    le modèle d'origine (ComfyUI décharge alors par morceaux, plus lentement).
 
-   Seules les variantes passées au banc sont dans le manifeste : une variante
+   Seules les variantes vérifiées sont dans le manifeste : une variante
    non vérifiée qui casse un rendu coûte plus cher qu'un rendu lent.
    ============================================================ */
 import fs from 'node:fs'
@@ -50,7 +50,7 @@ let carte = { at: 0, profil: null, vram: 0 }
 let installes = { at: 0, parClasse: {} }
 const comfyJson = async (p, ms = 15_000) => (await fetch(CONFIG.comfyUrl + p, { signal: AbortSignal.timeout(ms) })).json()
 
-/** Profil forcé pour le job en cours (banc du propriétaire : job.profilVram), posé par jobs.js. */
+/** Profil forcé pour le job en cours (réservé au propriétaire : job.profilVram), posé par jobs.js. */
 export const profilDuJob = new AsyncLocalStorage()
 
 /** Le profil en vigueur : celui du job s'il en force un, CREATOROS_VRAM, sinon la carte vue par ComfyUI (relue toutes les 10 min). */

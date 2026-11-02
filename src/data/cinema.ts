@@ -1,5 +1,5 @@
 /* ============================================================
-   Studio ciné (21/10) — vocabulaire de la fiche de plan.
+   Studio ciné — vocabulaire de la fiche de plan.
 
    Chaque option a un libellé (français, traduit par t()) et un fragment de
    prompt (anglais, ce que lit Krea 2 ou Klein). La fiche compose une phrase

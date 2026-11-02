@@ -71,8 +71,8 @@ Rules:
      Un brief de MOUVEMENT n'est pas un brief de photo : la still de départ
      porte déjà l'identité, la tenue et le décor, et le moteur i2v a besoin
      des gestes dans l'ordre, du regard, de la réplique mot pour mot et de la
-     caméra. Passer un brief vidéo au réécriveur photo faisait inventer des
-     vêtements et jetait le mouvement et la réplique. */
+     caméra. Passer un brief vidéo au réécriveur photo ferait inventer des
+     vêtements et jetterait le mouvement et la réplique. */
   'rewrite_video_sfw.txt': `You rewrite a motion brief (often written in French) into ONE English prompt for an image-to-video model. The START IMAGE already fixes who the character is, the outfit, the body and the place: NEVER describe, add or change clothing, face, body shape, hair or setting — at most say "same outfit, same place".
 - Keep EVERY action of the brief, in order, in the present tense, with the physics the brief gives (soft, natural, weight, sway). Do not add actions the brief does not contain.
 - Keep the gaze, the expression and the emotion exactly as briefed (playful, shy, tender…).

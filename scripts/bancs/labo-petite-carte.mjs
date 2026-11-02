@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   Labo, volet petites cartes (30/10) : rejoue le graphe exact d'un cas du labo
+   Labo, volet petites cartes : rejoue le graphe exact d'un cas du labo
    (celui que le studio a envoyé, relu dans la provenance), avec les poids
    allégés du profil 12 Go, sur un ComfyUI de test lancé avec --vram-headroom (DynamicVRAM : --reserve-vram ne bride pas)
    pour n'avoir qu'environ 12 Go de VRAM à lui. Réussir là, c'est tenir sur

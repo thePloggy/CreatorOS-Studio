@@ -1,5 +1,5 @@
 /* ============================================================
-   @ dans le prompt (30/10) : taper « @jes » propose les personnages et les
+   @ dans le prompt : taper « @jes » propose les personnages et les
    éléments (tenues, lieux, poses, styles). Un personnage devient le personnage
    actif et le mot disparaît ; un élément est remplacé par son texte.
    ============================================================ */

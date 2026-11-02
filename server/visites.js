@@ -1,5 +1,5 @@
 /* ============================================================
-   Visites (21/10) — combien de visiteurs par jour, et une limite de rendus
+   Visites — combien de visiteurs par jour, et une limite de rendus
    pour ceux qui arrivent d'Internet (Tailscale Funnel).
 
    Rien de personnel n'est gardé : un visiteur est une empreinte
@@ -14,7 +14,7 @@
    au POST /api/proprietaire que la page envoie au démarrage, et son empreinte
    sort alors du décompte du jour (visiteur et pages déjà comptés compris).
 
-   Rendus des visiteurs Internet (22/10) : chacun est suivi jusqu'au bout et
+   Rendus des visiteurs Internet : chacun est suivi jusqu'au bout et
    noté dans un journal (journal-visiteurs.json, les 200 derniers : type,
    durée, cause d'échec). Le propriétaire est notifié au lancement, à l'échec
    et au refus (cf. notif.js).
@@ -24,8 +24,8 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { notifier } from './notif.js'
 
-/* Par visiteur Internet et par heure, un rendu = une image ou un clip LANCÉ (24/10) :
-   avant, on comptait les demandes, et ×4, un carrousel ou un reel passaient pour 1. */
+/* Par visiteur Internet et par heure, un rendu = une image ou un clip LANCÉ :
+   compter les demandes ferait passer ×4, un carrousel ou un reel pour 1. */
 const RENDUS_PAR_HEURE = 12
 /* Coût plancher d'une demande dont les jobs naissent plus tard (le reel planifie ses
    plans après la réponse) : 5 photos + 5 clips en moyenne. */
@@ -66,7 +66,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
   let bannis = new Set()   // empreintes refusées par le filtre de contenu : plus de rendu jusqu'à minuit
   let sale = false
   const jourDe = () => new Date().toISOString().slice(0, 10)
-  // rendus = visiteurs d'Internet ; rendusProprietaire = propriétaire et tailnet (depuis le 22/10)
+  // rendus = visiteurs d'Internet ; rendusProprietaire = propriétaire et tailnet
   const compteurs = j => (jours[j] ??= { visiteurs: 0, pages: 0, rendus: 0, rendusProprietaire: 0, refuses: 0, tailnet: 0 })
   const empreinte = req => {
     const j = jourDe()
@@ -133,7 +133,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     const url = req.url.split('?')[0]
     // une page = le document de l'app, pas ses fichiers ni l'API
     if (req.method === 'GET' && !url.startsWith('/api/') && !/\.[a-z0-9]+$/i.test(url)) {
-      // pages = visiteurs d'Internet ; tailnet = propriétaire et tailnet (depuis le 22/10)
+      // pages = visiteurs d'Internet ; tailnet = propriétaire et tailnet
       const c = compteurs(jourDe()); sale = true
       if (duTailnet(req)) { c.tailnet++; return }
       const e = empreinte(req)
@@ -181,7 +181,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
   })
 
   // réservée au propriétaire (cf. ROUTES_PROPRIETAIRE)
-  /* Ce qui reste au visiteur pour l'heure (24/10) : affiché dans l'en-tête, à côté
+  /* Ce qui reste au visiteur pour l'heure : affiché dans l'en-tête, à côté
      du voyant machine. Le propriétaire et le tailnet n'ont pas de limite. */
   app.get('/api/quota', async req => {
     if (estProprietaire(req) || duTailnet(req)) return { illimite: true, limite: RENDUS_PAR_HEURE }
@@ -199,7 +199,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     enCours: suivis.size,
   }))
   /* Demande refusée par le filtre de contenu : journalisée et notifiée, que la
-     requête vienne d'un visiteur ou du tailnet (23/10). */
+     requête vienne d'un visiteur ou du tailnet. */
   return {
     refuserContenu: (terme, route, req) => {
       const visiteur = !estProprietaire(req) && !duTailnet(req)

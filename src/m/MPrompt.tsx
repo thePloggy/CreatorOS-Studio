@@ -4,7 +4,7 @@
    Améliorer : le réécriveur local (même endpoint que le desktop) avec
    le moteur du brouillon. On montre Original ET
    Proposition ; seul « Appliquer » remplace le champ, et le brief
-   d'origine est conservé en provenance (spec p. 9).
+   d'origine est conservé en provenance.
 
    Éléments : les vocabulaires (tenues, environnements, positions,
    LoRA), insérés SANS écraser le texte existant.

@@ -1,5 +1,5 @@
 /* ============================================================
-   Reel en un clic (21/10) — un brief, et l'app réalise le reel :
+   Reel en un clic — un brief, et l'app réalise le reel :
      1. RÉDACTION   le réalisateur (LLM local) écrit 4 à 6 plans d'une même
                     séance (même tenue, même lieu, même lumière), une accroche,
                     et pour chaque plan l'image fixe ET le mouvement ;
@@ -81,7 +81,7 @@ Write everything except the hook in English.`
 
 /* Le réalisateur (mistral-small) ne tient pas toujours les interdits du mouvement :
    « She puts the car in drive and begins to pull away », « she adjusts her
-   sunglasses » (LTX ajoute alors une 2e paire sur son nez, 21/10). Les phrases
+   sunglasses » (LTX ajoute alors une 2e paire sur son nez). Les phrases
    fautives sont retirées ; s'il ne reste rien, un geste sûr les remplace. */
 const INFAISABLE = /\b(put(s|ting)? on|take(s)? off|taking off|adjust(s|ing)?|sunglasses|glasses|hat\b|gets? (in|into|out)|climbs?|opens? the|closes? the|door|engine|ignition|drive(s|n)?\b|driving|pulls? (away|out|off)|gear|accelerat|speeds? (up|off)|starts? the car|picks? up|hands? (her|him|over)|holds? up)/i
 const GESTE_SUR = 'Her hair and clothes move gently in the wind, she breathes naturally and smiles softly. The camera slowly pushes in.'
@@ -91,7 +91,7 @@ function geste(motion) {
   return gardees.length && gardees.join(' ').split(/\s+/).length >= 8 ? gardees.join(' ') : GESTE_SUR
 }
 
-/* ---------- contrôle des plans avant le rendu (27/10) ----------
+/* ---------- contrôle des plans avant le rendu ----------
    Des règles écrites dans le code, pas un modèle qui juge : ce qui donne en pratique un
    clip raté. Un plan fautif est réécrit UNE fois par le réalisateur ; ce qui reste
    fautif part quand même, avec un avertissement sur sa carte. */
@@ -134,11 +134,11 @@ async function reecrirePlans(plans, fautifs, nom) {
 }
 
 /* ---------- lancement ---------- */
-export function realiser({ brief, n, duree, musique, langue, cle }) {
+export function realiser({ brief, n, duree, musique, langue, cle, personaId }) {
   const b = String(brief ?? '').trim().slice(0, 600)
   if (!b) throw new Error('écris un brief : le lieu, l’ambiance, ce qui se passe')
   if (t0Hit(b)) throw new Error('brief refusé (liste T0)')
-  const p = persona()
+  const p = persona(personaId)
   const id = `reel-${Date.now().toString(36)}`
   const data = {
     n: Math.min(6, Math.max(3, Number(n) || 5)),
@@ -260,7 +260,7 @@ export function demarrerSuivi() {
   }, 4000).unref()
 }
 
-/** Refait un seul plan d'un reel fini (30/10) : sa photo est gardée, son clip est rendu à nouveau
+/** Refait un seul plan d'un reel fini : sa photo est gardée, son clip est rendu à nouveau
  *  (avec un nouveau mouvement si on en donne un), puis le reel est remonté. Les autres clips ne bougent pas. */
 export function refairePlan(id, k, motion) {
   const r = lireReel(id)

@@ -9,7 +9,7 @@ import { CONFIG } from './config.js'
 import { fetchOllama } from './gpu.js'
 
 /* Le VLM est déchargé après chaque appel en production — la RAM doit revenir
-   à ComfyUI. Pendant une campagne de bench, des dizaines de rechargements
+   à ComfyUI. Pendant une campagne de tests, des dizaines de rechargements
    coûtent cher : CREATOROS_VLM_KEEPALIVE='10m' le garde chaud sans toucher
    au défaut. */
 const VLM_KEEPALIVE = process.env.CREATOROS_VLM_KEEPALIVE || 0
@@ -19,7 +19,7 @@ const VLM_KEEPALIVE = process.env.CREATOROS_VLM_KEEPALIVE || 0
 const DESC_MODEL = () => CONFIG.visionDescribeModel
 const DESC_OPTS = extra => ({ temperature: 0, ...(CONFIG.visionDescribeCpu ? { num_gpu: 0 } : {}), ...extra })
 
-/* Next beat (31/10) : le moment qui suit cette photo, en une consigne de retouche. Même lieu,
+/* Next beat : le moment qui suit cette photo, en une consigne de retouche. Même lieu,
    même tenue, un geste ordinaire ; le texte repasse par le filtre avant de servir. */
 export async function momentSuivant(absPath) {
   const b64 = fs.readFileSync(absPath).toString('base64')
@@ -161,7 +161,7 @@ export async function describeOutfit(absPath) {
       body: JSON.stringify({
         model: DESC_MODEL(), stream: false, images: [b64],
         /* Le VLM légende TOUT par défaut (cheveux, peau, décor) : laissé libre
-           il rendait « …, black hair, braided hair, tiled floor, evening sky »,
+           il rend « …, black hair, braided hair, tiled floor, evening sky »,
            ce qui décrirait l'identité et figerait le décor dans les variantes
            du carrousel. D'où la consigne négative
            explicite — doublée d'un filtre code plus bas (une garde textuelle
@@ -170,17 +170,14 @@ export async function describeOutfit(absPath) {
           + '(no sentence, no subject, no preamble): garment types with their exact colors and materials. '
           + 'Use the form: <colour> <material> <garment>, <colour> <material> <garment>. '
           /* « white shirt » est ambigu pour un modèle d'image : il rend un
-             t-shirt. Une chemise doit se dire « button-up shirt ». Constaté
-             sur un carrousel rendu en t-shirt alors que l'ancre disait
-             « white shirt » — le VLM avait raison, le mot était trop vague. */
+             t-shirt. Une chemise doit se dire « button-up shirt ». */
           + 'Name the PRECISE garment type, never a generic one: say "button-up shirt", "blouse", "t-shirt", '
           + '"tank top", "camisole", "crop top", "polo shirt" — never just "shirt" or "top". For each garment add '
           + 'the details that distinguish it: collar or no collar, buttons or no buttons, sleeve length, and how '
           + 'it is worn (tucked in, tied at the front, open, buttoned up). '
-          /* AUCUN exemple concret ici : le VLM le recopie tel quel. Mesuré
-             le 19/09 — avec « light-wash denim shorts » en exemple, il l'a
-             rendu mot pour mot sur une photo N&B dont le short est blanc à
-             cordon. Même piège que les MARKERS du composeur. */
+          /* AUCUN exemple concret ici : le VLM le recopie tel quel. Avec
+             « light-wash denim shorts » en exemple, il le rend mot pour mot sur une
+             photo N&B dont le short est blanc à cordon. Même piège que les MARKERS du composeur. */
           + 'Do NOT mention her hair, skin, body, jewellery, the background, the floor, the sky, the lighting or the camera. '
           + 'If no garment is visible, answer with the single word: none.',
         options: DESC_OPTS({ num_predict: 90 }),
@@ -238,15 +235,15 @@ export function filterOutfit(raw) {
   })
   /* Une pièce par PARTIE DU CORPS. Raisonner par type de vêtement ne suffit
      pas : le VLM nomme la même chemise « button-up shirt », « blouse »,
-     « camisole » et « crop top » (mesuré 22/09), qui sont quatre types mais
-     un seul haut — le réécriveur en habillait le sujet de quatre couches.
+     « camisole » et « crop top », qui sont quatre types mais
+     un seul haut — le réécriveur en habillerait le sujet de quatre couches.
      Pour chaque partie on garde la formulation la PLUS détaillée. */
   const PARTIES = [
     ['robe', /\b(dress|gown|jumpsuit|romper|bodysuit|swimsuit|robe|kimono)\b/i],
     ['haut', /\b(shirt|blouse|t-?shirt|tank|camisole|cami|top|sweater|hoodie|cardigan|jacket|coat|blazer)\b/i],
     ['bas', /\b(skirt|shorts|pants|trousers|jeans|leggings|tights)\b/i],
     /* Bas de jambe et chaussures séparés : des bas et des talons coexistent,
-       les confondre en faisait perdre un. */
+       les confondre en ferait perdre un. */
     ['jambes', /\b(socks|stockings|tights)\b/i],
     ['pieds', /\b(shoes|heels|boots|sneakers|sandals)\b/i],
     ['accessoire', /\b(scarf|belt|hat|cap|gloves)\b/i],

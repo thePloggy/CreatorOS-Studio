@@ -1,5 +1,5 @@
 /* ============================================================
-   Carrousel v2 — successeur du mode shooting de /api/rewrite.
+   Carrousel v2.
    Servi par /api/carrousel et /api/carrousel/fiche.
 
    Ce que fait un carrousel : ~8 photos
@@ -7,18 +7,16 @@
    série. Six dimensions — tenue, pose, décor, accessoire, lumière, style —
    chacune verrouillée (constante) ou libre.
 
-   Ce qui change par rapport au mode shooting :
+   Principes :
    1. Le rédacteur reçoit le PROMPT RACINE de l'opérateur, retrouvé en
-      remontant la lignée des lots. Avant il ne voyait que la paraphrase VLM
-      de l'image (« a classic black car » pour « 1930s French coachbuilt
-      convertible »).
+      remontant la lignée des lots : la paraphrase VLM de l'image perd le détail
+      (« a classic black car » pour « 1930s French coachbuilt convertible »).
    2. Une FICHE, en JSON imposé, fusionne prompt racine et description VLM :
       pour chaque dimension une forme longue et une forme courte (attributs
       identifiants). Le tronc est fait des formes courtes, pas de 80 mots de
       description VLM.
-   3. La lumière est une dimension à part (elle était mêlée au décor ET au
-      style, et la formule de rendu Krea affirmait « natural daylight » sur
-      une scène de nuit à la lampe).
+   3. La lumière est une dimension à part, distincte du décor et du style :
+      une formule de rendu fixe dirait « natural daylight » sur une scène de nuit.
    4. Accessoire LIBRE : la grille tire un MODE par plan — aucun, l'original,
       un objet du lieu, une variante de la même famille — et le rédacteur
       choisit l'objet. Pas de liste d'objets : on ne connaît pas les
@@ -26,8 +24,8 @@
    5. Le rédacteur remplit des CHAMPS (action, appui, objet_exact, phrase) en
       JSON imposé ; le code vérifie chaque plan et ne redemande que les
       plans fautifs.
-   6. Plus de listes de mobilier par type de lieu (béquilles mistral-small) :
-      l'appui vient du décor et du contexte.
+   6. Pas de liste de mobilier par type de lieu : l'appui vient du décor et
+      du contexte.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -169,10 +167,10 @@ async function etablirFiche({ racine, vlm, prompt, model, rendu }) {
   return out
 }
 
-/* Marque et modèle de l'accessoire principal (03/10). La règle « make and model »
-   ne visait que les objets NOUVEAUX du rédacteur (objet_exact) ; verrouillé,
-   l'objet est repris tel que la fiche le nomme — « red classic car », et la voiture changeait d'un plan à l'autre (rouge, puis argent).
-   Dans la fiche, la consigne perdait contre « never invent » (2 essais sur 2) :
+/* Marque et modèle de l'accessoire principal. La règle « make and model »
+   ne vise que les objets NOUVEAUX du rédacteur (objet_exact) ; verrouillé,
+   l'objet est repris tel que la fiche le nomme, et « red classic car » laisserait la voiture changer d'un plan à l'autre.
+   Dans la fiche, la consigne perd contre « never invent » :
    d'où cette question seule, posée à part. */
 async function nommerObjet({ props, contexte, racine, vlm, model }) {
   // le modèle ne renomme que l'objet principal ; le reste de la liste est recollé en code
@@ -204,13 +202,12 @@ async function nommerObjet({ props, contexte, racine, vlm, model }) {
 }
 
 /* ---------- grille tirée en code ---------- */
-/* Tailles de plan STANDARD, chacune avec ses LIMITES. Mesuré le 28/09
-: « tight portrait, her face fills the frame »
+/* Tailles de plan STANDARD, chacune avec ses LIMITES.
+« tight portrait, her face fills the frame »
    est lu par Krea comme « photo portrait » et sort en plan taille, avec ou
    sans LoRA de persona ; « an extreme
    close-up… from the top of her head to her chin, nothing below her
-   collarbones », dans une phrase de composition à part, resserre sur 3 seeds
-   sur 3. Le cadrage est donc écrit en code à la fin du plan (cf. assemblage). */
+   collarbones », dans une phrase de composition à part, resserre vraiment. Le cadrage est donc écrit en code à la fin du plan (cf. assemblage). */
 const CADRAGES = [
   'wide shot: she is small in the frame, the whole setting around her',
   'full-body shot: head to toe in the frame, a little space around her',
@@ -246,7 +243,7 @@ const FAM_POSE_FIGEE = [
  *  accessoire d'origine, il n'y a ni « original » ni « même famille ». */
 function modesAccessoire(n, verrouille, aUnAccessoire) {
   if (verrouille && aUnAccessoire) return Array(n).fill('verrou')
-  /* L'opérateur veut une interaction RÉGULIÈRE avec l'accessoire (28/09) :
+  /* Interaction RÉGULIÈRE avec l'accessoire :
      un seul plan sans accessoire, et seulement sur une série de 6 ou plus. */
   const base = aUnAccessoire ? ['famille', 'lieu', 'origine', 'famille', 'lieu'] : ['lieu']
   const modes = Array.from({ length: n }, (_, i) => base[i % base.length])
@@ -255,16 +252,15 @@ function modesAccessoire(n, verrouille, aUnAccessoire) {
 }
 function ligneAccessoire(mode, props, serre = false) {
   /* Plan serré : un objet posé au sol ou une voiture font reculer la caméra ;
-     un petit objet tenu près du visage garde le gros plan (28/09 : bidon
-     d'huile au sol → gros plan rendu en plan américain ; canette tenue près
-     du visage → le plan le plus serré de la série). L'objet VERROUILLÉ n'est
+     un petit objet tenu près du visage garde le gros plan (bidon
+     d'huile au sol → plan américain ; canette tenue près du visage → le plan
+     le plus serré de la série). L'objet VERROUILLÉ n'est
      pas touché : c'est le choix de l'opérateur. */
   if (serre && mode === 'verrou')
     return `prop = « ${props.court} », the one from the first photo, softly blurred behind her or at the edge of the frame — she does not need to touch it`
-  /* Portrait : AUCUN objet. Le « petit objet près du visage » était une
-     béquille posée quand les plans serrés reculaient encore ; avec le gabarit
-     de portrait il ne sert plus, et il perturbe (clé à molette brandie près
-     du visage, regard caméra = une menace, relevé par l'opérateur le 28/09). */
+  /* Portrait : AUCUN objet. Le gabarit de portrait suffit à serrer le plan, et
+     un objet près du visage perturbe (clé à molette brandie, regard caméra = une
+     menace). */
   if (serre) return 'prop = none — this is a portrait'
   const o = `« ${props.court} »`
   return {
@@ -307,8 +303,8 @@ function consigne({ n, fiche, keep, corpus }) {
     + 'gown at an elegant event does not crouch like an athlete or curl up in a ball. Keep the kind of movement, choose '
     + 'the version that is credible here. The brief may name furniture that is not in this setting: ignore it.\n'
     + '- appui: what her body rests on or is against, taken from this setting. The bare ground only when nothing else fits.\n'
-    /* Pas d'exemple de marque ici : le 28/09, « a Hermès Kelly bag » donné en
-       exemple est revenu dans 7 plans sur 8 (sacs de luxe partout). */
+    /* Pas d'exemple de marque ici : un exemple donné (« a Hermès Kelly bag »)
+       revient dans presque tous les plans. */
     + '- objet_exact: the object assigned to this shot, named as a precise real thing — its make and model when it has '
     + 'one, its colour and its material, the way the caption of a real photo would name it; never a generic word. '
     + 'When the line assigns the object from the first photo, objet_exact is that object and you add NO other object '
@@ -328,7 +324,7 @@ function consigne({ n, fiche, keep, corpus }) {
     + 'waist. Naming a body part that is out of frame pulls the camera back.')
   L.push('EVERY OBJECT IN THE SERIES IS DIFFERENT: never the same make, model or object in two shots, except the '
     + 'original where the line assigns it.')
-  // Une phrase impérative par dimension (idée de l'opérateur, 28/09).
+  // Une phrase impérative par dimension.
   const o = fiche.outfit.court, lieu = fiche.location.court
   if (keep.outfit) L.push(`OUTFIT — LOCKED: she wears « ${o} » in every shot. Never describe or change her clothes: the system adds them.`)
   else L.push('OUTFIT — FREE: you choose what she wears in each shot; she is always fully and opaquely dressed.')
@@ -433,7 +429,7 @@ export async function ecrire(body) {
   const modes = modesAccessoire(n, keep.props, !!fiche.props.court)
   /* Trois postures candidates par plan quand elles viennent de la liste de
      l'opérateur : le rédacteur retient la plus crédible pour cette scène. Une
-     posture imposée seule donnait « mid-leap on the fountain rim » en robe du
+     posture imposée seule donne « mid-leap on the fountain rim » en robe du
      soir. Toutes différentes d'un plan à l'autre : la liste est parcourue
      sans remise. */
   const parPlan = positions ? 3 : 1
@@ -558,7 +554,7 @@ export async function ecrire(body) {
     return `${phrase}.${visage}${tronc(i) ? ' ' + tronc(i) + '.' : ''}${composition}${rendu ? ' ' + rendu : ''}`.replace(/\s{2,}/g, ' ').trim()
   })
 
-  /* Plus de LoRA par plan : la persona est posée par le serveur au rendu. Le
+  /* Pas de LoRA par plan : la persona est posée par le serveur au rendu. Le
      tableau garde sa forme (une entrée par plan) pour le front. */
   const loras = variants.map(() => null)
   return { variants, loras, model, v2: true, racine, vlm, fiche, keep, modes, lignes, shots, erreurs, relance,

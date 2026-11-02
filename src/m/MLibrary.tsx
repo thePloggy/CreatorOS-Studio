@@ -233,7 +233,7 @@ async function partager(a: Asset): Promise<string | null> {
   }
 }
 
-/* Appui long sur une tuile (13/10) : les gestes du tri sans ouvrir l'image. */
+/* Appui long sur une tuile : les gestes du tri sans ouvrir l'image. */
 function TileMenu({ a, onClose, onPick }: { a: Asset; onClose: () => void; onPick: () => void }) {
   const edition = useEdition()
   const s = useAppStore()
@@ -280,7 +280,7 @@ function Tile({ a, picking, picked, onPick, onOpen, onLong }: {
       aria-label={`${isVid ? t('vidéo') : t('image')} — ${a.reviewStatus === 'approved' ? t('validée') : a.reviewStatus === 'rejected' ? t('refusée') : t('à trier')}`}
       onClick={() => { if (appui.current?.long) { appui.current = null; return } (picking ? onPick() : onOpen()) }}>
       {/* poster pour les vidéos : pas d'autoplay massif au défilement
-          (spec p. 18) — la lecture se fait dans la visionneuse. */}
+          — la lecture se fait dans la visionneuse. */}
       <img src={vignetteOf(a)}
         alt="" loading="lazy" decoding="async"
         onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0' }} />

@@ -3,7 +3,7 @@
 
    Quatre espaces (Bibliothèque · Créer · Studio · Jobs) + l'atelier derrière
    l'avatar. Chaque espace garde son état ; passer de l'un à l'autre ne
-   perd jamais le travail en cours (spec p. 2).
+   perd jamais le travail en cours.
 
    Le métier n'est PAS réécrit : tout passe par le store partagé avec le
    desktop (src/store/useAppStore). Cette couche est une présentation
@@ -39,7 +39,7 @@ const LAST_SPACE = 'm.space'
 
 export default function MApp() {
   /* Premier lancement : Bibliothèque. Lancements suivants : le dernier
-     espace visité (spec p. 2). L'atelier n'est jamais restauré — on n'ouvre
+     espace visité. L'atelier n'est jamais restauré — on n'ouvre
      pas l'application sur ses réglages. */
   const [space, setSpace] = useState<Space>(() => {
     try {
@@ -88,7 +88,7 @@ export default function MApp() {
 
   /* Clavier ouvert : la capsule flottante se retrouverait POSÉE SUR le
      clavier, au-dessus du champ en cours de saisie. On la masque tant que
-     l'utilisateur écrit (spec p. 18) — `Terminé` reste dans le formulaire. */
+     l'utilisateur écrit — `Terminé` reste dans le formulaire. */
   const [typing, setTyping] = useState(false)
   useEffect(() => {
     const isField = (t: EventTarget | null) =>
@@ -125,7 +125,7 @@ export default function MApp() {
       <RenderIsland visible={space !== 'jobs'} top={58} onOpen={() => setSpace('library')} />
 
       {/* capsule Liquid Glass — libellés permanents, état actif lisible même
-          sans flou ni animation (spec p. 17) */}
+          sans flou ni animation */}
       <nav className="nav" ref={navRef} hidden={typing}
         style={typing ? { display: 'none' } : undefined} aria-label={t('navigation principale')}>
         {SPACES.map(([k, label, icon]) => (

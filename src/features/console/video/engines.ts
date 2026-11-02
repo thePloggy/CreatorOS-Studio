@@ -10,7 +10,7 @@
 
    Aucun de ces moteurs ne domine les autres : ils perdent sur des axes
    différents. Le choix est donc manuel, et l'interface dit sur quoi il porte
-   au lieu de laisser deviner (bench du 22-23/08/2026).
+   au lieu de laisser deviner.
    ============================================================ */
 import type { VideoEngine } from '../../../types'
 
@@ -36,7 +36,7 @@ export const VIDEO_ENGINES: EngineInfo[] = [
   {
     key: 'wan',
     // 8 s en direct ; au-delà le serveur bascule sur la recette à fenêtres
-    // de contexte (12 s sondés le 25/08 : 30 min) — plus lent, cohérence
+    // de contexte (12 s sondés : 30 min) — plus lent, cohérence
     // légèrement plus souple, mais ça rend.
     maxSeconds: 12,
     label: 'Wan 2.2 (I2V A14B)',
@@ -47,7 +47,7 @@ export const VIDEO_ENGINES: EngineInfo[] = [
   },
   {
     key: 'ltx_hq',
-    // 16 s sondés le 25/08 : 9 min, 30,9 Go — 20 s non sondé.
+    // 16 s sondés : 9 min, 30,9 Go — 20 s non sondé.
     maxSeconds: 16,
     label: 'LTX-2.5 (22B)',
     force: 'avec le son, rapide — 896×1600 en plusieurs passes',
@@ -69,7 +69,7 @@ interface ServerEngine {
  *  force, qui sont de l'écriture. Fusion en place : les composants lisent
  *  VIDEO_ENGINES au rendu, et hydrate() déclenche un rendu. */
 /* Texte → vidéo AVEC un personnage dont la LoRA vidéo est une paire Wan haut /
-   bas bruit (Aisha, 20/10). Hors du sélecteur i2v : il ne part d'aucune image. */
+   bas bruit (Aisha). Hors du sélecteur i2v : il ne part d'aucune image. */
 export const T2V_WAN: EngineInfo = {
   key: 'wan_t2v',
   maxSeconds: 5,
@@ -143,9 +143,8 @@ export function nearestAspect(w: number, h: number): AspectRatio {
 
 /* ---------- multi-plans ----------
    Aucun paramètre de nœud n'existe : c'est le PROMPT qui pilote le découpage
-   (vérifié dans /object_info sur les trois moteurs). Testé le 23/08 :
-   MiniMax coupe (constaté spontanément sur un job opérateur), LTX suit un
-   découpage demandé plan par plan (testé : 4 plans conformes), Wan coupe
+   (vérifié dans /object_info sur les trois moteurs).
+   MiniMax coupe, LTX suit un découpage demandé plan par plan, Wan coupe
    les LIEUX et les angles mais ignore les changements d'échelle (pas de
    gros plan obtenu) — activé quand même, le prompt fait la différence. */
 export const MULTISHOT_ENGINES: ReadonlySet<VideoEngine> = new Set(['ltx_hq', 'wan'])

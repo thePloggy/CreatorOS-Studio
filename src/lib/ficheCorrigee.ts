@@ -1,6 +1,6 @@
 /* ============================================================
    Corrections de l'opérateur sur ce que le VLM a lu dans la 1re photo du
-   carrousel (20/10 : il reconnaît mal les véhicules). Une dimension
+   carrousel (il reconnaît mal les véhicules). Une dimension
    corrigée remplace le texte court ET le texte long de la fiche ; la
    correction est aussi ajoutée à la description VLM, que le rédacteur lit
    en plus de la fiche — sinon l'ancienne lecture (« a red sedan ») y

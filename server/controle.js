@@ -1,5 +1,5 @@
 /* ============================================================
-   Contrôle automatique des clips rendus (27/10).
+   Contrôle automatique des clips rendus.
 
    Après chaque vidéo, scripts/controle_clip.py mesure en une à deux
    secondes, sur le CPU : images noires, vidéo figée, saute au milieu du
@@ -27,7 +27,7 @@ const DANS_COMFY = path.join(CONFIG.comfyDir ?? '', 'models', 'opencv')
 export const MODELES_CONTROLE = process.env.CREATOROS_MODELES_CONTROLE
   || (fs.existsSync(path.join(DANS_COMFY, 'face_recognition_sface_2021dec.onnx')) ? DANS_COMFY : path.join(CONFIG.dataDir, 'modeles-controle'))
 
-/* Mouvement de caméra attendu par preset (30/10) : vérifié par le flux optique, en avertissement.
+/* Mouvement de caméra attendu par preset : vérifié par le flux optique, en avertissement.
    Les presets enchaînés (jib-down) et les mouvements composés (orbite, arc…) ne sont pas lus. */
 const MOUVEMENT_PRESET = {
   'push-in': 'avant', 'crash-zoom': 'avant', 'pull-out': 'arriere', 'crash-zoom-out': 'arriere',
@@ -51,7 +51,7 @@ export async function controlerClip(clip, ref, mouvement) {
   }
 }
 
-/* Boucle (31/10) : SSIM entre la dernière image du clip et la première, c'est la saute vue à chaque tour. */
+/* Boucle : SSIM entre la dernière image du clip et la première, c'est la saute vue à chaque tour. */
 const JOINTURE_PROPRE = 0.9
 async function mesurerJointure(clip) {
   try {

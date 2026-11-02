@@ -1,5 +1,5 @@
 /* ============================================================
-   Re-shoot (21/10) — un clip de la bibliothèque, un angle : le même instant
+   Re-shoot — un clip de la bibliothèque, un angle : le même instant
    filmé par une autre caméra (MoGe-2 → CrossViewWarp → LTX-2.5 + IC-LoRA
    CrossView-Warp, cf. server/jobs.js). Le rendu arrive dans la bibliothèque ;
    ici on voit la prise d'origine et la nouvelle côte à côte.

@@ -23,7 +23,7 @@ function lire(): Lang {
     const v = localStorage.getItem(CLE)
     if (v === 'fr' || v === 'en') return v
   } catch { /* stockage indisponible */ }
-  // Démo publique du concours : l'anglais par défaut, le français au bouton FR (retenu ensuite)
+  // Démo publique : l'anglais par défaut, le français au bouton FR (retenu ensuite)
   return 'en'
 }
 

@@ -1,5 +1,5 @@
 /* ============================================================
-   Presets en un clic (21/10) — une galerie de mouvements de caméra et
+   Presets en un clic — une galerie de mouvements de caméra et
    d'effets : une photo de la bibliothèque, un clic, un clip. Chaque preset
    est une phrase de mise en scène calibrée pour le moteur (et, quand elle
    existe et que sa licence le permet, une LoRA dédiée). Le clip passe par la
@@ -26,14 +26,14 @@ export const APERCUS_DIR = path.join(CONFIG.dataDir, 'presets')
 /* `moteur` : 'ltx_hq' (LTX-2.5, avec le son), 'wan21' (Wan 2.1 I2V 480p, la base
    des LoRA d'effets, 4 pas) ou 'wan21_hq' (même base, réglage Remade 28 pas : les
    effets). Effets : la phrase type de la fiche Remade (« The video shows… »),
-   le sujet nommé « the woman » de bout en bout — le banc du 21/10 l'a montré, la
+   le sujet nommé « the woman » de bout en bout : la
    phrase courte laisse l'effet tomber à côté d'elle. `lora` : fichier relatif au dossier des LoRA, sa licence en
    commentaire ; son mot déclencheur est en tête du prompt.
    Licences : LTX-2 Community (Lightricks, usage commercial libre sous 10 M$ de CA) ;
    Remade-AI et ostris : Apache-2.0. Écartés : « muscle » (le déclencheur déshabille),
    Hulk, Super Saiyan, Fus Ro Dah (propriétés intellectuelles de tiers), et « jumpscare »
-   (jugé moyen par l'opérateur dans les deux réglages, 21/10). Visage de robot, mâchoire
-   et explosion restent au réglage rapide : jugés meilleurs qu'en 28 pas (21/10). */
+   (moyen dans les deux réglages). Visage de robot, mâchoire
+   et explosion restent au réglage rapide : meilleurs qu'en 28 pas. */
 const LTX = n => ({ name: `ltx_camera/ltx-2-19b-lora-camera-control-${n}.safetensors`, strength: 0.9 })
 const REMADE = (dossier, f) => ({ name: `${dossier}/wan21_i2v_remade_${f}.safetensors`, strength: 1 })
 export const PRESETS = [
@@ -46,11 +46,11 @@ export const PRESETS = [
     prompt: 'The camera trucks sideways to the left on a rail, moving parallel to the scene, the background sliding past behind her, she stays centered in the frame, a clear unobstructed view. {sujet}' },
   { id: 'drone', famille: 'camera', moteur: 'ltx_hq', lora: LTX('jib-up'), nom: 'Grue ascendante', nomEn: 'Jib up', icone: '⤒',
     prompt: 'The camera rises smoothly on a jib, lifting above her and revealing the place from higher up. {sujet}' },
-  /* En DEUX rendus (21/10, idée de l'opérateur) : une grue ascendante depuis la
+  /* En DEUX rendus : une grue ascendante depuis la
      photo, puis sa dernière image (vue d'en haut) sert de DÉBUT à un plan Wan 2.2
      qui FINIT sur la photo (image de début + image de fin, comme le Prequel).
-     Demandée d'un coup depuis la photo, la descente faisait entrer une grue dans
-     le cadre ; lue à l'envers, le sujet marchait à reculons. */
+     Demandée d'un coup depuis la photo, la descente fait entrer une grue dans
+     le cadre ; lue à l'envers, le sujet marche à reculons. */
   { id: 'jib-down', famille: 'camera', moteur: 'ltx_hq', lora: LTX('jib-up'), nom: 'Grue descendante', nomEn: 'Jib down', icone: '⤓',
     prompt: 'The camera rises smoothly straight up above her, revealing the place from higher up. {sujet}',
     suite: { moteur: 'wan', prompt: 'The camera descends smoothly from high above down to her eye level and settles on her, one continuous smooth crane move. {sujet}' } },
@@ -60,7 +60,7 @@ export const PRESETS = [
     prompt: 'Handheld camera follows her closely with a natural slight shake as she keeps walking, her hands relaxed and empty at her sides, documentary style, intimate and spontaneous. {sujet}' },
   { id: 'panoramique', famille: 'camera', moteur: 'ltx_hq', nom: 'Panoramique', nomEn: 'Pan', icone: '↔',
     prompt: 'The camera pans slowly from left to right across the scene and settles on her, smooth tripod pan. {sujet}' },
-  // ---- caméra, Wan 2.1 + LoRA Remade / ostris, réglage Remade 28 pas (orbite jugée meilleure, 21/10) ----
+  // ---- caméra, Wan 2.1 + LoRA Remade / ostris, réglage Remade 28 pas (orbite meilleure) ----
   { id: 'orbite', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', '360_Orbit'), nom: 'Orbite 360°', nomEn: '360° orbit', icone: '↻',
     prompt: '0rb4it 360 degree orbit. The camera orbits all the way around her while she stays in place. {sujet}' },
   { id: 'arc', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'Arc_shot'), nom: 'Arc', nomEn: 'Arc shot', icone: '◠',

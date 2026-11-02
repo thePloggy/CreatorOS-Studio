@@ -1,4 +1,4 @@
-/* Objet 3D (01/11) : le GLB de TRELLIS.2 en vrai, à faire tourner à la souris.
+/* Objet 3D : le GLB de TRELLIS.2 en vrai, à faire tourner à la souris.
    Chargé à la demande : three.js ne pèse que sur ceux qui ouvrent la vue. */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'

@@ -1,11 +1,9 @@
 /* ============================================================
    Affichage d'un asset — photo ou vidéo.
 
-   Séparé parce que les quatre endroits qui montrent un média (grille et
-   grande vue de la console, grille et détail de la bibliothèque) rendaient
-   tous un `<img>`. Sur un mp4 ça donne une vignette cassée, et la
-   bibliothèque affichait même un ▶ décoratif SANS jamais lire le clip : la
-   fonction vidéo était invisible depuis l'interface qui la déclenche.
+   Commun aux quatre endroits qui montrent un média (grille et grande vue
+   de la console, grille et détail de la bibliothèque) : un `<img>` sur un
+   mp4 donne une vignette cassée.
    ============================================================ */
 import type { Asset } from '../types'
 import { cn } from '../lib/cn'
@@ -13,7 +11,7 @@ import { t } from '../i18n'
 
 /** Vignette JPEG d'une vidéo, extraite côté serveur. iOS Safari n'affiche
  *  rien d'un <video> non lu : sans `poster`, une grille de clips est une
- *  grille de noirs (iPhone, 25/08). `preload="none"` avec un poster : rien
+ *  grille de noirs. `preload="none"` avec un poster : rien
  *  n'est téléchargé tant qu'on ne lit pas, et la vignette est là. */
 export const posterOf = (a: Pick<Asset, 'uri' | 'mediaType'>): string | undefined =>
   a.mediaType === 'video' && a.uri ? `/api/poster/${encodeURIComponent(a.uri.split('/').pop() ?? '')}` : undefined

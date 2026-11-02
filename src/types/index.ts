@@ -1,7 +1,6 @@
 /* ============================================================
    CreatorOS — Contrats de données
-   Miroir TypeScript du modèle de données projet
-   (voir doc projet : creatoros_modele_donnees_8aout2026.md).
+   Miroir TypeScript du modèle de données.
    Ces types sont LA « prise » entre la surface (ce front) et le
    plan de calcul (worker ComfyUI réel ou worker bouchon).
    Ne jamais modifier sans répercuter côté worker / agent technique.
@@ -105,7 +104,7 @@ export interface PhotoSelections {
      recettes figées. La MODALITÉ n'est pas un paramètre du nœud : le modèle
      Union la déduit de la carte reçue. Choisir « depth » ou « openpose »
      revient donc à choisir le PRÉPROCESSEUR appliqué à l'image de référence.
-     Mesuré le 22/08 : depth porte la pose, le cadrage et les accessoires ;
+     Depth porte la pose, le cadrage et les accessoires ;
      openpose rend une station debout générique. */
   cnRefUri: string
   cnRefName: string
@@ -248,7 +247,7 @@ export interface VideoSelections {
   /** Asset de bibliothèque choisi comme still (exclusif de l'upload). */
   motionStillAssetId: string | null
   /** Multi-plans : le moteur découpe en plusieurs plans avec des coupes
-   *  franches (constaté sur MiniMax, piloté par le prompt — aucun paramètre
+   *  franches (MiniMax, piloté par le prompt — aucun paramètre
    *  de nœud n'existe). Décoché : plan unique imposé. */
   multiShot: boolean
   /** LoRAs vidéo optionnelles (turbo, réalisme, physique…) empilées sur la
@@ -307,7 +306,7 @@ export type JobStatus =
 
 /* Le GPU travaille pour ce job : rendu, mais aussi les passes d'après
    (retouche d'identité, fluidité : 10 min et plus sur un motion). Sans
-   elles l'écran disait « rien en cours » carte à 100 % (10/10). */
+   elles l'écran disait « rien en cours » carte à 100 %. */
 export const STATUTS_EN_CALCUL: JobStatus[] = ['rendering', 'post-process', 'retry']
 export const STATUTS_EN_FILE: JobStatus[] = ['queued', 'queued-comfy']
 export const STATUTS_ACTIFS: JobStatus[] = [...STATUTS_EN_FILE, ...STATUTS_EN_CALCUL]
@@ -405,7 +404,7 @@ export interface Job {
   /** Durée LIVRÉE en secondes, cadence du fichier, format. 'origine' part
    *  TEL QUEL accompagné de videoSrcW/H (dims réelles de la still) : le
    *  serveur cale des dimensions littérales au ratio exact — le snap sur un
-   *  ratio rond du ResolutionSelector étirait la still (#443-jdjy). */
+   *  ratio rond du ResolutionSelector étirerait la still. */
   videoSeconds?: number
   videoFps?: number
   videoAspect?: VideoAspect
@@ -545,7 +544,7 @@ export interface Controle {
 /** Axe de variation d'un lot photo : la seed (même scène, N tirages) ou un
  *  élément de composition (même seed, N poses / tenues / lieux — de quoi
  *  faire un carrousel cohérent). */
-/** Retiré le 29/08 : le lot par axe est remplacé par la case « carrousel »
+/** Retiré : le lot par axe est remplacé par la case « carrousel »
  *  (même tenue et lieu, poses / cadrages / focales différents). */
 export type BatchAxis = never
 

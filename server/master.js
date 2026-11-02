@@ -1,5 +1,5 @@
 /* ============================================================
-   Masters (01/11) : un clip de la bibliothèque part en HLG, en ProRes ou en
+   Masters : un clip de la bibliothèque part en HLG, en ProRes ou en
    EXR linéaire ACEScg, ou garde son alpha en ProRes 4444. Tout se fait sur le
    CPU avec ffmpeg, hors de la file GPU, un fichier à la fois. Le clip SDR est
    étendu dans le conteneur HDR : aucune information n'est inventée.

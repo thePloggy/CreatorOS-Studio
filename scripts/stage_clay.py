@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage : rend la maquette grise d'une scène décrite par des nombres (31/10).
+"""Stage : rend la maquette grise d'une scène décrite par des nombres.
 
 Entrée : un JSON {largeur, hauteur, images, objets, camera}. Sortie : un MP4 de maquette.
 Aucun fichier du visiteur n'entre ici : rien que des nombres, relus et bornés par le serveur.

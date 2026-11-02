@@ -1,5 +1,5 @@
 /* ============================================================
-   Re-shoot — la scène 3D du clip (21/10).
+   Re-shoot — la scène 3D du clip.
 
    Le GLB vient de MoGe-2 (1re image du clip, cf. sceneReshoot côté serveur),
    dans le repère de three.js : caméra d'origine en 0, regard vers −Z. La

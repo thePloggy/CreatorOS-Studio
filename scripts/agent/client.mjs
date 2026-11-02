@@ -1,5 +1,5 @@
 /* ============================================================
-   Client du studio pour les agents (30/10) — partagé par la ligne de
+   Client du studio pour les agents — partagé par la ligne de
    commande (studio.mjs) et le serveur MCP (mcp.mjs).
 
    Il ne fait que parler à l'API HTTP d'un studio qui tourne déjà : mêmes
@@ -63,7 +63,7 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
   }
 
   /* Réglages facultatifs : moteur photo (krea | klein), graine fixe, profil de VRAM
-     forcé (banc du propriétaire : ignoré par le serveur pour un visiteur). */
+     forcé (réservé au propriétaire : ignoré par le serveur pour un visiteur). */
   const options = ({ moteur, graine, profil }) => ({
     ...(moteur ? { photoEngine: moteur } : {}),
     ...(Number.isFinite(graine) ? { seed: { mode: 'lock', value: graine } } : {}),

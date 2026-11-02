@@ -1,5 +1,5 @@
 /* ============================================================
-   Diagnostic de la machine de rendu (10/10).
+   Diagnostic de la machine de rendu.
 
    Né de pannes découvertes par un rendu qui échouait au lieu d'être
    annoncées : un noyau mis à jour sans son module NVIDIA (« No CUDA GPUs »),

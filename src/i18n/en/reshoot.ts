@@ -1,4 +1,4 @@
-/* Re-shoot (21/10). */
+/* Re-shoot. */
 export const reshoot: Record<string, string> = {
   '🎥 Re-shoot': '🎥 Re-shoot',
   'Re-shoot': 'Re-shoot',

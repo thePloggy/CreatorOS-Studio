@@ -13,6 +13,7 @@ import { STYLES } from '../data/vocabularies'
 import { EnhancerPopup, ElementsPopup, FramePicker, TriagePopup, CarouselPopup, BatchViewer } from './popups'
 import { Pinceau } from '../components/Pinceau'
 import { t, tp } from '../i18n'
+import { ChoixPersonnage } from './ChoixPersonnage'
 import { useEdition } from '../lib/proprietaire'
 import { useMentions } from './Mentions'
 
@@ -33,8 +34,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const kleinOk = s.personaKlein
   const champPrompt = useRef<HTMLTextAreaElement>(null)
   const mentions = useMentions({ champ: champPrompt, valeur: s.userPrompt, surChange: s.setUserPrompt, surPersona: async id => {
-    const r = await fetch(`/api/personas/${encodeURIComponent(id)}/activer`, { method: 'POST' })
-    if (r.ok) await s.refreshPersona()
+    await s.choisirPersonnage(id)
   } })
   const [q, setQ] = useState('')
   /* un SEUL menu contextuel ouvert à la fois */
@@ -52,7 +52,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
 
   useEffect(() => { if (s.mode !== 'photo') s.setMode('photo') }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = useMemo(() => applyFilters(s.assets, 'photo', review, q), [s.assets, review, q])
+  const shown = useMemo(() => applyFilters(s.assets.filter(a => a.personaId === s.personaId), 'photo', review, q), [s.assets, s.personaId, review, q])
   const grid = useMemo(() => groupBatches(shown), [shown])
   const activeJobs = s.jobs.filter(j => j.mode !== 'video' && STATUTS_ACTIFS.includes(j.status))
   const failed = failedJobs(s.jobs, false)
@@ -94,7 +94,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       e.setComposed(`${e.userPrompt.trim()}, ${st.prompt}`, '')
     await e.submitJob()
   }
-  /* Plusieurs prompts (30/10, demandé sur Reddit) : une ligne = un prompt, chaque
+  /* Plusieurs prompts : une ligne = un prompt, chaque
      ligne part avec les mêmes réglages (format, lot, graine, style). Le texte est
      rendu tel quel au champ à la fin. Le serveur compte chaque image au quota. */
   const [multi, setMulti] = useState(false)
@@ -201,6 +201,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
             </div>
           )}
           {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 10, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}>＋ {t('Images de référence')}</button>}
+          <ChoixPersonnage />
           <textarea ref={champPrompt}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
             style={{ color: 'var(--text)', minHeight: 40, fieldSizing: 'content' } as React.CSSProperties}

@@ -3,15 +3,14 @@
 
    POURQUOI. Deux programmes se partagent la carte graphique sans se connaître :
    ComfyUI (Krea, Wan, LTX, MiniMax…) et Ollama (rédacteurs, VLM, trieur).
-   Jusqu'au 28/09 on évitait le conflit en envoyant tout Ollama sur le CPU.
-   Mesuré ce soir-là sur un appel de la taille du carrousel (qwen3.5:35b,
+   Mesuré sur un appel de la taille du carrousel (qwen3.5:35b,
    3 690 jetons lus, ~500 écrits) :
        CPU                          53 s
        partagé (Krea resté chargé)  30 s  — carte à 31,5 Go sur 32
        carte entière                 6 s
    et le rendu Krea qui suit paie ~5 s de rechargement (12,2 s au lieu de 7,1).
 
-   RÈGLE (décidée avec l'opérateur le 28/09) :
+   RÈGLE :
    - un seul programme occupe la carte ; deux tâches du MÊME programme
      s'enchaînent sans rien décharger (image derrière image, appel LLM
      derrière appel LLM) ;
@@ -20,7 +19,7 @@
      /api/ps pour Ollama) ;
    - file d'arrivée : un appel LLM qui attend passe avant le rendu suivant ;
    - un appel LLM n'attend pas un LONG rendu (vidéo de 14 min) : il part sur
-     le CPU, comme avant ;
+     le CPU ;
    - un appel Ollama lancé DEPUIS un job de rendu (contrôle VLM du motion)
      n'est pas arbitré : le job tient déjà la carte, il s'attendrait lui-même.
    ============================================================ */
@@ -30,7 +29,7 @@ import { CONFIG } from './config.js'
 /** Au-delà de ce reste estimé, un appel Ollama ne patiente pas derrière le
  *  rendu en cours : il part sur le CPU. */
 const ATTENTE_MAX_MS = 60_000
-/** Arbitrage coupé : CREATOROS_LLM_GPU=0 → tout Ollama sur le CPU, comme avant. */
+/** Arbitrage coupé : CREATOROS_LLM_GPU=0 → tout Ollama sur le CPU. */
 const ACTIF = process.env.CREATOROS_LLM_GPU !== '0'
 
 let occupant = null      // 'comfy' | 'ollama' | null (inconnu au démarrage)
@@ -105,7 +104,7 @@ export async function pourRendu(job, travail) {
 /** Plusieurs appels Ollama qui se suivent (VLM, fiche, rédaction d'un
  *  carrousel) prennent la carte UNE fois pour tout le bloc. Sans ça, un
  *  rendu en file s'intercale entre deux appels et chaque alternance recharge
- *  un programme — mesuré le 28/09 : 56 s au lieu de 17 pour le même
+ *  un programme — mesuré : 56 s au lieu de 17 pour le même
  *  carrousel. Derrière un long rendu, tout le bloc part sur le CPU. */
 export async function blocOllama(travail, { attendreCarte = false } = {}) {
   if (!ACTIF || dansJob.getStore()) return travail()

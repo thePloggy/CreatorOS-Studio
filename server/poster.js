@@ -3,17 +3,17 @@
 
    iOS Safari n'affiche PAS la première image d'un <video> tant qu'il n'est
    pas lu — sans poster, une grille de clips est une grille de noirs, et on
-   ne sait pas à quoi correspond chaque rendu (constaté sur iPhone le
-   25/08 ; Safari macOS est capricieux aussi). Un JPEG extrait par ffmpeg,
+   ne sait pas à quoi correspond chaque rendu (Safari macOS est
+   capricieux aussi). Un JPEG extrait par ffmpeg,
    servi par /api/poster/<fichier>, règle les deux.
 
    Prise à 1 s plutôt qu'à 0 : l'image 0 d'un i2v EST la still de départ,
    elle ne dit rien du mouvement. Repli sur l'image 0 si le clip est plus
    court. Généré à la récolte, et à la demande pour l'existant.
 
-   Même chose pour une photo (15/10) : la grille affichait le PNG d'origine,
-   jusqu'à 3,8 Mo et ~8 Mo une fois décodé ; une bibliothèque parcourue
-   montait l'onglet à 1 Go sur le Mac. La grille prend ce JPEG de 540 px,
+   Même chose pour une photo : le PNG d'origine pèse jusqu'à 3,8 Mo et ~8 Mo
+   une fois décodé, et une bibliothèque parcourue monterait l'onglet à 1 Go.
+   La grille prend ce JPEG de 540 px,
    la grande vue garde l'original.
    ============================================================ */
 import fs from 'node:fs'

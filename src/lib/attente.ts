@@ -2,7 +2,7 @@ import type { Job } from '../types'
 import { t } from '../i18n'
 import { fmtDur } from './progress'
 
-/** Ce qu'attend un rendu pas encore parti (22/10) : son rang et le délai estimé
+/** Ce qu'attend un rendu pas encore parti : son rang et le délai estimé
  *  avant son départ, ou la carte graphique encore prise par un autre rendu
  *  (job remis à ComfyUI, qui finit d'abord le sien). Null : rien à dire de plus. */
 export function attente(j: Job): string | null {

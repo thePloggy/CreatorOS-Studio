@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   Serveur MCP du studio (30/10) : Claude Code, Claude Desktop, Cursor ou tout
+   Serveur MCP du studio : Claude Code, Claude Desktop, Cursor ou tout
    client MCP peut lancer photos, vidéos et reels sur un studio qui tourne.
 
    Transport stdio, JSON-RPC 2.0, une ligne par message. Écrit à la main

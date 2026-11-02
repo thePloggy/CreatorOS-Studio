@@ -5,7 +5,7 @@
    petit et son API synchrone bloque le thread pendant la saisie. On stocke
    ici de PETITES données (texte, réglages, références de sources), jamais
    de médias — un fichier local non transféré reste une référence, pas un
-   octet conservé (spec p. 19).
+   octet conservé.
 
    Règle cardinale : rien de ce qui est conservé ici ne vaut acceptation
    d'un job. La vérité des jobs et des médias est au serveur.
@@ -15,7 +15,7 @@ const DB_NAME = 'creatoros-m'
 const STORE = 'drafts'
 /** Version de SCHÉMA des brouillons (≠ version d'IndexedDB) : un brouillon
  *  écrit par une version antérieure est migré champ à champ, jamais effacé
- *  en bloc (spec p. 19 : « migrer ou récupérer les champs compatibles »). */
+ *  en bloc (migrer ou récupérer les champs compatibles). */
 export const DRAFT_SCHEMA = 1
 
 export interface DraftRow<T = unknown> {
@@ -40,7 +40,7 @@ function open(): Promise<IDBDatabase | null> {
       rq.onsuccess = () => resolve(rq.result)
       // Navigation privée, stockage refusé, quota plein : on dégrade en
       // mémoire plutôt que de casser la saisie. L'appelant est prévenu par
-      // `storageAvailable()` pour afficher l'avertissement de la spec.
+      // `storageAvailable()` pour afficher l'avertissement.
       rq.onerror = () => resolve(null)
       rq.onblocked = () => resolve(null)
     } catch { resolve(null) }
@@ -51,7 +51,7 @@ function open(): Promise<IDBDatabase | null> {
 const mem = new Map<string, DraftRow>()
 let degraded = false
 /** false quand le brouillon ne peut PAS être conservé durablement — l'UI doit
- *  le dire et proposer de copier le prompt (spec p. 21). */
+ *  le dire et proposer de copier le prompt. */
 export const storageAvailable = () => !degraded
 
 export async function saveDraft<T>(key: string, personaId: string, data: T): Promise<void> {

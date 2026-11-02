@@ -1,16 +1,16 @@
 /* ============================================================
    Réécriture de prompt par LLM local (Ollama), SUR CPU.
 
-   POURQUOI CPU. Mesuré le 22/08/2026 sur cette machine :
+   POURQUOI CPU. Mesures :
 
      llama 8B       CPU   19 s   12,1 tok/s
      mistral-small  CPU   50 s    4,1 tok/s   |  GPU : HTTP 500
      qwen3:14b      CPU  115 s    6,3 tok/s   |  GPU : 11 s, 73 tok/s
 
-   Le GPU est ~12x plus rapide, mais la tentative mistral-small y a
-   ÉCHOUÉ : ComfyUI tenait 21,5 Go des 32. Le chemin GPU n'est pas
+   Le GPU est ~12x plus rapide, mais mistral-small y échoue quand ComfyUI
+   tient 21,5 Go des 32. Le chemin GPU n'est pas
    « plus rapide », il est conditionnel à ce que la carte soit libre —
-   c'est précisément l'OOM que CONFIG.ollamaUnload cherchait à éviter.
+   c'est l'OOM que CONFIG.ollamaUnload évite.
    Sur CPU il n'y a plus d'arbitrage avec la diffusion, et les 91 Go de
    RAM absorbent le modèle sans gêner personne.
 
@@ -109,8 +109,8 @@ const INSIST = '\n\nIMPORTANT: your previous answer was far too short. Write the
 
 /* ---------- répliques : protégées du LLM, pas confiées à lui ----------
    Un brief vidéo porte ce que le personnage DIT, souvent en français ou en
-   mélange. Un modèle 8B traduit la réplique quelle que soit la consigne (testé le 25/08,
-   règle en dernière ligne comprise : « coucou toi » → « Hi there »). On sort
+   mélange. Un modèle 8B traduit la réplique quelle que soit la consigne
+   (règle en dernière ligne comprise : « coucou toi » → « Hi there »). On sort
    donc les segments entre guillemets AVANT l'appel, remplacés par un jeton
    {{LINE n}}, et on les remet APRÈS, caractère pour caractère. Un jeton
    perdu par le modèle → la réplique est rajoutée en fin de texte plutôt
@@ -165,11 +165,10 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
   if (!brief) throw new Error('rien à réécrire : le prompt est vide')
 
   /* ---------- contexte visuel (VLM) ----------
-     Jusqu'ici le réécriveur travaillait EN AVEUGLE : il ne voyait jamais la
-     still, et inventait donc la tenue et la pose de départ — il changeait une
-     robe, ou faisait se lever quelqu'un d'assis. En vidéo
-     c'est disqualifiant : la règle « START IN THE IMAGE'S EXACT POSE » lui
-     demande précisément de décrire un état initial qu'il ne connaissait pas.
+     Sans la still, le réécriveur travaille EN AVEUGLE et invente la tenue et
+     la pose de départ : il change une robe, ou fait se lever quelqu'un d'assis.
+     En vidéo c'est disqualifiant : la règle « START IN THE IMAGE'S EXACT POSE »
+     lui demande de décrire un état initial qu'il ne connaîtrait pas.
 
      La description du VLM est une ENTRÉE, au même titre que le brief, et
      elle est SUBORDONNÉE à lui : l'image dit ce qui EST, le brief dit ce qui
@@ -198,9 +197,8 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       + 'carried to its end first;\n'
       + '- carry its intent forward toward what the brief asks;\n'
       + '- keep the same camera language (type of framing, camera behaviour) unless the brief changes it;\n'
-      /* Mesuré le 21/09 : sans cette règle, le réécriveur a repris l'état de
-         DÉPART du clip précédent (« tasse pleine à ras bord, dessin intact »)
-         alors que ce clip finissait sur une tasse bue. Le prompt précédent
+      /* Sans cette règle, le réécriveur reprend l'état de DÉPART du clip précédent
+         (« tasse pleine à ras bord ») alors que ce clip finit sur une tasse bue. Le prompt précédent
          raconte un début ; la dernière image montre la fin. */
       + '- the previous prompt describes how that clip STARTED, not how it ended: for the current state '
       + '(what she holds, what is full or empty, spilled or tidy, where things and people are) the '
@@ -220,10 +218,9 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
     : ''
   const prompt = verrouTenue + suite + (desc
     /* La description est ENCADRÉE et annoncée comme de la donnée. Laissée en
-       prose libre, ce modèle en recopie les phrases telles quelles — mesuré :
-       « The mood is bright and sunny », « The camera angle is straight-on »
-       sont ressorties mot pour mot dans la sortie, alors que le moteur
-       interdit explicitement ce vocabulaire méta. Même piège que les exemples
+       prose libre, ce modèle en recopie les phrases telles quelles
+       (« The mood is bright and sunny », « The camera angle is straight-on »),
+       alors que le moteur interdit explicitement ce vocabulaire méta. Même piège que les exemples
        concrets dans les consignes du VLM et que les MARKERS du composeur :
        ce qui est montré est recopié, donc on dit quoi en faire. */
     ? '<source_image>\n' + desc + '\n</source_image>\n\n'
@@ -256,7 +253,7 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
         // assez pour tout le monde, mais un modèle résident pour rien est une
         // dette qu'on paie au prochain pic.
         keep_alive: 0,
-        // num_gpu 0 : valeur de repli. Depuis le 28/09, fetchOllama (gpu.js)
+        // num_gpu 0 : valeur de repli. fetchOllama (gpu.js)
         // la retire quand la carte est prise pour Ollama, et la garde quand un
         // long rendu occupe la carte.
         // Retouche : température basse — on veut une instruction littérale et
@@ -288,9 +285,8 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
     }
   }
   if (!positive) throw new Error(`${model} n'a rien produit`)
-  /* Anti-copie des EXEMPLES few-shot (constaté 15/09 : « beach condo slider
-     door » de l'exemple sugg importé dans une vidéo i2v dont la still fixe le
-     décor). Les marqueurs signature des exemples ne peuvent apparaître que si
+  /* Anti-copie des EXEMPLES few-shot (« beach condo slider door » importé
+     dans une vidéo i2v dont la still fixe le décor). Les marqueurs signature des exemples ne peuvent apparaître que si
      le brief les contient — sinon un retry dur. */
   if (engine !== 'edit') {
     const MARKERS = ['beach condo', 'slider door', 'public library', 'bookshelves',
@@ -308,11 +304,11 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
     }
   }
   positive = unshieldLines(positive, shielded.lines, { drop: mode === 'video' && ['wan', 'motion'].includes(engine ?? 'wan') })
-  /* Gabarits de réplique ORPHELINS. Mesuré le 21/09 en continuation : sur un
-     brief sans réplique, le réécriveur a inventé une phrase ET recopié le
-     gabarit de la consigne moteur, livrant `<d>[French] {{LINE 1}}</d>`.
+  /* Gabarits de réplique ORPHELINS. Sur un brief sans réplique, le
+     réécriveur peut inventer une phrase ET recopier le gabarit de la consigne
+     moteur : `<d>[French] {{LINE 1}}</d>`.
      unshieldLines ne remplit que les gabarits d'une vraie réplique du brief :
-     celui-ci serait parti tel quel au moteur, qui aurait prononcé « LINE ».
+     celui-ci partirait tel quel au moteur, qui prononcerait « LINE ».
      On retire le bloc <d> vide (avec son « X (S1) says: ») et tout jeton
      restant. */
   if (/\{\{\s*LINE\s*\d+\s*\}\}/i.test(positive)) {
@@ -322,7 +318,7 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       .replace(/[ \t]{2,}/g, ' ')
   }
   /* Le rédacteur emballe parfois la description H3 dans des balises <p> (tic
-     stochastique constaté le 01/09, 1 essai sur 2). Le format MiniMax n'en
+     stochastique). Le format MiniMax n'en
      veut pas, et une consigne de plus ne tiendrait pas mieux que les autres
      gardes textuelles : on les retire mécaniquement. Les balises <d> des
      répliques, elles, font PARTIE du format et survivent. */
@@ -333,9 +329,8 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
      Le modèle l'écrit spontanément sur un brief seul, mais le laisse tomber dès
      qu'on lui fournit la description d'image : il a alors assez de matière
      pour attaquer directement sur un horodatage. Le rappeler dans le message
-     a échoué de la pire façon — il l'a replacé AVANT le nom du champ, cassant
-     la structure. Même conclusion que pour les balises <p> : on ne remet pas
-     une consigne, on répare en code.
+     le fait replacer AVANT le nom du champ, ce qui casse la structure : on
+     répare en code.
      Le marqueur sert à interdire les coupes ; l'horodatage qui suit est
      légitime et reste en place. */
   if (mode === 'video' && String(engine ?? '').startsWith('minimax') && !/\[Shot 1\]/.test(positive)) {
@@ -343,7 +338,7 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
   }
 
   /* Marqueurs de plan INVENTÉS — garde mécanique, moteurs MiniMax.
-     Mesuré le 21/09 : sur un brief à plan unique, le réécriveur a produit
+     Sur un brief à plan unique, le réécriveur peut produire
      « [Continue from Shot 1] » au milieu de la description. Le moteur lit
      tout marqueur comme une coupe, alors que la règle du moteur interdit
      d'inventer des plans. On retire donc tout marqueur autre que [Shot 1]
@@ -373,7 +368,7 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
   /* Retouche : garde-fou MÉCANIQUE contre le délayage. Le format impose de
      terminer par la clause de préservation « … unchanged. » ; on coupe tout
      ce qui suit la PREMIÈRE occurrence. Un modèle CPU obéit mal à « deux
-     phrases et stop » (constaté : « robe rouge » s'arrête, « enlève les
+     phrases et stop » (« robe rouge » s'arrête, « enlève les
      lunettes » repart en description de scène) — on ne compte pas dessus, on
      tronque. Repli : si « unchanged » est absent, on garde le texte tel quel. */
   if (engine === 'edit') {

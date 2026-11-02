@@ -1,4 +1,4 @@
-/* Images restantes pour l'heure sur la démo publique (24/10), dans l'en-tête à
+/* Images restantes pour l'heure sur la démo publique, dans l'en-tête à
    côté du voyant machine. Rien pour le propriétaire ni le tailnet (sans limite). */
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'

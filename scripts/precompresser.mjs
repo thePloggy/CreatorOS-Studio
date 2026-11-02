@@ -1,6 +1,6 @@
 /* Après `vite build` : écrit un .br et un .gz à côté de chaque js/css/html/svg
    de dist/. @fastify/static (preCompressed) les sert selon Accept-Encoding —
-   le bundle principal passe de 1,2 Mo à ~0,16 Mo sur le fil (15/10). */
+   le bundle principal passe de 1,2 Mo à ~0,16 Mo sur le fil. */
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'

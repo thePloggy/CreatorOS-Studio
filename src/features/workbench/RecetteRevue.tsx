@@ -1,4 +1,4 @@
-/* Revue d'une recette (11/10) : ce que l'interface pilote dans ce graphe, ce
+/* Revue d'une recette : ce que l'interface pilote dans ce graphe, ce
    qui est déclaré dans le fichier voisin `<recette>.pilotage.json`, ce qui
    reste figé, et ce qui manque sur la machine. Lecture seule : aucun rendu,
    aucune écriture. Source : GET /api/workflows/:file/revue. */

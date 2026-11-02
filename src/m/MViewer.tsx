@@ -32,7 +32,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   const [armed, arm] = useConfirm()
   const [busy, setBusy] = useState('')
   /* Liste de navigation CAPTURÉE à l'entrée : changer un statut pendant le
-     tri ne doit pas réordonner la liste sous le doigt (spec p. 5). */
+     tri ne doit pas réordonner la liste sous le doigt. */
   const navList = useRef(list.map(a => a.id))
   const idx = navList.current.indexOf(asset.id)
   const fresh = s.assets.find(a => a.id === asset.id) ?? asset
@@ -53,7 +53,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  /* Balayage horizontal = navigation, jamais validation (spec p. 5).
+  /* Balayage horizontal = navigation, jamais validation.
      Un geste vertical ou un pincement ne déclenchent rien : ils servent au
      défilement et au zoom. */
   const touch = useRef<{ x: number; y: number; multi: boolean } | null>(null)

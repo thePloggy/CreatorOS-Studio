@@ -77,7 +77,7 @@ export const T0_SEXE_EXPRESSIONS = [
   'retire sa chemise', 'sans soutien-gorge', 'faire l’amour', "faire l'amour", 'fait l’amour', "fait l'amour",
 ]
 
-/* Tournures de retouche (31/10) : un visiteur a déshabillé un personnage par
+/* Tournures de retouche : un visiteur a déshabillé un personnage par
    « remove bikini top », puis l'a réduit par « tiny bikini » et « larger boobies ».
    Retirer, réduire ou remplacer par de la peau, sur un vêtement. */
 const TENUE = String.raw`(?:bikinis?|swimsuits?|swimwear|bathing suits?|tops?|bra|bras|shirts?|t-shirt|tee|blouses?|dress|dresses|skirts?|pants|trousers|jeans|shorts|bottoms?|clothes|clothing|outfit|garments?|maillots?|haut|soutien-gorge|chemise|robe|jupe|pantalon|vêtements?|habits?|tenue)`

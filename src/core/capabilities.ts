@@ -9,7 +9,7 @@
 
 /** ControlNet en Génération.
  *
- *  Faux depuis le 22/08/2026 : les deux recettes de génération tournent sur
+ *  Faux : les deux recettes de génération tournent sur
  *  FLUX.2 Klein 9B, et **il n'existe aucun ControlNet pour cette
  *  architecture**. Vérifié plutôt que supposé — `comfy/controlnet.py` ne
  *  mentionne jamais `flux2`, et les deux seuls nœuds à `model_patch` d'image

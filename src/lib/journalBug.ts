@@ -1,4 +1,4 @@
-/* Journal pour un rapport de bug (27/10) : les dernières erreurs du navigateur, plus
+/* Journal pour un rapport de bug : les dernières erreurs du navigateur, plus
    GET /api/journal-bug (version, système, état de ComfyUI, derniers échecs), en un
    texte à coller tel quel dans une issue GitHub. Rien de privé n'y entre. */
 const erreurs: string[] = []

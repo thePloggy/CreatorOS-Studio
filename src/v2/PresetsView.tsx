@@ -1,5 +1,5 @@
 /* ============================================================
-   Galerie « Caméra & effets » (21/10) — des cartes qui tournent en boucle,
+   Galerie « Caméra & effets » — des cartes qui tournent en boucle,
    une photo, un clic : le clip part dans la file de rendu ordinaire et arrive
    dans la bibliothèque (onglet Vidéo). Les presets vivent côté serveur
    (server/presets.js) ; ici on choisit et on lance.

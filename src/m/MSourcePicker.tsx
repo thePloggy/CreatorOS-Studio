@@ -1,5 +1,5 @@
 /* ============================================================
-   Sélecteur de source — connaît sa DESTINATION (spec p. 21).
+   Sélecteur de source — connaît sa DESTINATION.
 
    Chaque rôle sait ce qu'il accepte (image ou vidéo), où poser le
    résultat, et propose deux chemins : la bibliothèque, ou un fichier du

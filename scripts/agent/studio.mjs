@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ============================================================
-   Ligne de commande du studio (30/10) : ce que fait l'interface, depuis un
+   Ligne de commande du studio : ce que fait l'interface, depuis un
    terminal ou un agent de code. Parle à un studio lancé (npm start).
    --json rend une ligne JSON par résultat, pour qu'un agent la lise.
    ============================================================ */

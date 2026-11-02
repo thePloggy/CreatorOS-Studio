@@ -51,13 +51,13 @@ export function Ic({ n, s = 20 }: { n: IcName; s?: number }) {
 }
 
 /* ---------- feuille modale ----------
-   Un SEUL dialogue ouvert à la fois (règle de la spec) : le montage d'une
+   Un SEUL dialogue ouvert à la fois : le montage d'une
    feuille ferme la précédente.
 
    Le verrou est indexé par IDENTITÉ d'instance, pas par fonction. En
    développement React monte, démonte puis remonte chaque effet : un verrou
-   naïf faisait fermer la feuille par son PROPRE remontage — elle ne
-   s'ouvrait jamais. Comparer les identités règle le cas sans dépendre du
+   naïf ferait fermer la feuille par son PROPRE remontage — elle ne
+   s'ouvrirait jamais. Comparer les identités règle le cas sans dépendre du
    mode de rendu. */
 let top: { id: symbol; close: () => void } | null = null
 
@@ -167,7 +167,7 @@ export function Toggle({ on, title, hint, onChange, disabledReason }: {
       <span className="txt">
         <b>{title}</b>
         {/* La raison d'indisponibilité remplace l'aide : on n'a jamais un
-            contrôle éteint sans explication (spec p. 13). */}
+            contrôle éteint sans explication. */}
         <small>{disabledReason ?? hint}</small>
       </span>
       <span className="sw" />

@@ -20,7 +20,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
   const [taille, setTaille] = useState(60)          // diamètre, en pixels d'image
   const [gomme, setGomme] = useState(false)
   const [prompt, setPrompt] = useState('')
-  /* Banc du 14/10 : à 75-80 % une photo garde sa couleur (pull crème resté crème),
+  /* À 75-80 % une photo garde sa couleur (pull crème resté crème),
      à 95 % elle change. Une vidéo, même à 100 %, garde le vêtement : la retouche
      vidéo corrige, elle ne remplace pas — 75 % suffit et abîme moins. */
   const [force, setForce] = useState(video ? 0.75 : 0.9)
@@ -31,10 +31,11 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
   const dernier = useRef<{ x: number; y: number } | null>(null)
   const pile = useRef<ImageData[]>([])
   const adopter = useAppStore(s => s.adoptServerJob)
-  /* Poser un objet (01/11) : une photo de la bibliothèque et son nom, collés dans la zone suivie. */
+  /* Poser un objet : une photo de la bibliothèque et son nom, collés dans la zone suivie. */
   const photos = useAppStore(s => s.assets).filter(a => a.mediaType === 'photo').slice(0, 24)
   const [objet, setObjet] = useState<string | null>(null)
   const [objetNom, setObjetNom] = useState('')
+  const [loin, setLoin] = useState(false)
   const [poser, setPoser] = useState(false)
   /* Téléphone : image en haut, réglages dessous (le panneau de 320 px à droite
      ne tient pas sur un écran étroit). Le pinceau suit le doigt (pointer events). */
@@ -113,7 +114,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
       for (let i = 0; i < src.data.length; i += 4) if (src.data[i + 3] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = 255 }
       ctx.putImageData(out, 0, 0)
       const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/inpaint`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mask: m.toDataURL('image/png'), prompt: prompt.trim(), strength: poser && objet ? 0.5 : force, ...(video ? { suivi } : {}), ...(poser && objet ? { objetAsset: objet, objetNom } : {}) }) })
+        body: JSON.stringify({ mask: m.toDataURL('image/png'), prompt: prompt.trim(), strength: poser && objet ? 0.5 : force, ...(video ? { suivi } : {}), ...(poser && objet ? { objetAsset: objet, objetNom, ...(loin ? { loin: true, suivi: false } : {}) } : {}) }) })
       const b = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
       if (!r.ok || !b.jobId) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`)
       await adopter(b.jobId)
@@ -162,6 +163,9 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
           </div>
           <input value={objetNom} onChange={e => setObjetNom(e.target.value)} placeholder={t('nom de l’objet, en anglais : sunglasses')} maxLength={80}
             style={{ padding: 8, borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: '#0b0c0e', color: '#f2f2f4', fontSize: 12 }} />
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, cursor: 'pointer' }} title={t('peins la zone où il se tient : il suit la caméra, reste derrière les personnes et prend le flou de la distance')}>
+            <input type="checkbox" checked={loin} onChange={e => setLoin(e.target.checked)} /> {t('Au loin, derrière les personnes')}
+          </label>
         </>)}
         <div style={{ display: 'flex', gap: 6 }}>
           <button style={{ ...bouton, background: !gomme ? 'rgba(255,61,154,0.3)' : bouton.background }} onClick={() => setGomme(false)}>{t('pinceau')}</button>

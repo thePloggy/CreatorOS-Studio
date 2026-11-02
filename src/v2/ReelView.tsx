@@ -1,5 +1,5 @@
 /* ============================================================
-   Reel en un clic (21/10) — un brief, et l'app réalise le reel : plans
+   Reel en un clic — un brief, et l'app réalise le reel : plans
    rédigés, photos, clips LTX, montage avec fondus et accroche, export.
    Le suivi vient du serveur (server/reel.js) ; ici on lance et on regarde.
    Le montage produit reste modifiable dans l'onglet Montage.
@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
+import { ChoixPersonnage } from './ChoixPersonnage'
 
 interface PlanReel { still: string; motion: string; avertissements?: string[]; clipJob?: string | null; photoUri: string | null; clipUri: string | null; photoEtat: string | null; clipEtat: string | null; supprime?: boolean }
 interface Reel {
@@ -65,6 +66,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
         </div>
 
         <div style={{ display: 'grid', gap: 10, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>
+          <ChoixPersonnage />
           <textarea value={brief} onChange={e => setBrief(e.target.value)} maxLength={600} placeholder={t('Le lieu, l’ambiance, ce qui se passe…')}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && brief.trim()) void lancer() }}
             style={{ minHeight: 84, resize: 'vertical', padding: 12, borderRadius: 12, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 14 }} />
@@ -103,7 +105,7 @@ const ETAPES: Reel['etat'][] = ['redaction', 'photos', 'clips', 'export', 'fini'
 const NOM_ETAPE: Record<string, string> = { redaction: 'Rédaction', photos: 'Photos', clips: 'Clips', export: 'Montage', fini: 'Prêt' }
 
 function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: string) => void; onRetirer: () => void }) {
-  // refaire un seul plan (30/10) : sa photo reste, son clip est rendu à nouveau, le reel est remonté
+  // refaire un seul plan : sa photo reste, son clip est rendu à nouveau, le reel est remonté
   const [planRefait, setPlanRefait] = useState<number | null>(null)
   const [geste, setGeste] = useState('')
   const [errPlan, setErrPlan] = useState<string | null>(null)

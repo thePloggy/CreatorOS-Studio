@@ -1,4 +1,4 @@
-/* Musique et bruitages générés (01/11) : ACE-Step 1.5 sur la carte, le morceau rejoint la liste des musiques. */
+/* Musique et bruitages générés : ACE-Step 1.5 sur la carte, le morceau rejoint la liste des musiques. */
 import { useState } from 'react'
 import { t, tServeur } from '../i18n'
 

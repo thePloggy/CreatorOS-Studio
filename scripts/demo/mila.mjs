@@ -1,4 +1,4 @@
-/* Banc Mila (personnage vidéo, LoRA LTX-2.3 sur LTX-2.5) : plans texte → vidéo
+/* Essai de Mila (personnage vidéo, LoRA LTX-2.3 sur LTX-2.5) : plans texte → vidéo
    AVEC le personnage, plus deux photos Krea 2 (sa LoRA photo) pour l'I2V.
 
    node scripts/demo/mila.mjs [url du studio] */

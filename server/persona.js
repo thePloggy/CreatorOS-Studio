@@ -150,9 +150,13 @@ export function persona(id) {
   return normaliser(f ?? { id: cible ?? 'default' }, cible === actif)
 }
 
+/** Rendu sans identité imposée : ni LoRA, ni mot déclencheur, ni préambule. */
+export const SANS_PERSONNAGE = 'aucun'
+
 /** Personnage demandé par un dépôt s'il existe, sinon l'actif : un client
  *  peut lancer un rendu pour un autre personnage sans changer l'actif. */
 export function personaDuDepot(id) {
+  if (id === SANS_PERSONNAGE) return id
   return typeof id === 'string' && lireFichier().personas.some(p => p.id === id) ? id : persona().id
 }
 
@@ -166,7 +170,7 @@ export function personas() {
  *  description fixe. `null` quand le personnage n'en a pas — l'injection ne
  *  signale alors rien (cf. comfy.injectJob). La clé publiée en provenance dit
  *  d'où vient le texte. */
-/* Ancre d'âge (30/10) : un prompt qui ne nomme personne (« mustard raincoat, rainy street »)
+/* Ancre d'âge : un prompt qui ne nomme personne (« mustard raincoat, rainy street »)
    a donné une silhouette d'enfant sur un personnage sans préambule. Tous les personnages
    du studio sont des femmes adultes : chaque rendu le dit, sauf si le préambule donne un âge. */
 const ADULTE = 'an adult woman in her mid-twenties'

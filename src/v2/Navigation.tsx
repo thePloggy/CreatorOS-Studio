@@ -1,5 +1,5 @@
 /* ============================================================
-   Navigation (01/11) : les outils rangés par intention, Créer, Mettre en
+   Navigation : les outils rangés par intention, Créer, Mettre en
    scène, Transformer, Finir. Chaque menu dit ce que fait l'outil. Un outil
    qui part d'un média existant ouvre le choix dans la bibliothèque, puis la
    visionneuse où se trouve son bouton.
@@ -12,8 +12,10 @@ import { Pastille } from './bits'
 import { FramePicker } from './popups'
 
 export type Section = 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur'
+/** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
+export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
-  { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string })
+  { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 export const GROUPES: { titre: string; outils: Outil[] }[] = [
   { titre: 'Créer', outils: [
@@ -22,7 +24,7 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
     { label: 'Vidéo', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
     { label: 'Depuis un texte', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
     { label: 'Avatar parlant', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
-    { label: 'Musique et bruitages', texte: 'Génère un morceau ou un son dans le montage.', section: 'montage', pastille: 'new' },
+    { label: 'Musique et bruitages', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
   ] },
   { titre: 'Mettre en scène', outils: [
     { label: 'Stage', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
@@ -33,15 +35,15 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
   { titre: 'Transformer', outils: [
     { label: 'Mix', texte: 'Tes personnages prennent la place de 1 à 3 personnes.', section: 'video', tache: 'mix', pastille: 'new' },
     { label: 'Move', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
-    { label: 'Objet 3D', texte: 'Une photo devient un modèle GLB.', depuis: 'photo', titre: 'Photo à passer en 3D', pastille: 'new' },
-    { label: 'Retouche et objet', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', pastille: 'new' },
-    { label: 'Angles, looks, lumière', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer' },
+    { label: 'Objet 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
+    { label: 'Retouche et objet', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
+    { label: 'Angles, looks, lumière', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
   ] },
   { titre: 'Finir', outils: [
     { label: 'Montage', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
-    { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner' },
-    { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', pastille: 'new' },
-    { label: 'Fond vert ou transparent', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer' },
+    { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
+    { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
+    { label: 'Fond vert ou transparent', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },
   ] },
 ]
 
@@ -49,11 +51,12 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
 export function useOuvrirOutil(aller: (s: Section) => void) {
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
   const updateVideo = useAppStore(st => st.updateVideo)
-  const [choix, setChoix] = useState<{ type: 'photo' | 'video'; titre: string } | null>(null)
+  const [choix, setChoix] = useState<Choix | null>(null)
   const ouvrir = (o: Outil) => {
     if ('stage' in o) { ouvrirStage(); return }
-    if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre }); return }
+    if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
+    useAppStore.setState({ ongletMusiques: o.tache === 'musiques' })
     if (o.tache === 'creer') updateVideo({ task: 'i2v' })
     if (o.tache === 'texte') updateVideo({ task: 't2v' })
     if (o.tache === 'move' || o.tache === 'mix') updateVideo({ task: 'motion_pure', motionMode: o.tache === 'mix' ? 'replace' : 'animate' })
@@ -62,13 +65,15 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
   return { ouvrir, choix, fermerChoix: () => setChoix(null) }
 }
 
-export function ChoixMedia({ choix, onClose, onPick }: { choix: { type: 'photo' | 'video'; titre: string } | null; onClose: () => void; onPick: (a: Asset) => void }) {
+type Choix = { type: 'photo' | 'video'; titre: string; action: ActionOutil }
+
+export function ChoixMedia({ choix, onClose, onPick }: { choix: Choix | null; onClose: () => void; onPick: (a: Asset, action?: ActionOutil) => void }) {
   const assets = useAppStore(s => s.assets)
-  return <FramePicker open={!!choix} onClose={onClose} title={t(choix?.titre ?? '')} assets={assets.filter(a => a.mediaType === choix?.type)}
-    onPickAsset={a => { onClose(); onPick(a) }} onPickUpload={onClose} />
+  return <FramePicker open={!!choix} onClose={onClose} title={t(choix?.titre ?? '')} media={choix?.type} assets={assets.filter(a => a.mediaType === choix?.type && !a.modele3d)}
+    onPickAsset={a => { const action = choix?.action; onClose(); onPick(a, action) }} onPickUpload={onClose} />
 }
 
-export function MenusOutils({ section, aller, onPick }: { section: Section; aller: (s: Section) => void; onPick: (a: Asset) => void }) {
+export function MenusOutils({ section, aller, onPick }: { section: Section; aller: (s: Section) => void; onPick: (a: Asset, action?: ActionOutil) => void }) {
   const [ouvert, setOuvert] = useState<string | null>(null)
   const { ouvrir, choix, fermerChoix } = useOuvrirOutil(aller)
   const racine = useRef<HTMLDivElement>(null)

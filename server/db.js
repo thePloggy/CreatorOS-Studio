@@ -102,11 +102,9 @@ CREATE TABLE IF NOT EXISTS folder_assets (
 CREATE INDEX IF NOT EXISTS idx_folder_assets_asset ON folder_assets(asset_id);
 `)
 
-/* `folder_assets` est née SANS clé étrangère — seule table du schéma dans ce
-   cas. Conséquence : supprimer un média laissait sa ligne d'appartenance
-   derrière lui, et le compteur du dossier annonçait des médias qui n'existent
-   plus (20 affichés pour 13 réels, constaté le
-   23/09/2026). On la reconstruit avec la même cascade que `provenance` ; la
+/* Migration de `folder_assets` créée sans clé étrangère : supprimer un média
+   y laisserait sa ligne d'appartenance, et le compteur du dossier annoncerait
+   des médias qui n'existent plus. On la reconstruit avec la même cascade que `provenance` ; la
    copie ne reprend que les liens dont le média ET le dossier existent, ce qui
    purge les orphelins au passage. Idempotent : une fois la clé posée, le test
    est faux et le bloc ne refait rien. */
@@ -158,14 +156,14 @@ try { db.exec('ALTER TABLE jobs ADD COLUMN payload TEXT') } catch { /* déjà l�
    et SQLite autorise autant de NULL qu'on veut dans un index unique. */
 try { db.exec('ALTER TABLE jobs ADD COLUMN request_id TEXT') } catch { /* déjà là */ }
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS jobs_request_id ON jobs(request_id)') } catch { /* déjà là */ }
-/* Fonction de l'asset (op generate/swap, moteur vidéo ou 'motion') : ajoutée le
-   25/08 pour filtrer les galeries par catégorie. Rétro-remplie depuis le
+/* Fonction de l'asset (op generate/swap, moteur vidéo ou 'motion') : sert à
+   filtrer les galeries par catégorie. Rétro-remplie depuis le
    payload du job pour que la bibliothèque existante soit filtrable aussi. */
 {
   const acols = new Set(db.prepare('PRAGMA table_info(assets)').all().map(c => c.name))
   if (!acols.has('op')) db.exec('ALTER TABLE assets ADD COLUMN op TEXT')
   if (!acols.has('video_engine')) db.exec('ALTER TABLE assets ADD COLUMN video_engine TEXT')
-  /* Caption gravée des reels (29/09) : le texte à l'écran, modifiable par
+  /* Caption gravée des reels : le texte à l'écran, modifiable par
      l'opérateur ; `caption_options` garde les autres propositions du
      rédacteur, pour en choisir une sans relancer. */
   if (!acols.has('caption')) db.exec('ALTER TABLE assets ADD COLUMN caption TEXT')
@@ -292,7 +290,7 @@ export function createAsset(a, prov) {
    « Cloner » possible après un rechargement de page (le Job n'est plus en
    mémoire côté front). Le workflow complet, lui, reste hors de cette vue —
    il pèse ~900 Ko et ne sert qu'à la route dédiée. */
-/* Contrôle automatique d'un clip rendu (27/10, scripts/controle_clip.py) : défauts
+/* Contrôle automatique d'un clip rendu (scripts/controle_clip.py) : défauts
    horodatés et score de visage, par asset. Créée avant ASSET_SELECT, qui la lit. */
 db.exec(`CREATE TABLE IF NOT EXISTS controles (asset_id TEXT PRIMARY KEY, job_id TEXT, data TEXT NOT NULL, at INTEGER NOT NULL)`)
 const ecrireControleStmt = db.prepare('INSERT INTO controles (asset_id, job_id, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(asset_id) DO UPDATE SET data = excluded.data, at = excluded.at')
@@ -335,7 +333,7 @@ export const listAssets  = (limit = 200, personaId) =>
 export const getProvenance = id => getProvStmt.get(id)
 
 /* ---------- dossiers (collections d'assets, appartenances multiples) ---------- */
-/* Dossiers cloisonnés par personnage (20/10) : sans persona_id, les dossiers
+/* Dossiers cloisonnés par personnage : sans persona_id, les dossiers
    d'un personnage apparaissaient chez tous les autres. Un dossier existant
    sans personnage prend celui de la majorité de ses rendus ; un dossier vide,
    celui qui le crée ensuite (rattaché à la première liste qui le voit). */
@@ -405,7 +403,7 @@ export function deleteJobDeep(id) {
   return { removed: r.changes > 0, assetsRemoved: n }
 }
 
-/* ---------- briefs récents et étoilés (11/10) ----------
+/* ---------- briefs récents et étoilés ----------
    L'historique n'est pas stocké à part : ce sont les briefs des jobs. Seules
    les étoiles ont leur table (un brief étoilé survit à la suppression du job). */
 db.exec(`CREATE TABLE IF NOT EXISTS briefs_etoiles (texte TEXT PRIMARY KEY, mode TEXT, at INTEGER NOT NULL)`)
@@ -423,7 +421,7 @@ export function starBrief(texte, mode, on) {
   else db.prepare('DELETE FROM briefs_etoiles WHERE texte = ?').run(texte)
 }
 
-/* ---------- corbeille (11/10) ----------
+/* ---------- corbeille ----------
    Supprimer un asset ne l'efface plus tout de suite : sa ligne, sa provenance
    et ses dossiers sont photographiés en JSON dans `corbeille`, puis retirés
    des tables vivantes (aucune requête de la galerie n'a donc à changer). Le
@@ -521,7 +519,7 @@ export function setJobBatchId(id, batchId) {
   return true
 }
 
-/* Fichiers déposés par LE STUDIO dans le dossier input de ComfyUI (20/10).
+/* Fichiers déposés par LE STUDIO dans le dossier input de ComfyUI.
    Ce dossier est partagé avec l'instance privée : le lister tel quel montrait
    les uploads et frames de l'autre instance. On ne liste et ne sert donc que
    les noms inscrits ici. Premier passage : on reprend les noms déjà cités par
@@ -535,7 +533,7 @@ if (inputsNeuf) {
     for (const m of String(payload).matchAll(/crs_[\w.-]+?\.(?:png|jpe?g|webp|mp4|mov|webm)/gi)) noms.add(m[0])
   for (const n of noms) noterInputStmt.run(n, Date.now())
 }
-/* Origine de chaque dépôt (23/10) : « genere » pour ce que le studio tire de ses
+/* Origine de chaque dépôt : « genere » pour ce que le studio tire de ses
    propres rendus (still, première/dernière image, suite), « upload » pour un
    fichier envoyé, « voix » pour une voix. Un visiteur ne part que de « genere ».
    Les noms d'avant cette colonne sont classés par leur forme ; une image tirée
