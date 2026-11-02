@@ -103,7 +103,10 @@ app.addHook('onSend', async (req, reply, payload) => {
 const sansFiltreContenu = new Set([...ROUTES_PROPRIETAIRE, 'POST /api/proprietaire'])
 function texteInterdit(v, cle = '') {
   if (/negati/i.test(cle)) return null
-  if (typeof v === 'string') return t0Hit(v)
+  // une image PNG encodée n'est pas du texte (elle est décodée puis réduite à ses traits) :
+  // des lettres tirées au hasard y formaient parfois un terme interdit (« nus » dans un croquis).
+  // Seule une chaîne ENTIÈREMENT en base64 strict est sautée ; tout autre texte est lu.
+  if (typeof v === 'string') return /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(v) ? null : t0Hit(v)
   if (Array.isArray(v)) { for (const x of v) { const h = texteInterdit(x, cle); if (h) return h } return null }
   if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { const h = texteInterdit(x, k); if (h) return h } }
   return null

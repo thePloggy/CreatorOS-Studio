@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
 import { useEdition } from '../../lib/proprietaire'
-import { OutilPage } from '../../v2/OutilPage'
+import { OutilPage, useSuiviOutil } from '../../v2/OutilPage'
 
 const CHOIX: { cle: 'origine' | 'cheveux' | 'yeux' | 'style' | 'signes'; titre: string; options: string[]; multiple?: boolean }[] = [
   { cle: 'origine', titre: 'Origine du personnage', options: ['Portuguese', 'Japanese', 'Nigerian', 'Brazilian', 'Swedish', 'Indian', 'Moroccan', 'Korean', 'Mexican', 'Irish', 'Lebanese', 'Vietnamese'] },
@@ -15,18 +15,34 @@ const CHOIX: { cle: 'origine' | 'cheveux' | 'yeux' | 'style' | 'signes'; titre: 
 ]
 type Traits = { genre: string; age: number; origine: string; cheveux: string; yeux: string; style: string; signes: string }
 
+/* Ce qui doit survivre à un changement de page : la dernière série de visages, le choix,
+   le nom et la création en cours. Les visages vont aussi dans l'Historique de l'outil. */
+const CLE = 'creatoros.creerPersonnage'
+type Memo = { jobs?: string[]; choisi?: string | null; nom?: string; suiviId?: string | null }
+const lireMemo = (): Memo => { try { return JSON.parse(localStorage.getItem(CLE) ?? '{}') } catch { return {} } }
+
 export function CreerPersonnageView() {
   const edition = useEdition()
   const s = useAppStore()
   const [traits, setTraits] = useState<Traits>({ genre: 'woman', age: 28, origine: '', cheveux: '', yeux: '', style: '', signes: '' })
   const [ouvert, setOuvert] = useState<string>('origine')
-  const [jobs, setJobs] = useState<string[]>([])
-  const [choisi, setChoisi] = useState<string | null>(null)
-  const [nom, setNom] = useState('')
+  const memo = useMemo(lireMemo, [])
+  const historique = useSuiviOutil('personnage')
+  const [jobs, setJobs] = useState<string[]>(memo.jobs ?? [])
+  const [choisi, setChoisi] = useState<string | null>(memo.choisi ?? null)
+  const [nom, setNom] = useState(memo.nom ?? '')
   const [entrainer, setEntrainer] = useState(true)
   const [suivi, setSuivi] = useState<{ id: string; planche: string | null; images: string; entrainementEtat: string | null } | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
+  useEffect(() => {
+    try { localStorage.setItem(CLE, JSON.stringify({ jobs, choisi, nom, suiviId: suivi?.id ?? null })) } catch { /* stockage indisponible */ }
+  }, [jobs, choisi, nom, suivi])
+  // une création lancée avant de quitter la page reprend son suivi (le serveur l'oublie à son redémarrage)
+  useEffect(() => {
+    if (!memo.suiviId) return
+    void fetch(`/api/personnages/creer/${encodeURIComponent(memo.suiviId)}`).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSuivi(d) }).catch(() => {})
+  }, [memo])
   const portraits = useMemo(() => s.assets.filter(a => a.jobId && jobs.includes(a.jobId) && a.mediaType === 'photo'), [s.assets, jobs])
   useEffect(() => {
     if (!suivi || suivi.entrainementEtat === 'done') return
@@ -45,7 +61,7 @@ export function CreerPersonnageView() {
     const l = String(x[cle]).split(', ').filter(Boolean)
     return { ...x, [cle]: (l.includes(v) ? l.filter(y => y !== v) : [...l, v]).join(', ') }
   })
-  const proposer = async () => { setOccupe(true); const d = await poster('/api/personnages/propositions', { traits }); setOccupe(false); if (d) { setJobs(d.jobs); setChoisi(null); setSuivi(null); for (const j of d.jobs) void s.adoptServerJob(j) } }
+  const proposer = async () => { setOccupe(true); const d = await poster('/api/personnages/propositions', { traits }); setOccupe(false); if (d) { setJobs(d.jobs); setChoisi(null); setSuivi(null); historique.ajouter(d.jobs); for (const j of d.jobs) void s.adoptServerJob(j) } }
   const creer = async () => { const d = await poster('/api/personnages/creer', { assetId: choisi, nom, traits, entrainer }); if (d) { setSuivi(d); await s.refreshPersona() } }
   if (!edition) return <div className="outil-vide" style={{ flex: 1 }}>{t('Créer un personnage est réservé au propriétaire du studio.')}</div>
   const resultat = jobs.length > 0 ? (
@@ -70,6 +86,7 @@ export function CreerPersonnageView() {
   return (
     <OutilPage titre={t('Créer un personnage')} texte={t('Décris-le : le studio propose 4 visages, tu choisis, il crée le personnage, sa planche de référence, 12 images et sa LoRA.')}
       resultat={resultat}
+      jobs={j => historique.ids.has(j.id)} assets={a => !!a.jobId && historique.ids.has(a.jobId)}
       etapes={[
         { titre: 'Les traits', texte: 'Un adulte de 21 à 80 ans : origine, cheveux, yeux, style, signes distinctifs.' },
         { titre: 'Quatre visages', texte: 'Krea 2 propose quatre portraits en studio ; tu choisis et tu le nommes.' },
