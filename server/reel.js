@@ -282,7 +282,7 @@ function avancer(r) {
 }
 
 /* Clip musical : les temps forts du morceau (scripts/temps.py) donnent la longueur des plans,
-   un nombre entier de temps proche de 3 s, et les coupes tombent sur les temps. */
+   un nombre entier de temps, et les coupes tombent sur les temps. */
 function grilleMusique(r) {
   if (!r.calerMusique || !r.musique) return null
   try {
@@ -290,7 +290,8 @@ function grilleMusique(r) {
     const g = JSON.parse(execFileSync(py, [path.join(import.meta.dirname, '..', 'scripts', 'temps.py'), montage.cheminMusique(r.musique)], { encoding: 'utf8', timeout: 60_000 }))
     if (!g.temps?.length || g.temps.length < 4) return null
     const p = (g.temps[g.temps.length - 1] - g.temps[0]) / (g.temps.length - 1)
-    return { debut: g.temps[0], pas: p * Math.max(2, Math.round(3 / p)), bpm: g.bpm }
+    // le plus grand nombre entier de temps qui tient dans un clip : une coupe ne tombe jamais avant la fin du plan
+    return { debut: g.temps[0], pas: p * Math.max(1, Math.floor((r.duree - 0.05) / p)), bpm: g.bpm }
   } catch (e) { console.warn(`[reel ${r.id}] tempo : ${e.message || e}`); return null }
 }
 

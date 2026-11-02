@@ -67,6 +67,9 @@
   },
   "doublage": {
    "label": "Dubbing a clip with a new voice: InfiniteTalk (Wan 2.1)"
+  },
+  "recadrage": {
+   "label": "Video reframe: Wan 2.2 Fun VACE A14B generates the new edges of a clip"
   }
  },
  "noeuds": [
@@ -463,7 +466,8 @@
     "video_retouche",
     "video_wan",
     "video_wan_t2v",
-    "doublage"
+    "doublage",
+    "recadrage"
    ],
    "recettes": [
     "PROD_video_wan.json",
@@ -684,7 +688,8 @@
    "groupes": [
     "video_retouche",
     "mix",
-    "doublage"
+    "doublage",
+    "recadrage"
    ],
    "recettes": [
     "PROD_v2v_refine.json",
@@ -1423,6 +1428,30 @@
    "licence": "MIT",
    "groupes": [
     "musique"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors",
+   "taille": 17346056104,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "recadrage"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors",
+   "taille": 17346056104,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "recadrage"
    ],
    "recettes": [],
    "verifie": true

@@ -560,4 +560,5 @@ export const nouveautes: Record<string, string> = {
   'Pour TikTok, Reels et Shorts, passe-le en 9:16 (outil Recadrer).': 'For TikTok, Reels and Shorts, make it 9:16 (Reframe tool).',
   'Il est muet : ajoute un son ou une musique, la plupart des vidéos sont regardées avec le son au moins une fois.': 'It is silent: add sound or music.',
   'Un seul plan de plus de 4 s : une coupe ou un mouvement de caméra relance l’attention.': 'One shot longer than 4 s: a cut or a camera move keeps attention.',
+  'Wan VACE regarde le clip au centre du nouveau cadre et génère les bords image par image ; le clip d’origine reste intact. Environ 10 min.': 'Wan VACE looks at the clip in the centre of the new frame and generates the edges frame by frame; the original clip stays untouched. About 10 min.',
 }

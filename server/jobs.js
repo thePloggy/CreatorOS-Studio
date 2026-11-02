@@ -6,6 +6,7 @@
    ============================================================ */
 import { PROFILS, profilDuJob } from './allege.js'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -1189,27 +1190,105 @@ const INPAINT_VIDEO_MAX_IMAGES = 161
 /* Recadrage vidéo : le clip est posé au centre d'un cadre au nouveau format, les bords
    (pré-remplis des seules couleurs du clip, sans formes qui deviendraient des fantômes) sont redessinés par la retouche Wan, zone fixe. */
 const FORMATS_RECADRAGE = { '9:16': 9 / 16, '16:9': 16 / 9, '1:1': 1, '4:5': 4 / 5 }
+/* Recadrage : Wan 2.2 Fun VACE voit le clip posé au centre d'une toile grise et génère les
+   bords image par image, en continuité du décor, de la perspective et du mouvement. Le clip
+   d'origine est ensuite recollé au centre (sa cadence, son son), jointure fondue. */
+const VACE_IMAGES = 81
 export function enqueueRecadrage({ source, format, prompt, parentAssetId, personaId }) {
   const ar = FORMATS_RECADRAGE[format]
   if (!ar) throw new Error('format inconnu')
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', source], { encoding: 'utf8' }).trim().split(',').map(Number)
+  const vace = 'wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors'
+  if (![path.join(CONFIG.comfyDir, 'models', 'diffusion_models'), path.join(os.homedir(), 'models', 'diffusion_models')].some(d => fs.existsSync(path.join(d, vace)))) throw new Error('modèle Wan 2.2 Fun VACE absent (voir l’installateur, groupe recadrage)')
+  const sonde = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', source], { encoding: 'utf8' }).trim().split('\n')
+  const [w, h] = sonde.slice(0, 2).map(Number), duree = Number(sonde[3])
+  const [fn, fd] = String(sonde[2]).split('/').map(Number), fpsOrig = Math.min(60, fd ? fn / fd : fn) || 24
   if (Math.abs(w / h - ar) < 0.02) throw new Error('le clip est déjà à ce format')
-  // le clip garde sa taille dans le nouveau cadre ; côté long plafonné à 1280 px, multiples de 16
+  if (!(duree > 0)) throw new Error('vidéo illisible')
+  if (duree > 10.5) throw new Error('clip trop long pour le recadrage : 10 s au plus')
+  // toile finale : le clip garde sa taille, côté long plafonné à 1280 px ; toile de génération : côté long 1024
+  const pair = v => Math.max(16, Math.round(v / 16) * 16)
   let W = w / h < ar ? h * ar : w, H = w / h < ar ? h : w / ar
-  const k = Math.min(1, 1280 / Math.max(W, H))
-  const r16 = v => Math.max(16, Math.round(v * k / 16) * 16)
-  W = r16(W); H = r16(H)
+  const k = Math.min(1, 1280 / Math.max(W, H)); W = pair(W * k); H = pair(H * k)
   const cw = Math.min(W, Math.round(w * k / 2) * 2), ch = Math.min(H, Math.round(h * k / 2) * 2)
-  const cle = Date.now().toString(36), nom = `RCD_${cle}.mp4`, masque = `RCD_${cle}_masque.png`
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', source, '-filter_complex',
-    `[0:v]split[a][b];[a]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},scale=24:-2,scale=${W}:${H}:flags=bilinear,boxblur=12:2[f];[b]scale=${cw}:${ch}[n];[f][n]overlay=(W-w)/2:(H-h)/2`,
-    '-map', '0:a?', '-c:a', 'copy', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', path.join(CONFIG.comfyInput, nom)])
-  // masque : blanc sur les bords à inventer, avec 24 px de recouvrement sur le clip
-  const m = 24
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=white:s=${W}x${H}`, '-vf',
-    `drawbox=x=${(W - cw) / 2 + m}:y=${(H - ch) / 2 + m}:w=${Math.max(2, cw - 2 * m)}:h=${Math.max(2, ch - 2 * m)}:color=black:t=fill`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
-  const texte = String(prompt ?? '').trim() || 'wide view, the same place continues naturally on every side, same light, coherent perspective, no frame, no border, no doorway'
-  return enqueueInpaintVideo({ sourceFile: nom, maskFile: masque, parentAssetId, prompt: texte, strength: 1, suivi: false, personaId })
+  const kg = 1024 / Math.max(W, H), Wg = pair(W * kg), Hg = pair(H * kg)
+  const cwg = Math.round(cw * Wg / W / 2) * 2, chg = Math.round(ch * Hg / H / 2) * 2
+  // 81 images couvrent tout le clip : au-delà de 5 s la cadence de génération baisse
+  const fpsGen = Math.min(16, (VACE_IMAGES - 1) / duree)
+  const cle = Date.now().toString(36), ctrl = `RCD_${cle}.mp4`, masque = `RCD_${cle}_masque.png`
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', source, '-f', 'lavfi', '-i', `color=0x808080:s=${Wg}x${Hg}:r=${fpsGen}`, '-filter_complex',
+    `[0:v]fps=${fpsGen},scale=${cwg}:${chg},setsar=1[c];[1:v][c]overlay=(W-w)/2:(H-h)/2:shortest=1,tpad=stop_mode=clone:stop=${VACE_IMAGES}[v]`,
+    '-map', '[v]', '-frames:v', String(VACE_IMAGES), '-an', '-c:v', 'libx264', '-crf', '12', '-pix_fmt', 'yuv420p', path.join(CONFIG.comfyInput, ctrl)])
+  // masque : blanc = à générer ; le clip garde 6 px de recouvrement pour que les bords le prolongent
+  const m = 6
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=white:s=${Wg}x${Hg}`, '-vf',
+    `drawbox=x=${(Wg - cwg) / 2 + m}:y=${(Hg - chg) / 2 + m}:w=${Math.max(2, cwg - 2 * m)}:h=${Math.max(2, chg - 2 * m)}:color=black:t=fill`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
+  const texte = String(prompt ?? '').trim() || 'the same place continues naturally on every side, same light, coherent perspective'
+  if (t0Hit(texte)) throw new Error('prompt refusé (liste T0)')
+  const id = `rcd-${cle}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'recadrage@v2', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'recadrage', videoEngine: null,
+    recadrage: { source, ctrl, masque, W, H, cw, ch, Wg, Hg, fpsGen, duree, fpsOrig },
+    parentAssetId: parentAssetId ?? null, userPrompt: texte, userDirectives: null, composedPositive: texte, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 9 * 60_000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+
+function grapheRecadrage(job) {
+  const r = job.recadrage, s = Number(job.seed) || 42
+  const neg = 'black bars, letterbox, picture frame, border, doorway, window frame, split screen, blurry edges, smeared, distorted, duplicated people, text, watermark'
+  const ks = (model, debut, fin, latent, bruit) => ({ class_type: 'KSamplerAdvanced', inputs: { model, add_noise: bruit ? 'enable' : 'disable', noise_seed: s, steps: 20, cfg: 3.5,
+    sampler_name: 'uni_pc', scheduler: 'simple', positive: ['vace', 0], negative: ['vace', 1], latent_image: latent, start_at_step: debut, end_at_step: fin, return_with_leftover_noise: bruit ? 'enable' : 'disable' } })
+  return {
+    uh: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    ul: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    mh: { class_type: 'ModelSamplingSD3', inputs: { model: ['uh', 0], shift: 8 } },
+    ml: { class_type: 'ModelSamplingSD3', inputs: { model: ['ul', 0], shift: 8 } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp16.safetensors', type: 'wan', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: job.composedPositive } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: neg } },
+    ctrl: { class_type: 'VHS_LoadVideo', inputs: { video: r.ctrl, force_rate: 0, custom_width: 0, custom_height: 0, frame_load_cap: VACE_IMAGES, skip_first_frames: 0, select_every_nth: 1 } },
+    mimg: { class_type: 'LoadImage', inputs: { image: r.masque } },
+    mrep: { class_type: 'RepeatImageBatch', inputs: { image: ['mimg', 0], amount: VACE_IMAGES } },
+    mm: { class_type: 'ImageToMask', inputs: { image: ['mrep', 0], channel: 'red' } },
+    vace: { class_type: 'WanVaceToVideo', inputs: { positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0], width: r.Wg, height: r.Hg, length: VACE_IMAGES, batch_size: 1, strength: 1,
+      control_video: ['ctrl', 0], control_masks: ['mm', 0] } },
+    kh: ks(['mh', 0], 0, 10, ['vace', 2], true),
+    kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
+    trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
+    dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], fps: 16 } },
+    out: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/bords`, format: 'mp4', codec: 'h264' } },
+  }
+}
+
+async function runRecadrage(job, t0) {
+  const r = job.recadrage
+  const g = grapheRecadrage(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { timeoutMs: 30 * 60_000, onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const sortie = Object.values(history.outputs ?? {}).flatMap(o => [...(o.images ?? []), ...(o.videos ?? []), ...(o.gifs ?? [])]).find(f => /\.mp4$/.test(f.filename))
+  if (!sortie) throw new Error('recadrage : aucune vidéo en sortie')
+  const bords = path.join(CONFIG.comfyOutput, sortie.subfolder ?? '', sortie.filename)
+  // le clip d'origine recollé au centre, à sa cadence, jointure fondue sur 12 px ; les bords suivent sa durée
+  const f = 12, tmp = `${bords}.final.mp4`
+  await executer('ffmpeg', ['-v', 'error', '-y', '-i', r.source, '-i', bords, '-f', 'lavfi', '-i', `color=black:s=${r.cw}x${r.ch}`, '-filter_complex',
+    `[0:v]scale=${r.cw}:${r.ch},setsar=1,format=yuva420p[c];` +
+    `[2:v]drawbox=x=${f}:y=${f}:w=${r.cw - 2 * f}:h=${r.ch - 2 * f}:color=white:t=fill,boxblur=${f / 2}:2,format=gray[a];` +
+    `[c][a]alphamerge[ca];` +
+    `[1:v]setpts=N/(${r.fpsGen}*TB),fps=${r.fpsOrig ?? 24},scale=${r.W}:${r.H}:flags=lanczos,setsar=1[b];` +
+    `[b][ca]overlay=(W-w)/2:(H-h)/2:shortest=1:eval=init,format=yuv420p[v]`,
+    '-map', '[v]', '-map', '0:a?', '-t', String(r.duree), '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', tmp], { timeout: 300_000 })
+  fs.renameSync(tmp, bords)
+  const n = await harvestJob(job, promptId, history, { applied: [`recadrage : Wan 2.2 Fun VACE génère les bords (${r.Wg}×${r.Hg}, 81 images à ${r.fpsGen.toFixed(1)} i/s), clip d'origine recollé au centre`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
 }
 
 export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer, objet, objetNom, loin }) {
@@ -2913,6 +2992,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'detour') return await runDetour(job, t0)
     if (job.op === 'objet3d') return await runObjet3d(job, t0)
     if (job.op === 'doublage') return await runDoublage(job, t0)
+    if (job.op === 'recadrage') return controler(await runRecadrage(job, t0))
     if (job.op === 'entrainement') return await runEntrainement(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)

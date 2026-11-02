@@ -243,7 +243,7 @@ function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionO
   return (<>
     <div className={ouvert === 'recadrer' ? 'guide-outil' : 'flex gap-1.5 items-center flex-wrap text-[12px]'} style={ouvert === 'recadrer' ? undefined : { color: 'var(--muted)' }}>
       {ouvert === 'recadrer' ? <b>{t('Recadrer')}</b> : t('Recadrer')}
-      {ouvert === 'recadrer' && <p>{t('Le clip garde sa taille au centre du nouveau cadre ; Wan invente les bords.')}</p>}
+      {ouvert === 'recadrer' && <p>{t('Wan VACE regarde le clip au centre du nouveau cadre et génère les bords image par image ; le clip d’origine reste intact. Environ 10 min.')}</p>}
       <div className="flex gap-1.5 flex-wrap">{['9:16', '16:9', '1:1'].map(f => <button key={f} className="pill" onClick={() => void poster('recadrer', { format: f })}>{f}</button>)}</div>
     </div>
     <div className={ouvert === 'doubler' ? 'guide-outil' : 'flex gap-1.5 items-center flex-wrap text-[12px]'} style={ouvert === 'doubler' ? undefined : { color: 'var(--muted)' }}>
