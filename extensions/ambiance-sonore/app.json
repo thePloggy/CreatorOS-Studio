@@ -1,0 +1,25 @@
+{
+ "id": "ambiance-sonore",
+ "nom": "Ambient sound",
+ "description": "The background sound of a place, ready to lay under a clip in the editor.",
+ "auteur": "CreatorOS Studio",
+ "licence": "MIT",
+ "version": "1.0.0",
+ "sortie": "audio",
+ "entrees": [
+  {
+   "id": "lieu",
+   "type": "texte",
+   "label": "Place and mood",
+   "defaut": "rainy city street at night, distant traffic, soft rain on umbrellas"
+  },
+  {
+   "id": "secondes",
+   "type": "nombre",
+   "label": "Seconds",
+   "defaut": 10,
+   "min": 3,
+   "max": 30
+  }
+ ]
+}

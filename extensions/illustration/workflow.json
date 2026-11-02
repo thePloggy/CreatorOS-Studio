@@ -1,0 +1,173 @@
+{
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "{{photo}}"
+  }
+ },
+ "12": {
+  "class_type": "ImageScaleToTotalPixels",
+  "inputs": {
+   "upscale_method": "lanczos",
+   "megapixels": 1.0,
+   "resolution_steps": 1,
+   "image": [
+    "10",
+    0
+   ]
+  }
+ },
+ "20": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "qwen_image_edit_2511_fp8mixed.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "21": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "type": "qwen_image",
+   "device": "default"
+  }
+ },
+ "22": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "qwen_image_vae.safetensors"
+  }
+ },
+ "23": {
+  "class_type": "ModelSamplingAuraFlow",
+  "inputs": {
+   "shift": 3.0,
+   "model": [
+    "26",
+    0
+   ]
+  }
+ },
+ "24": {
+  "class_type": "CFGNorm",
+  "inputs": {
+   "strength": 1.0,
+   "model": [
+    "23",
+    0
+   ]
+  }
+ },
+ "30": {
+  "class_type": "TextEncodeQwenImageEditPlus",
+  "inputs": {
+   "prompt": "Redraw this photo as {{style}}. Keep the exact composition, framing, people, poses, clothes and setting. No text, no signature.",
+   "clip": [
+    "21",
+    0
+   ],
+   "vae": [
+    "22",
+    0
+   ],
+   "image1": [
+    "12",
+    0
+   ]
+  }
+ },
+ "31": {
+  "class_type": "TextEncodeQwenImageEditPlus",
+  "inputs": {
+   "prompt": "",
+   "clip": [
+    "21",
+    0
+   ],
+   "vae": [
+    "22",
+    0
+   ],
+   "image1": [
+    "12",
+    0
+   ]
+  }
+ },
+ "32": {
+  "class_type": "VAEEncode",
+  "inputs": {
+   "pixels": [
+    "12",
+    0
+   ],
+   "vae": [
+    "22",
+    0
+   ]
+  }
+ },
+ "40": {
+  "class_type": "KSampler",
+  "inputs": {
+   "seed": "{{seed}}",
+   "denoise": 1.0,
+   "model": [
+    "24",
+    0
+   ],
+   "positive": [
+    "30",
+    0
+   ],
+   "negative": [
+    "31",
+    0
+   ],
+   "latent_image": [
+    "32",
+    0
+   ],
+   "steps": 20,
+   "cfg": 2.5,
+   "sampler_name": "euler",
+   "scheduler": "simple"
+  }
+ },
+ "41": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "40",
+    0
+   ],
+   "vae": [
+    "22",
+    0
+   ]
+  }
+ },
+ "90": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "41",
+    0
+   ],
+   "filename_prefix": "extension"
+  }
+ },
+ "26": {
+  "class_type": "ModelAttentionBackend",
+  "inputs": {
+   "model": [
+    "20",
+    0
+   ],
+   "attention": "pytorch attention"
+  },
+  "_meta": {
+   "title": "Attention PyTorch — Qwen-Image rend NOIR sous SageAttention 1.0.6 (22/09)"
+  }
+ }
+}

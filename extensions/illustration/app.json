@@ -1,0 +1,28 @@
+{
+ "id": "illustration",
+ "nom": "Illustration",
+ "description": "Turns a photo into an illustration in the style you pick, same composition and same people.",
+ "auteur": "CreatorOS Studio",
+ "licence": "MIT",
+ "version": "1.0.0",
+ "sortie": "image",
+ "entrees": [
+  {
+   "id": "photo",
+   "type": "image",
+   "label": "Photo"
+  },
+  {
+   "id": "style",
+   "type": "choix",
+   "label": "Style",
+   "options": [
+    "clean ligne claire comic art with bold uniform outlines and flat colours",
+    "soft watercolour painting on textured paper",
+    "detailed black ink engraving with fine cross-hatching",
+    "bright vector flat illustration with simple shapes"
+   ],
+   "defaut": "clean ligne claire comic art with bold uniform outlines and flat colours"
+  }
+ ]
+}

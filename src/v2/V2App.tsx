@@ -31,6 +31,7 @@ const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.Video
 const AssetsView = lazy(() => import('./AssetsView').then(m => ({ default: m.AssetsView })))
 const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
 const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.CroquisView })))
+const ExtensionsView = lazy(() => import('./ExtensionsView').then(m => ({ default: m.ExtensionsView })))
 const PersonaView = lazy(() => import('../features/persona/PersonaView').then(m => ({ default: m.PersonaView })))
 const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => ({ default: m.ConfigView })))
 const CreateurView = lazy(() => import('../features/createur/CreateurView').then(m => ({ default: m.CreateurView })))
@@ -78,7 +79,7 @@ export default function V2App() {
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
-  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur'].includes(initial) ? initial : 'accueil')
+  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
@@ -165,6 +166,7 @@ export default function V2App() {
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
+        {section === 'extensions' && <ExtensionsView />}
         {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
         {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}

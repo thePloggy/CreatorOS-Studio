@@ -1924,6 +1924,44 @@ async function runDoublage(job, t0) {
   return n
 }
 
+/* Extension : un workflow ComfyUI fourni par une extension (cf. extensions.js), déjà rempli et
+   vérifié. Sa sortie est une image, une vidéo ou un son ; les sons rejoignent la bibliothèque audio. */
+export function enqueueExtension({ graphe, sortie, nom, extensionId, personaId, parentAssetId, prompt }) {
+  const id = `ext-${Date.now().toString(36)}`
+  for (const n of Object.values(graphe)) {
+    if (/^Save(Image|Video|Audio|AudioMP3|AnimatedWEBP)$/.test(n.class_type) && 'filename_prefix' in (n.inputs ?? {})) n.inputs.filename_prefix = `creatoros/${id}/ext`
+  }
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: sortie === 'video' ? 'video' : sortie === 'audio' ? 'audio' : 'photo', purpose: 'creative', recipeId: `extension:${extensionId}`, workflowFile: null,
+    seed: null, op: 'extension', videoEngine: null, extensionGraphe: graphe, extensionSortie: sortie, extensionNom: nom,
+    parentAssetId: parentAssetId ?? null, userPrompt: prompt || nom, userDirectives: null, composedPositive: prompt || null, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: sortie === 'video' ? 4 * 60_000 : 60_000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runExtension(job, t0) {
+  const g = job.extensionGraphe
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { timeoutMs: 30 * 60_000, onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  if (job.extensionSortie === 'audio') {
+    const f = Object.values(history.outputs ?? {}).flatMap(o => o.audio ?? [])[0]
+    if (!f) throw new Error('extension : aucun son en sortie')
+    fs.mkdirSync(MUSIQUES_DIR, { recursive: true })
+    const racine = String(job.extensionNom).normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'extension'
+    await executer('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-q:a', '2',
+      path.join(MUSIQUES_DIR, `${racine}_${job.id.slice(-6)}.mp3`)])
+    store.markFinished(job.id, Date.now() - t0)
+    return 1
+  }
+  const n = await harvestJob(job, promptId, history, { applied: [`extension « ${job.extensionNom} »`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 /* Musique et bruitages : ACE-Step 1.5 turbo (MIT), nœuds du cœur de ComfyUI. Le morceau
    rejoint le dossier des musiques du montage et du reel. */
 export function enqueueMusique({ prompt, paroles, secondes, genre, personaId }) {
@@ -2993,6 +3031,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'objet3d') return await runObjet3d(job, t0)
     if (job.op === 'doublage') return await runDoublage(job, t0)
     if (job.op === 'recadrage') return controler(await runRecadrage(job, t0))
+    if (job.op === 'extension') return await runExtension(job, t0)
     if (job.op === 'entrainement') return await runEntrainement(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)

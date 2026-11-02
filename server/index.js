@@ -45,6 +45,7 @@ import { VOIX, changerVoix, cloner, cloneDisponible, synthetiser, voixDisponible
 import { aiToolkitPret } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
+import * as extensions from './extensions.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -61,7 +62,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2105,6 +2106,21 @@ app.post('/api/voix/changer', async (req, reply) => {
 app.post('/api/voix', async (req, reply) => {
   try { return await synthetiser({ texte: req.body?.texte, voix: req.body?.voix, vitesse: req.body?.vitesse }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+})
+
+/** Extensions (cf. extensions.js) : les livrées se lancent par tous, l'installation et les
+    extensions installées sont réservées au propriétaire. */
+app.get('/api/extensions', async () => ({ extensions: await extensions.lister(), catalogue: extensions.catalogue() }))
+app.post('/api/extensions/:id/installer', async (req, reply) => {
+  try { return await extensions.installer(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/extensions/:id/retirer', async (req, reply) => {
+  try { return extensions.retirer(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/extensions/:id/lancer', async (req, reply) => {
+  try {
+    return await deposerAvecCle(cleComfy(req), () => extensions.lancer({ id: String(req.params.id), valeurs: req.body?.valeurs, proprietaire: estProprietaire(req), personaId: personaDe(req) }))
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
 /** Analyse d'un clip pour les réseaux (cf. vision.analyserClip) : estimation, pas prédiction. */
