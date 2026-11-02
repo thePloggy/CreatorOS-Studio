@@ -19,18 +19,23 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
   const [w, h] = FORMATS[format] ?? FORMATS['16:9']
   const cle = Date.now().toString(36), brut = path.join(CONFIG.comfyInput, `CRQ_${cle}_brut.png`), nom = `CRQ_${cle}.png`
   fs.writeFileSync(brut, Buffer.from(m[1], 'base64'))
-  /* Un vrai croquis (traits sur fond blanc, très peu de gris) garde ses traits pleins, épaissis :
-     passé au détecteur de contours, chaque trait devenait un double liseré que le modèle
-     dessinait en tubes ou en rambardes. Une image à demi-teintes (une photo envoyée à la place
-     d'un dessin) n'est réduite qu'à ses contours, pour ne transmettre aucun visage. */
-  const cadre = `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=gray`
-  const gris = execFileSync('ffmpeg', ['-v', 'error', '-i', brut, '-vf', 'scale=160:-2,format=gray', '-frames:v', '1', '-f', 'rawvideo', '-'], { maxBuffer: 1 << 22 })
-  let milieu = 0
-  for (const v of gris) if (v > 40 && v < 215) milieu++
-  const demiTeintes = milieu / gris.length > 0.12
-  const filtre = demiTeintes ? `${cadre},edgedetect=low=0.08:high=0.3,negate,format=rgb24` : `${cadre},lut=y='if(lt(val,200),0,255)',erosion,format=rgb24`
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', brut, '-vf', filtre, '-frames:v', '1', path.join(CONFIG.comfyInput, nom)])
-  fs.rmSync(brut, { force: true })
+  try {
+    /* Un vrai croquis (traits sur fond blanc, très peu de gris) garde ses traits pleins, épaissis :
+       passé au détecteur de contours, chaque trait devenait un double liseré que le modèle
+       dessinait en tubes ou en rambardes. Une image à demi-teintes (une photo envoyée à la place
+       d'un dessin) n'est réduite qu'à ses contours, pour ne transmettre aucun visage. */
+    const cadre = `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=gray`
+    const gris = execFileSync('ffmpeg', ['-v', 'error', '-i', brut, '-vf', 'scale=160:-2,format=gray', '-frames:v', '1', '-f', 'rawvideo', '-'], { maxBuffer: 1 << 22 })
+    let milieu = 0
+    for (const v of gris) if (v > 40 && v < 215) milieu++
+    const demiTeintes = milieu / gris.length > 0.12
+    const filtre = demiTeintes ? `${cadre},edgedetect=low=0.08:high=0.3,negate,format=rgb24` : `${cadre},lut=y='if(lt(val,200),0,255)',erosion,format=rgb24`
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', brut, '-vf', filtre, '-frames:v', '1', path.join(CONFIG.comfyInput, nom)])
+  } catch {
+    throw new Error('dessin illisible : redessine puis relance')
+  } finally {
+    fs.rmSync(brut, { force: true })
+  }
   store.noterInput(nom, 'croquis')
   const photo = enqueue({ mode: 'photo', register: 'sfw', personaId, purpose: 'creative', photoEngine: 'klein', references: [nom],
     composedPositive: `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.`,
