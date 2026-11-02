@@ -250,7 +250,7 @@ export function MCreate({ goJobs }: { goJobs: () => void }) {
       {/* ---------- feuilles ---------- */}
       {sheet === 'engine' && (
         <Sheet title={t('Moteur vidéo')} onClose={() => setSheet(null)}>
-          {VIDEO_ENGINES.map(e => (
+          {VIDEO_ENGINES.filter(e => !e.optionnel || s.h3?.disponible).map(e => (
             <Opt key={e.key} label={t(e.label)} on={v.engine === e.key}
               hint={[e.force && t(e.force), e.audio ? t('audio') : t('muet'), `${e.maxSeconds} s max`].filter(Boolean).join(' · ')}
               onClick={() => { s.updateVideo({ engine: e.key }); setSheet(null) }} />

@@ -1,0 +1,292 @@
+{
+ "92": {
+  "inputs": {
+   "filename_prefix": "creatoros/video_minimax",
+   "format": "auto",
+   "codec": "auto",
+   "video": [
+    "105:91",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "Enregistrer la vidéo"
+  }
+ },
+ "114": {
+  "inputs": {
+   "image": "exemple.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "Charger Image"
+  }
+ },
+ "115": {
+  "inputs": {
+   "aspect_ratio": "9:16 (Portrait Widescreen)",
+   "megapixels": 0.9,
+   "multiple": 32
+  },
+  "class_type": "ResolutionSelector",
+  "_meta": {
+   "title": "Sélecteur de résolution"
+  }
+ },
+ "119": {
+  "inputs": {
+   "upscale_method": "nearest-exact",
+   "megapixels": 0.9,
+   "resolution_steps": 32
+  },
+  "class_type": "ImageScaleToTotalPixels",
+  "_meta": {
+   "title": "Redimensionner l'image en fonction du nombre total de pixels"
+  }
+ },
+ "120": {
+  "inputs": {
+   "image": [
+    "119",
+    0
+   ]
+  },
+  "class_type": "GetImageSize",
+  "_meta": {
+   "title": "Obtenir la taille de l'image"
+  }
+ },
+ "105:11": {
+  "inputs": {
+   "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Charger VAE"
+  }
+ },
+ "105:24": {
+  "inputs": {
+   "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Charger VAE"
+  }
+ },
+ "105:23": {
+  "inputs": {
+   "samples": [
+    "105:14",
+    0
+   ],
+   "vae": [
+    "105:24",
+    0
+   ]
+  },
+  "class_type": "VAEDecodeAudio",
+  "_meta": {
+   "title": "VAEDecodeAudio"
+  }
+ },
+ "105:10": {
+  "inputs": {
+   "samples": [
+    "105:14",
+    0
+   ],
+   "vae": [
+    "105:11",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode"
+  }
+ },
+ "105:17": {
+  "inputs": {
+   "sampler_name": "res_multistep"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "KSamplerSelect"
+  }
+ },
+ "105:9": {
+  "inputs": {
+   "scheduler": "simple",
+   "steps": 8,
+   "denoise": 1,
+   "model": [
+    "turbo",
+    0
+   ]
+  },
+  "class_type": "BasicScheduler",
+  "_meta": {
+   "title": "PlanificateurBasique"
+  }
+ },
+ "105:14": {
+  "inputs": {
+   "noise": [
+    "105:15",
+    0
+   ],
+   "guider": [
+    "105:16",
+    0
+   ],
+   "sampler": [
+    "105:17",
+    0
+   ],
+   "sigmas": [
+    "105:9",
+    0
+   ],
+   "latent_image": [
+    "105:104",
+    1
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "ÉchantillonneurPersonnaliséAvancé"
+  }
+ },
+ "105:16": {
+  "inputs": {
+   "model": [
+    "turbo",
+    0
+   ],
+   "conditioning": [
+    "105:104",
+    0
+   ]
+  },
+  "class_type": "BasicGuider",
+  "_meta": {
+   "title": "GuideBasique"
+  }
+ },
+ "105:6": {
+  "inputs": {
+   "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Charger Modèle Diffusion"
+  }
+ },
+ "105:13": {
+  "inputs": {
+   "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+   "type": "minimax",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Charger CLIP"
+  }
+ },
+ "105:15": {
+  "inputs": {
+   "noise_seed": 168866841893410
+  },
+  "class_type": "RandomNoise",
+  "_meta": {
+   "title": "BruitAléatoire"
+  }
+ },
+ "105:91": {
+  "inputs": {
+   "fps": 24,
+   "bit_depth": 8,
+   "images": [
+    "105:10",
+    0
+   ],
+   "audio": [
+    "105:23",
+    0
+   ]
+  },
+  "class_type": "CreateVideo",
+  "_meta": {
+   "title": "Créer une vidéo"
+  }
+ },
+ "105:104": {
+  "inputs": {
+   "prompt": "",
+   "width": [
+    "115",
+    0
+   ],
+   "height": [
+    "115",
+    1
+   ],
+   "length": [
+    "105:107",
+    1
+   ],
+   "clip": [
+    "105:13",
+    0
+   ],
+   "vae": [
+    "105:11",
+    0
+   ],
+   "first_frame": [
+    "114",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3ImageToVideo",
+  "_meta": {
+   "title": "MiniMax H3 Image to Video"
+  }
+ },
+ "105:107": {
+  "inputs": {
+   "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+   "values.a": [
+    "105:111",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Expression mathématique"
+  }
+ },
+ "105:111": {
+  "inputs": {
+   "value": 9
+  },
+  "class_type": "PrimitiveFloat",
+  "_meta": {
+   "title": "Float (duration)"
+  }
+ },
+ "turbo": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "105:6",
+    0
+   ],
+   "lora_name": "h3_lightx2v_turbo_rank24.safetensors",
+   "strength_model": 0.8
+  }
+ }
+}

@@ -13,7 +13,7 @@
   --lv4: #2a2d35;
   --text: #e8e7e3;
   --muted: #9a9ca3;
-  --faint: #5f626b;
+  --faint: #858891;
   --accent: #ff655b;
   --grad: linear-gradient(135deg, #ffab5e 0%, #ff655b 38%, #f24d8a 68%, #b44bd8 100%);
   --glow: rgba(242, 77, 138, 0.38);
@@ -591,6 +591,9 @@
 .v2 .guide-outil p { margin: 0; color: var(--muted); }
 .v2 .guide-outil input { padding: 7px 9px; border-radius: 8px; background: var(--lv1); border: 1px solid var(--lv3); color: var(--text); font: inherit; }
 .v2 .guide-outil button:disabled { opacity: .45; cursor: not-allowed; }
+.v2 .stage-cote { display: grid; grid-template-columns: 1.15fr 1fr; gap: 10px; height: 100%; min-height: 0; }
+.v2 .stage-cote > div { position: relative; min-width: 0; min-height: 0; }
+.v2 .stage-cote small { position: absolute; z-index: 2; top: 8px; left: 10px; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; pointer-events: none; }
 .v2 .elements-prompt { position: relative; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .v2 .element { display: inline-flex; align-items: center; border-radius: 999px; background: var(--lv3); font-size: 12px; font-weight: 600; }
 .v2 .element > button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; }

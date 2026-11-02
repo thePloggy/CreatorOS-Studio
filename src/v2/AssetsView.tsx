@@ -221,7 +221,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
             </button>
           )}
           <span className="inline-flex items-center gap-2 ml-auto text-[10px]" style={{ color: 'var(--faint)' }}>
-            ▤ <input type="range" min={1} max={10} value={cols} onChange={e => setCols(Number(e.target.value))}
+            ▤ <input type="range" aria-label={t('vignettes par rangée')} min={1} max={10} value={cols} onChange={e => setCols(Number(e.target.value))}
               style={{ width: 110, accentColor: 'var(--accent)' }} />
           </span>
         </div>

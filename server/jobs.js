@@ -12,6 +12,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
+import { demoPublique, etatH3 } from './h3.js'
+
+export const H3_MESSAGE_DEMO = 'MiniMax H3 n’est pas disponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour l’utiliser.'
+/* État H3 relu toutes les 30 s : l'enqueue reste synchrone. */
+let h3Disponible = false
+const relireH3 = () => etatH3().then(e => { h3Disponible = e.disponible }).catch(() => {})
+relireH3(); setInterval(relireH3, 30_000).unref()
 import * as comfy from './comfy.js'
 import { pourRendu } from './gpu.js'
 import * as sdk from './transport-sdk.js'
@@ -98,6 +105,20 @@ export const VIDEO_ENGINES = {
     // Mesuré : 6 s en 98 s (704×1024).
     draft: { megapixels: 0.7, minutes: 2 },
   },
+}
+
+/* MiniMax H3 : moteur optionnel, poids fournis par le propriétaire d'une installation
+   locale (licence, cf. h3.js). Recette sans LoRA de contenu, keyframe d'arrivée possible. */
+VIDEO_ENGINES.minimax = {
+  maxSeconds: 12,
+  file: 'PROD_video_minimax.json',
+  label: 'MiniMax H3',
+  force: 'le plus fluide, tient l’identité et sait tourner autour du sujet',
+  audio: true,
+  speed: 1,
+  minutes: 12,
+  optionnel: 'h3',
+  draft: { megapixels: 0.4, minutes: 4 },
 }
 
 /* Wan 2.2 T2V-A14B : texte → vidéo AVEC un
@@ -599,6 +620,7 @@ export function enqueue(job) {
     throw new Error(`moteur vidéo « ${engineKey} » inconnu : `
       + Object.keys(VIDEO_ENGINES).join(', '))
   const engine = engineKey ? VIDEO_ENGINES[engineKey] : null
+  if (engine?.optionnel === 'h3' && !h3Disponible) throw new Error(demoPublique() ? H3_MESSAGE_DEMO : 'MiniMax H3 n’est pas installé sur ce studio : Paramètres > Modèles optionnels')
   // Wan n'a pas d'étage audio : demander du son sur lui n'est pas une erreur
   // de l'opérateur (l'interface grise la case), mais l'API est ouverte.
   const withAudio = mode === 'video' && !isMotion ? Boolean(job.withAudio) && engine.audio : null

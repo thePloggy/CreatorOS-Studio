@@ -20,7 +20,7 @@ export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
 }) {
   const nom = useAppStore(s => s.personaName)
   const photo = useAppStore(s => s.personaAvatar)
-  const refresh = useAppStore(s => s.refreshPersona)
+  const choisi = useAppStore(s => s.personaId)
   const [ouvert, setOuvert] = useState(false)
   const [liste, setListe] = useState<PersonaResume[] | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -39,10 +39,8 @@ export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
   }, [ouvert])
 
   async function activer(p: PersonaResume) {
-    if (p.active) { setOuvert(false); return }
-    const r = await fetch(`/api/personas/${encodeURIComponent(p.id)}/activer`, { method: 'POST' })
-    if (!r.ok) { setMsg(t('changement refusé')); return }
-    await refresh()
+    if (p.id === useAppStore.getState().personaId) { setOuvert(false); return }
+    await useAppStore.getState().choisirPersonnage(p.id)
     setOuvert(false)
   }
 
@@ -62,15 +60,15 @@ export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
         }}>
           {!liste && <div style={{ padding: 8, fontSize: 12, opacity: 0.6 }}>{msg ?? t('chargement…')}</div>}
           {liste?.map(p => (
-            <button key={p.id} type="button" role="menuitemradio" aria-checked={p.active} onClick={() => void activer(p)}
+            <button key={p.id} type="button" role="menuitemradio" aria-checked={p.id === choisi} onClick={() => void activer(p)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '7px 8px', borderRadius: 8,
                 border: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit', fontSize: 13,
-                background: p.active ? 'rgba(234,78,137,0.16)' : 'transparent',
+                background: p.id === choisi ? 'rgba(234,78,137,0.16)' : 'transparent',
               }}>
               {rond(p.avatar, 28)}
               <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || t('sans nom')}</span>
-              {p.active && <span aria-hidden style={{ fontSize: 12, opacity: 0.8 }}>✓</span>}
+              {p.id === choisi && <span aria-hidden style={{ fontSize: 12, opacity: 0.8 }}>✓</span>}
             </button>
           ))}
           {liste && msg && <div style={{ padding: '4px 8px', fontSize: 12, opacity: 0.7 }}>{msg}</div>}

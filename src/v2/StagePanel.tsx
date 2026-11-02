@@ -52,7 +52,7 @@ export function StagePanel() {
   const [hauteurs, setHauteurs] = useState<[number, number]>([1.5, 1.5])
   const [viseH, setViseH] = useState(1)
   const [focale, setFocale] = useState(40)
-  const [vue, setVue] = useState<'plateau' | 'camera'>('plateau')
+  const [vue, setVue] = useState<'plateau' | 'camera' | 'cote'>(() => window.innerWidth > 1100 ? 'cote' : 'plateau')
   const [instant, setInstant] = useState(0)
   const [lecture, setLecture] = useState(false)
   const [modeles, setModeles] = useState<Modele[]>([])
@@ -115,21 +115,29 @@ export function StagePanel() {
     id = requestAnimationFrame(pas)
     return () => cancelAnimationFrame(id)
   }, [lecture, secondes])
+  const plateau3d = (v: 'plateau' | 'camera') => (
+    <Stage3D objets={objets} poses={poses} instant={instant} vue={v} choisi={choisi} format={format} onChoisir={setChoisi}
+      onBouger={(id, x, z) => setObjets(l => l.map(o => o.id === id ? { ...o, x, z } : o))}
+      onCam={(n, x, z) => setCam(c => (n === 0 ? [{ x, z }, c[1]] : [c[0], { x, z }]))} />
+  )
   /* Le plateau occupe la grande zone de droite (cf. #stage-vues dans VideoView) ; sur téléphone, le volet. */
   const vues = (
     <div className="flex flex-col gap-2" style={{ height: cible ? '100%' : 460, padding: cible ? '12px 16px 6px' : 0, minHeight: 0 }}>
       <div className="flex gap-4 items-center text-[12px]">
-        {(['plateau', 'camera'] as const).map(v => <button key={v} className={`onglet ${vue === v ? 'on' : ''}`} onClick={() => setVue(v)}>{t(v === 'plateau' ? 'Plateau' : 'Caméra')}</button>)}
+        {(['cote', 'plateau', 'camera'] as const).map(v => <button key={v} className={`onglet ${vue === v ? 'on' : ''}`} onClick={() => setVue(v)}>{t(v === 'cote' ? 'Côte à côte' : v === 'plateau' ? 'Plateau' : 'Caméra')}</button>)}
         <span style={{ flex: 1 }} />
-        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue === 'plateau' ? 'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
+        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue !== 'camera' ? 'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}><Suspense fallback={null}>
-        <Stage3D objets={objets} poses={poses} instant={instant} vue={vue} choisi={choisi} format={format} onChoisir={setChoisi}
-          onBouger={(id, x, z) => setObjets(l => l.map(o => o.id === id ? { ...o, x, z } : o))}
-          onCam={(n, x, z) => setCam(c => (n === 0 ? [{ x, z }, c[1]] : [c[0], { x, z }]))} />
+        {(vue === 'cote' ? ['plateau', 'camera'] as const : [vue]).length > 1
+          ? <div className="stage-cote">
+              <div><small>{t('Plateau')}</small>{plateau3d('plateau')}</div>
+              <div><small>{t('Vue caméra')}</small>{plateau3d('camera')}</div>
+            </div>
+          : plateau3d(vue as 'plateau' | 'camera')}
       </Suspense></div>
       <div className="flex gap-3 items-center text-[11px]" style={{ color: 'var(--muted)' }}>
-        <button className="pill" aria-label={t('Lecture')} onClick={() => { setInstant(0); setVue('camera'); setLecture(true) }}>▶</button>
+        <button className="pill" aria-label={t('Lecture')} onClick={() => { setInstant(0); if (vue === 'plateau') setVue('camera'); setLecture(true) }}>▶</button>
         <input type="range" className="flex-1" min={0} max={1} step={0.01} value={instant} onChange={e => { setLecture(false); setInstant(Number(e.target.value)) }} />
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(instant * secondes).toFixed(1)} s / {secondes} s</span>
       </div>

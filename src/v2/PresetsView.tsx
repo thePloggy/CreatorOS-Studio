@@ -4,6 +4,7 @@
    dans la bibliothèque (onglet Vidéo). Les presets vivent côté serveur
    (server/presets.js) ; ici on choisit et on lance.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -129,7 +130,7 @@ function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: s
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{t('1. Choisis la photo à animer')}</div>
           <div className="pkgrid" style={{ maxHeight: 300 }}>
             {photos.map(a => (
-              <button key={a.id} className="pk" onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
+              <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
                 <img src={vignetteOf(a)} alt="" loading="lazy" />
               </button>
             ))}

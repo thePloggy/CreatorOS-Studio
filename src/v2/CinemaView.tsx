@@ -8,6 +8,7 @@
    lumières. Les prises sont des rendus photo ordinaires : elles arrivent
    dans la bibliothèque et s'animent comme les autres.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -179,7 +180,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
             <h3>{t('Palette depuis une photo')} <button className="x" onClick={() => setChoixPalette(false)}>✕</button></h3>
             <div className="pkgrid" style={{ maxHeight: 420 }}>
               {s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected').slice(0, 120).map(a => (
-                <button key={a.id} className="pk" onClick={() => { void couleursDominantes(a.uri).then(p => maj({ palette: p })); setChoixPalette(false) }}>
+                <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { void couleursDominantes(a.uri).then(p => maj({ palette: p })); setChoixPalette(false) }}>
                   <img src={a.uri} alt="" loading="lazy" />
                 </button>
               ))}

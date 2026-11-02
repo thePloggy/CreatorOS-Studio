@@ -74,15 +74,17 @@
 
 /* ---------- en-tête ---------- */
 .m .top {
-  flex: none; display: flex; align-items: center; gap: var(--s3);
+  flex: none; display: flex; align-items: center; gap: var(--s2); min-width: 0;
   padding: var(--s3) var(--pad) var(--s2);
 }
 .m .logo { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
 .m .logo i { font-style: normal; color: var(--acc); }
 .m .persona {
   margin-left: auto; display: flex; align-items: center; gap: var(--s2);
-  background: var(--card); border-radius: 999px; padding: 7px 14px 7px 7px; min-height: 44px;
+  background: var(--card); border-radius: 999px; padding: 5px; min-height: 44px; min-width: 44px; justify-content: center; flex: none;
 }
+.m .top .persona { font-size: 0; }
+.m .top .persona > span[aria-hidden] { display: none; }
 .m .persona img, .m .persona .av {
   width: 30px; height: 30px; border-radius: 999px; object-fit: cover;
   background: #8a6a52; display: grid; place-items: center; font-size: 13px; font-weight: 600;

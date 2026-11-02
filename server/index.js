@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -39,6 +39,7 @@ import * as presets from './presets.js'
 // 256 Mo : les drivers du Motion Control sont des vidéos (8 Mo suffisaient
 // pour les JPEG mais un clip mp4 les dépasse → 413 à l'upload).
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
+import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -55,7 +56,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -262,7 +263,7 @@ app.get('/api/health', async req => {
   return {
     ok: comfyState === 'ok', comfy: comfyState, vram, liaison: comfy.etatLiaison(),
     queue: queueDepth(), recipes: RECIPES, swapWorkflow: null,
-    videoEngines: VIDEO_ENGINES, defaultVideoEngine: DEFAULT_VIDEO_ENGINE,
+    videoEngines: VIDEO_ENGINES, defaultVideoEngine: DEFAULT_VIDEO_ENGINE, h3: await etatH3().catch(() => null),
     composerModels: CONFIG.composerModels,
     // chemins du serveur : au propriétaire seulement (la démo publique est sur Internet)
     ...(estProprietaire(req) ? { workflowsDir: CONFIG.workflowsDir, promptsDir: CONFIG.promptsDir,
@@ -2014,6 +2015,14 @@ app.get('/api/stage/modeles/:nom', async (req, reply) => {
 })
 /** Import d'un .glb : réservé au propriétaire, comme tout envoi de fichier. */
 app.addContentTypeParser('model/gltf-binary', { parseAs: 'buffer', bodyLimit: 200 * 1024 * 1024 }, (req, corps, done) => done(null, corps))
+/* MiniMax H3 en option : état, puis envoi des poids par le propriétaire (cf. h3.js). */
+app.get('/api/modeles/h3', async () => etatH3())
+app.put('/api/modeles/h3/:nom', { bodyLimit: 64 * 1024 ** 3 }, async (req, reply) => {
+  if (demoPublique()) { reply.code(403); return { error: H3_MESSAGE_DEMO } }
+  if (req.headers['x-licence-h3'] !== 'acceptee') { reply.code(400); return { error: 'accepte d’abord la licence MiniMax H3' } }
+  try { return await recevoirFichierH3(req.params.nom, req.body) } catch (e) { reply.code(e.statusCode ?? 500); return { error: String(e.message || e) } }
+})
+
 app.post('/api/stage/glb', async (req, reply) => {
   const b = req.body
   if (!Buffer.isBuffer(b) || b.subarray(0, 4).toString('latin1') !== 'glTF') { reply.code(415); return { error: 'fichier .glb attendu' } }

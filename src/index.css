@@ -26,7 +26,7 @@
   /* Texte (t1 → t3 secondaire → t4 ténu) */
   --color-text: #ecebe8;
   --color-muted: #8d8f97;
-  --color-faint: #63666f;
+  --color-faint: #858891;
 
   /* Accent = action ORANGE (unique). Aplat réservé au CTA ; ailleurs, pastille. */
   --color-accent: #ff5a1f;

@@ -115,7 +115,7 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
       )}
       <CorbeilleButton />
       <span className="inline-flex items-center gap-2 ml-auto text-[10px]" style={{ color: 'var(--faint)' }}>
-        ▤ <input type="range" min={1} max={10} value={cols}
+        ▤ <input type="range" aria-label={t('vignettes par rangée')} min={1} max={10} value={cols}
           onChange={e => setCols(Number(e.target.value))}
           style={{ width: 110, accentColor: 'var(--accent)' }} />
         <b>{cols}</b>{t('/ligne')}
@@ -437,7 +437,7 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
       </span>
       <span className="mark" />
       {onPick && (
-        <button className="selbox" data-on={picked || undefined}
+        <button className="selbox" aria-label={t('sélectionner')} aria-pressed={!!picked} data-on={picked || undefined}
           style={picked || picking ? { opacity: 1 } : undefined}
           onClick={e => { e.stopPropagation(); onPick(a.id) }}>{picked ? '✓' : ''}</button>
       )}
@@ -983,7 +983,7 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
         {pending > 0 && <span className="pill9" style={{ color: 'var(--attention)' }}>{t('{n} à revoir', { n: pending })}</span>}
       </span>
       {onPickAll && (
-        <button className="selbox" data-on={allPicked || undefined}
+        <button className="selbox" aria-label={t('tout sélectionner')} aria-pressed={!!allPicked} data-on={allPicked || undefined}
           style={allPicked || picking ? { opacity: 1 } : undefined}
           title={t('sélectionner les images du lot')}
           onClick={e => { e.stopPropagation(); onPickAll() }}>{allPicked ? '✓' : ''}</button>

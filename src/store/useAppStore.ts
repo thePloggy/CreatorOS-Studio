@@ -180,6 +180,10 @@ interface AppState {
   stageOuvert: boolean
   /** la bibliothèque s'ouvre sur ses musiques */
   ongletMusiques: boolean
+  /** MiniMax H3 en option : installé, et permis sur cette instance. */
+  h3: { demo: boolean; installe: boolean; disponible: boolean } | null
+  /** onglet de la configuration demandé par un autre écran */
+  ongletConfig: 'cloud' | 'vocab' | 'workbench' | 'modeles' | null
   stageRepris: StageScene | null
   ouvrirStage: (scene?: StageScene | null) => void
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
@@ -199,7 +203,7 @@ interface AppState {
    *  section) — sans ça les réglages atterrissaient dans une console
    *  invisible. Le nonce force la prise en compte même si la cible ne
    *  change pas. Consommée par le shell (V2App). */
-  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot'; nonce: number } | null
+  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config'; nonce: number } | null
   /** « Utiliser dans… » : le média que la section cible reprend à son ouverture,
    *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null
@@ -586,6 +590,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 
     stageOuvert: false,
     ongletMusiques: false,
+    h3: null,
+    ongletConfig: null,
     stageRepris: null,
     ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
@@ -709,6 +715,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       try {
         const h = await (await fetch('/api/health')).json()
         setEngineCatalog(h.videoEngines)
+        set({ h3: (h.h3 as AppState['h3']) ?? null })
         setT0Blocklist(h.t0Blocklist)
         // Nom du personnage : configuré côté serveur, « Personnage » à défaut.
         const nom = (h.persona?.name ?? h.personaName) as string | undefined

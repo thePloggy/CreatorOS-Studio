@@ -30,6 +30,8 @@ export interface EngineInfo {
   /** Mode brouillon disponible : même recette à surface réduite. `minutes`
    *  est l'ordre de grandeur en brouillon. Absent → pas de case à cocher. */
   draft?: { label: string; minutes: number }
+  /** Moteur à installer soi-même (poids sous licence restreinte). */
+  optionnel?: 'h3'
 }
 
 export const VIDEO_ENGINES: EngineInfo[] = [
@@ -54,6 +56,16 @@ export const VIDEO_ENGINES: EngineInfo[] = [
     audio: true,
     minutes: 5,
     draft: { label: '0,7 MP au lieu de 1,4', minutes: 2 },
+  },
+  {
+    key: 'minimax',
+    maxSeconds: 12,
+    label: 'MiniMax H3',
+    force: 'le plus fluide, tient l’identité et sait tourner autour du sujet',
+    audio: true,
+    minutes: 12,
+    draft: { label: '0,4 MP', minutes: 4 },
+    optionnel: 'h3',
   },
 
 ]

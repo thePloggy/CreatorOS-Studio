@@ -3,6 +3,7 @@
    personnage dit le texte, lèvres calées sur l'audio (InfiniteTalk, Wan 2.1).
    Le rendu passe par la file ordinaire et arrive dans l'onglet Vidéo.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -116,7 +117,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
           <span style={{ fontSize: 11.5, color: 'var(--faint)' }}>{t('Visage bien visible, de face ou de trois quarts, plan poitrine ou plus serré.')}</span>
           <div className="pkgrid" style={{ maxHeight: 260 }}>
             {photos.map(a => (
-              <button key={a.id} className="pk" onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
+              <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
                 <img src={a.uri} alt="" loading="lazy" />
               </button>
             ))}

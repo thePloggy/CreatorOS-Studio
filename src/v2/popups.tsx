@@ -3,6 +3,7 @@
    Remplacer/Annuler), Éléments (vocabulaires), Picker de frame
    (Générations | Uploads). Tous montés en portail plein écran.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { LoraStacks, LoraSwitch } from '../components/LoraStacks'
 import { useEffect, useRef, useState } from 'react'
 import type { Asset, MediaMode } from '../types'
@@ -315,7 +316,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
         <div className="pkgrid">
           {tab === 'gen' && !photos.length && <p style={{ gridColumn: '1 / -1', margin: 0, padding: '24px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>{t(media === 'video' ? 'Aucun clip pour ce personnage : génère-en un d’abord.' : 'Aucune photo pour ce personnage : génères-en une d’abord.')}</p>}
           {tab === 'gen' && photos.map(a => (
-            <button key={a.id} className="pk" onClick={() => { onPickAsset(a); onClose() }}>
+            <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { onPickAsset(a); onClose() }}>
               <img src={vignetteOf(a)} alt="" loading="lazy" />
             </button>
           ))}

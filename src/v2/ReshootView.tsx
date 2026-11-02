@@ -4,6 +4,7 @@
    CrossView-Warp, cf. server/jobs.js). Le rendu arrive dans la bibliothèque ;
    ici on voit la prise d'origine et la nouvelle côte à côte.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { poseA, type Pose } from './pose'
 import type { Asset } from '../types'
@@ -195,7 +196,7 @@ export function ReshootView() {
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{t('1. Le clip')}</div>
             <div className="pkgrid rs-clips" style={{ maxHeight: 250 }}>
               {clips.map(a => (
-                <button key={a.id} className="pk" onClick={() => setClip(a)} style={{ outline: clip?.id === a.id ? '3px solid var(--accent)' : undefined }}>
+                <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => setClip(a)} style={{ outline: clip?.id === a.id ? '3px solid var(--accent)' : undefined }}>
                   <video src={a.uri} muted loop playsInline preload="metadata"
                     onMouseEnter={e => void e.currentTarget.play().catch(() => {})} onMouseLeave={e => e.currentTarget.pause()} />
                 </button>

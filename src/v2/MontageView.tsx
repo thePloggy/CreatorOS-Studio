@@ -6,6 +6,7 @@
    rendus qu'à l'export). L'export est un rendu ffmpeg côté serveur
    (server/montage.js) livré comme un asset vidéo de la bibliothèque.
    ============================================================ */
+import { nomMedia } from '../lib/nomMedia'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -792,7 +793,7 @@ function ChoixPlans({ assets, onClose, onPick }: { assets: Asset[]; onClose: () 
         </div>
         <div className="pkgrid">
           {liste.map(a => (
-            <button key={a.id} className="pk" onClick={() => { onPick(a); setPris(n => n + 1) }} title={a.reviewStatus === 'approved' ? t('validé') : ''}>
+            <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { onPick(a); setPris(n => n + 1) }} title={a.reviewStatus === 'approved' ? t('validé') : ''}>
               <img src={a.mediaType === 'video' ? vignetteOf(a) : a.uri} alt="" loading="lazy" />
               {a.reviewStatus === 'approved' && <span style={{ position: 'absolute', right: 4, top: 4, fontSize: 10 }}>✓</span>}
             </button>
