@@ -750,4 +750,13 @@ export const nouveautes: Record<string, string> = {
   'voir cette image en grand et la retenir': 'see this image large and select it',
   'Animer cette image': 'Animate this image',
   'Survole une image pour la voir en grand, clique pour la retenir, puis confirme.': 'Hover an image to see it large, click to select it, then confirm.',
+  'Annuler l’entraînement': 'Cancel training',
+  'Clique encore sur Annuler pour arrêter cet entraînement (le travail fait est perdu).': 'Click Cancel again to stop this training (the work done is lost).',
+  'LoRA pour': 'LoRA for',
+  '~{m} min avec ces réglages': '~{m} min with these settings',
+  'modèle de base absent sur ce studio': 'base model missing on this studio',
+  'MOSS n’accepte pas de LoRA': 'MOSS does not accept LoRAs',
+  'entraîner sa LoRA pour': 'train its LoRA for',
+  'Planche de référence, 12 images variées avec FLUX.2 Klein, puis ses LoRA (Klein, Krea 2) si tu veux ; tu suis et tu peux annuler l’entraînement dans Personnages.': 'Reference sheet, 12 varied images with FLUX.2 Klein, then its LoRAs (Klein, Krea 2) if you want; follow and cancel the training in Characters.',
+  'La description ne parle d’aucune personne : l’image est rendue sans personnage. Nomme-la ou décris-la pour la faire apparaître.': 'The description mentions no person: the image is rendered without a character. Name or describe her to bring her in.',
 }

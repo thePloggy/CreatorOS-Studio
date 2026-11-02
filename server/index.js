@@ -42,7 +42,7 @@ const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
 import { VOIX, changerVoix, cloner, cloneDisponible, echantillon, synthetiser, voixDisponible } from './voix.js'
-import { aiToolkitPret } from './entrainement.js'
+import { aiToolkitPret, moteurEntrainementPret, MOTEURS_ENTRAINEMENT } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
 import * as extensions from './extensions.js'
@@ -2039,7 +2039,7 @@ app.post('/api/personnages/propositions', async (req, reply) => {
   try { return { jobs: propositions(req.body?.traits) } } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.post('/api/personnages/creer', async (req, reply) => {
-  try { return creerPersonnage({ assetId: req.body?.assetId, nom: req.body?.nom, traits: req.body?.traits, entrainer: req.body?.entrainer === true }) }
+  try { return creerPersonnage({ assetId: req.body?.assetId, nom: req.body?.nom, traits: req.body?.traits, entrainer: req.body?.entrainer === true, moteurs: Array.isArray(req.body?.moteurs) ? req.body.moteurs : undefined }) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/personnages/creer/:id', async (req, reply) => etatCreation(req.params.id) ?? (reply.code(404), { error: 'création inconnue' }))
@@ -2056,16 +2056,22 @@ app.get('/api/entrainement', async () => {
     const ecoule = r.started_at ? Date.now() - r.started_at : 0
     const resteMs = r.status === 'done' ? 0 : av?.pas > 20 ? Math.round((Date.now() - av.debut) / av.pas * (av.total - av.pas))
       : Math.max(0, (p.estimatedMs ?? 0) - ecoule)
-    return { id: r.id, personaId: r.persona_id, statut: r.status, declencheur: p.entrainementDeclencheur ?? null, images: p.entrainementImages?.length ?? null,
+    return { id: r.id, personaId: r.persona_id, statut: r.status, moteur: p.entrainementMoteur ?? 'klein', declencheur: p.entrainementDeclencheur ?? null, images: p.entrainementImages?.length ?? null,
       pas: av?.pas ?? (r.status === 'done' ? total : null), total, debut: r.started_at, fin: r.finished_at, resteMs, erreur: r.error ? String(r.error).slice(0, 200) : null,
-      lora: r.status === 'done' && !p.entrainementEssai ? `${String(r.persona_id).replace(/[^a-z0-9_]/g, '')}_klein_${r.id.slice(6)}.safetensors` : null }
+      lora: r.status === 'done' && !p.entrainementEssai ? `${String(r.persona_id).replace(/[^a-z0-9_]/g, '')}_${p.entrainementMoteur ?? 'klein'}_${r.id.slice(6)}.safetensors` : null }
   })
-  return { pret: aiToolkitPret(), travaux }
+  const moteurs = Object.entries(MOTEURS_ENTRAINEMENT).map(([id, m]) => ({ id, nom: m.nom, pret: moteurEntrainementPret(id), secParPas: m.secParPas, preparationS: m.preparationS }))
+  return { pret: aiToolkitPret(), moteurs, travaux }
 })
 app.post('/api/personas/:id/entrainer', async (req, reply) => {
   const ids = Array.isArray(req.body?.assets) ? req.body.assets.slice(0, 30) : []
   const images = ids.map(i => store.getAsset(String(i))).filter(a => a && a.media_type === 'photo').map(a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))).filter(f => fs.existsSync(f))
-  try { return { jobId: enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true }).id } }
+  // un ou plusieurs moteurs : un entraînement par moteur, à la suite dans la file
+  const moteurs = (Array.isArray(req.body?.moteurs) ? req.body.moteurs : [req.body?.moteur ?? 'klein']).map(String).filter((m, i, l) => l.indexOf(m) === i).slice(0, 2)
+  try {
+    const jobIds = moteurs.map(moteur => enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true, moteur }).id)
+    return { jobId: jobIds[0], jobIds }
+  }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 

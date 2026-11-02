@@ -14,7 +14,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
 import { demoPublique, etatH3 } from './h3.js'
-import { aiToolkitPret, entrainer, preparerEntrainement } from './entrainement.js'
+import { aiToolkitPret, arreterEntrainement, dureeEstimeeMs, entrainer, moteurEntrainementPret, MOTEURS_ENTRAINEMENT, preparerEntrainement } from './entrainement.js'
 
 export const H3_MESSAGE_DEMO = 'MiniMax H3 n’est pas disponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour l’utiliser.'
 /* État H3 relu toutes les 30 s : l'enqueue reste synchrone. */
@@ -487,6 +487,7 @@ export async function cancelJob(id) {
     // interrompre s'il est déjà en exécution. Les deux sont sans effet quand
     // ils ne s'appliquent pas — on envoie donc les deux.
     annulesEnCours.add(id)
+    if (arreterEntrainement(id)) return { id, cancelled: 'running' }
     await comfy.deleteQueued(current.promptId).catch(() => {})
     await comfy.interrupt(current.promptId).catch(() => {})
     // runJob verra l'exécution interrompue et la notera comme une annulation.
@@ -1828,8 +1829,9 @@ async function runObjet3d(job, t0) {
 }
 
 /* Entraînement d'un personnage (cf. entrainement.js) : LoRA FLUX.2 Klein ajoutée au personnage. */
-export function enqueueEntrainement({ personaId, images, declencheur, pas, essai }) {
+export function enqueueEntrainement({ personaId, images, declencheur, pas, essai, moteur = 'klein' }) {
   if (!aiToolkitPret()) throw new Error('ai-toolkit introuvable : installe-le, ou indique son dossier dans CREATOROS_AI_TOOLKIT')
+  if (!moteurEntrainementPret(moteur)) throw new Error(`entraînement ${MOTEURS_ENTRAINEMENT[moteur]?.nom ?? moteur} indisponible sur ce studio`)
   if (images.length < (essai ? 1 : 8)) throw new Error('choisis au moins 8 images du personnage')
   const d = String(declencheur ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
   if (d.length < 3) throw new Error('mot déclencheur : 3 à 16 lettres ou chiffres')
@@ -1837,9 +1839,9 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
   const n = Math.min(3000, Math.max(essai ? 10 : 600, Number(pas) || 1500))
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId, register: 'sfw', mode: 'photo', purpose: 'creative', recipeId: 'entrainement@v1', workflowFile: null,
-    seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai,
-    parentAssetId: null, userPrompt: `entraînement ${d} (${n} pas, ${Math.min(30, images.length)} images)`, userDirectives: null, composedPositive: null, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(n * 1600 + 180_000),
+    seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai, entrainementMoteur: moteur,
+    parentAssetId: null, userPrompt: `entraînement ${MOTEURS_ENTRAINEMENT[moteur].nom} ${d} (${n} pas, ${Math.min(30, images.length)} images)`, userDirectives: null, composedPositive: null, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: dureeEstimeeMs(moteur, n),
   }
   store.createJob(row); queue.push(row); pump()
   return { id }
@@ -1848,19 +1850,22 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
 export const avancementEntrainements = new Map()
 async function runEntrainement(job, t0) {
   store.markStarted(job.id, null)
+  current = { jobId: job.id, promptId: null }
   await comfy.freeMemory().catch(() => {})
-  const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas })
+  const moteur = job.entrainementMoteur ?? 'klein'
+  const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas, moteur })
   let dernier = 0
   avancementEntrainements.set(job.id, { pas: 0, total: job.entrainementPas, debut: Date.now() })
-  const lora = await entrainer({ ...prep, pas: job.entrainementPas }, n => {
+  const lora = await entrainer({ ...prep, id: job.id, pas: job.entrainementPas }, n => {
     avancementEntrainements.set(job.id, { pas: n, total: job.entrainementPas, debut: avancementEntrainements.get(job.id)?.debut ?? Date.now() })
-    if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${n}/${job.entrainementPas}`) }
+    if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${moteur} ${n}/${job.entrainementPas}`) }
   }).finally(() => avancementEntrainements.delete(job.id))
-  const nom = `${String(job.personaId).replace(/[^a-z0-9_]/g, '')}_klein_${job.id.slice(6)}.safetensors`
+  const nom = `${String(job.personaId).replace(/[^a-z0-9_]/g, '')}_${moteur}_${job.id.slice(6)}.safetensors`
   fs.copyFileSync(lora, path.join(CONFIG.lorasDir, nom))
   if (!job.entrainementEssai) {
     const p = persona(job.personaId)
-    enregistrerPersona({ lorasKlein: [...p.lorasKlein.filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
+    const champ = moteur === 'krea' ? 'loras' : 'lorasKlein'
+    enregistrerPersona({ [champ]: [...p[champ].filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
   }
   console.log(`[job ${job.id}] LoRA ${nom} prête${job.entrainementEssai ? ' (essai, non attachée)' : ', ajoutée au personnage'}`)
   store.markFinished(job.id, Date.now() - t0)

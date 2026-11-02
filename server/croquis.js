@@ -8,10 +8,26 @@ import { CONFIG } from './config.js'
 import * as store from './db.js'
 import { enqueue } from './jobs.js'
 import { anatomieImage, anatomieVideo } from './anatomie.js'
+import { persona, SANS_PERSONNAGE } from './persona.js'
 
 const FORMATS = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024] }
 const suivis = new Map()
 const PROPOSITIONS = 3
+
+/* Une personne n'apparaît que si la description en parle (ou nomme le personnage) : sinon le
+   croquis est un lieu, des objets, des animaux. Sans cette règle, le modèle mettait le
+   personnage dans un paysage et lisait des oiseaux en « V » comme des jambes. */
+const HUMAIN = /\b(she|he|her|hers|his|him|they|them|woman|women|man|men|girl|girls|boy|boys|person|persons|people|someone|somebody|child|children|kid|kids|baby|babies|teen|teens|teenager|lady|ladies|guy|guys|hero|heroes|superhero|heroine|character|figure|crowd|couple|family|dancer|runner|player|rider|driver|worker|mum|mom|dad|mother|father|friend|friends|body|face|faces|hand|hands|selfie|portrait|human|humans|elle|il|femme|homme|fille|garçon|personne|enfant|bébé)\b/i
+export function decritUnePersonne(scene, personaId) {
+  if (HUMAIN.test(scene)) return true
+  const p = personaId && personaId !== SANS_PERSONNAGE ? persona(personaId) : null
+  // le nom entier, son premier mot (« Breezy » pour « Breezy L. ») et le mot déclencheur
+  const nom = String(p?.name ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase()
+  const noms = [nom, nom.split(/\s+/)[0], String(p?.trigger ?? '').toLowerCase()].filter(x => x.length >= 3)
+  return noms.some(n => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(scene))
+}
+/* Conventions de dessin courantes : ce qu'un trait simple représente le plus souvent. */
+const CONVENTIONS = 'Usual sketch conventions: a small V, M or wave shape in the sky is a flying bird; a circle with rays is the sun; a fluffy outline is a cloud or a tree crown; wavy horizontal lines are water; a long line across the frame is the horizon or the ground.'
 
 export function lancerCroquis({ image, scene, mouvement, format, secondes, personaId }) {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(image ?? ''))
@@ -42,12 +58,20 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
   /* Trois images, tirées avec des graines différentes : on choisit celle qui sera animée. Un
      croquis se lit de plusieurs façons (une cape prise pour une 3e jambe) ; animer une image
      ratée coûte un clip entier, la refaire coûte une vingtaine de secondes. */
-  const positif = `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.${anatomieImage(s)}`
-  const photoJobs = Array.from({ length: PROPOSITIONS }, () => enqueue({ mode: 'photo', register: 'sfw', personaId, purpose: 'creative', photoEngine: 'klein', references: [nom],
+  const humain = decritUnePersonne(`${s} ${String(mouvement ?? '')}`, personaId)
+  // ce qui bouge nomme souvent des sujets du dessin (« birds ») : l'image doit les montrer aussi
+  const bouge = String(mouvement ?? '').trim().slice(0, 300)
+  const commun = `${s}.${bouge ? ` The clip made from this image will show: ${bouge} — so these subjects are already in the image.` : ''} A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for, fully detailed and textured. ${CONVENTIONS}`
+  const positif = humain
+    ? `${commun} A stick figure is a real person with natural anatomy.${anatomieImage(s)}`
+    : `${commun} There are no people in this image: no person, no body, no limbs, no face — every shape is a place, an object, an animal or nature.`
+  // sans personne décrite, aucun personnage n'est injecté (le texte ci-dessus exclut tout humain)
+  const qui = humain ? personaId : SANS_PERSONNAGE
+  const photoJobs = Array.from({ length: PROPOSITIONS }, () => enqueue({ mode: 'photo', register: 'sfw', personaId: qui, purpose: 'creative', photoEngine: 'klein', references: [nom],
     composedPositive: positif, userPrompt: s, composedNegative: '', width: w, height: h }).id)
   const id = `crq-${cle}`
   suivis.set(id, { id, photoJobs, choix: null, clipJob: null, mouvement: String(mouvement ?? '').trim().slice(0, 300) || 'gentle natural motion, slow cinematic camera move',
-    scene: s, format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId, croquis: nom, debut: Date.now() })
+    scene: s, humain, format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId: qui, croquis: nom, debut: Date.now() })
   return etatCroquis(id)
 }
 
@@ -60,7 +84,7 @@ export function etatCroquis(id) {
   const photos = c.photoJobs.map(j => { const a = etat(j) === 'done' ? premierAsset(j) : null; return { job: j, statut: etat(j), assetId: a?.id ?? null, uri: a?.uri ?? null } })
   const statuts = photos.map(p => p.statut)
   const photo = statuts.some(x => x === 'done') ? 'done' : statuts.every(x => x === 'blocked' || x === 'absent' || x === 'failed') ? 'blocked' : 'rendering'
-  return { id, photos, choix: c.choix, photo, clipJob: c.clipJob, clip: etat(c.clipJob) }
+  return { id, photos, choix: c.choix, photo, clipJob: c.clipJob, clip: etat(c.clipJob), avecPersonnage: c.humain !== false }
 }
 
 /** Anime l'image choisie parmi les propositions du croquis. */
@@ -74,7 +98,7 @@ export function choisirCroquis(id, assetId) {
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
   store.noterInput(nom)
   const j = enqueue({ mode: 'video', register: 'sfw', personaId: c.personaId, purpose: 'creative', videoEngine: 'ltx_hq', sourceImage: nom,
-    composedPositive: `${c.mouvement}. single continuous shot.${anatomieVideo(`${c.scene ?? ''} ${c.mouvement}`)}`, userPrompt: c.mouvement, composedNegative: '', withAudio: true,
+    composedPositive: `${c.mouvement}. single continuous shot.${c.humain === false ? ' No people appear.' : anatomieVideo(`${c.scene ?? ''} ${c.mouvement}`)}`, userPrompt: c.mouvement, composedNegative: '', withAudio: true,
     videoSeconds: c.secondes, videoFps: 24, videoAspect: c.format, parentAssetId: a.id })
   c.choix = a.id; c.clipJob = j.id
   return etatCroquis(id)

@@ -8,7 +8,7 @@ import { ChoixPersonnage } from './ChoixPersonnage'
 const FORMATS = { '16:9': [960, 540], '9:16': [405, 720], '1:1': [600, 600] } as const
 type Format = keyof typeof FORMATS
 type Photo = { job: string; statut: string | null; assetId: string | null; uri: string | null }
-type Etat = { id: string; photo: string | null; clip: string | null; photos?: Photo[]; choix?: string | null; clipJob?: string | null }
+type Etat = { id: string; photo: string | null; clip: string | null; photos?: Photo[]; choix?: string | null; clipJob?: string | null; avecPersonnage?: boolean }
 
 export function CroquisView() {
   const toile = useRef<HTMLCanvasElement>(null)
@@ -107,6 +107,7 @@ export function CroquisView() {
             <label>{t('Ce qui bouge')}<textarea value={mouvement} onChange={e => setMouvement(e.target.value)} maxLength={300} rows={2} placeholder={t('en anglais : waves crash, slow push in')} /></label>
             <button className="btn-gen" disabled={!scene.trim() || (!!suivi && !!suivi.clipJob && suivi.clip !== 'done')} onClick={() => void lancer()}>{suivi && !suivi.clipJob ? t('3 autres images') : t('3 images, puis le clip')}</button>
             {etape && <p style={{ margin: 0, fontSize: 13 }}>{etape}</p>}
+            {suivi && suivi.avecPersonnage === false && <p className="texte-doux" style={{ margin: 0, fontSize: 12 }}>{t('La description ne parle d’aucune personne : l’image est rendue sans personnage. Nomme-la ou décris-la pour la faire apparaître.')}</p>}
             {suivi?.photos && (enAttenteDeChoix || suivi.choix) && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {suivi.photos.map(p => (

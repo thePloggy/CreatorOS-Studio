@@ -46,7 +46,9 @@ try {
 } catch { /* aucun suivi enregistré */ }
 const garder = () => { try { fs.writeFileSync(FICHIER_SUIVIS, JSON.stringify([...suivis.values()])) } catch (e) { console.warn(`[création] suivi non enregistré : ${e.message || e}`) } }
 
-export function creerPersonnage({ assetId, nom, traits, entrainer }) {
+export function creerPersonnage({ assetId, nom, traits, entrainer, moteurs }) {
+  // moteurs à entraîner : la liste cochée, ou l'ancien booléen (Klein seul)
+  const aEntrainer = Array.isArray(moteurs) ? moteurs.map(String).filter(m => m === 'klein' || m === 'krea').filter((m, i, l) => l.indexOf(m) === i) : entrainer ? ['klein'] : []
   const x = lireTraits(traits)
   const n = nettoie(nom, 40)
   if (n.length < 2 || t0Hit(n)) throw new Error('donne un nom au personnage')
@@ -67,7 +69,7 @@ export function creerPersonnage({ assetId, nom, traits, entrainer }) {
   const images = SCENES.map(s => enqueue({ mode: 'photo', register: 'sfw', personaId: p.id, purpose: 'creative', photoEngine: 'klein', composedNegative: '', width: 832, height: 1216,
     composedPositive: `${s}, photorealistic`, userPrompt: s }).id)
   const id = `perso-${Date.now().toString(36)}`
-  suivis.set(id, { id, personaId: p.id, nom: n, planche, images, entrainer: !!entrainer, entrainement: null, debut: Date.now(), declencheur: `${n.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}x` })
+  suivis.set(id, { id, personaId: p.id, nom: n, planche, images, entrainer: aEntrainer.length > 0, moteurs: aEntrainer, entrainements: [], debut: Date.now(), declencheur: `${n.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}x` })
   garder()
   return etatCreation(id)
 }
@@ -76,16 +78,17 @@ export function etatCreation(id) {
   const c = suivis.get(id)
   if (!c) return null
   const fait = c.images.filter(j => store.getJob(j)?.status === 'done').length
-  return { id, personaId: c.personaId, nom: c.nom, planche: store.getJob(c.planche)?.status ?? null, images: `${fait}/${c.images.length}`, entrainement: c.entrainement, entrainementEtat: c.entrainement ? store.getJob(c.entrainement)?.status ?? null : null }
+  return { id, personaId: c.personaId, nom: c.nom, planche: store.getJob(c.planche)?.status ?? null, images: `${fait}/${c.images.length}`, entrainements: (c.entrainements ?? (c.entrainement ? [{ moteur: 'klein', job: c.entrainement }] : [])).map(e => ({ ...e, statut: store.getJob(e.job)?.status ?? null })),
+    entrainementEtat: (() => { const l = (c.entrainements ?? []).map(e => store.getJob(e.job)?.status); return !l.length ? null : l.every(x => x === 'done') ? 'done' : l.some(x => x === 'rendering') ? 'rendering' : l.some(x => x === 'queued') ? 'queued' : l.at(-1) ?? null })() }
 }
 
 setInterval(() => {
   for (const c of suivis.values()) {
-    if (!c.entrainer || c.entrainement) continue
+    if (!c.entrainer || c.entrainement || c.entrainements?.length) continue
     const etats = c.images.map(j => store.getJob(j)?.status)
     if (etats.some(s => s !== 'done' && s !== 'blocked')) continue
     const fichiers = c.images.flatMap(j => store.assetsOfJob(j).filter(a => !String(a.id).endsWith('-full')).map(a => path.join(CONFIG.mediaDir, path.basename(a.filename))))
-    try { c.entrainement = enqueueEntrainement({ personaId: c.personaId, images: fichiers, declencheur: c.declencheur, pas: 1200 }).id }
+    try { c.entrainements = (c.moteurs?.length ? c.moteurs : ['klein']).map(moteur => ({ moteur, job: enqueueEntrainement({ personaId: c.personaId, images: fichiers, declencheur: c.declencheur, pas: 1200, moteur }).id })) }
     catch (e) { c.entrainer = false; console.warn(`[création ${c.id}] entraînement : ${e.message || e}`) }
     garder()
   }

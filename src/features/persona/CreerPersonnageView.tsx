@@ -5,6 +5,7 @@ import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
 import { useEdition } from '../../lib/proprietaire'
 import { OutilPage, useSuiviOutil } from '../../v2/OutilPage'
+import { dureeMin } from './Entrainement'
 
 const CHOIX: { cle: 'origine' | 'cheveux' | 'yeux' | 'style' | 'signes'; titre: string; options: string[]; multiple?: boolean }[] = [
   { cle: 'origine', titre: 'Origine du personnage', options: ['Portuguese', 'Japanese', 'Nigerian', 'Brazilian', 'Swedish', 'Indian', 'Moroccan', 'Korean', 'Mexican', 'Irish', 'Lebanese', 'Vietnamese'] },
@@ -31,8 +32,10 @@ export function CreerPersonnageView() {
   const [jobs, setJobs] = useState<string[]>(memo.jobs ?? [])
   const [choisi, setChoisi] = useState<string | null>(memo.choisi ?? null)
   const [nom, setNom] = useState(memo.nom ?? '')
-  const [entrainer, setEntrainer] = useState(true)
-  const [suivi, setSuivi] = useState<{ id: string; planche: string | null; images: string; entrainementEtat: string | null } | null>(null)
+  const [moteursDispo, setMoteursDispo] = useState<{ id: string; nom: string; pret: boolean; secParPas: number; preparationS: number }[]>([])
+  const [moteurs, setMoteurs] = useState<Set<string>>(new Set(['klein']))
+  useEffect(() => { void fetch('/api/entrainement').then(r => r.json()).then(d => setMoteursDispo(d.moteurs ?? [])).catch(() => {}) }, [])
+  const [suivi, setSuivi] = useState<{ id: string; planche: string | null; images: string; entrainementEtat: string | null; entrainements?: { moteur: string; statut: string | null }[] } | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
   useEffect(() => {
@@ -65,7 +68,7 @@ export function CreerPersonnageView() {
     return { ...x, [cle]: (l.includes(v) ? l.filter(y => y !== v) : [...l, v]).join(', ') }
   })
   const proposer = async () => { setOccupe(true); const d = await poster('/api/personnages/propositions', { traits }); setOccupe(false); if (d) { setJobs(d.jobs); setChoisi(null); setSuivi(null); historique.ajouter(d.jobs); for (const j of d.jobs) void s.adoptServerJob(j) } }
-  const creer = async () => { const d = await poster('/api/personnages/creer', { assetId: choisi, nom, traits, entrainer }); if (d) { setSuivi(d); await s.refreshPersona() } }
+  const creer = async () => { const d = await poster('/api/personnages/creer', { assetId: choisi, nom, traits, moteurs: [...moteurs].filter(m => moteursDispo.some(x => x.id === m && x.pret)) }); if (d) { setSuivi(d); await s.refreshPersona() } }
   if (!edition) return <div className="outil-vide" style={{ flex: 1 }}>{t('Créer un personnage est réservé au propriétaire du studio.')}</div>
   const resultat = jobs.length > 0 ? (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -79,11 +82,17 @@ export function CreerPersonnageView() {
       {choisi && !suivi && (
         <div className="flex gap-2 items-center flex-wrap">
           <input className="champ" value={nom} onChange={e => setNom(e.target.value)} placeholder={t('nom du personnage')} maxLength={40} />
-          <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={entrainer} onChange={e => setEntrainer(e.target.checked)} /> {t('entraîner sa LoRA (~35 min)')}</label>
+          <span className="texte-doux">{t('entraîner sa LoRA pour')}</span>
+          {moteursDispo.map(m => (
+            <label key={m.id} className="flex gap-1.5 items-center" style={{ cursor: m.pret ? 'pointer' : 'not-allowed', opacity: m.pret ? 1 : 0.45 }}>
+              <input type="checkbox" disabled={!m.pret} checked={m.pret && moteurs.has(m.id)} onChange={e => setMoteurs(c => { const n = new Set(c); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n })} />
+              {m.nom} <span className="texte-doux">~{dureeMin(m, 1200)} min</span>
+            </label>
+          ))}
           <button className="pill" disabled={nom.trim().length < 2} onClick={() => void creer()}>{t('Créer le personnage')}</button>
         </div>
       )}
-      {suivi && <span className="texte-doux">{t('Planche : {p} · images : {i}', { p: suivi.planche ?? '…', i: suivi.images })}{suivi.entrainementEtat ? ` · ${t('LoRA : {e}', { e: suivi.entrainementEtat })}` : ''}</span>}
+      {suivi && <span className="texte-doux">{t('Planche : {p} · images : {i}', { p: suivi.planche ?? '…', i: suivi.images })}{suivi.entrainements?.length ? ` · ${suivi.entrainements.map(e => `LoRA ${e.moteur === 'krea' ? 'Krea 2' : 'Klein'} : ${e.statut ?? '…'}`).join(' · ')}` : suivi.entrainementEtat ? ` · ${t('LoRA : {e}', { e: suivi.entrainementEtat })}` : ''}</span>}
     </div>
   ) : undefined
   return (
@@ -93,7 +102,7 @@ export function CreerPersonnageView() {
       etapes={[
         { titre: 'Les traits', texte: 'Un adulte de 21 à 80 ans : origine, cheveux, yeux, style, signes distinctifs.' },
         { titre: 'Quatre visages', texte: 'Krea 2 propose quatre portraits en studio ; tu choisis et tu le nommes.' },
-        { titre: 'Le personnage', texte: 'Planche de référence, 12 images variées avec FLUX.2 Klein, puis sa LoRA si tu veux.' },
+        { titre: 'Le personnage', texte: 'Planche de référence, 12 images variées avec FLUX.2 Klein, puis ses LoRA (Klein, Krea 2) si tu veux ; tu suis et tu peux annuler l’entraînement dans Personnages.' },
       ]}
       action={<>
         <button className="cta" style={{ padding: '18px 15px', flexDirection: 'row' }} disabled={occupe} onClick={() => void proposer()}>{occupe ? '…' : t('4 propositions')} <small>~1 min</small></button>

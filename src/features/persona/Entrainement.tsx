@@ -5,12 +5,14 @@ import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
 import { useEdition } from '../../lib/proprietaire'
 
-type Travail = { id: string; personaId: string | null; statut: string; declencheur: string | null; images: number | null; pas: number | null; total: number | null
+type Moteur = { id: string; nom: string; pret: boolean; secParPas: number; preparationS: number }
+export const dureeMin = (m: Moteur, pas: number) => Math.round((pas * m.secParPas + m.preparationS) / 60)
+type Travail = { id: string; personaId: string | null; statut: string; moteur?: string; declencheur: string | null; images: number | null; pas: number | null; total: number | null
   debut: number | null; fin: number | null; resteMs: number; erreur: string | null; lora: string | null }
 const EN_COURS = ['queued', 'rendering', 'running', 'pending']
 
 /** Les entraînements du personnage : en file, en cours (pas faits, temps restant), finis (LoRA ajoutée) ou en échec. */
-function SuiviEntrainements({ travaux }: { travaux: Travail[] }) {
+function SuiviEntrainements({ travaux, onAnnuler, moteurs }: { travaux: Travail[]; onAnnuler: (id: string) => void; moteurs: Moteur[] }) {
   if (!travaux.length) return null
   return (
     <div style={{ display: 'grid', gap: 8 }}>
@@ -20,10 +22,10 @@ function SuiviEntrainements({ travaux }: { travaux: Travail[] }) {
         return (
           <div key={w.id} style={{ display: 'grid', gap: 5, padding: '10px 12px', borderRadius: 10, background: 'rgba(127,127,127,0.10)' }}>
             <div className="flex gap-2 items-center flex-wrap">
-              <b>{w.declencheur ?? w.id}</b>
+              <b>{moteurs.find(m => m.id === (w.moteur ?? 'klein'))?.nom ?? w.moteur} · {w.declencheur ?? w.id}</b>
               <span className="texte-doux">{w.images ? t('{n} images', { n: w.images }) : ''}{w.total ? ` · ${t('{n} pas', { n: w.total })}` : ''}</span>
               <span style={{ marginLeft: 'auto', color: w.statut === 'done' ? 'var(--positif)' : enCours ? 'var(--muted)' : 'var(--danger)' }}>
-                {w.statut === 'done' ? t('terminé') : w.statut === 'queued' ? t('en file') : enCours ? (pc != null ? `${pc} %` : t('préparation…')) : t('échec')}
+                {w.statut === 'done' ? t('terminé') : w.statut === 'queued' ? t('en file') : enCours ? (pc != null ? `${pc} %` : t('préparation…')) : /^annulé/.test(w.erreur ?? '') ? t('annulé') : t('échec')}
               </span>
             </div>
             {enCours && (
@@ -35,8 +37,9 @@ function SuiviEntrainements({ travaux }: { travaux: Travail[] }) {
             {enCours && <span className="texte-doux" style={{ fontSize: 12 }}>
               {w.pas != null && w.total ? t('pas {n} / {t}', { n: w.pas, t: w.total }) + ' · ' : ''}{w.resteMs > 0 ? t('encore ~{m} min', { m: Math.max(1, Math.round(w.resteMs / 60000)) }) : ''}
             </span>}
+            {enCours && <button className="pill" style={{ justifySelf: 'start', fontSize: 12 }} onClick={() => onAnnuler(w.id)}>■ {t('Annuler l’entraînement')}</button>}
             {w.statut === 'done' && w.lora && <span className="texte-doux" style={{ fontSize: 12 }}>{t('LoRA ajoutée au personnage : {nom}', { nom: w.lora })}</span>}
-            {w.erreur && !enCours && w.statut !== 'done' && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{tServeur(w.erreur) ?? w.erreur}</span>}
+            {w.erreur && !enCours && w.statut !== 'done' && !/^annulé/.test(w.erreur) && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{tServeur(w.erreur) ?? w.erreur}</span>}
           </div>
         )
       })}
@@ -53,7 +56,18 @@ export function Entrainement() {
   const [pas, setPas] = useState(1500)
   const [msg, setMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   const [travaux, setTravaux] = useState<Travail[]>([])
-  const charger = () => fetch('/api/entrainement').then(r => r.json()).then(d => { setPret(!!d.pret); setTravaux(d.travaux ?? []) })
+  const [moteurs, setMoteurs] = useState<Moteur[]>([])
+  const [coches, setCoches] = useState<Set<string>>(new Set(['klein']))
+  const charger = () => fetch('/api/entrainement').then(r => r.json()).then(d => { setPret(!!d.pret); setTravaux(d.travaux ?? []); setMoteurs(d.moteurs ?? []) })
+  const annuler = async (id: string) => {
+    if (!confirmerAnnulation(id)) return
+    await fetch(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {})
+    void charger().catch(() => {})
+  }
+  const [aConfirmer, setAConfirmer] = useState<string | null>(null)
+  const confirmerAnnulation = (id: string) => { if (aConfirmer === id) { setAConfirmer(null); return true } setAConfirmer(id); setTimeout(() => setAConfirmer(x => (x === id ? null : x)), 4000); return false }
+  const cochables = moteurs.filter(m => m.pret)
+  const totalMin = cochables.filter(m => coches.has(m.id)).reduce((n, m) => n + dureeMin(m, pas), 0)
   useEffect(() => { void charger().catch(() => setPret(false)) }, [])
   const miens = useMemo(() => travaux.filter(w => w.personaId === s.personaId).slice(0, 4), [travaux, s.personaId])
   const actif = miens.some(w => EN_COURS.includes(w.statut))
@@ -67,19 +81,21 @@ export function Entrainement() {
   const lancer = async () => {
     setMsg(null)
     const r = await fetch(`/api/personas/${encodeURIComponent(s.personaId ?? '')}/entrainer`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assets: [...choix], declencheur: mot, pas }) })
+      body: JSON.stringify({ assets: [...choix], declencheur: mot, pas, moteurs: [...coches].filter(id => cochables.some(m => m.id === id)) }) })
     const d = await r.json().catch(() => ({}))
     if (!r.ok) { setMsg({ ok: false, txt: tServeur(d.error) ?? `HTTP ${r.status}` }); return }
     await s.adoptServerJob(d.jobId)
     void charger().catch(() => {})
-    setMsg({ ok: true, txt: t('Entraînement lancé : la LoRA s’ajoute au personnage à la fin (~{m} min).', { m: Math.round(pas * 1.6 / 60 + 3) }) })
+    for (const j of (d.jobIds ?? []).slice(1)) await s.adoptServerJob(j)
+    setMsg({ ok: true, txt: t('Entraînement lancé : la LoRA s’ajoute au personnage à la fin (~{m} min).', { m: totalMin }) })
   }
   return (
     <div className="border border-border rounded-card bg-surface2 p-4 mb-4" style={{ display: 'grid', gap: 10, fontSize: 13 }}>
       <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· LoRA FLUX.2 Klein · ai-toolkit</span></b>
       {!edition ? <span className="texte-doux">{t('Réservé au propriétaire du studio.')}</span>
         : pret === false ? <span className="texte-doux">{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
-        <SuiviEntrainements travaux={miens} />
+        <SuiviEntrainements travaux={miens} moteurs={moteurs} onAnnuler={id => void annuler(id)} />
+        {aConfirmer && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{t('Clique encore sur Annuler pour arrêter cet entraînement (le travail fait est perdu).')}</span>}
         <span className="texte-doux">{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur Klein.')}</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
           {photos.map(a => (
@@ -89,6 +105,18 @@ export function Entrainement() {
             </button>
           ))}
         </div>
+        <div className="flex gap-3 items-center flex-wrap">
+          <span className="texte-doux">{t('LoRA pour')}</span>
+          {moteurs.map(m => (
+            <label key={m.id} className="flex gap-1.5 items-center" style={{ cursor: m.pret ? 'pointer' : 'not-allowed', opacity: m.pret ? 1 : 0.45 }}
+              title={m.pret ? t('~{m} min avec ces réglages', { m: dureeMin(m, pas) }) : t('modèle de base absent sur ce studio')}>
+              <input type="checkbox" disabled={!m.pret} checked={m.pret && coches.has(m.id)}
+                onChange={e => setCoches(c => { const n = new Set(c); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n })} />
+              {m.nom} <span className="texte-doux">~{dureeMin(m, pas)} min</span>
+            </label>
+          ))}
+          <label className="flex gap-1.5 items-center" style={{ opacity: 0.45, cursor: 'not-allowed' }} title={t('MOSS n’accepte pas de LoRA')}><input type="checkbox" disabled /> MOSS Image</label>
+        </div>
         <div className="flex gap-2 items-center flex-wrap">
           <span>{choix.size} / 30</span>
           <input value={mot} onChange={e => setMot(e.target.value)} placeholder={t('mot déclencheur, ex. jzl4')} maxLength={16} aria-label={t('mot déclencheur')}
@@ -96,7 +124,7 @@ export function Entrainement() {
           <select value={pas} onChange={e => setPas(Number(e.target.value))} aria-label={t('durée')} className="champ">
             <option value={800}>{t('rapide · 800 pas')}</option><option value={1500}>{t('normal · 1500 pas')}</option><option value={2500}>{t('fin · 2500 pas')}</option>
           </select>
-          <button className="pill" disabled={choix.size < 8 || mot.trim().length < 3} onClick={() => void lancer()}>{t('Entraîner')}</button>
+          <button className="pill" disabled={choix.size < 8 || mot.trim().length < 3 || totalMin === 0} onClick={() => void lancer()}>{t('Entraîner')}{totalMin ? ` · ~${totalMin} min` : ''}</button>
         </div>
         {msg && <span style={{ color: msg.ok ? 'var(--positif)' : 'var(--danger)' }}>{msg.txt}</span>}
       </>)}
