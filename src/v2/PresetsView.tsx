@@ -82,7 +82,7 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
                 ? <VideoVisible src={p.apercu} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, opacity: .5 }}>{p.icone}</span>}
               <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px 11px', background: 'linear-gradient(transparent, rgba(0,0,0,.8))', fontSize: 13.5, fontWeight: 700 }}>
-                {nom(p)}{p.lora && <span style={{ marginLeft: 6, fontSize: 9.5, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
+                {nom(p)}{p.lora && <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
               </span>
             </button>
           ))}
@@ -134,7 +134,7 @@ function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: s
                 <img src={vignetteOf(a)} alt="" loading="lazy" />
               </button>
             ))}
-            {!photos.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 11, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}
+            {!photos.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}
           </div>
           <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
             <input value={detail} onChange={e => setDetail(e.target.value)} maxLength={300} placeholder={t('2. Optionnel : ce qu’elle fait pendant le plan (en anglais)')}

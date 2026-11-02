@@ -31,10 +31,10 @@ export function GenererMusique({ surPret }: { surPret: () => void }) {
       <textarea rows={2} style={champ} value={prompt} maxLength={400} onChange={e => setPrompt(e.target.value)}
         placeholder={t(genre === 'musique' ? 'Style, instruments, ambiance : warm lo-fi, soft piano…' : 'Le son : a heavy wooden door creaking open…')} />
       {genre === 'musique' && <textarea rows={2} style={champ} value={paroles} maxLength={2000} onChange={e => setParoles(e.target.value)} placeholder={t('Paroles (facultatif) : vide = instrumental')} />}
-      <label className="flex items-center gap-2" style={{ color: 'var(--muted)', fontSize: 11 }}>{secondes} s
+      <label className="flex items-center gap-2" style={{ color: 'var(--muted)', fontSize: 12 }}>{secondes} s
         <input type="range" className="flex-1" min={genre === 'bruitage' ? 2 : 5} max={genre === 'bruitage' ? 20 : 120} value={Math.min(secondes, genre === 'bruitage' ? 20 : 120)} onChange={e => setSecondes(Number(e.target.value))} /></label>
       <button className="pill tool" style={{ justifyContent: 'center' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{occupe ? t('génération…') : t('Générer')}</button>
-      {msg && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{msg}</div>}
+      {msg && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{msg}</div>}
     </div>
   )
 }

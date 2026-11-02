@@ -9,7 +9,7 @@ export function CleComfy() {
   return (
     <div className="border border-border rounded-card bg-surface2 p-4 max-w-[720px]">
       <div className="font-semibold text-[13px] mb-1">{t('Comfy Cloud — générer avec ta clé')}
-        {' '}<span className="text-[10.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'rgba(240,180,60,.16)', color: '#f0b43c' }}>{t('expérimental')}</span></div>
+        {' '}<span className="text-[12px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'rgba(240,180,60,.16)', color: '#f0b43c' }}>{t('expérimental')}</span></div>
       <p className="text-[12px] mb-2" style={{ lineHeight: 1.5, color: '#f0b43c' }}>
         {t('Pas encore vérifié de bout en bout : Comfy Cloud ne délivre de clé API qu’aux comptes payants. Sans clé, tes rendus passent sur la carte graphique de ce serveur, comme d’habitude.')}
       </p>
@@ -28,7 +28,7 @@ export function CleComfy() {
           <input type="password" autoComplete="off" spellCheck={false} value={saisie} onChange={e => setSaisie(e.target.value)}
             placeholder="comfyui-…" className="bg-surface3 border border-border rounded px-2 py-1 text-[12px]" style={{ minWidth: 260 }} />
           <button className="pill" type="submit" disabled={!saisie.trim()}>{t('Utiliser cette clé')}</button>
-          <a className="text-[11.5px] text-accent hover:underline" href="https://platform.comfy.org/login" target="_blank" rel="noreferrer">{t('Obtenir une clé')}</a>
+          <a className="text-[12px] text-accent hover:underline" href="https://platform.comfy.org/login" target="_blank" rel="noreferrer">{t('Obtenir une clé')}</a>
         </form>
       )}
     </div>
@@ -105,13 +105,13 @@ function LorasCloud() {
   return (
     <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border, rgba(127,127,127,.25))' }}>
       <div className="font-semibold text-[12.5px] mb-1">{t('LoRA des personnages sur ton compte')}</div>
-      <p className="text-[11.5px] text-muted mb-2" style={{ lineHeight: 1.5 }}>
+      <p className="text-[12px] text-muted mb-2" style={{ lineHeight: 1.5 }}>
         {t('Comfy Cloud n’a pas les LoRA d’identité des personnages. Importe-les une fois : Comfy Cloud les télécharge lui-même depuis Civitai, sur ton compte.')}
       </p>
-      {erreur && <div className="text-[11.5px] mb-2" style={{ color: 'var(--danger)' }}>{erreur}</div>}
-      {!loras && !erreur && <div className="text-[11.5px] text-muted">{t('chargement…')}</div>}
+      {erreur && <div className="text-[12px] mb-2" style={{ color: 'var(--danger)' }}>{erreur}</div>}
+      {!loras && !erreur && <div className="text-[12px] text-muted">{t('chargement…')}</div>}
       {loras && (
-        <ul className="text-[11.5px] mb-2" style={{ lineHeight: 1.7 }}>
+        <ul className="text-[12px] mb-2" style={{ lineHeight: 1.7 }}>
           {loras.map(l => { const e = libelle(l); return (
             <li key={`${l.persona}-${l.name}`} className="flex gap-2 flex-wrap">
               <b>{l.personaName}</b><span className="text-muted">{l.moteur === 'krea' ? 'Krea 2' : l.moteur === 'klein' ? 'Klein' : t('vidéo')}</span>

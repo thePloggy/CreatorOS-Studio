@@ -126,7 +126,7 @@ export function StagePanel() {
       <div className="flex gap-4 items-center text-[12px]">
         {(['cote', 'plateau', 'camera'] as const).map(v => <button key={v} className={`onglet ${vue === v ? 'on' : ''}`} onClick={() => setVue(v)}>{t(v === 'cote' ? 'Côte à côte' : v === 'plateau' ? 'Plateau' : 'Caméra')}</button>)}
         <span style={{ flex: 1 }} />
-        <span style={{ color: 'var(--faint)', fontSize: 11 }}>{t(vue !== 'camera' ? 'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
+        <span style={{ color: 'var(--faint)', fontSize: 12 }}>{t(vue !== 'camera' ? 'Glisse un accessoire ou un repère rose. Glisse le vide pour tourner, molette pour zoomer.' : 'Ce que verra la caméra à cet instant.')}</span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}><Suspense fallback={null}>
         {(vue === 'cote' ? ['plateau', 'camera'] as const : [vue]).length > 1
@@ -136,7 +136,7 @@ export function StagePanel() {
             </div>
           : plateau3d(vue as 'plateau' | 'camera')}
       </Suspense></div>
-      <div className="flex gap-3 items-center text-[11px]" style={{ color: 'var(--muted)' }}>
+      <div className="flex gap-3 items-center text-[12px]" style={{ color: 'var(--muted)' }}>
         <button className="pill" aria-label={t('Lecture')} onClick={() => { setInstant(0); if (vue === 'plateau') setVue('camera'); setLecture(true) }}>▶</button>
         <input type="range" className="flex-1" min={0} max={1} step={0.01} value={instant} onChange={e => { setLecture(false); setInstant(Number(e.target.value)) }} />
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(instant * secondes).toFixed(1)} s / {secondes} s</span>
@@ -153,7 +153,7 @@ export function StagePanel() {
     <div className="flex gap-1.5 flex-wrap">
       {MOUVEMENTS.map(m => <button key={m.id} className="pill" onClick={() => { setCam(m.cam); setHauteurs(m.h) }}>{t(m.label)}</button>)}
     </div>
-    <div className="flex flex-col gap-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+    <div className="flex flex-col gap-1 text-[12px]" style={{ color: 'var(--muted)' }}>
       <label className="flex items-center gap-2">{t('Hauteur au début')}<input type="range" className="flex-1" min={0.2} max={6} step={0.1} value={hauteurs[0]} onChange={e => setHauteurs(h => [Number(e.target.value), h[1]])} /></label>
       <label className="flex items-center gap-2">{t('Hauteur à la fin')}<input type="range" className="flex-1" min={0.2} max={6} step={0.1} value={hauteurs[1]} onChange={e => setHauteurs(h => [h[0], Number(e.target.value)])} /></label>
       <label className="flex items-center gap-2">{t('Hauteur visée')}<input type="range" className="flex-1" min={0} max={4} step={0.1} value={viseH} onChange={e => setViseH(Number(e.target.value))} /></label>
@@ -177,7 +177,7 @@ export function StagePanel() {
       {objets.map(o => <button key={o.id} className="pill tool" style={o.id === choisi ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined} onClick={() => setChoisi(o.id)}>{t(nomDe(o))} <small>{rond(o.h)} m</small></button>)}
     </div>
     {sel && (
-      <div className="flex flex-col gap-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+      <div className="flex flex-col gap-1 text-[12px]" style={{ color: 'var(--muted)' }}>
         <label className="flex items-center gap-2">{t('Hauteur')}<input type="range" className="flex-1" min={0.3} max={sel.type === 'personne' ? 2.2 : 6} step={0.1} value={sel.h} onChange={e => regler('h', Number(e.target.value))} /></label>
         <label className="flex items-center gap-2">{t('Rotation')}<input type="range" className="flex-1" min={-180} max={180} step={5} value={sel.rot ?? 0} onChange={e => regler('rot', Number(e.target.value))} /></label>
         {sel.type === 'modele' && <label className="flex items-center gap-2">{t('Élévation')}<input type="range" className="flex-1" min={0} max={4} step={0.1} value={sel.y ?? 0} onChange={e => regler('y', Number(e.target.value))} /></label>}
@@ -186,7 +186,7 @@ export function StagePanel() {
         {objets.length > 1 && <button className="pill" style={{ alignSelf: 'flex-start' }} onClick={() => { setObjets(l => l.filter(o => o.id !== choisi)); setChoisi(null) }}>{t('Retirer')}</button>}
       </div>
     )}
-    {msg && <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{msg}</div>}
+    {msg && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{msg}</div>}
     <button className="cta" style={{ padding: '14px', flexDirection: 'row' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{t('Tourner le plan')} <small>{format} · {secondes} s · ~3 min</small></button>
   </>)
 }

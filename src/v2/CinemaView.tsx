@@ -104,7 +104,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
         <div className="cine-grille">
           <div className="carte-reel cine-fiche">
             <div className="flex gap-1.5 flex-wrap" style={{ marginBottom: 10 }}>
-              <span className="text-[10.5px]" style={{ color: 'var(--faint)', alignSelf: 'center' }}>{t('Plans de départ')}</span>
+              <span className="text-[12px]" style={{ color: 'var(--faint)', alignSelf: 'center' }}>{t('Plans de départ')}</span>
               {DEPARTS.map(d => <button key={d.id} className="pill tool" onClick={() => setF(x => ({ ...x, ...d.fiche }))}>{t(d.label)}</button>)}
             </div>
             <ChoixPersonnage />
@@ -119,7 +119,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
                 <small>{t('Palette')}</small>
                 {f.palette.map((c, i) => <button key={i} title={t('retirer')} style={{ background: c }} onClick={() => maj({ palette: f.palette.filter((_, j) => j !== i) })} />)}
                 {f.palette.length < 8 && <label className="cine-plus" title={t('ajouter une couleur')}>＋<input type="color" hidden onChange={e => maj({ palette: [...f.palette, e.target.value].slice(0, 8) })} /></label>}
-                <button className="pill tool" style={{ fontSize: 10.5, padding: '3px 8px' }} onClick={() => setChoixPalette(true)}>{t('depuis une photo')}</button>
+                <button className="pill tool" style={{ fontSize: 12, padding: '3px 8px' }} onClick={() => setChoixPalette(true)}>{t('depuis une photo')}</button>
               </span>
             </div>
 
@@ -142,7 +142,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
               <span style={{ marginLeft: 8 }}>{t('Prises')}</span>
               {[1, 2, 3, 4].map(n => <button key={n} disabled={balayage} className={`wtab ${!balayage && prises === n ? 'on' : ''}`} onClick={() => setPrises(n)}>×{n}</button>)}
               <button className={`wtab ${balayage ? 'on' : ''}`} onClick={() => setBalayage(!balayage)} title={t('la même graine sous l’heure dorée, l’heure bleue, des néons et un clair-obscur')}>☀ {t('Même plan, 4 lumières')}</button>
-              <span className="text-[10px]" style={{ marginLeft: 6 }}>
+              <span className="text-[12px]" style={{ marginLeft: 6 }}>
                 <button className={`spill ${s.photoEngine === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')}>Krea 2</button>
                 {s.personaKlein && <button className={`spill ${s.photoEngine === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}>FLUX.2 Klein</button>}
               </span>
@@ -157,7 +157,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
           </div>
 
           <div className="cine-prises">
-            <div className="text-[11px]" style={{ color: 'var(--faint)', marginBottom: 8, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('Prises')}</div>
+            <div className="text-[12px]" style={{ color: 'var(--faint)', marginBottom: 8, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('Prises')}</div>
             {!jobs.length && !rendues.length && <div style={{ color: 'var(--faint)', fontSize: 12, padding: '30px 6px' }}>{t('Les prises apparaissent ici. Choisis un plan de départ, puis « Tourner ».')}</div>}
             <div className="cine-pellicule">
               {jobs.map(j => <div key={j.id} className="cine-prise"><JobCard j={j} queueIds={queueIds} /></div>)}

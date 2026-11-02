@@ -71,7 +71,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && brief.trim()) void lancer() }}
             style={{ minHeight: 84, resize: 'vertical', padding: 12, borderRadius: 12, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 14 }} />
           <div className="flex gap-1.5 flex-wrap">
-            {EXEMPLES.map(x => <button key={x} className="pill tool" style={{ fontSize: 11 }} onClick={() => setBrief(t(x))}>{t(x).split(':')[0].split(',')[0]}</button>)}
+            {EXEMPLES.map(x => <button key={x} className="pill tool" style={{ fontSize: 12 }} onClick={() => setBrief(t(x))}>{t(x).split(':')[0].split(',')[0]}</button>)}
           </div>
           <div className="flex items-center gap-3 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
             <span>{t('Plans')}</span>
@@ -89,7 +89,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
               {busy ? '…' : `✨ ${t('Réaliser le reel')}`}
             </button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--faint)' }}>{t('Compter environ {m} min : rédaction, {n} photos, {n} clips LTX-2.5 avec le son, montage.', { m: 2 + n * 3, n })}</div>
+          <div style={{ fontSize: 12, color: 'var(--faint)' }}>{t('Compter environ {m} min : rédaction, {n} photos, {n} clips LTX-2.5 avec le son, montage.', { m: 2 + n * 3, n })}</div>
           {err && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</div>}
         </div>
 
@@ -124,8 +124,8 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
     <div className="carte-reel" style={{ display: 'grid', gridTemplateColumns: r.reelUri ? 'minmax(0, 1fr) 260px' : 'minmax(0, 1fr)', gap: 16, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>
       <div style={{ display: 'grid', gap: 10, alignContent: 'start', minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.accroche ? `« ${r.accroche} »` : r.brief}</div>
-        {r.accroche && <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{r.brief}</div>}
-        <div className="flex items-center gap-1.5 flex-wrap" style={{ fontSize: 11 }}>
+        {r.accroche && <div style={{ fontSize: 12, color: 'var(--faint)' }}>{r.brief}</div>}
+        <div className="flex items-center gap-1.5 flex-wrap" style={{ fontSize: 12 }}>
           {ETAPES.map((e, k) => (
             <span key={e} style={{ padding: '3px 9px', borderRadius: 999, background: k < idx || r.etat === 'fini' ? 'var(--lv3)' : k === idx ? 'var(--accent)' : 'var(--lv2)',
               color: k === idx && r.etat !== 'fini' ? '#fff' : k <= idx ? 'var(--text)' : 'var(--faint)' }}>
@@ -139,14 +139,14 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
             <div key={i} title={p?.still ?? ''} style={{ width: 86, flex: 'none', aspectRatio: '9 / 16', borderRadius: 10, overflow: 'hidden', background: 'var(--lv2)', position: 'relative' }}>
               {p?.clipUri ? <video src={p.clipUri} muted loop autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : p?.photoUri ? <img src={p.photoUri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .8 }} />
-                : <div className="flex items-center justify-center" style={{ height: '100%', fontSize: 10, color: 'var(--faint)' }}>{t('plan {n}', { n: i + 1 })}</div>}
+                : <div className="flex items-center justify-center" style={{ height: '100%', fontSize: 12, color: 'var(--faint)' }}>{t('plan {n}', { n: i + 1 })}</div>}
               {p && !p.clipUri && (p.photoEtat === 'rendering' || p.clipEtat === 'rendering' || p.clipEtat === 'queued-comfy') &&
-                <span style={{ position: 'absolute', left: 4, bottom: 4, fontSize: 9, padding: '1px 5px', borderRadius: 5, background: 'rgba(0,0,0,.7)' }}>{p.clipJob ? t('anime…') : t('photo…')}</span>}
+                <span style={{ position: 'absolute', left: 4, bottom: 4, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(0,0,0,.7)' }}>{p.clipJob ? t('anime…') : t('photo…')}</span>}
               {/* contrôle du plan avant le rendu : ce que la réécriture n'a pas su corriger */}
               {p?.avertissements?.length ? <span title={p.avertissements.map(x => t(x)).join(' · ')}
-                style={{ position: 'absolute', right: 4, top: 4, fontSize: 10, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,182,72,.9)', color: '#111' }}>⚠</span> : null}
+                style={{ position: 'absolute', right: 4, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,182,72,.9)', color: '#111' }}>⚠</span> : null}
               {p && (r.etat === 'fini' || r.etat === 'echec') && <button title={t('Refaire ce plan')} onClick={() => { setPlanRefait(i); setGeste(p.motion) }}
-                style={{ position: 'absolute', left: 4, top: 4, fontSize: 11, width: 22, height: 22, border: 0, borderRadius: 6, cursor: 'pointer', color: '#fff', background: 'rgba(0,0,0,.65)' }}>↻</button>}
+                style={{ position: 'absolute', left: 4, top: 4, fontSize: 12, width: 22, height: 22, border: 0, borderRadius: 6, cursor: 'pointer', color: '#fff', background: 'rgba(0,0,0,.65)' }}>↻</button>}
             </div>
           ))}
         </div>

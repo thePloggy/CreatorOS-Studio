@@ -43,7 +43,7 @@ export function AvatarUpload({ className }: { className?: string }) {
   if (!edition) return null
   return (
     <>
-      <button type="button" className={cn('text-[11px] text-accent cursor-pointer hover:underline', className)}
+      <button type="button" className={cn('text-[12px] text-accent cursor-pointer hover:underline', className)}
         onClick={() => { setMsg(null); setOuvert(true) }}>{t('changer la photo')}</button>
       {ouvert && (
         <div role="dialog" aria-modal="true" aria-label={t('Choisir la photo de profil')} onClick={() => setOuvert(false)}

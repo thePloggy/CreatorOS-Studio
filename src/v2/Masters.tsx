@@ -37,11 +37,11 @@ export function Masters({ asset }: { asset: Asset }) {
     if (d.etat === 'en_cours') suivre(f)
   }
   return (
-    <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+    <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
       {t('Master')}
       {formats.map(f => etats[f.id] === 'pret'
-        ? <a key={f.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} href={`${url(f.id)}?dl=1`} download>⬇ {f.label}</a>
-        : <button key={f.id} className="pill" style={{ fontSize: 10.5, padding: '4px 9px' }} title={t(f.titre)} disabled={etats[f.id] === 'en_cours'} onClick={() => void lancer(f.id)}>
+        ? <a key={f.id} className="pill" style={{ fontSize: 12, padding: '4px 9px' }} href={`${url(f.id)}?dl=1`} download>⬇ {f.label}</a>
+        : <button key={f.id} className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t(f.titre)} disabled={etats[f.id] === 'en_cours'} onClick={() => void lancer(f.id)}>
             {etats[f.id] === 'en_cours' ? `${f.label}…` : f.label}</button>)}
       {msg && <span style={{ color: 'var(--danger)' }}>{msg}</span>}
     </div>

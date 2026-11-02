@@ -17,6 +17,16 @@ import { ChoixPersonnage } from './ChoixPersonnage'
 import { useEdition } from '../lib/proprietaire'
 import { useMentions } from './Mentions'
 
+/** Préréglages qui s'appuient sur les images de référence (FLUX.2 Klein). */
+const PRESETS_REF = [
+  { id: 'essayage', label: 'Essayage', aide: 'la tenue de l’image de référence portée par le personnage', ajout: false,
+    texte: 'Full-body fashion photo of the main character wearing exactly the outfit shown in the reference image: same garment, fabric, colour and fit. Natural light, clean street background.' },
+  { id: 'produit', label: 'Placement produit', aide: 'le personnage présente le produit de l’image de référence', ajout: false,
+    texte: 'Lifestyle advertising photo of the main character holding and presenting the product from the reference image; the product stays exactly unchanged and clearly visible. Soft daylight.' },
+  { id: 'moodboard', label: 'Moodboard', aide: 'les références donnent l’ambiance (couleurs, lumière, matière), pas leur contenu', ajout: true,
+    texte: 'Match the colour palette, light, texture and mood of the reference images, without copying their subjects or composition.' },
+]
+
 export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
   const edition = useEdition()
   const s = useAppStore()
@@ -118,7 +128,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
           review={review} setReview={setReview}
           cols={cols} setCols={setCols} picking={picking} setPicking={() => setPicked(new Set())}
           onPurge={purge} q={q} setQ={setQ} onTriage={() => setTriage(true)} />
-        {purgeArmed && <div className="px-4 text-[11px]" style={{ color: 'var(--danger)' }}>{t('⚠ re-cliquer pour confirmer la suppression définitive')}</div>}
+        {purgeArmed && <div className="px-4 text-[12px]" style={{ color: 'var(--danger)' }}>{t('⚠ re-cliquer pour confirmer la suppression définitive')}</div>}
 
         <div className="scrollwrap"><div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
@@ -154,20 +164,19 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       ) : (() => { const bar = (<>
         <div className="flex-1 min-w-0 fmain">
           <div className="flex gap-1.5 items-center mb-2">
-            <span className="text-[10px]" style={{ color: 'var(--faint)' }}>{t('Tâche')}</span>
+            <span className="text-[12px]" style={{ color: 'var(--faint)' }}>{t('Tâche')}</span>
             <button className={`spill ${task === 'generate' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'generate' })}>✎ {t('Générer')}</button>
             <button className={`spill ${task === 'edit' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'edit' })}>✦ {t('Retouche')}</button>
             {task === 'generate' && (<>
-              <span className="text-[10px] ml-3" style={{ color: 'var(--faint)' }}>{t('Recette')}</span>
+              <span className="text-[12px] ml-3" style={{ color: 'var(--faint)' }}>{t('Recette')}</span>
               <button className={`spill ${s.photoEngine === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')}
                 title={t('Krea 2 — la recette de production, identité tenue par les LoRA Krea')}>Krea 2</button>
               <button className={`spill ${s.photoEngine === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}
-                disabled={!kleinOk} style={kleinOk ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}
-                title={t("FLUX.2 Klein 9B — l'ancienne recette ; les LoRA d'identité entraînées sur Krea n'y agissent pas")}>FLUX.2 Klein</button>
+                title={t('FLUX.2 Klein 9B — références multiples ; sans LoRA Klein, le visage vient de la photo de profil du personnage')}>FLUX.2 Klein</button>
               <button className={`spill ${s.photoEngine === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')}
                 title={t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
               {s.photoEngine === 'klein' && !kleinOk && (
-                <span className="text-[10px]" style={{ color: 'var(--warn, #e0a84a)' }}>{t('{nom} n’a pas de LoRA Klein : son visage ne sera pas tenu', { nom: s.personaName })}</span>
+                <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Klein : son visage vient de sa photo de profil', { nom: s.personaName })}</span>
               )}
             </>)}
           </div>
@@ -176,31 +185,40 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               <button className="slot" style={{ width: 52, height: 66, flex: 'none', aspectRatio: 'auto' }} onClick={() => setSrcPick(true)}>
                 {s.photo.editSourceUri ? <img src={s.photo.editSourceUri} alt="" /> : '＋'}
               </button>
-              <span className="text-[10.5px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
+              <span className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
                 <b style={{ color: 'var(--text)' }}>{t('Image à retoucher')}</b><br />
                 <span className="inline-flex gap-1.5 mt-1">
-                  {edition && <label className="pill" style={{ fontSize: 10, padding: '4px 9px' }}>⇪ {t('Upload')}
+                  {edition && <label className="pill" style={{ fontSize: 12, padding: '4px 9px' }}>⇪ {t('Upload')}
                     <input type="file" accept="image/*" className="hidden" onChange={e => {
                       const f = e.target.files?.[0]
                       if (f) void s.uploadEditSource(f)
                     }} />
                   </label>}
-                  <button className="pill" style={{ fontSize: 10, padding: '4px 9px' }} onClick={() => setSrcPick(true)}>▦ {t('Bibliothèque')}</button>
+                  <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setSrcPick(true)}>▦ {t('Bibliothèque')}</button>
                   {(() => { const src = s.assets.find(x => x.id === s.photo.editSourceAssetId); return src
-                    ? <button className="pill" style={{ fontSize: 10, padding: '4px 9px' }} onClick={() => setPinceauDe(src)}>🖌 {t('Pinceau')}</button> : null })()}
+                    ? <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setPinceauDe(src)}>🖌 {t('Pinceau')}</button> : null })()}
                 </span>
               </span>
             </div>
           )}
           {task !== 'edit' && s.references.length > 0 && (
-            <div className="flex gap-1.5 items-center flex-wrap text-[10.5px]" style={{ color: 'var(--muted)' }}>
+            <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               {t('Références')}
               {s.references.map(r => <button key={r.file} title={t('retirer')} onClick={() => s.retirerReference(r.file)} style={{ width: 38, height: 38, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--lv3)', padding: 0, cursor: 'pointer' }}><img src={r.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}
-              {s.references.length < 6 && <button className="pill" style={{ fontSize: 10, padding: '4px 9px' }} onClick={() => setRefPick(true)}>＋</button>}
+              {s.references.length < 6 && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setRefPick(true)}>＋</button>}
               <span>{t('FLUX.2 Klein, nomme-les dans le prompt')}</span>
             </div>
           )}
-          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 10, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}>＋ {t('Images de référence')}</button>}
+          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}>＋ {t('Images de référence')}</button>}
+          {task !== 'edit' && (
+            <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
+              {t('Préréglages')}
+              {PRESETS_REF.map(p => (
+                <button key={p.id} className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t(p.aide)}
+                  onClick={() => { s.setUserPrompt(p.ajout && s.userPrompt.trim() ? `${s.userPrompt.trim()} ${p.texte}` : p.texte); if (!s.references.length) setRefPick(true) }}>{t(p.label)}</button>
+              ))}
+            </div>
+          )}
           <ChoixPersonnage />
           <textarea ref={champPrompt}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
@@ -227,7 +245,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               title={t('Un prompt par ligne, lancés l’un après l’autre')}>≡ {multi && lignes.length > 1 ? t('{n} prompts', { n: lignes.length }) : t('Plusieurs prompts')}</button>}
             {s.userPrompt && <button className="pill tool" onClick={() => s.setUserPrompt('')} title={t('Vider le champ')}>✕</button>}
           </div>
-          {s.t0Error && <div className="mt-1.5 text-[11px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
+          {s.t0Error && <div className="mt-1.5 text-[12px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
         </div>
         <button className="cta" style={isMobile ? { padding: '14px', flexDirection: 'row' } : { padding: '0 30px' }} onClick={() => void send()}>
           {t('Générer')} <small>{tp(s.batchCount * Math.max(1, lignes.length), '{n} job', '{n} jobs')} · ~{fmtDur(s.batchCount * Math.max(1, lignes.length) * photoEtaMs)}</small>

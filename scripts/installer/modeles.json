@@ -1,1427 +1,1435 @@
 {
-  "_doc": [
-    "Manifeste de l'assistant d'installation (scripts/installer/setup.mjs).",
-    "Dérivé des recettes workflows/PROD_*.json (entrées des loaders) et des graphes que le serveur construit à l'exécution (server/jobs.js : RIFE, bruitage LTX).",
-    "`dossier` est la clé folder_paths de ComfyUI (models/<dossier>/ par défaut, ou un chemin déclaré dans extra_model_paths.yaml) ; `chemin` est le nom tel que la recette l'écrit, sous-dossier compris.",
-    "`racine: custom_nodes` : le fichier vit dans le dossier d'un pack de nœuds, pas sous models/.",
-    "`taille` en octets, relevée sur l'API Hugging Face. `gated` : dépôt à accès accepté, il faut HF_TOKEN (envoyé en en-tête Authorization, jamais dans l'URL).",
-    "`verifie` : l'URL a été contrôlée (fichier listé par l'API du dépôt, taille identique). `setup.mjs --verify-urls` refait le contrôle par requêtes HEAD.",
-    "`leger` : variante allégée d'un modèle lourd pour les petites cartes. `remplace` = le fichier d'origine, `pour` = le plus petit profil de VRAM (Go) où elle passe, `chargeur` = la classe de nœud qui la lit, `suit` = ne sert qu'avec ce fichier. `tient` (sur l'original) = le plus petit profil où il passe encore. Le serveur (server/allege.js) remplace les chargeurs à l'envoi ; l'assistant propose les variantes quand la carte est trop petite."
-  ],
-  "groupes": {
-    "photo": {
-      "label": "Photo: Krea 2 (default engine), carousels, photo brush",
-      "defaut": true
-    },
-    "photo_klein": {
-      "label": "Photo: FLUX.2 Klein 9B (optional engine, CREATOROS_PHOTO_ENGINE=klein)"
-    },
-    "photo_hd": {
-      "label": "Photo HD upscale (FLUX.2 Klein + face detailer)"
-    },
-    "retouche": {
-      "label": "Instruction edit (Qwen-Image-Edit 2511)"
-    },
-    "video_wan": {
-      "label": "Image-to-video: Wan 2.2 I2V A14B"
-    },
-    "video_wan_t2v": {
-      "label": "Text-to-video: Wan 2.2 T2V A14B (character from a Wan LoRA pair)"
-    },
-    "video_ltx": {
-      "label": "Image-to-video with audio: LTX-2.5 22B (also used for foley)"
-    },
-    "motion": {
-      "label": "Motion transfer: Wan Animate 2"
-    },
-    "video_nettete": {
-      "label": "Video sharpen to 1080p (SeedVR2 3B)"
-    },
-    "video_retouche": {
-      "label": "Video refine, video brush (SAM 3.1 tracking), RIFE smoothing"
-    },
-    "camera_effets": {
-      "label": "Camera & effects gallery: LTX-2 camera LoRAs, Wan 2.1 I2V 480p with Remade-AI / ostris camera and effect LoRAs"
-    },
-    "parole": {
-      "label": "Talking avatar: InfiniteTalk on Wan 2.1 I2V 480p"
-    },
-    "reshoot": {
-      "label": "Re-shoot: a new camera angle on a clip (MoGe-2, CrossViewWarp, LTX-2.5 + CrossView-Warp IC-LoRA)"
-    },
-    "mix": {
-      "label": "Video: Replay → Mix (WanAnimate 2.2 replacement: your character takes the place of the person in a video)"
-    },
-    "controle": {
-      "label": "Automatic clip check: face match (OpenCV YuNet + SFace, ~39 MB, CPU)",
-      "defaut": true
-    },
-    "photo_moss": {
-      "label": "Photo: MOSS Image (optional engine, needs a recent ComfyUI, no identity LoRA)"
-    },
-    "objet3d": {
-      "label": "Objet 3D: TRELLIS.2, a photo becomes a GLB (about 8 GB)"
-    },
-    "musique": {
-      "label": "Music and sound effects: ACE-Step 1.5 turbo"
-    }
+ "_doc": [
+  "Manifeste de l'assistant d'installation (scripts/installer/setup.mjs).",
+  "Dérivé des recettes workflows/PROD_*.json (entrées des loaders) et des graphes que le serveur construit à l'exécution (server/jobs.js : RIFE, bruitage LTX).",
+  "`dossier` est la clé folder_paths de ComfyUI (models/<dossier>/ par défaut, ou un chemin déclaré dans extra_model_paths.yaml) ; `chemin` est le nom tel que la recette l'écrit, sous-dossier compris.",
+  "`racine: custom_nodes` : le fichier vit dans le dossier d'un pack de nœuds, pas sous models/.",
+  "`taille` en octets, relevée sur l'API Hugging Face. `gated` : dépôt à accès accepté, il faut HF_TOKEN (envoyé en en-tête Authorization, jamais dans l'URL).",
+  "`verifie` : l'URL a été contrôlée (fichier listé par l'API du dépôt, taille identique). `setup.mjs --verify-urls` refait le contrôle par requêtes HEAD.",
+  "`leger` : variante allégée d'un modèle lourd pour les petites cartes. `remplace` = le fichier d'origine, `pour` = le plus petit profil de VRAM (Go) où elle passe, `chargeur` = la classe de nœud qui la lit, `suit` = ne sert qu'avec ce fichier. `tient` (sur l'original) = le plus petit profil où il passe encore. Le serveur (server/allege.js) remplace les chargeurs à l'envoi ; l'assistant propose les variantes quand la carte est trop petite."
+ ],
+ "groupes": {
+  "photo": {
+   "label": "Photo: Krea 2 (default engine), carousels, photo brush",
+   "defaut": true
   },
-  "noeuds": [
-    {
-      "nom": "ComfyUI-SeedVR2_VideoUpscaler",
-      "depot": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
-      "classes": [
-        "SeedVR2VideoUpscaler",
-        "SeedVR2LoadDiTModel",
-        "SeedVR2LoadVAEModel"
-      ],
-      "groupes": [
-        "video_nettete"
-      ],
-      "note": "Apache-2.0"
-    },
-    {
-      "nom": "ComfyUI-KJNodes",
-      "depot": "https://github.com/kijai/ComfyUI-KJNodes",
-      "classes": [
-        "ColorMatch",
-        "GrowMaskWithBlur",
-        "GetImageSizeAndCount"
-      ],
-      "groupes": [
-        "photo",
-        "photo_klein",
-        "photo_hd",
-        "video_retouche",
-        "mix"
-      ],
-      "note": "GrowMaskWithBlur et GetImageSizeAndCount sont ajoutés par le serveur (pinceau photo et vidéo)"
-    },
-    {
-      "nom": "ComfyUI-VideoHelperSuite",
-      "depot": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",
-      "classes": [
-        "VHS_LoadVideo",
-        "VHS_LoadVideoPath"
-      ],
-      "groupes": [
-        "video_retouche",
-        "reshoot",
-        "mix"
-      ]
-    },
-    {
-      "nom": "ComfyUI-GGUF",
-      "depot": "https://github.com/city96/ComfyUI-GGUF",
-      "classes": [
-        "UnetLoaderGGUF"
-      ],
-      "groupes": [
-        "video_retouche"
-      ]
-    },
-    {
-      "nom": "ComfyUI-Frame-Interpolation",
-      "depot": "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation",
-      "classes": [
-        "RIFE VFI"
-      ],
-      "groupes": [
-        "video_retouche",
-        "video_wan_t2v"
-      ],
-      "requirements": "requirements-no-cupy.txt",
-      "note": "absent du README d'origine : le serveur ajoute un nœud RIFE VFI au refine V2V et à la fluidité ×2"
-    },
-    {
-      "nom": "RES4LYF",
-      "depot": "https://github.com/ClownsharkBatwing/RES4LYF",
-      "classes": [
-        "ClownsharKSampler_Beta"
-      ],
-      "groupes": [
-        "photo_hd"
-      ]
-    },
-    {
-      "nom": "ComfyUI-Impact-Pack",
-      "depot": "https://github.com/ltdrdata/ComfyUI-Impact-Pack",
-      "classes": [
-        "BboxDetectorCombined_v2"
-      ],
-      "groupes": [
-        "photo_hd"
-      ]
-    },
-    {
-      "nom": "ComfyUI-Impact-Subpack",
-      "depot": "https://github.com/ltdrdata/ComfyUI-Impact-Subpack",
-      "classes": [
-        "UltralyticsDetectorProvider"
-      ],
-      "groupes": [
-        "photo_hd"
-      ]
-    },
-    {
-      "nom": "ComfyUI-CrossViewWarp",
-      "depot": "https://github.com/cseti007/ComfyUI-CrossViewWarp",
-      "classes": [
-        "CrossViewWarp"
-      ],
-      "groupes": [
-        "reshoot"
-      ],
-      "note": "Apache-2.0 ; aucun paquet Python requis"
-    },
-    {
-      "nom": "ComfyUI-WanVideoWrapper",
-      "depot": "https://github.com/kijai/ComfyUI-WanVideoWrapper",
-      "classes": [
-        "WanVideoModelLoader",
-        "WanVideoSampler",
-        "WanVideoAnimateEmbeds",
-        "WanVideoLoraSelectMulti"
-      ],
-      "groupes": [
-        "mix"
-      ],
-      "note": "Apache-2.0"
-    },
-    {
-      "nom": "ComfyUI-segment-anything-2",
-      "depot": "https://github.com/kijai/ComfyUI-segment-anything-2",
-      "classes": [
-        "DownloadAndLoadSAM2Model",
-        "Sam2Segmentation"
-      ],
-      "groupes": [
-        "mix"
-      ],
-      "note": "Apache-2.0 ; le modèle SAM2 se télécharge au premier usage"
-    },
-    {
-      "nom": "comfyui_controlnet_aux",
-      "depot": "https://github.com/Fannovel16/comfyui_controlnet_aux",
-      "classes": [
-        "DWPreprocessor"
-      ],
-      "groupes": [
-        "mix"
-      ],
-      "note": "Apache-2.0 ; DWPose se télécharge au premier usage"
-    },
-    {
-      "nom": "comfyui_segment_anything",
-      "depot": "https://github.com/storyicon/comfyui_segment_anything",
-      "classes": [
-        "GroundingDinoModelLoader (segment anything)"
-      ],
-      "groupes": [
-        "mix"
-      ],
-      "note": "Apache-2.0 ; GroundingDINO pour le masque automatique (server/gdino_points.py)"
-    }
-  ],
-  "modeles": [
-    {
-      "chemin": "_krea2/krea2_turbo_fp8_scaled.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors",
-      "taille": 13141730784,
-      "licence": "Krea 2 Community License",
-      "groupes": [
-        "photo"
-      ],
-      "recettes": [
-        "PROD_gen_krea_sfw.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen3vl_4b_fp8_scaled.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
-      "taille": 5242467968,
-      "licence": "Krea 2 Community License",
-      "groupes": [
-        "photo"
-      ],
-      "recettes": [
-        "PROD_gen_krea_sfw.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_image_vae.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
-      "taille": 253806246,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "photo",
-        "retouche"
-      ],
-      "recettes": [
-        "PROD_gen_krea_sfw.json",
-        "PROD_edit.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "flux-2-klein-9b-fp8.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors",
-      "taille": 9433061528,
-      "licence": "FLUX Non-Commercial License",
-      "gated": true,
-      "groupes": [
-        "photo_klein",
-        "photo_hd"
-      ],
-      "recettes": [
-        "PROD_gen_sfw.json",
-        "PROD_photo_hd.json"
-      ],
-      "verifie": true,
-      "tient": 16
-    },
-    {
-      "chemin": "qwen_3_8b_fp8mixed.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors",
-      "taille": 8664848742,
-      "licence": "FLUX Non-Commercial License",
-      "groupes": [
-        "photo_klein",
-        "photo_hd"
-      ],
-      "recettes": [
-        "PROD_gen_sfw.json",
-        "PROD_photo_hd.json"
-      ],
-      "verifie": true,
-      "tient": 16
-    },
-    {
-      "chemin": "flux2-vae.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
-      "taille": 336213556,
-      "licence": "see repo (Comfy-Org/flux2-dev)",
-      "groupes": [
-        "photo_klein",
-        "photo_hd",
-        "photo_moss"
-      ],
-      "recettes": [
-        "PROD_gen_sfw.json",
-        "PROD_photo_hd.json",
-        "PROD_gen_moss_sfw.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "bbox/face_yolov8m.pt",
-      "dossier": "ultralytics",
-      "url": "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt",
-      "taille": 52026019,
-      "licence": "AGPL-3.0 (Ultralytics YOLOv8)",
-      "groupes": [
-        "photo_hd"
-      ],
-      "recettes": [
-        "PROD_photo_hd.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_image_edit_2511_fp8mixed.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
-      "taille": 20533762817,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "retouche"
-      ],
-      "recettes": [
-        "PROD_edit.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
-      "taille": 9384670680,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "retouche"
-      ],
-      "recettes": [
-        "PROD_edit.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
-      "taille": 14294742832,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_wan"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
-      "taille": 14294742832,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_wan"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
-      "taille": 1226977424,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_wan"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
-      "taille": 1226977424,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_wan",
-        "video_retouche"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json",
-        "PROD_v2v_refine.json",
-        "PROD_v2v_refine_masked.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-      "taille": 6735906897,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets",
-        "motion",
-        "parole",
-        "video_wan",
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json",
-        "PROD_video_wan_t2v.json",
-        "PROD_motion_480.json",
-        "PROD_motion_720.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_2.1_vae.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
-      "taille": 253815318,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets",
-        "parole",
-        "video_retouche",
-        "video_wan",
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "PROD_video_wan.json",
-        "PROD_video_wan_ctx.json",
-        "PROD_video_wan_t2v.json",
-        "PROD_v2v_refine.json",
-        "PROD_v2v_refine_masked.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
-      "taille": 14293923632,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "PROD_video_wan_t2v.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
-      "taille": 316822496,
-      "licence": "Apache-2.0 (lightx2v)",
-      "groupes": [
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "PROD_video_wan_t2v.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-      "taille": 21504034224,
-      "licence": "LTX-2.x Community License",
-      "gated": true,
-      "groupes": [
-        "video_ltx",
-        "reshoot"
-      ],
-      "recettes": [
-        "PROD_video_ltx_hq.json",
-        "server/jobs.js (foley)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-      "taille": 15372969374,
-      "licence": "LTX-2.x Community License (Gemma terms apply)",
-      "gated": true,
-      "groupes": [
-        "video_ltx",
-        "reshoot"
-      ],
-      "recettes": [
-        "PROD_video_ltx_hq.json",
-        "server/jobs.js (foley)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx-2.5-video-vae-bf16.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors",
-      "taille": 1472223346,
-      "licence": "LTX-2.x Community License",
-      "gated": true,
-      "groupes": [
-        "video_ltx",
-        "reshoot"
-      ],
-      "recettes": [
-        "PROD_video_ltx_hq.json",
-        "server/jobs.js (foley)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx-2.5-audio-vae-bf16.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
-      "taille": 364866540,
-      "licence": "LTX-2.x Community License",
-      "gated": true,
-      "groupes": [
-        "video_ltx",
-        "reshoot"
-      ],
-      "recettes": [
-        "PROD_video_ltx_hq.json",
-        "server/jobs.js (foley)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
-      "dossier": "latent_upscale_models",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
-      "taille": 995778752,
-      "licence": "LTX-2.x Community License",
-      "gated": true,
-      "groupes": [
-        "video_ltx",
-        "reshoot"
-      ],
-      "recettes": [
-        "PROD_video_ltx_hq.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_animate_2_int8_convrot.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/diffusion_models/wan_animate_2_int8_convrot.safetensors",
-      "taille": 16653175528,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "motion"
-      ],
-      "recettes": [
-        "PROD_motion_480.json",
-        "PROD_motion_720.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "clip_vision_h.safetensors",
-      "dossier": "clip_vision",
-      "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/clip_vision/clip_vision_h.safetensors",
-      "taille": 1264219396,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets",
-        "motion",
-        "parole",
-        "mix"
-      ],
-      "recettes": [
-        "PROD_motion_480.json",
-        "PROD_motion_720.json",
-        "PROD_wananimate_mix.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "Wan2_1_VAE_bf16.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/vae/Wan2_1_VAE_bf16.safetensors",
-      "taille": 253806278,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "motion",
-        "mix"
-      ],
-      "recettes": [
-        "PROD_motion_480.json",
-        "PROD_motion_720.json",
-        "PROD_wananimate_mix.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
-      "taille": 738005744,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets",
-        "motion",
-        "parole",
-        "mix"
-      ],
-      "recettes": [
-        "PROD_motion_480.json",
-        "PROD_motion_720.json",
-        "PROD_wananimate_mix.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/QuantStack/Wan2.2-T2V-A14B-GGUF/resolve/main/LowNoise/Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf",
-      "taille": 15404970496,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_retouche",
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "PROD_v2v_refine.json",
-        "PROD_v2v_refine_masked.json",
-        "PROD_video_wan_t2v.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "umt5_xxl_fp16.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp16.safetensors",
-      "taille": 11366399385,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_retouche",
-        "mix"
-      ],
-      "recettes": [
-        "PROD_v2v_refine.json",
-        "PROD_v2v_refine_masked.json",
-        "PROD_wananimate_mix.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "seedvr2_ema_3b_fp16.safetensors",
-      "dossier": "SEEDVR2",
-      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/seedvr2_ema_3b_fp16.safetensors",
-      "taille": 6783018808,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_nettete"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ema_vae_fp16.safetensors",
-      "dossier": "SEEDVR2",
-      "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/ema_vae_fp16.safetensors",
-      "taille": 501324814,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "video_nettete"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "sam3.1_multiplex_fp16.safetensors",
-      "dossier": "checkpoints",
-      "url": "https://huggingface.co/Comfy-Org/sam3.1/resolve/main/checkpoints/sam3.1_multiplex_fp16.safetensors",
-      "taille": 1745546848,
-      "licence": "SAM License (Meta)",
-      "groupes": [
-        "video_retouche",
-        "objet3d"
-      ],
-      "recettes": [
-        "PROD_v2v_refine_masked.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ComfyUI-Frame-Interpolation/ckpts/rife/rife49.pth",
-      "racine": "custom_nodes",
-      "url": "https://huggingface.co/marduk191/rife/resolve/main/rife49.pth",
-      "taille": 21345274,
-      "licence": "MIT (Practical-RIFE)",
-      "groupes": [
-        "video_retouche",
-        "video_wan_t2v"
-      ],
-      "recettes": [
-        "server/jobs.js (refine V2V, fluidité ×2, Wan T2V)"
-      ],
-      "verifie": true,
-      "note": "miroir communautaire, le premier de la liste de secours du pack lui-même (vfi_utils.py) ; le pack sait aussi le télécharger seul au premier rendu"
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-in.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In/resolve/main/ltx-2-19b-lora-camera-control-dolly-in.safetensors",
-      "taille": 327309208,
-      "sha256": "0da937d528ea619c95859ad0c5cab012c7213fe058b7cb289e2a513ec351f237",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-out.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out/resolve/main/ltx-2-19b-lora-camera-control-dolly-out.safetensors",
-      "taille": 327309208,
-      "sha256": "554c30e64fa57b6c98e059f1b3ccabc50ad85195aab0911aed317b714f8d644d",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-left.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left/resolve/main/ltx-2-19b-lora-camera-control-dolly-left.safetensors",
-      "taille": 327309208,
-      "sha256": "fdd28ee1a53e5413d74b90064c7ec0fe98b78457b5da06c0c9c4ea5810d1f5f6",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-jib-up.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up/resolve/main/ltx-2-19b-lora-camera-control-jib-up.safetensors",
-      "taille": 2214978664,
-      "sha256": "c4e8bd628238caf20079515ba2bce5770fa1108e6ed8c1d403a3179a68dce77f",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-jib-down.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down/resolve/main/ltx-2-19b-lora-camera-control-jib-down.safetensors",
-      "taille": 2214978664,
-      "sha256": "5a2f72b231841f998a46b949271fa0bcec21012d4238a53e7eb4762bc828bee3",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-static.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Static/resolve/main/ltx-2-19b-lora-camera-control-static.safetensors",
-      "taille": 2214978664,
-      "sha256": "6b79aad7ecdd60aef07f39177d1ac225a6608806086af94848436fec432e2d0d",
-      "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_360_Orbit.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/360-Orbit/resolve/main/360_Orbit.safetensors",
-      "taille": 359257680,
-      "sha256": "5a99f1fd2db47344211fe6836a8664cfd5f053d03647b67c981cf163d65ffa82",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_Arc_shot.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Arc_shot/resolve/main/Arc_shot.safetensors",
-      "taille": 359257680,
-      "sha256": "d2b378c704e4a5239be6405d085bb7d2518fe7d332999d472def91cff772e8bb",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_crane_overhead.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Crane_over_the_head/resolve/main/crane_overhead.safetensors",
-      "taille": 359257680,
-      "sha256": "971fd1fdd159f31928fe67f57fac6274cc9c86644697d9045670cec7d5fc76f7",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_matrix_shot.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/matrix-shot/resolve/main/matrix_shot.safetensors",
-      "taille": 359257680,
-      "sha256": "9e9b4952022c68014ad93d5e11fd949bd2ad46e26152b5e31c6f61725964f7a0",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_crash_zoom_in.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Crash-zoom-in/resolve/main/crash_zoom_in.safetensors",
-      "taille": 359257680,
-      "sha256": "bcc26f0e2ae5f1d2fbe08e8278c2a89c7ef0c0ff7f595ebecc7f4602a92ffdd8",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan21_i2v_remade_crash_zoom_out.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Crash-zoom-out/resolve/main/crash_zoom_out.safetensors",
-      "taille": 359257680,
-      "sha256": "5274a80437775ac894f2cbc6501d2154dab1796a262f2398cd1ffc9f2946eca6",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_camera/wan_21_i2v_dolly_zoom.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/ostris/wan21_i2v_dolly_zoom_lora/resolve/main/wan_21_i2v_dolly_zoom.safetensors",
-      "taille": 359258120,
-      "sha256": "5980c83c32ec0dbfe7e6e8262318031c468cc032f5fcc8fedba578ee82c208f6",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_squish_18.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Squish/resolve/main/squish_18.safetensors",
-      "taille": 359257680,
-      "sha256": "c2195da8077b02674775929e94b43caa30dc069ed74b1818a2e2adf8fe559cf7",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_inflate_20_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Inflate/resolve/main/inflate_20_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "978f493aec4b98ed910abfb9963522d05092c264c69182e5462514cee043eb96",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_deflate_20_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Deflate/resolve/main/deflate_20_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "7bb4107dea9966b3533613fb3bc625d8b6bfa7cbf68985f37a33c04aebe53e46",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_cakeify_16_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Cakeify/resolve/main/cakeify_16_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "4078cd32c45ad6f0206b87bd8de7e25700bd8419b9c0e0267bb828aec7eb6bf1",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_crush_20_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Crush/resolve/main/crush_20_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "c2d67e9600edbd0be40febcdb262a0fe145a5962767ac23c644c4a42df2e4ec3",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_rotate_20_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Rotate/resolve/main/rotate_20_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "43ce56166b6941eb0037fd7a7675885a221e8cfd53486c4d923b3464f1db1560",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_explode_30_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Explode/resolve/main/explode_30_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "040dfee5d106acd4e027b6a493b2f228cef2adf090c23fb2040ff6ce016eccc5",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_electrify_50_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Electrify/resolve/main/electrify_50_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "7fb8712b03377c5f8d7eace7332c2afec3252cc14f86a6ccd24ae06676588e4b",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_robot_face_reveal_35_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Robot-Face-Reveal/resolve/main/robot_face_reveal_35_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "db5e9306f30ac87bb059270b616482fec844b8adfdb5ed99ee93e97b204c4c9f",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_jumpscare_35_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Jumpscare/resolve/main/jumpscare_35_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "076ba4d20ee3c7e298fd7be2e9f546652f29b76d4c6273ebc149d937cc2b50c9",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wan_effects/wan21_i2v_remade_cartoon_jaw_drop_50_epochs.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Remade-AI/Cartoon_Jaw_Drop/resolve/main/cartoon_jaw_drop_50_epochs.safetensors",
-      "taille": 359257680,
-      "sha256": "ac5cfc7fca88afbae04ef03b3d72455b28b226b81448639e3f18d779978c30fb",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "wav2vec2-chinese-base_fp16.safetensors",
-      "dossier": "audio_encoders",
-      "url": "https://huggingface.co/Kijai/wav2vec2_safetensors/resolve/main/wav2vec2-chinese-base_fp16.safetensors",
-      "taille": 190115368,
-      "sha256": "000813e441020f18cff844c969d2d5d4adc2a5ce46b2db1f23950b05d88805b4",
-      "licence": "MIT",
-      "groupes": [
-        "parole"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.1_infiniteTalk_single_fp16.safetensors",
-      "dossier": "model_patches",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/model_patches/wan2.1_infiniteTalk_single_fp16.safetensors",
-      "taille": 5125258232,
-      "sha256": "bf212c5c647eaf1c019b2158d2edf4a360d97e38b746c4bac994fee485e09fc3",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "parole"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.1_infiniteTalk_multi_fp16.safetensors",
-      "dossier": "model_patches",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/model_patches/wan2.1_infiniteTalk_multi_fp16.safetensors",
-      "taille": 5124439112,
-      "sha256": "4c2486cdfb6ff9a9f27408e98e11e20619136933b20411e0c365b1e84075d195",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "parole"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "wan2.1_i2v_480p_14B_fp8_scaled.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors",
-      "taille": 16401356938,
-      "sha256": "b2de21b99b2e72cb0ff15253b07e926f26e7cf1b7e229efc32f94ad1f1ed9395",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "camera_effets",
-        "parole"
-      ],
-      "recettes": [
-        "PROD_video_wan21_effets.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "LTX2/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2_6000.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Cseti/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2/resolve/main/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2_6000.safetensors",
-      "taille": 327287384,
-      "sha256": "e9796a6e14a8f8fadf0eda6c0ccc6c300c02bd5457fe9a0d4b91ffec39badda3",
-      "licence": "Apache-2.0",
-      "groupes": [
-        "reshoot"
-      ],
-      "recettes": [
-        "server/jobs.js (re-shoot)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "moge_2_vitl_normal_fp16.safetensors",
-      "dossier": "geometry_estimation",
-      "url": "https://huggingface.co/Comfy-Org/MoGe/resolve/main/geometry_estimation/moge_2_vitl_normal_fp16.safetensors",
-      "taille": 661859924,
-      "sha256": "cb1a692d03235671e959e81360d7b4d9f44aefadb1f852d6ca6aa17799d5e31f",
-      "licence": "MIT",
-      "groupes": [
-        "reshoot"
-      ],
-      "recettes": [
-        "server/jobs.js (re-shoot)"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "WanVideo/2_2/Wan2_2-Animate-14B_fp8_e4m3fn_scaled_KJ.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/Wan22Animate/Wan2_2-Animate-14B_fp8_e4m3fn_scaled_KJ.safetensors",
-      "taille": 18401760586,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "mix"
-      ],
-      "recettes": [
-        "PROD_wananimate_mix.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "face_detection_yunet_2023mar.onnx",
-      "dossier": "opencv",
-      "url": "https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx",
-      "taille": 232589,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "controle"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "face_recognition_sface_2021dec.onnx",
-      "dossier": "opencv",
-      "url": "https://huggingface.co/opencv/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx",
-      "taille": 38696353,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "controle"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "flux-2-klein-4b.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
-      "taille": 7751105712,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "photo_klein",
-        "photo_hd"
-      ],
-      "leger": {
-        "remplace": "flux-2-klein-9b-fp8.safetensors",
-        "pour": 12,
-        "chargeur": "UNETLoader"
-      },
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_3_4b.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
-      "taille": 8044982048,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "photo_klein",
-        "photo_hd"
-      ],
-      "leger": {
-        "remplace": "qwen_3_8b_fp8mixed.safetensors",
-        "pour": 12,
-        "chargeur": "CLIPLoader",
-        "suit": "flux-2-klein-4b.safetensors"
-      },
-      "verifie": true
-    },
-    {
-      "chemin": "ltx/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Clean-Plate/resolve/main/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors",
-      "taille": 327318439,
-      "licence": "LTX-2.x Community License",
-      "groupes": [
-        "video_ltx"
-      ],
-      "recettes": [],
-      "gated": true,
-      "verifie": true
-    },
-    {
-      "chemin": "ltx/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Layout-To-Render/resolve/main/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
-      "taille": 1308787439,
-      "licence": "LTX-2.x Community License",
-      "groupes": [
-        "video_ltx"
-      ],
-      "recettes": [],
-      "gated": true,
-      "verifie": true
-    },
-    {
-      "chemin": "qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors",
-      "dossier": "loras",
-      "url": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors",
-      "taille": 295140688,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "retouche"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "moss_image_sft_int8_convrot.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors",
-      "taille": 5413698958,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "photo_moss"
-      ],
-      "recettes": [
-        "PROD_gen_moss_sfw.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen3.5_9b_w4a8_gptq.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_w4a8_gptq.safetensors",
-      "taille": 7343591088,
-      "licence": "Apache-2.0",
-      "groupes": [
-        "photo_moss"
-      ],
-      "recettes": [
-        "PROD_gen_moss_sfw.json"
-      ],
-      "verifie": true
-    },
-    {
-      "chemin": "trellis_2_int8_convrot.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/diffusion_models/trellis_2_int8_convrot.safetensors",
-      "taille": 5253048192,
-      "licence": "MIT",
-      "groupes": [
-        "objet3d"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "dino_v3_vit_l.safetensors",
-      "dossier": "clip_vision",
-      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/clip_vision/dino_v3_vit_l.safetensors",
-      "taille": 1212559776,
-      "licence": "MIT",
-      "groupes": [
-        "objet3d"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "trellis_2_shape_vae_bf16.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_shape_vae_bf16.safetensors",
-      "taille": 1095844024,
-      "licence": "MIT",
-      "groupes": [
-        "objet3d"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "trellis_2_texture_vae_bf16.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_texture_vae_bf16.safetensors",
-      "taille": 948461364,
-      "licence": "MIT",
-      "groupes": [
-        "objet3d"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "acestep_v1.5_turbo.safetensors",
-      "dossier": "diffusion_models",
-      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_turbo.safetensors",
-      "taille": 4787825604,
-      "licence": "MIT",
-      "groupes": [
-        "musique"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_0.6b_ace15.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_0.6b_ace15.safetensors",
-      "taille": 1191588248,
-      "licence": "MIT",
-      "groupes": [
-        "musique"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "qwen_4b_ace15.safetensors",
-      "dossier": "text_encoders",
-      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_4b_ace15.safetensors",
-      "taille": 8379154232,
-      "licence": "MIT",
-      "groupes": [
-        "musique"
-      ],
-      "recettes": [],
-      "verifie": true
-    },
-    {
-      "chemin": "ace_1.5_vae.safetensors",
-      "dossier": "vae",
-      "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/vae/ace_1.5_vae.safetensors",
-      "taille": 337431732,
-      "licence": "MIT",
-      "groupes": [
-        "musique"
-      ],
-      "recettes": [],
-      "verifie": true
-    }
-  ],
-  "_exclus": [
-    "Z-Image-Turbo-Fun-Controlnet-Union.safetensors, depth_anything_v2_vitl.pth, yolox_l.onnx, dw-ll_ucoco_384_bs5.torchscript.pt : chemin ControlNet de server/comfy.js, prévu pour une recette Z-Image qui n'est pas livrée ici.",
-    "h3_clean_latent_upscaler_film_epoch200.safetensors et nœuds MiniMaxH3* : upscale latent du moteur MiniMax H3, qui n'a pas de recette dans ce dépôt."
-  ]
+  "photo_klein": {
+   "label": "Photo: FLUX.2 Klein 9B (optional engine, CREATOROS_PHOTO_ENGINE=klein)"
+  },
+  "photo_hd": {
+   "label": "Photo HD upscale (FLUX.2 Klein + face detailer)"
+  },
+  "retouche": {
+   "label": "Instruction edit (Qwen-Image-Edit 2511)"
+  },
+  "video_wan": {
+   "label": "Image-to-video: Wan 2.2 I2V A14B"
+  },
+  "video_wan_t2v": {
+   "label": "Text-to-video: Wan 2.2 T2V A14B (character from a Wan LoRA pair)"
+  },
+  "video_ltx": {
+   "label": "Image-to-video with audio: LTX-2.5 22B (also used for foley)"
+  },
+  "motion": {
+   "label": "Motion transfer: Wan Animate 2"
+  },
+  "video_nettete": {
+   "label": "Video sharpen to 1080p (SeedVR2 3B)"
+  },
+  "video_retouche": {
+   "label": "Video refine, video brush (SAM 3.1 tracking), RIFE smoothing"
+  },
+  "camera_effets": {
+   "label": "Camera & effects gallery: LTX-2 camera LoRAs, Wan 2.1 I2V 480p with Remade-AI / ostris camera and effect LoRAs"
+  },
+  "parole": {
+   "label": "Talking avatar: InfiniteTalk on Wan 2.1 I2V 480p"
+  },
+  "reshoot": {
+   "label": "Re-shoot: a new camera angle on a clip (MoGe-2, CrossViewWarp, LTX-2.5 + CrossView-Warp IC-LoRA)"
+  },
+  "mix": {
+   "label": "Video: Replay → Mix (WanAnimate 2.2 replacement: your character takes the place of the person in a video)"
+  },
+  "controle": {
+   "label": "Automatic clip check: face match (OpenCV YuNet + SFace, ~39 MB, CPU)",
+   "defaut": true
+  },
+  "photo_moss": {
+   "label": "Photo: MOSS Image (optional engine, needs a recent ComfyUI, no identity LoRA)"
+  },
+  "objet3d": {
+   "label": "Objet 3D: TRELLIS.2, a photo becomes a GLB (about 8 GB)"
+  },
+  "musique": {
+   "label": "Music and sound effects: ACE-Step 1.5 turbo"
+  },
+  "doublage": {
+   "label": "Dubbing a clip with a new voice: InfiniteTalk (Wan 2.1)"
+  }
+ },
+ "noeuds": [
+  {
+   "nom": "ComfyUI-SeedVR2_VideoUpscaler",
+   "depot": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
+   "classes": [
+    "SeedVR2VideoUpscaler",
+    "SeedVR2LoadDiTModel",
+    "SeedVR2LoadVAEModel"
+   ],
+   "groupes": [
+    "video_nettete"
+   ],
+   "note": "Apache-2.0"
+  },
+  {
+   "nom": "ComfyUI-KJNodes",
+   "depot": "https://github.com/kijai/ComfyUI-KJNodes",
+   "classes": [
+    "ColorMatch",
+    "GrowMaskWithBlur",
+    "GetImageSizeAndCount"
+   ],
+   "groupes": [
+    "photo",
+    "photo_klein",
+    "photo_hd",
+    "video_retouche",
+    "mix"
+   ],
+   "note": "GrowMaskWithBlur et GetImageSizeAndCount sont ajoutés par le serveur (pinceau photo et vidéo)"
+  },
+  {
+   "nom": "ComfyUI-VideoHelperSuite",
+   "depot": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",
+   "classes": [
+    "VHS_LoadVideo",
+    "VHS_LoadVideoPath"
+   ],
+   "groupes": [
+    "video_retouche",
+    "reshoot",
+    "mix"
+   ]
+  },
+  {
+   "nom": "ComfyUI-GGUF",
+   "depot": "https://github.com/city96/ComfyUI-GGUF",
+   "classes": [
+    "UnetLoaderGGUF"
+   ],
+   "groupes": [
+    "video_retouche"
+   ]
+  },
+  {
+   "nom": "ComfyUI-Frame-Interpolation",
+   "depot": "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation",
+   "classes": [
+    "RIFE VFI"
+   ],
+   "groupes": [
+    "video_retouche",
+    "video_wan_t2v"
+   ],
+   "requirements": "requirements-no-cupy.txt",
+   "note": "absent du README d'origine : le serveur ajoute un nœud RIFE VFI au refine V2V et à la fluidité ×2"
+  },
+  {
+   "nom": "RES4LYF",
+   "depot": "https://github.com/ClownsharkBatwing/RES4LYF",
+   "classes": [
+    "ClownsharKSampler_Beta"
+   ],
+   "groupes": [
+    "photo_hd"
+   ]
+  },
+  {
+   "nom": "ComfyUI-Impact-Pack",
+   "depot": "https://github.com/ltdrdata/ComfyUI-Impact-Pack",
+   "classes": [
+    "BboxDetectorCombined_v2"
+   ],
+   "groupes": [
+    "photo_hd"
+   ]
+  },
+  {
+   "nom": "ComfyUI-Impact-Subpack",
+   "depot": "https://github.com/ltdrdata/ComfyUI-Impact-Subpack",
+   "classes": [
+    "UltralyticsDetectorProvider"
+   ],
+   "groupes": [
+    "photo_hd"
+   ]
+  },
+  {
+   "nom": "ComfyUI-CrossViewWarp",
+   "depot": "https://github.com/cseti007/ComfyUI-CrossViewWarp",
+   "classes": [
+    "CrossViewWarp"
+   ],
+   "groupes": [
+    "reshoot"
+   ],
+   "note": "Apache-2.0 ; aucun paquet Python requis"
+  },
+  {
+   "nom": "ComfyUI-WanVideoWrapper",
+   "depot": "https://github.com/kijai/ComfyUI-WanVideoWrapper",
+   "classes": [
+    "WanVideoModelLoader",
+    "WanVideoSampler",
+    "WanVideoAnimateEmbeds",
+    "WanVideoLoraSelectMulti"
+   ],
+   "groupes": [
+    "mix"
+   ],
+   "note": "Apache-2.0"
+  },
+  {
+   "nom": "ComfyUI-segment-anything-2",
+   "depot": "https://github.com/kijai/ComfyUI-segment-anything-2",
+   "classes": [
+    "DownloadAndLoadSAM2Model",
+    "Sam2Segmentation"
+   ],
+   "groupes": [
+    "mix"
+   ],
+   "note": "Apache-2.0 ; le modèle SAM2 se télécharge au premier usage"
+  },
+  {
+   "nom": "comfyui_controlnet_aux",
+   "depot": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+   "classes": [
+    "DWPreprocessor"
+   ],
+   "groupes": [
+    "mix"
+   ],
+   "note": "Apache-2.0 ; DWPose se télécharge au premier usage"
+  },
+  {
+   "nom": "comfyui_segment_anything",
+   "depot": "https://github.com/storyicon/comfyui_segment_anything",
+   "classes": [
+    "GroundingDinoModelLoader (segment anything)"
+   ],
+   "groupes": [
+    "mix"
+   ],
+   "note": "Apache-2.0 ; GroundingDINO pour le masque automatique (server/gdino_points.py)"
+  }
+ ],
+ "modeles": [
+  {
+   "chemin": "_krea2/krea2_turbo_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors",
+   "taille": 13141730784,
+   "licence": "Krea 2 Community License",
+   "groupes": [
+    "photo"
+   ],
+   "recettes": [
+    "PROD_gen_krea_sfw.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen3vl_4b_fp8_scaled.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+   "taille": 5242467968,
+   "licence": "Krea 2 Community License",
+   "groupes": [
+    "photo"
+   ],
+   "recettes": [
+    "PROD_gen_krea_sfw.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_image_vae.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+   "taille": 253806246,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo",
+    "retouche"
+   ],
+   "recettes": [
+    "PROD_gen_krea_sfw.json",
+    "PROD_edit.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "flux-2-klein-9b-fp8.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors",
+   "taille": 9433061528,
+   "licence": "FLUX Non-Commercial License",
+   "gated": true,
+   "groupes": [
+    "photo_klein",
+    "photo_hd"
+   ],
+   "recettes": [
+    "PROD_gen_sfw.json",
+    "PROD_photo_hd.json"
+   ],
+   "verifie": true,
+   "tient": 16
+  },
+  {
+   "chemin": "qwen_3_8b_fp8mixed.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors",
+   "taille": 8664848742,
+   "licence": "FLUX Non-Commercial License",
+   "groupes": [
+    "photo_klein",
+    "photo_hd"
+   ],
+   "recettes": [
+    "PROD_gen_sfw.json",
+    "PROD_photo_hd.json"
+   ],
+   "verifie": true,
+   "tient": 16
+  },
+  {
+   "chemin": "flux2-vae.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
+   "taille": 336213556,
+   "licence": "see repo (Comfy-Org/flux2-dev)",
+   "groupes": [
+    "photo_klein",
+    "photo_hd",
+    "photo_moss"
+   ],
+   "recettes": [
+    "PROD_gen_sfw.json",
+    "PROD_photo_hd.json",
+    "PROD_gen_moss_sfw.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "bbox/face_yolov8m.pt",
+   "dossier": "ultralytics",
+   "url": "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt",
+   "taille": 52026019,
+   "licence": "AGPL-3.0 (Ultralytics YOLOv8)",
+   "groupes": [
+    "photo_hd"
+   ],
+   "recettes": [
+    "PROD_photo_hd.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_image_edit_2511_fp8mixed.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+   "taille": 20533762817,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "retouche"
+   ],
+   "recettes": [
+    "PROD_edit.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "taille": 9384670680,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "retouche"
+   ],
+   "recettes": [
+    "PROD_edit.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+   "taille": 14294742832,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+   "taille": 14294742832,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+   "taille": 1226977424,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+   "taille": 1226977424,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan",
+    "video_retouche"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json",
+    "PROD_v2v_refine.json",
+    "PROD_v2v_refine_masked.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "taille": 6735906897,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets",
+    "motion",
+    "parole",
+    "video_wan",
+    "video_wan_t2v"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json",
+    "PROD_video_wan_t2v.json",
+    "PROD_motion_480.json",
+    "PROD_motion_720.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_2.1_vae.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
+   "taille": 253815318,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets",
+    "parole",
+    "video_retouche",
+    "video_wan",
+    "video_wan_t2v",
+    "doublage"
+   ],
+   "recettes": [
+    "PROD_video_wan.json",
+    "PROD_video_wan_ctx.json",
+    "PROD_video_wan_t2v.json",
+    "PROD_v2v_refine.json",
+    "PROD_v2v_refine_masked.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
+   "taille": 14293923632,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan_t2v"
+   ],
+   "recettes": [
+    "PROD_video_wan_t2v.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
+   "taille": 316822496,
+   "licence": "Apache-2.0 (lightx2v)",
+   "groupes": [
+    "video_wan_t2v"
+   ],
+   "recettes": [
+    "PROD_video_wan_t2v.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+   "taille": 21504034224,
+   "licence": "LTX-2.x Community License",
+   "gated": true,
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+   "taille": 15372969374,
+   "licence": "LTX-2.x Community License (Gemma terms apply)",
+   "gated": true,
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx-2.5-video-vae-bf16.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors",
+   "taille": 1472223346,
+   "licence": "LTX-2.x Community License",
+   "gated": true,
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx-2.5-audio-vae-bf16.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
+   "taille": 364866540,
+   "licence": "LTX-2.x Community License",
+   "gated": true,
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+   "dossier": "latent_upscale_models",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+   "taille": 995778752,
+   "licence": "LTX-2.x Community License",
+   "gated": true,
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_animate_2_int8_convrot.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/diffusion_models/wan_animate_2_int8_convrot.safetensors",
+   "taille": 16653175528,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "motion"
+   ],
+   "recettes": [
+    "PROD_motion_480.json",
+    "PROD_motion_720.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "clip_vision_h.safetensors",
+   "dossier": "clip_vision",
+   "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/clip_vision/clip_vision_h.safetensors",
+   "taille": 1264219396,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets",
+    "motion",
+    "parole",
+    "mix",
+    "doublage"
+   ],
+   "recettes": [
+    "PROD_motion_480.json",
+    "PROD_motion_720.json",
+    "PROD_wananimate_mix.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "Wan2_1_VAE_bf16.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/vae/Wan2_1_VAE_bf16.safetensors",
+   "taille": 253806278,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "motion",
+    "mix"
+   ],
+   "recettes": [
+    "PROD_motion_480.json",
+    "PROD_motion_720.json",
+    "PROD_wananimate_mix.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "taille": 738005744,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets",
+    "motion",
+    "parole",
+    "mix",
+    "doublage"
+   ],
+   "recettes": [
+    "PROD_motion_480.json",
+    "PROD_motion_720.json",
+    "PROD_wananimate_mix.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/QuantStack/Wan2.2-T2V-A14B-GGUF/resolve/main/LowNoise/Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf",
+   "taille": 15404970496,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_retouche",
+    "video_wan_t2v"
+   ],
+   "recettes": [
+    "PROD_v2v_refine.json",
+    "PROD_v2v_refine_masked.json",
+    "PROD_video_wan_t2v.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "umt5_xxl_fp16.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp16.safetensors",
+   "taille": 11366399385,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_retouche",
+    "mix",
+    "doublage"
+   ],
+   "recettes": [
+    "PROD_v2v_refine.json",
+    "PROD_v2v_refine_masked.json",
+    "PROD_wananimate_mix.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "seedvr2_ema_3b_fp16.safetensors",
+   "dossier": "SEEDVR2",
+   "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/seedvr2_ema_3b_fp16.safetensors",
+   "taille": 6783018808,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_nettete"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ema_vae_fp16.safetensors",
+   "dossier": "SEEDVR2",
+   "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/ema_vae_fp16.safetensors",
+   "taille": 501324814,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_nettete"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "sam3.1_multiplex_fp16.safetensors",
+   "dossier": "checkpoints",
+   "url": "https://huggingface.co/Comfy-Org/sam3.1/resolve/main/checkpoints/sam3.1_multiplex_fp16.safetensors",
+   "taille": 1745546848,
+   "licence": "SAM License (Meta)",
+   "groupes": [
+    "video_retouche",
+    "objet3d"
+   ],
+   "recettes": [
+    "PROD_v2v_refine_masked.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ComfyUI-Frame-Interpolation/ckpts/rife/rife49.pth",
+   "racine": "custom_nodes",
+   "url": "https://huggingface.co/marduk191/rife/resolve/main/rife49.pth",
+   "taille": 21345274,
+   "licence": "MIT (Practical-RIFE)",
+   "groupes": [
+    "video_retouche",
+    "video_wan_t2v"
+   ],
+   "recettes": [
+    "server/jobs.js (refine V2V, fluidité ×2, Wan T2V)"
+   ],
+   "verifie": true,
+   "note": "miroir communautaire, le premier de la liste de secours du pack lui-même (vfi_utils.py) ; le pack sait aussi le télécharger seul au premier rendu"
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-in.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In/resolve/main/ltx-2-19b-lora-camera-control-dolly-in.safetensors",
+   "taille": 327309208,
+   "sha256": "0da937d528ea619c95859ad0c5cab012c7213fe058b7cb289e2a513ec351f237",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-out.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out/resolve/main/ltx-2-19b-lora-camera-control-dolly-out.safetensors",
+   "taille": 327309208,
+   "sha256": "554c30e64fa57b6c98e059f1b3ccabc50ad85195aab0911aed317b714f8d644d",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-dolly-left.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left/resolve/main/ltx-2-19b-lora-camera-control-dolly-left.safetensors",
+   "taille": 327309208,
+   "sha256": "fdd28ee1a53e5413d74b90064c7ec0fe98b78457b5da06c0c9c4ea5810d1f5f6",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-jib-up.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up/resolve/main/ltx-2-19b-lora-camera-control-jib-up.safetensors",
+   "taille": 2214978664,
+   "sha256": "c4e8bd628238caf20079515ba2bce5770fa1108e6ed8c1d403a3179a68dce77f",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-jib-down.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down/resolve/main/ltx-2-19b-lora-camera-control-jib-down.safetensors",
+   "taille": 2214978664,
+   "sha256": "5a2f72b231841f998a46b949271fa0bcec21012d4238a53e7eb4762bc828bee3",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "ltx_camera/ltx-2-19b-lora-camera-control-static.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Static/resolve/main/ltx-2-19b-lora-camera-control-static.safetensors",
+   "taille": 2214978664,
+   "sha256": "6b79aad7ecdd60aef07f39177d1ac225a6608806086af94848436fec432e2d0d",
+   "licence": "LTX-2 Community License (free commercial use under $10M annual revenue)",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_360_Orbit.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/360-Orbit/resolve/main/360_Orbit.safetensors",
+   "taille": 359257680,
+   "sha256": "5a99f1fd2db47344211fe6836a8664cfd5f053d03647b67c981cf163d65ffa82",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_Arc_shot.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Arc_shot/resolve/main/Arc_shot.safetensors",
+   "taille": 359257680,
+   "sha256": "d2b378c704e4a5239be6405d085bb7d2518fe7d332999d472def91cff772e8bb",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_crane_overhead.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Crane_over_the_head/resolve/main/crane_overhead.safetensors",
+   "taille": 359257680,
+   "sha256": "971fd1fdd159f31928fe67f57fac6274cc9c86644697d9045670cec7d5fc76f7",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_matrix_shot.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/matrix-shot/resolve/main/matrix_shot.safetensors",
+   "taille": 359257680,
+   "sha256": "9e9b4952022c68014ad93d5e11fd949bd2ad46e26152b5e31c6f61725964f7a0",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_crash_zoom_in.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Crash-zoom-in/resolve/main/crash_zoom_in.safetensors",
+   "taille": 359257680,
+   "sha256": "bcc26f0e2ae5f1d2fbe08e8278c2a89c7ef0c0ff7f595ebecc7f4602a92ffdd8",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan21_i2v_remade_crash_zoom_out.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Crash-zoom-out/resolve/main/crash_zoom_out.safetensors",
+   "taille": 359257680,
+   "sha256": "5274a80437775ac894f2cbc6501d2154dab1796a262f2398cd1ffc9f2946eca6",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_camera/wan_21_i2v_dolly_zoom.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/ostris/wan21_i2v_dolly_zoom_lora/resolve/main/wan_21_i2v_dolly_zoom.safetensors",
+   "taille": 359258120,
+   "sha256": "5980c83c32ec0dbfe7e6e8262318031c468cc032f5fcc8fedba578ee82c208f6",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_squish_18.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Squish/resolve/main/squish_18.safetensors",
+   "taille": 359257680,
+   "sha256": "c2195da8077b02674775929e94b43caa30dc069ed74b1818a2e2adf8fe559cf7",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_inflate_20_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Inflate/resolve/main/inflate_20_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "978f493aec4b98ed910abfb9963522d05092c264c69182e5462514cee043eb96",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_deflate_20_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Deflate/resolve/main/deflate_20_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "7bb4107dea9966b3533613fb3bc625d8b6bfa7cbf68985f37a33c04aebe53e46",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_cakeify_16_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Cakeify/resolve/main/cakeify_16_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "4078cd32c45ad6f0206b87bd8de7e25700bd8419b9c0e0267bb828aec7eb6bf1",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_crush_20_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Crush/resolve/main/crush_20_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "c2d67e9600edbd0be40febcdb262a0fe145a5962767ac23c644c4a42df2e4ec3",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_rotate_20_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Rotate/resolve/main/rotate_20_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "43ce56166b6941eb0037fd7a7675885a221e8cfd53486c4d923b3464f1db1560",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_explode_30_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Explode/resolve/main/explode_30_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "040dfee5d106acd4e027b6a493b2f228cef2adf090c23fb2040ff6ce016eccc5",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_electrify_50_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Electrify/resolve/main/electrify_50_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "7fb8712b03377c5f8d7eace7332c2afec3252cc14f86a6ccd24ae06676588e4b",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_robot_face_reveal_35_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Robot-Face-Reveal/resolve/main/robot_face_reveal_35_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "db5e9306f30ac87bb059270b616482fec844b8adfdb5ed99ee93e97b204c4c9f",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_jumpscare_35_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Jumpscare/resolve/main/jumpscare_35_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "076ba4d20ee3c7e298fd7be2e9f546652f29b76d4c6273ebc149d937cc2b50c9",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wan_effects/wan21_i2v_remade_cartoon_jaw_drop_50_epochs.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Remade-AI/Cartoon_Jaw_Drop/resolve/main/cartoon_jaw_drop_50_epochs.safetensors",
+   "taille": 359257680,
+   "sha256": "ac5cfc7fca88afbae04ef03b3d72455b28b226b81448639e3f18d779978c30fb",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "wav2vec2-chinese-base_fp16.safetensors",
+   "dossier": "audio_encoders",
+   "url": "https://huggingface.co/Kijai/wav2vec2_safetensors/resolve/main/wav2vec2-chinese-base_fp16.safetensors",
+   "taille": 190115368,
+   "sha256": "000813e441020f18cff844c969d2d5d4adc2a5ce46b2db1f23950b05d88805b4",
+   "licence": "MIT",
+   "groupes": [
+    "parole"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.1_infiniteTalk_single_fp16.safetensors",
+   "dossier": "model_patches",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/model_patches/wan2.1_infiniteTalk_single_fp16.safetensors",
+   "taille": 5125258232,
+   "sha256": "bf212c5c647eaf1c019b2158d2edf4a360d97e38b746c4bac994fee485e09fc3",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "parole"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.1_infiniteTalk_multi_fp16.safetensors",
+   "dossier": "model_patches",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/model_patches/wan2.1_infiniteTalk_multi_fp16.safetensors",
+   "taille": 5124439112,
+   "sha256": "4c2486cdfb6ff9a9f27408e98e11e20619136933b20411e0c365b1e84075d195",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "parole"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "wan2.1_i2v_480p_14B_fp8_scaled.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_fp8_scaled.safetensors",
+   "taille": 16401356938,
+   "sha256": "b2de21b99b2e72cb0ff15253b07e926f26e7cf1b7e229efc32f94ad1f1ed9395",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "camera_effets",
+    "parole",
+    "doublage"
+   ],
+   "recettes": [
+    "PROD_video_wan21_effets.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "LTX2/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2_6000.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Cseti/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2/resolve/main/LTX2.3-22B_IC-LoRA-CrossView-Warp_v2_6000.safetensors",
+   "taille": 327287384,
+   "sha256": "e9796a6e14a8f8fadf0eda6c0ccc6c300c02bd5457fe9a0d4b91ffec39badda3",
+   "licence": "Apache-2.0",
+   "groupes": [
+    "reshoot"
+   ],
+   "recettes": [
+    "server/jobs.js (re-shoot)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "moge_2_vitl_normal_fp16.safetensors",
+   "dossier": "geometry_estimation",
+   "url": "https://huggingface.co/Comfy-Org/MoGe/resolve/main/geometry_estimation/moge_2_vitl_normal_fp16.safetensors",
+   "taille": 661859924,
+   "sha256": "cb1a692d03235671e959e81360d7b4d9f44aefadb1f852d6ca6aa17799d5e31f",
+   "licence": "MIT",
+   "groupes": [
+    "reshoot"
+   ],
+   "recettes": [
+    "server/jobs.js (re-shoot)"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "WanVideo/2_2/Wan2_2-Animate-14B_fp8_e4m3fn_scaled_KJ.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/Wan22Animate/Wan2_2-Animate-14B_fp8_e4m3fn_scaled_KJ.safetensors",
+   "taille": 18401760586,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "mix"
+   ],
+   "recettes": [
+    "PROD_wananimate_mix.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "face_detection_yunet_2023mar.onnx",
+   "dossier": "opencv",
+   "url": "https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx",
+   "taille": 232589,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "controle"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "face_recognition_sface_2021dec.onnx",
+   "dossier": "opencv",
+   "url": "https://huggingface.co/opencv/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx",
+   "taille": 38696353,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "controle"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "flux-2-klein-4b.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
+   "taille": 7751105712,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_klein",
+    "photo_hd"
+   ],
+   "leger": {
+    "remplace": "flux-2-klein-9b-fp8.safetensors",
+    "pour": 12,
+    "chargeur": "UNETLoader"
+   },
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_3_4b.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+   "taille": 8044982048,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_klein",
+    "photo_hd"
+   ],
+   "leger": {
+    "remplace": "qwen_3_8b_fp8mixed.safetensors",
+    "pour": 12,
+    "chargeur": "CLIPLoader",
+    "suit": "flux-2-klein-4b.safetensors"
+   },
+   "verifie": true
+  },
+  {
+   "chemin": "ltx/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Clean-Plate/resolve/main/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors",
+   "taille": 327318439,
+   "licence": "LTX-2.x Community License",
+   "groupes": [
+    "video_ltx"
+   ],
+   "recettes": [],
+   "gated": true,
+   "verifie": true
+  },
+  {
+   "chemin": "ltx/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Layout-To-Render/resolve/main/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors",
+   "taille": 1308787439,
+   "licence": "LTX-2.x Community License",
+   "groupes": [
+    "video_ltx"
+   ],
+   "recettes": [],
+   "gated": true,
+   "verifie": true
+  },
+  {
+   "chemin": "qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors",
+   "dossier": "loras",
+   "url": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors",
+   "taille": 295140688,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "retouche"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "moss_image_sft_int8_convrot.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors",
+   "taille": 5413698958,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_moss"
+   ],
+   "recettes": [
+    "PROD_gen_moss_sfw.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen3.5_9b_w4a8_gptq.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_w4a8_gptq.safetensors",
+   "taille": 7343591088,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_moss"
+   ],
+   "recettes": [
+    "PROD_gen_moss_sfw.json"
+   ],
+   "verifie": true
+  },
+  {
+   "chemin": "trellis_2_int8_convrot.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/diffusion_models/trellis_2_int8_convrot.safetensors",
+   "taille": 5253048192,
+   "licence": "MIT",
+   "groupes": [
+    "objet3d"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "dino_v3_vit_l.safetensors",
+   "dossier": "clip_vision",
+   "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/clip_vision/dino_v3_vit_l.safetensors",
+   "taille": 1212559776,
+   "licence": "MIT",
+   "groupes": [
+    "objet3d"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "trellis_2_shape_vae_bf16.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_shape_vae_bf16.safetensors",
+   "taille": 1095844024,
+   "licence": "MIT",
+   "groupes": [
+    "objet3d"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "trellis_2_texture_vae_bf16.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/vae/trellis_2_texture_vae_bf16.safetensors",
+   "taille": 948461364,
+   "licence": "MIT",
+   "groupes": [
+    "objet3d"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "acestep_v1.5_turbo.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_turbo.safetensors",
+   "taille": 4787825604,
+   "licence": "MIT",
+   "groupes": [
+    "musique"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_0.6b_ace15.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_0.6b_ace15.safetensors",
+   "taille": 1191588248,
+   "licence": "MIT",
+   "groupes": [
+    "musique"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "qwen_4b_ace15.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_4b_ace15.safetensors",
+   "taille": 8379154232,
+   "licence": "MIT",
+   "groupes": [
+    "musique"
+   ],
+   "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "ace_1.5_vae.safetensors",
+   "dossier": "vae",
+   "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/vae/ace_1.5_vae.safetensors",
+   "taille": 337431732,
+   "licence": "MIT",
+   "groupes": [
+    "musique"
+   ],
+   "recettes": [],
+   "verifie": true
+  }
+ ],
+ "_exclus": [
+  "Z-Image-Turbo-Fun-Controlnet-Union.safetensors, depth_anything_v2_vitl.pth, yolox_l.onnx, dw-ll_ucoco_384_bs5.torchscript.pt : chemin ControlNet de server/comfy.js, prévu pour une recette Z-Image qui n'est pas livrée ici.",
+  "h3_clean_latent_upscaler_film_epoch200.safetensors et nœuds MiniMaxH3* : upscale latent du moteur MiniMax H3, qui n'a pas de recette dans ce dépôt."
+ ]
 }

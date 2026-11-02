@@ -182,7 +182,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
         </label>
         <label style={{ fontSize: 12 }}>{t('Liberté · {n} %', { n: Math.round(force * 100) })}
           <input type="range" min={30} max={100} value={Math.round(force * 100)} onChange={e => setForce(Number(e.target.value) / 100)} style={{ width: '100%', accentColor: '#ea4e89' }} />
-          <span style={{ opacity: .5, fontSize: 11 }}>{t("bas : garde les formes d'origine · haut : refait la zone entièrement")}</span>
+          <span style={{ opacity: .5, fontSize: 12 }}>{t("bas : garde les formes d'origine · haut : refait la zone entièrement")}</span>
         </label>
         {msg && <div style={{ fontSize: 12, color: '#f08a7e' }}>{msg}</div>}
         <span style={{ flex: 1 }} />

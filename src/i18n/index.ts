@@ -47,8 +47,12 @@ export function useLang(): Lang {
 export function t(fr: string, vars?: Record<string, string | number>): string {
   let s = langue === 'en' ? (EN[fr] ?? fr) : fr
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v))
-  return s
+  return sansEmoji(s)
 }
+
+/** Les libellés n'ont pas d'emoji : une icône est un SVG, pas un caractère de police. */
+const EMOJI = /(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2728}\u{2B50}]\uFE0F?)\s?/gu
+export const sansEmoji = (s: string) => s.replace(EMOJI, '').replace(/^\s+/, '').replace(/ [—–] /g, ' : ').replace(/[—–]/g, '-')
 
 /** Même texte français, sens différent selon l'endroit (« Annuler » = Cancel
  *  sur un bouton de formulaire, Undo après une suppression). La traduction est
@@ -58,7 +62,7 @@ export function tc(contexte: string, fr: string, vars?: Record<string, string | 
   if (en === undefined) return t(fr, vars)
   let s = en
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v))
-  return s
+  return sansEmoji(s)
 }
 
 /** Message renvoyé par le serveur (`{ error }` d'une requête, erreur d'un job).

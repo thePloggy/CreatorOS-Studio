@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -40,6 +40,9 @@ import * as presets from './presets.js'
 // pour les JPEG mais un clip mp4 les dépasse → 413 à l'upload).
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
+import { lancerCroquis, etatCroquis } from './croquis.js'
+import { VOIX, synthetiser, voixDisponible } from './voix.js'
+import { aiToolkitPret } from './entrainement.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -56,7 +59,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2021,6 +2024,60 @@ app.put('/api/modeles/h3/:nom', { bodyLimit: 64 * 1024 ** 3 }, async (req, reply
   if (demoPublique()) { reply.code(403); return { error: H3_MESSAGE_DEMO } }
   if (req.headers['x-licence-h3'] !== 'acceptee') { reply.code(400); return { error: 'accepte d’abord la licence MiniMax H3' } }
   try { return await recevoirFichierH3(req.params.nom, req.body) } catch (e) { reply.code(e.statusCode ?? 500); return { error: String(e.message || e) } }
+})
+
+/** Entraînement d'un personnage sur des images de la bibliothèque (propriétaire seulement). */
+app.get('/api/entrainement', async () => ({ pret: aiToolkitPret() }))
+app.post('/api/personas/:id/entrainer', async (req, reply) => {
+  const ids = Array.isArray(req.body?.assets) ? req.body.assets.slice(0, 30) : []
+  const images = ids.map(i => store.getAsset(String(i))).filter(a => a && a.media_type === 'photo').map(a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))).filter(f => fs.existsSync(f))
+  try { return { jobId: enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true }).id } }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
+/** Doublage d'un clip sur une voix de la bibliothèque audio (cf. enqueueDoublage). */
+app.post('/api/assets/:id/doubler', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  const audio = montage.cheminMusique(String(req.body?.audio ?? ''))
+  if (!fs.existsSync(src) || !audio) { reply.code(400); return { error: 'choisis un clip et une voix de la bibliothèque audio' } }
+  try {
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueDoublage({ source: src, audio, texte: req.body?.audio, parentAssetId: a.id, personaId: a.persona_id }))
+    return { jobId: id }
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
+/** Voix off (cf. voix.js). */
+app.get('/api/voix', async () => ({ disponible: voixDisponible(), voix: VOIX }))
+app.post('/api/voix', async (req, reply) => {
+  try { return await synthetiser({ texte: req.body?.texte, voix: req.body?.voix, vitesse: req.body?.vitesse }) }
+  catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+})
+
+/** Croquis vers vidéo (cf. croquis.js). */
+app.post('/api/croquis', async (req, reply) => {
+  const b = req.body ?? {}
+  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  try { return deposerAvecCle(cleComfy(req), () => lancerCroquis({ image: b.image, scene: b.scene, mouvement: b.mouvement, format: b.format, secondes: b.secondes, personaId: personaDe(req) })) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/croquis/:id', async (req, reply) => etatCroquis(req.params.id) ?? (reply.code(404), { error: 'croquis inconnu' }))
+
+/** Recadrage vidéo vers un autre format, bords inventés (cf. enqueueRecadrage). */
+app.post('/api/assets/:id/recadrer', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
+  try {
+    // sans consigne : le décor du clip d'origine, prolongé sur les côtés
+    const prov = store.getProvenance(a.id)
+    const orig = String(prov?.user_prompt || prov?.composed_positive || '').trim().slice(0, 300)
+    const prompt = String(req.body?.prompt ?? '').trim() || (orig ? `${orig}, wide view, the same place continues naturally on every side, same light, coherent perspective, no frame, no border` : undefined)
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueRecadrage({ source: src, format: String(req.body?.format ?? ''), prompt, parentAssetId: a.id, personaId: a.persona_id }))
+    return { jobId: id }
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
 app.post('/api/stage/glb', async (req, reply) => {

@@ -28,7 +28,7 @@ export function AvantApres({ avant, apres, className, style }: { avant: Asset; a
     if (r) setX(Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)))
   }
   const calque: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', clipPath: `inset(0 ${100 - x}% 0 0)` }
-  const etiquette: React.CSSProperties = { position: 'absolute', top: 10, fontSize: 10, letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.65)', color: '#fff', pointerEvents: 'none' }
+  const etiquette: React.CSSProperties = { position: 'absolute', top: 10, fontSize: 12, letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.65)', color: '#fff', pointerEvents: 'none' }
   return (
     <div ref={boite} className={className} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); bouger(e) }} onPointerMove={bouger}
       style={{ position: 'relative', display: 'inline-block', cursor: 'ew-resize', touchAction: 'none', userSelect: 'none', lineHeight: 0, ...style }}>

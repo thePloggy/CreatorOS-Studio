@@ -114,12 +114,12 @@ function Panneau({ onClose }: { onClose: () => void }) {
             <div key={i.id} style={{ borderRadius: 12, overflow: 'hidden', background: '#0f1013', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
               <div style={{ height: 230, flexShrink: 0, background: '#0b0c0e', position: 'relative' }}>
                 {i.filename && <Vignette filename={i.filename} />}
-                {i.filename?.endsWith('.mp4') && <span style={{ position: 'absolute', left: 6, top: 6, fontSize: 9, padding: '2px 6px', borderRadius: 6, background: 'rgba(0,0,0,0.7)' }}>{t('VIDÉO')}</span>}
+                {i.filename?.endsWith('.mp4') && <span style={{ position: 'absolute', left: 6, top: 6, fontSize: 12, padding: '2px 6px', borderRadius: 6, background: 'rgba(0,0,0,0.7)' }}>{t('VIDÉO')}</span>}
               </div>
               <div style={{ padding: '7px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10.5, opacity: .55, flex: 1 }}>{t('encore {n} j', { n: reste(i.deletedAt) })}</span>
+                <span style={{ fontSize: 12, opacity: .55, flex: 1 }}>{t('encore {n} j', { n: reste(i.deletedAt) })}</span>
                 <button disabled={!!busy} onClick={() => void restaurer([i.id])}
-                  style={{ border: 0, borderRadius: 8, padding: '5px 9px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#fff', background: 'linear-gradient(90deg, #f6a961, #ea4e89)' }}>
+                  style={{ border: 0, borderRadius: 8, padding: '5px 9px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#fff', background: 'linear-gradient(90deg, #f6a961, #ea4e89)' }}>
                   {busy === i.id ? '…' : t('restaurer')}
                 </button>
               </div>

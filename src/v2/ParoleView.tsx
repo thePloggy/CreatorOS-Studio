@@ -114,7 +114,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
         </div>
         <div style={{ display: 'grid', gap: 8, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>
           <b style={{ fontSize: 13 }}>{t('1. La photo')}</b>
-          <span style={{ fontSize: 11.5, color: 'var(--faint)' }}>{t('Visage bien visible, de face ou de trois quarts, plan poitrine ou plus serré.')}</span>
+          <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('Visage bien visible, de face ou de trois quarts, plan poitrine ou plus serré.')}</span>
           <div className="pkgrid" style={{ maxHeight: 260 }}>
             {photos.map(a => (
               <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
@@ -135,16 +135,16 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             <textarea value={replique} onChange={e => setReplique(e.target.value)} maxLength={220} rows={2}
               placeholder={t('La phrase qu’elle dit, dans sa langue (ex. « Hi! This is my favourite café in Paris, you have to try the croissants. »)')}
               style={{ padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 13 }} />
-            <span style={{ fontSize: 11.5, color: 'var(--faint)' }}>{t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')}</span>
+            <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')}</span>
           </>}
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
-            {!edition && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
+            {!edition && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
             {edition && <><button className={`pill ${enreg ? 'used' : ''}`} onClick={() => void micro()}>{enreg ? `■ ${t('Arrêter')} · ${secondes.toFixed(1)} s` : `🎙 ${t('Enregistrer au micro')}`}</button>
             <label className="pill tool" style={{ cursor: 'pointer' }}>⇪ {t('déposer un fichier audio')}
               <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void deposer(f, f.type || 'audio/mpeg'); e.target.value = '' }} />
             </label></>}
             {voix && <audio src={voix.url} controls style={{ height: 32 }} />}
-            {voix && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{voix.duree.toFixed(1)} s</span>}
+            {voix && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{voix.duree.toFixed(1)} s</span>}
           </div>}
           <input value={texte} onChange={e => setTexte(e.target.value)} maxLength={400} placeholder={t('Optionnel : son attitude pendant qu’elle parle (en anglais, ex. « smiling, enthusiastic, holding a coffee cup »)')}
             style={{ padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />

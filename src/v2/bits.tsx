@@ -3,6 +3,7 @@
    barre de tri. Le langage visuel vit dans v2.css (élévation par
    luminance, zéro bordure) ; ici uniquement la structure.
    ============================================================ */
+import { telechargerWorkflow } from '../lib/workflowComfy'
 import { Children, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Asset, Job } from '../types'
@@ -24,6 +25,7 @@ const IC: Record<string, React.ReactNode> = {
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
   camera: <><rect x="2" y="6" width="13" height="12" rx="2" /><path d="M15 10l7-4v12l-7-4" /></>,
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+  graphe: <><circle cx="5" cy="6" r="2.2" /><circle cx="5" cy="18" r="2.2" /><circle cx="19" cy="12" r="2.2" /><path d="M7.2 6.5c5 .5 5 5 9.6 5.2" /><path d="M7.2 17.5c5-.5 5-5 9.6-5.2" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></>,
   heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z" />,
   x: <><path d="M18 6L6 18" /><path d="M6 6l12 12" /></>,
@@ -114,7 +116,7 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
         <button className="spill purge" onClick={onPurge}>🗑 {t('supprimer les refusés ({n})', { n: rejected })}</button>
       )}
       <CorbeilleButton />
-      <span className="inline-flex items-center gap-2 ml-auto text-[10px]" style={{ color: 'var(--faint)' }}>
+      <span className="inline-flex items-center gap-2 ml-auto text-[12px]" style={{ color: 'var(--faint)' }}>
         ▤ <input type="range" aria-label={t('vignettes par rangée')} min={1} max={10} value={cols}
           onChange={e => setCols(Number(e.target.value))}
           style={{ width: 110, accentColor: 'var(--accent)' }} />
@@ -374,7 +376,7 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
               <small className="ml-auto" style={{ color: 'var(--faint)' }}>{f.count}</small>
             </button>
           ))}
-          {folders.length === 0 && <div style={{ padding: '8px 11px', fontSize: 11, color: 'var(--faint)' }}>{t('aucun dossier')}</div>}
+          {folders.length === 0 && <div style={{ padding: '8px 11px', fontSize: 12, color: 'var(--faint)' }}>{t('aucun dossier')}</div>}
         </div>
       </div>
   )
@@ -455,6 +457,7 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
             <button className="hact ok" title={t('valider')} onClick={e => { e.stopPropagation(); review(a.id, a.reviewStatus === 'approved' ? 'pending' : 'approved') }}><Ic n="heart" /></button>
             <button className="hact ko" title={t('refuser')} onClick={e => { e.stopPropagation(); review(a.id, a.reviewStatus === 'rejected' ? 'pending' : 'rejected') }}><Ic n="x" /></button>
             <a className="hact" title={t('télécharger')} href={a.uri} download onClick={e => e.stopPropagation()}><Ic n="download" /></a>
+            {a.jobId && <button className="hact" aria-label={t('workflow ComfyUI de ce rendu')} title={t('workflow ComfyUI de ce rendu')} onClick={e => { e.stopPropagation(); void telechargerWorkflow(a.id) }}><Ic n="graphe" /></button>}
             <button className="hact" title={t('cloner les réglages')} onClick={e => { e.stopPropagation(); clone(a) }}><Ic n="copy" /></button>
             {a.jobId && !a.postOp && <button className="hact" title={t('encore une : mêmes réglages, nouvelle graine')}
               onClick={e => { e.stopPropagation(); void encore(a) }}><Ic n="dice" /></button>}
@@ -643,7 +646,7 @@ export function FailCard({ j }: { j: Job }) {
 let closeCurrentMenu: (() => void) | null = null
 /** Pastille d'un outil : nouveau ou le plus utilisé. */
 export function Pastille({ k }: { k: 'new' | 'top' }) {
-  return <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6, marginLeft: 6, verticalAlign: 'middle', letterSpacing: '.02em',
+  return <span style={{ fontSize: 12, fontWeight: 700, padding: '1px 6px', borderRadius: 6, marginLeft: 6, verticalAlign: 'middle', letterSpacing: '.02em',
     color: k === 'new' ? '#1a0d10' : 'var(--text)', background: k === 'new' ? 'linear-gradient(90deg, #f6a961, #ea4e89)' : 'var(--lv4)' }}>{k === 'new' ? t('Nouveau') : 'Top'}</span>
 }
 
@@ -735,7 +738,7 @@ function FinitionsMenu({ a, onDone }: { a: Asset; onDone: () => void }) {
   return (<>
     {!a.withAudio && <button onClick={() => void go('foley')}><Ic n="sound" /> {t('Ajouter le son')}</button>}
     {a.postOp !== 'interpolate' && <button onClick={() => void go('interpolate')}><Ic n="wave" /> {t('Fluidité ×2 (48 i/s)')}</button>}
-    {err && <div className="text-[10.5px] px-2 py-1" style={{ color: 'var(--danger)', maxWidth: 220 }}>{err}</div>}
+    {err && <div className="text-[12px] px-2 py-1" style={{ color: 'var(--danger)', maxWidth: 220 }}>{err}</div>}
   </>)
 }
 
@@ -773,7 +776,7 @@ export function AnimMenu({ at, onClose, onStart, onEnd }: {
     <V2Portal>
       <div className="menu" style={{ left: at.x, top: at.y, bottom: at.bottom, pointerEvents: 'auto' }}
         onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
-        <div style={{ fontSize: 10, color: 'var(--faint)', padding: '4px 11px' }}>{t('Frame placement')}</div>
+        <div style={{ fontSize: 12, color: 'var(--faint)', padding: '4px 11px' }}>{t('Frame placement')}</div>
         <button onClick={() => { onStart(); onClose() }}>{t('→ Frame de départ')}</button>
         <button onClick={() => { onEnd(); onClose() }}>{t('← Frame de fin')}</button>
       </div>
@@ -1085,9 +1088,9 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
           title={t('graver les captions et livrer dans le dossier de livraison, nommés J74R1, J74R2…')}>
           <Ic n="download" /> {t('Livrer les reels')}</button>
       </>)}
-      {tache && !tache.fini && <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
+      {tache && !tache.fini && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
         {tache.type === 'captions' ? t('captions') : t('gravure')} {tache.faits}/{tache.total}…</span>}
-      {msg && <span className="text-[11px]" style={{ color: 'var(--muted)' }}>{msg}</span>}
+      {msg && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{msg}</span>}
       <button className="pill tool" onPointerDown={e => e.stopPropagation()}
         onClick={e => {
           if (folderMenu) { setFolderMenu(null); return }

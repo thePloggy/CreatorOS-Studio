@@ -17,7 +17,7 @@ type Tab = typeof TABS[number]
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[9px] rounded px-1.5 border text-muted border-border bg-surface3">
+    <span className="text-[12px] rounded px-1.5 border text-muted border-border bg-surface3">
       {children}
     </span>
   )
@@ -29,7 +29,7 @@ function DeleteBtn({ kind, id }: { kind: string; id: string }) {
   if (!isCustom(id)) return null
   return (
     <button onClick={() => removeCustom(kind, id)} title={t('Supprimer cet ajout')}
-      className="text-[11px] text-faint hover:text-alert cursor-pointer px-1 shrink-0">✕</button>
+      className="text-[12px] text-faint hover:text-alert cursor-pointer px-1 shrink-0">✕</button>
   )
 }
 
@@ -115,7 +115,7 @@ export function VocabView() {
         {TABS.map(tb => (
           <button key={tb} onClick={() => { setTab(tb); setAdding(false) }}
             className={cn(
-              'text-[11.5px] border rounded-full px-3 py-1 cursor-pointer',
+              'text-[12px] border rounded-full px-3 py-1 cursor-pointer',
               tab === tb ? 'text-text border-accent-dim bg-accent/10' : 'text-muted border-border bg-surface2',
             )}>
             {t(tb)} <span className="text-faint">{counts[tb]}</span>
@@ -124,7 +124,7 @@ export function VocabView() {
         {canAdd && (
           <button onClick={() => setAdding(a => !a)}
             className={cn(
-              'ml-auto text-[11.5px] border rounded-full px-3 py-1 cursor-pointer',
+              'ml-auto text-[12px] border rounded-full px-3 py-1 cursor-pointer',
               adding ? 'text-text border-accent-dim bg-accent/10' : 'border-dashed border-border2 text-muted hover:text-text',
             )}>
             {t('＋ Ajouter')}
@@ -132,7 +132,7 @@ export function VocabView() {
         )}
         {nbCustom > 0 && (
           <button onClick={exportAdds}
-            className="text-[11.5px] border border-border rounded-full px-3 py-1 text-muted hover:text-text cursor-pointer"
+            className="text-[12px] border border-border rounded-full px-3 py-1 text-muted hover:text-text cursor-pointer"
             title={t('Télécharger les ajouts (JSON)')}>
             {t('⇩ Export ({n})', { n: nbCustom })}
           </button>
@@ -142,7 +142,7 @@ export function VocabView() {
       {/* ---------- Formulaire d'ajout (selon l'onglet) ---------- */}
       {adding && canAdd && (
         <div className="border border-accent-dim/40 rounded-card bg-surface2 p-3 mb-4">
-          <div className="text-[11px] font-semibold mb-2">{t('Ajouter — {tab}', { tab: t(tab) })}</div>
+          <div className="text-[12px] font-semibold mb-2">{t('Ajouter — {tab}', { tab: t(tab) })}</div>
 
           <>
               <Field label={
@@ -182,7 +182,7 @@ export function VocabView() {
                 )}
               </div>
               {tab === 'Tenues' && fPrompt.trim() && (
-                <div className="text-[10px] text-faint mb-2">
+                <div className="text-[12px] text-faint mb-2">
                   {t('Auto-tag : {v}', { v: (() => { const a = autotagOutfit(fPrompt, fCtx); return `${t(a.labelFr)} · ${a.material || t('matière ?')}` })() })}
                 </div>
               )}
@@ -201,14 +201,14 @@ export function VocabView() {
             <div key={o.id} className={cn('flex items-center gap-3 border rounded-card bg-surface2 px-3 py-2.5',
               isCustom(o.id) ? 'border-accent-dim/40' : 'border-border')}>
               <span className="font-semibold text-[12.5px] w-[190px] shrink-0">{t(o.labelFr ?? o.label)}</span>
-              <span className="text-[11px] text-muted flex-1 truncate" title={o.prompt}>
+              <span className="text-[12px] text-muted flex-1 truncate" title={o.prompt}>
                 {o.prompt ?? `${o.garment} · ${o.material} · ${o.color}`}
               </span>
               <span className="flex gap-1">{o.tags.slice(0, 3).map(tg => <Tag key={tg}>{t(tg)}</Tag>)}</span>
               <DeleteBtn kind="outfit" id={o.id} />
             </div>
           ))}
-          <div className="text-[10.5px] text-faint mt-1">
+          <div className="text-[12px] text-faint mt-1">
             {t('Base : vocabulaire de départ (lecture seule) · ajouts (liseré bleu) stockés localement — « Export » pour les sauvegarder.')}
           </div>
         </div>
@@ -220,12 +220,12 @@ export function VocabView() {
             <div key={e.id} className={cn('flex items-center gap-3 border rounded-card bg-surface2 px-3 py-2.5',
               isCustom(e.id) ? 'border-accent-dim/40' : 'border-border')}>
               <span className="font-semibold text-[12.5px] w-[220px] shrink-0 truncate">{t(e.labelFr ?? e.label)}</span>
-              <span className="text-[11px] text-muted flex-1 truncate" title={e.prompt}>{t(e.sceneType)} · {e.location}</span>
+              <span className="text-[12px] text-muted flex-1 truncate" title={e.prompt}>{t(e.sceneType)} · {e.location}</span>
               <span className="flex gap-1">{e.tags.slice(0, 2).map(tg => <Tag key={tg}>{t(tg)}</Tag>)}</span>
               <DeleteBtn kind="environment" id={e.id} />
             </div>
           ))}
-          <div className="text-[10.5px] text-faint mt-1">
+          <div className="text-[12px] text-faint mt-1">
             {t('Varier la lumière et la météo (pas de golden hour systématique).')}
           </div>
         </div>
@@ -237,7 +237,7 @@ export function VocabView() {
             <div key={s.id} className={cn('flex items-center gap-3 border rounded-card bg-surface2 px-3 py-2.5',
               isCustom(s.id) ? 'border-accent-dim/40' : 'border-border')}>
               <span className="font-semibold text-[12.5px] w-[260px] shrink-0 truncate">{t(s.labelFr ?? s.label)}</span>
-              <span className="text-[11px] text-muted flex-1 truncate">{s.framing}{s.lens ? ` · ${s.lens}` : ''}</span>
+              <span className="text-[12px] text-muted flex-1 truncate">{s.framing}{s.lens ? ` · ${s.lens}` : ''}</span>
               <span className="flex gap-1">{s.tags.map(tg => <Tag key={tg}>{t(tg)}</Tag>)}</span>
               <DeleteBtn kind="style" id={s.id} />
             </div>
@@ -251,7 +251,7 @@ export function VocabView() {
             <div key={h.id} className={cn('flex items-center gap-3 border rounded-card bg-surface2 px-3 py-2.5',
               isCustom(h.id) ? 'border-accent-dim/40' : 'border-border')}>
               <span className="font-semibold text-[12.5px] w-[240px] shrink-0 truncate">{t(h.labelFr ?? h.label)}</span>
-              <span className="text-[11px] text-muted flex-1 truncate" title={h.prompt}>{h.prompt}</span>
+              <span className="text-[12px] text-muted flex-1 truncate" title={h.prompt}>{h.prompt}</span>
               <DeleteBtn kind="hairstyle" id={h.id} />
             </div>
           ))}
@@ -263,12 +263,12 @@ export function VocabView() {
           {textPoses.map(p => (
             <div key={p.id} className={cn('flex items-center gap-3 border rounded-card bg-surface2 px-3 py-2.5',
               isCustom(p.id) ? 'border-accent-dim/40' : 'border-border')}>
-              <span className="text-[11.5px] text-muted flex-1 truncate" title={p.prompt}>{p.prompt}</span>
+              <span className="text-[12px] text-muted flex-1 truncate" title={p.prompt}>{p.prompt}</span>
               <Tag>{t(p.context)}</Tag>
               <DeleteBtn kind="textPose" id={p.id} />
             </div>
           ))}
-          <div className="text-[10.5px] text-faint mt-1">
+          <div className="text-[12px] text-faint mt-1">
             {t('Poses exprimées en texte : elles entrent dans le prompt, entre la tenue et le cadrage.')}
           </div>
         </div>

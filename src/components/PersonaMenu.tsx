@@ -50,7 +50,7 @@ export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
         title={t('personnage {nom} — changer', { nom })} onClick={() => setOuvert(o => !o)}>
         {rond(photo, 20)}
         {nom}
-        <span aria-hidden style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>▾</span>
+        <span aria-hidden style={{ fontSize: 12, opacity: 0.6, marginLeft: 2 }}>▾</span>
       </button>
       {ouvert && (
         <div role="menu" style={{

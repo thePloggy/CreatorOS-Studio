@@ -72,23 +72,23 @@ export function VoyantMachine() {
           background: 'var(--lv2)', border: '1px solid var(--lv4)', borderRadius: 12, padding: 14, boxShadow: '0 12px 40px #0009', color: 'var(--text)' }}>
           <div className="flex items-center gap-2 mb-2">
             <b className="text-[13px]">{t('Machine de rendu — {x}', { x: titre })}</b>
-            <button className="pill ml-auto" style={{ fontSize: 10.5, padding: '4px 10px' }} title={t('Copie un journal sans données privées, à coller dans une issue GitHub')}
+            <button className="pill ml-auto" style={{ fontSize: 12, padding: '4px 10px' }} title={t('Copie un journal sans données privées, à coller dans une issue GitHub')}
               onClick={() => void journalBug().then(x => navigator.clipboard?.writeText(x)).then(() => setCopie(true), () => setCopie(false))}>
               {copie ? t('✓ copié') : t('📋 journal pour un bug')}
             </button>
-            <button className="pill" style={{ fontSize: 10.5, padding: '4px 10px' }} disabled={enCours} onClick={() => void relancer()}>
+            <button className="pill" style={{ fontSize: 12, padding: '4px 10px' }} disabled={enCours} onClick={() => void relancer()}>
               {enCours ? t('contrôle…') : t('↻ recontrôler')}
             </button>
           </div>
           {revenu && (
-            <div className="text-[11.5px]" style={{ color: 'var(--muted)', margin: '4px 0 8px' }}>
+            <div className="text-[12px]" style={{ color: 'var(--muted)', margin: '4px 0 8px' }}>
               {t('ComfyUI a redémarré à {h}', { h: new Date(revenu.revenuLe!).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }) })}
               {revenu.coupureMs ? t(' (coupure de {n} s)', { n: Math.round(revenu.coupureMs / 1000) }) : ''} — {t('bilan :')} {!revenu.bilan ? t('contrôle en cours…')
                 : revenu.bilan.bloquants || revenu.bilan.alertes ? t('{b} bloquant(s), {a} alerte(s)', { b: revenu.bilan.bloquants, a: revenu.bilan.alertes }) : t('rien à signaler')}
             </div>
           )}
           {allege && allege.profil < 24 && (
-            <div className="text-[11.5px]" style={{ borderLeft: '3px solid var(--lv4)', padding: '5px 0 5px 10px', margin: '8px 0', color: 'var(--muted)' }}>
+            <div className="text-[12px]" style={{ borderLeft: '3px solid var(--lv4)', padding: '5px 0 5px 10px', margin: '8px 0', color: 'var(--muted)' }}>
               <div style={{ color: 'var(--text)' }}>{t('Profil {n} Go', { n: allege.profil })}{allege.vramGo ? t(' (carte de {n} Go)', { n: allege.vramGo }) : ''} — {t('poids légers à la place des modèles lourds, mêmes recettes')}</div>
               {allege.variantes.filter(v => v.utile).map(v => (
                 <div key={v.vers}>{v.installee ? '✓' : '✗'} {court(v.de)} → {court(v.vers)}</div>
@@ -99,12 +99,12 @@ export function VoyantMachine() {
           {d?.problemes.map((p, i) => (
             <div key={i} style={{ borderLeft: `3px solid ${p.gravite === 'bloquant' ? 'var(--danger)' : 'var(--warn, #ffb648)'}`, padding: '5px 0 5px 10px', margin: '8px 0' }}>
               <div className="text-[12px]"><span style={{ color: 'var(--muted)' }}>{p.domaine} — </span>{p.quoi}</div>
-              <div className="text-[11px]" style={{ color: 'var(--muted)', marginTop: 2 }}>→ {p.conseil}</div>
+              <div className="text-[12px]" style={{ color: 'var(--muted)', marginTop: 2 }}>→ {p.conseil}</div>
             </div>
           ))}
           {d && !d.problemes.length && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('Rien à signaler : pilote, Python, ComfyUI, recettes, Ollama, disque et livraison sont en ordre.')}</div>}
           {d && (
-            <div className="text-[10.5px]" style={{ color: 'var(--faint)', marginTop: 10, lineHeight: 1.6 }}>
+            <div className="text-[12px]" style={{ color: 'var(--faint)', marginTop: 10, lineHeight: 1.6 }}>
               {Object.entries(d.infos).map(([k, v]) => <div key={k}>{k} : {String(v)}</div>)}
               <div>{t('contrôlé à {h} en {s} s', { h: new Date(d.quand).toLocaleTimeString(loc), s: (d.dureeMs / 1000).toFixed(1) })}</div>
             </div>

@@ -81,11 +81,11 @@ export function EditionVideo({ asset, onClose, onPinceau, detourDirect }: { asse
             <textarea style={{ ...champ, minHeight: 70, resize: 'vertical' }} maxLength={400} value={prompt}
               placeholder={op === 'retirer' ? 'a rainy city street at dusk, neon signs, wet asphalt' : op === 'fond' ? 'a sunny beach with turquoise water and palm trees' : 'a red silk slip dress with thin straps'} onChange={e => setPrompt(e.target.value)} />
           </label>}
-          {op === 'alpha' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('La personne est suivie image par image et le fond disparaît : un WebM avec transparence, lisible dans un navigateur ou OBS. Rien n’est redessiné.')}</span>}
-          {op === 'detourer' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('La personne est suivie image par image et tout le reste passe sur fond vert, prêt pour un montage. Rien n’est redessiné.')}</span>}
-          {op === 'retirer' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('Personnes, passants ou véhicules disparaissent et le décor est reconstruit derrière, son d’origine gardé (LTX-2.5 + IC-LoRA Clean-Plate). Environ 2 min.')}</span>}
-          {op === 'fond' && <span style={{ fontSize: 11.5, opacity: .6 }}>{t('La personne est retrouvée et suivie ; tout le reste de l’image est redessiné. Le mouvement de caméra reste celui du clip.')}</span>}
-          <span style={{ fontSize: 11.5, opacity: .6 }}>{t('L’élément doit être visible dans la vidéo : l’édition le transforme, elle n’ajoute pas un objet absent. Clips de 10 s au plus.')}</span>
+          {op === 'alpha' && <span style={{ fontSize: 12, opacity: .6 }}>{t('La personne est suivie image par image et le fond disparaît : un WebM avec transparence, lisible dans un navigateur ou OBS. Rien n’est redessiné.')}</span>}
+          {op === 'detourer' && <span style={{ fontSize: 12, opacity: .6 }}>{t('La personne est suivie image par image et tout le reste passe sur fond vert, prêt pour un montage. Rien n’est redessiné.')}</span>}
+          {op === 'retirer' && <span style={{ fontSize: 12, opacity: .6 }}>{t('Personnes, passants ou véhicules disparaissent et le décor est reconstruit derrière, son d’origine gardé (LTX-2.5 + IC-LoRA Clean-Plate). Environ 2 min.')}</span>}
+          {op === 'fond' && <span style={{ fontSize: 12, opacity: .6 }}>{t('La personne est retrouvée et suivie ; tout le reste de l’image est redessiné. Le mouvement de caméra reste celui du clip.')}</span>}
+          <span style={{ fontSize: 12, opacity: .6 }}>{t('L’élément doit être visible dans la vidéo : l’édition le transforme, elle n’ajoute pas un objet absent. Clips de 10 s au plus.')}</span>
           {err && <span style={{ fontSize: 12, color: '#f08a7e' }}>{err}</span>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={{ ...bouton, background: 'transparent', opacity: .75 }} onClick={() => setMode('choix')} disabled={busy}>{t('‹ Retour')}</button>

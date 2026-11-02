@@ -693,7 +693,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
         // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
-        set({ personaKlein: klein, ...(klein ? {} : { photoEngine: 'krea' as const }) })
+        set({ personaKlein: klein })
         set({ personaName: p.id === SANS_PERSONNAGE ? t('Sans personnage') : p.name?.trim() || t('Personnage'), personaAvatar: p.id === SANS_PERSONNAGE ? null : p.avatar ?? null, personaId: p.id ?? null })
         if (change) set({ assets: await fetchAssets() })
       } catch { /* hors ligne : on garde l'affichage */ }
@@ -726,7 +726,6 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           personaVideoWan: estLoraWan(h.persona?.videoLoras as unknown[] | undefined),
           personaCredit: (h.persona?.credit as PersonaCredit | undefined) ?? null,
           personaGarderobe: (h.persona?.garderobe as Garderobe | undefined) ?? GARDEROBE_VIDE,
-          ...((h.persona?.lorasKlein as unknown[] | undefined)?.length ? {} : { photoEngine: 'krea' as const }),
           ...(nom?.trim() ? { personaName: nom.trim() } : {}) })
       } catch (e) { console.warn('[store] catalogue moteurs non chargé :', e) }
       if (personnageChoisi()) await get().refreshPersona()

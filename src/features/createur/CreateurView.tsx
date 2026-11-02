@@ -103,7 +103,7 @@ export function CreateurView() {
           <button style={bouton} onClick={() => { setEdit(null); setMsg(null) }}>{t('Annuler')}</button>
           {msg && <span style={{ fontSize: 12, opacity: 0.8 }}>{msg}</span>}
         </div>
-        <span style={{ fontSize: 11, opacity: 0.55 }}>{t('Cette page est visible de tous les visiteurs : n’y mets rien de privé.')}</span>
+        <span style={{ fontSize: 12, opacity: 0.55 }}>{t('Cette page est visible de tous les visiteurs : n’y mets rien de privé.')}</span>
       </div>
     )
   }

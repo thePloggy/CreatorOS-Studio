@@ -34,7 +34,7 @@ export function AssetThumb({ asset, className }: { asset: Asset; className?: str
           onMouseEnter={e => void (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
           onMouseLeave={e => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0 }}
           className={cn('absolute inset-0 w-full h-full object-cover', className)} />
-        <span className="absolute bottom-1.5 left-1.5 text-[9px] bg-bg/80 border border-border2 rounded px-1 text-muted">▶</span>
+        <span className="absolute bottom-1.5 left-1.5 text-[12px] bg-bg/80 border border-border2 rounded px-1 text-muted">▶</span>
       </>
     )
   return (

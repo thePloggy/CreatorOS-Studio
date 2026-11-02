@@ -22,9 +22,9 @@ const bouton: React.CSSProperties = {
 
 /** Ligne de crédit compacte (cartes). */
 export function CreditLigne({ credit }: { credit: PersonaCredit | null | undefined }) {
-  if (!credit?.auteur && !credit?.url) return <span style={{ fontSize: 10.5, opacity: 0.45 }}>{t('crédit à renseigner')}</span>
+  if (!credit?.auteur && !credit?.url) return <span style={{ fontSize: 12, opacity: 0.45 }}>{t('crédit à renseigner')}</span>
   return (
-    <span style={{ fontSize: 10.5, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}
+    <span style={{ fontSize: 12, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}
       title={credit.licence || undefined}>
       {t('par')} {credit.url
         ? <a href={credit.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'inherit' }}>{credit.auteur || t('l’auteur')}</a>
@@ -61,7 +61,7 @@ export function CreditPersonnage() {
         <button style={bouton} onClick={() => setEdit(null)}>{t('Annuler')}</button>
         {msg && <span style={{ fontSize: 12, opacity: 0.8 }}>{msg}</span>}
       </div>
-      <span style={{ fontSize: 11, opacity: 0.55 }}>{t('Lien en https uniquement. Une fois enregistré, le crédit est verrouillé.')}</span>
+      <span style={{ fontSize: 12, opacity: 0.55 }}>{t('Lien en https uniquement. Une fois enregistré, le crédit est verrouillé.')}</span>
     </div>
   )
   return (
@@ -74,7 +74,7 @@ export function CreditPersonnage() {
         </>) : <div style={{ opacity: 0.6 }}>{t('Aucun crédit renseigné pour ce personnage.')}</div>}
       </div>
       {credit
-        ? <span style={{ fontSize: 11, opacity: 0.55 }} title={t('La provenance d’une LoRA ne change pas : le crédit ne se modifie plus.')}>🔒 {t('verrouillé')}</span>
+        ? <span style={{ fontSize: 12, opacity: 0.55 }} title={t('La provenance d’une LoRA ne change pas : le crédit ne se modifie plus.')}>🔒 {t('verrouillé')}</span>
         : edition && <button style={bouton} onClick={() => setEdit({ auteur: '', url: '', licence: '' })}>{t('Renseigner le crédit')}</button>}
     </div>
   )

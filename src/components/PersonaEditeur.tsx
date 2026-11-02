@@ -75,7 +75,7 @@ function ListeLoras({ titre, aide, liste, dispo, onChange, garde }: {
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>{titre}</div>
-      <div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 6 }}>{aide}</div>
+      <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 6 }}>{aide}</div>
       {liste.length === 0 && <div style={{ fontSize: 12, opacity: 0.5, margin: '6px 0' }}>{t('aucune')}</div>}
       {liste.map((l, i) => (
         <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
@@ -140,7 +140,7 @@ export function PersonaEditeur() {
       {long
         ? <textarea rows={3} style={champ} value={p[k] ?? ''} disabled={fige(k)} onChange={e => maj({ [k]: e.target.value })} />
         : <input style={champ} value={p[k] ?? ''} disabled={fige(k)} onChange={e => maj({ [k]: e.target.value })} />}
-      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 3 }}>{aide}</div>
+      <div style={{ fontSize: 12, opacity: 0.5, marginTop: 3 }}>{aide}</div>
     </>
   )
 
@@ -164,7 +164,7 @@ export function PersonaEditeur() {
         </> : <Verrouille />}
         {etat && <span style={{ fontSize: 12, opacity: 0.75 }}>{etat}</span>}
       </div>
-      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 14 }}>
+      <div style={{ fontSize: 12, opacity: 0.5, marginTop: 14 }}>
         {t('N’utilise qu’un personnage qui t’appartient : inventé par toi, ou toi-même. Jamais le visage ou le nom d’une personne réelle.')}
       </div>
     </fieldset>

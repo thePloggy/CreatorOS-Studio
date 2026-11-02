@@ -12,7 +12,7 @@ import { t } from '../../i18n'
 /* ---------- SectionTitle : intertitre de colonne ---------- */
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('text-[10.5px] uppercase tracking-[0.09em] text-faint font-bold mb-2', className)}>
+    <div className={cn('text-[12px] uppercase tracking-[0.09em] text-faint font-bold mb-2', className)}>
       {children}
     </div>
   )
@@ -30,7 +30,7 @@ const buttonVariants = cva(
       },
       size: {
         md: 'px-4 py-2 text-[12.5px]',
-        sm: 'px-3 py-1.5 text-[11.5px]',
+        sm: 'px-3 py-1.5 text-[12px]',
         full: 'w-full py-2 text-[12.5px]',
       },
     },
@@ -46,9 +46,9 @@ export function Button({ className, variant, size, ...props }:
 export function Field({ label, hint, children }: { label: ReactNode; hint?: string; children: ReactNode }) {
   return (
     <div className="mt-2">
-      <label className="block text-[11px] text-muted font-semibold mb-1">{label}</label>
+      <label className="block text-[12px] text-muted font-semibold mb-1">{label}</label>
       {children}
-      {hint && <div className="text-[10.5px] text-faint mt-1">{hint}</div>}
+      {hint && <div className="text-[12px] text-faint mt-1">{hint}</div>}
     </div>
   )
 }
@@ -143,13 +143,13 @@ export function Accordion({ title, summary, defaultOpen = false, children, contr
         >
           <span className="flex items-center justify-between gap-2 min-w-0">
             <span className="font-semibold text-[12.5px] flex items-center gap-1.5 min-w-0">
-              <span className={cn('text-faint text-[10px] inline-block transition-transform', open && 'rotate-90')}>›</span>
+              <span className={cn('text-faint text-[12px] inline-block transition-transform', open && 'rotate-90')}>›</span>
               <span className="truncate">{title}</span>
-              {badge && <span className="text-[8.5px] font-mono tracking-[.06em] text-warn bg-[#2b241155] border border-[#3d3018] rounded px-1.5 py-[1px] shrink-0">{badge}</span>}
+              {badge && <span className="text-[12px] font-mono tracking-[.06em] text-warn bg-[#2b241155] border border-[#3d3018] rounded px-1.5 py-[1px] shrink-0">{badge}</span>}
             </span>
-            <span className="text-muted text-[11px] font-mono truncate max-w-[160px] shrink-0">{summary}</span>
+            <span className="text-muted text-[12px] font-mono truncate max-w-[160px] shrink-0">{summary}</span>
           </span>
-          {contrib && <span className="block text-[9.5px] text-faint font-mono pl-4 leading-snug truncate">{contrib}</span>}
+          {contrib && <span className="block text-[12px] text-faint font-mono pl-4 leading-snug truncate">{contrib}</span>}
         </button>
       </div>
       {open && <div className="px-3 pb-3">{children}</div>}
@@ -234,7 +234,7 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-label={open ? t('Fermer la liste') : t('Ouvrir la liste')}
-        className="absolute right-1 top-1 px-1.5 py-1 text-faint text-[10px] cursor-pointer hover:text-text">
+        className="absolute right-1 top-1 px-1.5 py-1 text-faint text-[12px] cursor-pointer hover:text-text">
         <span className={cn('inline-block transition-transform', open && 'rotate-180')}>▾</span>
       </button>
 
@@ -242,7 +242,7 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
         <div ref={listRef}
           className="absolute left-0 right-0 top-full z-30 mt-1 border border-border rounded-ctl bg-bg shadow-lg max-h-56 overflow-y-auto scroll-clean">
           {filtered.length === 0 && (
-            <div className="px-2.5 py-2 text-[11.5px] text-faint">{t('Aucun résultat')}</div>
+            <div className="px-2.5 py-2 text-[12px] text-faint">{t('Aucun résultat')}</div>
           )}
           {filtered.map((i, n) => (
             <button
@@ -261,7 +261,7 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
               </span>
               <span className="flex gap-1 shrink-0">
                 {i.tags.slice(0, 2).map(tg => (
-                  <span key={tg} className="text-[9px] rounded px-1 bg-surface3 border border-border text-muted">{t(tg)}</span>
+                  <span key={tg} className="text-[12px] rounded px-1 bg-surface3 border border-border text-muted">{t(tg)}</span>
                 ))}
               </span>
             </button>
@@ -279,13 +279,13 @@ export function SliderRow({ label, valueLabel, min, max, step, value, onChange }
 }) {
   return (
     <div className="flex items-center gap-2.5 mt-2.5">
-      <span className="text-[11px] text-muted whitespace-nowrap">{label}</span>
+      <span className="text-[12px] text-muted whitespace-nowrap">{label}</span>
       <input
         type="range" className="slider flex-1"
         min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
       />
-      <span className="text-[11px] text-text whitespace-nowrap">{valueLabel}</span>
+      <span className="text-[12px] text-text whitespace-nowrap">{valueLabel}</span>
     </div>
   )}
 
@@ -322,26 +322,26 @@ export function UploadBox({ accept, uri, name, onPick, onFile, hint }: {
           <div className="flex items-center gap-2.5 p-2">
             <img src={uri} alt={name} className="w-14 h-14 object-cover rounded" />
             <div className="min-w-0">
-              <div className="text-[11.5px] text-text truncate">{name}</div>
-              <div className="text-[10px] text-accent">{t('changer le fichier')}</div>
+              <div className="text-[12px] text-text truncate">{name}</div>
+              <div className="text-[12px] text-accent">{t('changer le fichier')}</div>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2.5 p-2">
             <video src={uri} poster={`/api/poster/${encodeURIComponent(uri.split('/').pop() ?? '')}`} preload="none" muted playsInline className="w-14 h-14 object-cover rounded bg-black" />
             <div className="min-w-0">
-              <div className="text-[11.5px] text-text truncate">{name}</div>
-              <div className="text-[10px] text-accent">{t('changer le fichier')}</div>
+              <div className="text-[12px] text-text truncate">{name}</div>
+              <div className="text-[12px] text-accent">{t('changer le fichier')}</div>
             </div>
           </div>
         )
       ) : (
         <div className="py-5 text-center">
           <div className="text-[18px] text-faint leading-none mb-1">⇪</div>
-          <div className="text-[11.5px] text-muted">
+          <div className="text-[12px] text-muted">
             {isImage ? t('Cliquer pour uploader une image') : t('Cliquer pour uploader une vidéo')}
           </div>
-          {hint && <div className="text-[10px] text-faint mt-0.5">{hint}</div>}
+          {hint && <div className="text-[12px] text-faint mt-0.5">{hint}</div>}
         </div>
       )}
     </label>
@@ -363,7 +363,7 @@ export function ZoomPreview({ zoom }: {
       style={{ left: x, top: y, width: W }}>
       <img src={zoom.src} alt="" className="w-full object-contain bg-[#10151c]" style={{ maxHeight: H - 28 }} />
       {zoom.label && (
-        <div className="px-2 py-1 text-[10.5px] text-muted border-t border-border truncate">{zoom.label}</div>
+        <div className="px-2 py-1 text-[12px] text-muted border-t border-border truncate">{zoom.label}</div>
       )}
     </div>
   )

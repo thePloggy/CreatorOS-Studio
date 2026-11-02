@@ -2,6 +2,7 @@
    Personnage (◐) — l'identité constante des rendus : photo de profil, et
    l'éditeur (nom, mot déclencheur, préambule, LoRA d'identité).
    ============================================================ */
+import { Entrainement } from './Entrainement'
 import { SectionTitle } from '../../components/ui'
 import { Avatar, AvatarUpload } from '../../components/Avatar'
 import { useAppStore } from '../../store/useAppStore'
@@ -22,6 +23,7 @@ export function PersonaView() {
       </div>
 
       <SectionTitle>{t('Personnage actif')}</SectionTitle>
+      <Entrainement />
 
       {/* Carte identité */}
       <div className="flex items-center gap-3.5 border border-border rounded-card bg-surface2 p-4 mb-4">
@@ -30,7 +32,7 @@ export function PersonaView() {
           <div className="font-bold text-[15px]">{name} <AvatarUpload className="ml-2 font-normal" /></div>
           <div className="text-muted text-[12px]">{t('Personnage fictif, entièrement généré')}</div>
         </div>
-        <div className="ml-auto text-[10px] text-muted bg-surface3 border border-border rounded px-2 py-1">
+        <div className="ml-auto text-[12px] text-muted bg-surface3 border border-border rounded px-2 py-1">
           AI-generated<br /><span className="text-faint">{t('à signaler en publication')}</span>
         </div>
       </div>

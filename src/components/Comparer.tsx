@@ -16,7 +16,7 @@ import { t } from '../i18n'
 
 /* styles en ligne : le comparateur s'ouvre aussi sur mobile, hors de v2.css */
 const BTN = { background: '#1c1e23', color: '#e8e9ec', border: 0, borderRadius: 9, padding: '7px 12px', fontSize: 12, cursor: 'pointer' } as const
-const PILL = { fontSize: 10, padding: '2px 6px', borderRadius: 6, background: '#1c1e23', color: '#b9bbc2' } as const
+const PILL = { fontSize: 12, padding: '2px 6px', borderRadius: 6, background: '#1c1e23', color: '#b9bbc2' } as const
 
 export function Comparer({ assets, onClose }: { assets: Asset[]; onClose: () => void }) {
   const vids = useRef<(HTMLVideoElement | null)[]>([])
@@ -109,7 +109,7 @@ export function Comparer({ assets, onClose }: { assets: Asset[]; onClose: () => 
 function Legende({ a, i }: { a: Asset; i: number }) {
   const graine = a.provenance?.seed?.value
   return (
-    <figcaption style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', fontSize: 11, color: '#9a9ca3' }}>
+    <figcaption style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: '#9a9ca3' }}>
       <b style={{ color: '#e8e9ec' }}>{String.fromCharCode(65 + i)}</b>
       {badgesOf(a).map(b => <span key={b.cle} style={PILL}>{b.txt}</span>)}
       {graine != null && <span>{t('graine')} {graine}</span>}

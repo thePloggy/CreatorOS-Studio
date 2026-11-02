@@ -31,7 +31,7 @@ export function ConfigView({ initial = 'vocab' }: { initial?: ConfigTab }) {
             </button>
           ))}
         </div>
-        <span className="text-[10.5px] text-faint font-mono ml-auto">{t("réglages de l'outil — pas des tâches de création")}</span>
+        <span className="text-[12px] text-faint font-mono ml-auto">{t("réglages de l'outil — pas des tâches de création")}</span>
       </div>
       {tab !== 'cloud' && tab !== 'modeles' && !edition && <Verrouille style={{ padding: '6px 16px' }} />}
       {tab === 'modeles' ? <div className="p-4 overflow-y-auto"><ModelesOptionnels /></div> : tab === 'cloud' ? <div className="p-4 overflow-y-auto"><CleComfy /><CleProprietaire /></div> : tab === 'vocab' ? <VocabView /> : <WorkbenchView />}

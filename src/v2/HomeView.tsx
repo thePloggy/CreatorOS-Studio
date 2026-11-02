@@ -16,8 +16,8 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
   const [groupe, setGroupe] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
   const BANDEAUX: { cible: Cible; titre: string; texte: string; apercu: Apercu }[] = [
-    { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), apercu: BANDEAU_REEL },
     { cible: 'stage', titre: 'Stage', texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), apercu: BANDEAU_STAGE },
+    { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), apercu: BANDEAU_REEL },
     { cible: 'presets', titre: t('Caméra & effets'), texte: t('Un mouvement de caméra de cinéma sur n’importe quelle photo, en un clic.'), apercu: BANDEAU_CAMERA },
   ]
   const mot = cherche.trim().toLowerCase()
@@ -26,7 +26,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
   return (
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 28 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+        <div className="bandeaux">
           {BANDEAUX.map(b => (
             <button key={b.titre} onClick={() => go(b.cible)} className="bandeau">
               <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>

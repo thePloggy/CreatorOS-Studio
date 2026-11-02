@@ -26,7 +26,7 @@ export function CleProprietaire() {
           <input type="password" autoComplete="off" spellCheck={false} value={saisie} onChange={e => setSaisie(e.target.value)}
             className="bg-surface3 border border-border rounded px-2 py-1 text-[12px]" style={{ minWidth: 260 }} />
           <button className="pill" type="submit" disabled={!saisie.trim()}>{t('Déverrouiller')}</button>
-          {enregistree && <span className="text-[11.5px] text-muted">{t('clé enregistrée refusée par le serveur')}</span>}
+          {enregistree && <span className="text-[12px] text-muted">{t('clé enregistrée refusée par le serveur')}</span>}
         </form>
       )}
     </div>
@@ -82,5 +82,5 @@ function JournalVisiteurs({ journal, enCours }: { journal: { at: number; job?: s
 
 /** Ligne affichée à la place d'un bouton d'édition, pour le visiteur. */
 export function Verrouille({ style }: { style?: React.CSSProperties }) {
-  return <div style={{ fontSize: 11.5, opacity: 0.6, ...style }}>🔒 {t('Réglé par le propriétaire du studio')}</div>
+  return <div style={{ fontSize: 12, opacity: 0.6, ...style }}>🔒 {t('Réglé par le propriétaire du studio')}</div>
 }

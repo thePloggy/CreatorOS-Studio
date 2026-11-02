@@ -140,7 +140,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     <div className="flex-1 min-h-0 flex layer1" style={{ overflow: 'hidden' }}>
       {/* ---------- sidebar ---------- */}
       <aside className="aside-assets flex-none flex flex-col gap-1 p-3 overflow-y-auto" style={{ width: 220 }}>
-        <div className="text-[10.5px] mt-2 mb-0.5 px-2" style={{ color: 'var(--faint)' }}>{t('Personnages')}</div>
+        <div className="text-[12px] mt-2 mb-0.5 px-2" style={{ color: 'var(--faint)' }}>{t('Personnages')}</div>
         <button className={`sitem ${!personnage ? 'on' : ''}`} onClick={() => setPersonnage(null)}>{t('Tous les personnages')}</button>
         {[...personnages, { id: SANS_PERSONNAGE, name: t('Sans personnage') }].map(p => {
           const n = s.assets.filter(a => a.personaId === p.id).length
@@ -206,7 +206,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
               }}><Ic n="dots" s={12} /></span>
           </button>
         ))}
-        {folders.length === 0 && <div style={{ fontSize: 10.5, color: 'var(--faint)', padding: '2px 8px' }}>{t('aucun dossier — « Déplacer vers… » sur une vignette')}</div>}
+        {folders.length === 0 && <div style={{ fontSize: 12, color: 'var(--faint)', padding: '2px 8px' }}>{t('aucun dossier — « Déplacer vers… » sur une vignette')}</div>}
       </aside>
 
       {s.ongletMusiques ? <Musiques /> : <>
@@ -214,13 +214,13 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-3 px-4 py-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>
-          <span className="text-[11px]" style={{ color: 'var(--faint)' }}>{tp(shown.length, '{n} asset', '{n} assets')}</span>
+          <span className="text-[12px]" style={{ color: 'var(--faint)' }}>{tp(shown.length, '{n} asset', '{n} assets')}</span>
           {shown.length > 0 && (
             <button className="pill tool" onClick={() => setPicked(picked.size === shown.length ? new Set() : new Set(shown.map(a => a.id)))}>
               {picked.size === shown.length ? t('Tout désélectionner') : t('Tout sélectionner')}
             </button>
           )}
-          <span className="inline-flex items-center gap-2 ml-auto text-[10px]" style={{ color: 'var(--faint)' }}>
+          <span className="inline-flex items-center gap-2 ml-auto text-[12px]" style={{ color: 'var(--faint)' }}>
             ▤ <input type="range" aria-label={t('vignettes par rangée')} min={1} max={10} value={cols} onChange={e => setCols(Number(e.target.value))}
               style={{ width: 110, accentColor: 'var(--accent)' }} />
           </span>

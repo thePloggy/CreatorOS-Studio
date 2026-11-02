@@ -11,25 +11,26 @@ import { t } from '../i18n'
 import { Pastille } from './bits'
 import { FramePicker } from './popups'
 
-export type Section = 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur'
+export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
-export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour'
+export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
   { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 export const GROUPES: { titre: string; outils: Outil[] }[] = [
   { titre: 'Créer', outils: [
-    { label: 'Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel', pastille: 'top' },
+    { label: 'Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
     { label: 'Photo', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
     { label: 'Vidéo', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
     { label: 'Depuis un texte', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
+    { label: 'Croquis vers vidéo', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },
     { label: 'Avatar parlant', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
     { label: 'Musique et bruitages', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
   ] },
   { titre: 'Mettre en scène', outils: [
     { label: 'Stage', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
     { label: 'Studio ciné', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
-    { label: 'Caméra & effets', texte: 'Mouvements et effets en un clic sur une photo.', section: 'presets', pastille: 'top' },
+    { label: 'Caméra & effets', texte: 'Mouvements et effets en un clic sur une photo.', section: 'presets' },
     { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },
   ] },
   { titre: 'Transformer', outils: [
@@ -37,10 +38,12 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
     { label: 'Move', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
     { label: 'Objet 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
     { label: 'Retouche et objet', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
+    { label: 'Doublage', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', depuis: 'video', titre: 'Clip à doubler', action: 'doubler', pastille: 'new' },
     { label: 'Angles, looks, lumière', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
   ] },
   { titre: 'Finir', outils: [
     { label: 'Montage', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
+    { label: 'Recadrer', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont inventés.', depuis: 'video', titre: 'Clip à recadrer', action: 'recadrer', pastille: 'new' },
     { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
     { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
     { label: 'Fond vert ou transparent', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },
@@ -92,7 +95,7 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
         <div key={g.titre} style={{ position: 'relative' }} onMouseEnter={() => setOuvert(g.titre)}>
           <button aria-expanded={ouvert === g.titre} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]" onClick={() => setOuvert(o => (o === g.titre ? null : g.titre))}
             style={{ background: ouvert === g.titre || actif(g) ? 'var(--lv3)' : 'transparent', color: ouvert === g.titre || actif(g) ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            {t(g.titre)} <span style={{ fontSize: 9, opacity: .6 }}>▾</span>
+            {t(g.titre)} <span style={{ fontSize: 12, opacity: .6 }}>▾</span>
           </button>
           {ouvert === g.titre && (
             <div style={{ position: 'absolute', top: '100%', left: 0, paddingTop: 6, zIndex: 300 }}>

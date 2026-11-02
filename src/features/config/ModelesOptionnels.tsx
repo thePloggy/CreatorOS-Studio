@@ -54,7 +54,7 @@ export function ModelesOptionnels() {
           {etat.fichiers.map(f => (
             <div key={f.nom} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 12px', borderRadius: 10, background: 'var(--lv1)' }}>
               <span style={{ color: f.present ? 'var(--positif)' : 'var(--faint)' }}>{f.present ? '✓' : '○'}</span>
-              <span style={{ flex: 1, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{t(f.role)}</b><br /><code style={{ fontSize: 11, color: 'var(--muted)' }}>{f.dossier}/{f.nom}</code></span>
+              <span style={{ flex: 1, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{t(f.role)}</b><br /><code style={{ fontSize: 12, color: 'var(--muted)' }}>{f.dossier}/{f.nom}</code></span>
               {envoi?.nom === f.nom ? <span>{envoi.pct} %</span>
                 : !f.present && <label className="pill" style={{ cursor: accepte && edition && !envoi ? 'pointer' : 'not-allowed', opacity: accepte && edition && !envoi ? 1 : .45 }}>
                   {t('Envoyer')}<input type="file" accept=".safetensors" className="hidden" disabled={!accepte || !edition || !!envoi}

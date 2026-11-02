@@ -80,15 +80,15 @@ export function PersonaListe({ onChange }: { onChange: (actif: string | null) =>
               ? <img src={p.avatar} alt="" draggable={false} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
               : <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#3a4a5c,#232d38)' }} />}
             <b style={{ fontSize: 13, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || t('sans nom')}</b>
-            <span style={{ fontSize: 11, opacity: 0.6 }}>
+            <span style={{ fontSize: 12, opacity: 0.6 }}>
               {p.active ? t('actif · ') : ''}{[p.loras.length && 'Krea', p.lorasKlein?.length && 'Klein', p.videoLoras.length && t('vidéo')].filter(Boolean).join(' · ') || t('sans LoRA')}
             </span>
             <CreditLigne credit={p.credit} />
             {edition && <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-              <button style={{ ...bouton, padding: '3px 8px', fontSize: 11 }} title={t('Créer une copie de ce personnage')}
+              <button style={{ ...bouton, padding: '3px 8px', fontSize: 12 }} title={t('Créer une copie de ce personnage')}
                 onClick={() => void creer(p.id)}>{t('dupliquer')}</button>
               {liste.length > 1 && (
-                <button style={{ ...bouton, padding: '3px 8px', fontSize: 11 }} aria-label={t('supprimer {nom}', { nom: p.name ?? p.id })}
+                <button style={{ ...bouton, padding: '3px 8px', fontSize: 12 }} aria-label={t('supprimer {nom}', { nom: p.name ?? p.id })}
                   onClick={() => { if (confirm(t('Supprimer « {nom} » ? Ses rendus restent dans la bibliothèque, ses LoRA dans le dossier.', { nom: p.name || p.id })))
                     void agir(() => appel(`/api/personas/${p.id}`, { method: 'DELETE' })) }}>✕</button>
               )}

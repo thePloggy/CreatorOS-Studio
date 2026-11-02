@@ -56,7 +56,7 @@ function Panel({ mode, onClose, onPick }: { mode: 'photo' | 'video'; onClose: ()
           <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={t('Chercher dans les briefs déjà envoyés…')}
             style={{ flex: 1, background: 'transparent', border: 0, outline: 'none', color: 'inherit', fontSize: 14 }} />
           <button onClick={() => setTous(t => !t)} title={t("inclure les briefs de l'autre mode")}
-            style={{ border: 0, borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 11.5, color: tous ? '#fff' : '#9a9ba3', background: tous ? 'rgba(234,78,137,0.35)' : 'rgba(255,255,255,0.07)' }}>
+            style={{ border: 0, borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 12, color: tous ? '#fff' : '#9a9ba3', background: tous ? 'rgba(234,78,137,0.35)' : 'rgba(255,255,255,0.07)' }}>
             {mode === 'photo' ? t('photo') : t('vidéo')}{tous ? t(' + autre mode') : t(' seulement')}
           </button>
         </div>
@@ -70,14 +70,14 @@ function Panel({ mode, onClose, onPick }: { mode: 'photo' | 'video'; onClose: ()
                 style={{ border: 0, background: 'none', cursor: 'pointer', fontSize: 15, lineHeight: 1.2, padding: 0, color: b.star ? '#f6a961' : '#5d5e66' }}>{b.star ? '★' : '☆'}</button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{b.texte}</div>
-                <div style={{ fontSize: 10.5, color: '#84858d', marginTop: 3 }}>
+                <div style={{ fontSize: 12, color: '#84858d', marginTop: 3 }}>
                   {quand(b.at)}{b.n > 1 ? t(' · envoyé {n} fois', { n: b.n }) : ''}{b.mode ? ` · ${b.mode === 'video' ? t('vidéo') : t('photo')}` : ''}{b.register ? ` · ${b.register}` : ''}
                 </div>
               </div>
             </div>
           ))}
         </div>
-        <div style={{ padding: '7px 14px', fontSize: 10.5, color: '#74757d', borderTop: '1px solid rgba(255,255,255,0.08)' }}>{t('↑ ↓ choisir · Entrée reprendre · Échap fermer · ☆ garder en tête de liste')}</div>
+        <div style={{ padding: '7px 14px', fontSize: 12, color: '#74757d', borderTop: '1px solid rgba(255,255,255,0.08)' }}>{t('↑ ↓ choisir · Entrée reprendre · Échap fermer · ☆ garder en tête de liste')}</div>
       </div>
     </div>
   )

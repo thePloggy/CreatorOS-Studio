@@ -13,6 +13,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
 import { demoPublique, etatH3 } from './h3.js'
+import { aiToolkitPret, entrainer, preparerEntrainement } from './entrainement.js'
 
 export const H3_MESSAGE_DEMO = 'MiniMax H3 n’est pas disponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour l’utiliser.'
 /* État H3 relu toutes les 30 s : l'enqueue reste synchrone. */
@@ -23,7 +24,7 @@ import * as comfy from './comfy.js'
 import { pourRendu } from './gpu.js'
 import * as sdk from './transport-sdk.js'
 import * as store from './db.js'
-import { SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
+import { enregistrer as enregistrerPersona, SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
 import { ensurePoster } from './poster.js'
 import { controlerJob } from './controle.js'
 import * as wildcards from './wildcards.js'
@@ -1185,6 +1186,32 @@ const INPAINT_VIDEO_MAX_IMAGES = 161
    trouve d'après `cible` (« dress », « sunglasses »…) sur chaque image et la suit ;
    le prompt dit ce qui doit s'y trouver. Rien à modifier si la cible n'est pas à
    l'image : on ne fait pas apparaître un objet absent. */
+/* Recadrage vidéo : le clip est posé au centre d'un cadre au nouveau format, les bords
+   (pré-remplis des seules couleurs du clip, sans formes qui deviendraient des fantômes) sont redessinés par la retouche Wan, zone fixe. */
+const FORMATS_RECADRAGE = { '9:16': 9 / 16, '16:9': 16 / 9, '1:1': 1, '4:5': 4 / 5 }
+export function enqueueRecadrage({ source, format, prompt, parentAssetId, personaId }) {
+  const ar = FORMATS_RECADRAGE[format]
+  if (!ar) throw new Error('format inconnu')
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', source], { encoding: 'utf8' }).trim().split(',').map(Number)
+  if (Math.abs(w / h - ar) < 0.02) throw new Error('le clip est déjà à ce format')
+  // le clip garde sa taille dans le nouveau cadre ; côté long plafonné à 1280 px, multiples de 16
+  let W = w / h < ar ? h * ar : w, H = w / h < ar ? h : w / ar
+  const k = Math.min(1, 1280 / Math.max(W, H))
+  const r16 = v => Math.max(16, Math.round(v * k / 16) * 16)
+  W = r16(W); H = r16(H)
+  const cw = Math.min(W, Math.round(w * k / 2) * 2), ch = Math.min(H, Math.round(h * k / 2) * 2)
+  const cle = Date.now().toString(36), nom = `RCD_${cle}.mp4`, masque = `RCD_${cle}_masque.png`
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', source, '-filter_complex',
+    `[0:v]split[a][b];[a]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},scale=24:-2,scale=${W}:${H}:flags=bilinear,boxblur=12:2[f];[b]scale=${cw}:${ch}[n];[f][n]overlay=(W-w)/2:(H-h)/2`,
+    '-map', '0:a?', '-c:a', 'copy', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', path.join(CONFIG.comfyInput, nom)])
+  // masque : blanc sur les bords à inventer, avec 24 px de recouvrement sur le clip
+  const m = 24
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=white:s=${W}x${H}`, '-vf',
+    `drawbox=x=${(W - cw) / 2 + m}:y=${(H - ch) / 2 + m}:w=${Math.max(2, cw - 2 * m)}:h=${Math.max(2, ch - 2 * m)}:color=black:t=fill`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
+  const texte = String(prompt ?? '').trim() || 'wide view, the same place continues naturally on every side, same light, coherent perspective, no frame, no border, no doorway'
+  return enqueueInpaintVideo({ sourceFile: nom, maskFile: masque, parentAssetId, prompt: texte, strength: 1, suivi: false, personaId })
+}
+
 export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer, objet, objetNom, loin }) {
   if (t0Hit(`${prompt ?? ''} ${cible ?? ''}`)) throw new Error('prompt refusé (liste T0)')
   const zoneTexte = String(cible ?? '').trim().slice(0, 80) || null
@@ -1717,6 +1744,103 @@ async function runObjet3d(job, t0) {
   await rendreClay(json, mp4)
   history.outputs.tour = { images: [{ filename: 'tour.mp4', subfolder: `creatoros/${job.id}`, type: 'output' }] }
   const n = await harvestJob(job, promptId, history, { applied: [`objet 3D : SAM3 isole « ${job.userPrompt} », TRELLIS.2 construit le GLB, tour en maquette grise`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
+/* Entraînement d'un personnage (cf. entrainement.js) : LoRA FLUX.2 Klein ajoutée au personnage. */
+export function enqueueEntrainement({ personaId, images, declencheur, pas, essai }) {
+  if (!aiToolkitPret()) throw new Error('ai-toolkit introuvable : installe-le, ou indique son dossier dans CREATOROS_AI_TOOLKIT')
+  if (images.length < (essai ? 1 : 8)) throw new Error('choisis au moins 8 images du personnage')
+  const d = String(declencheur ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+  if (d.length < 3) throw new Error('mot déclencheur : 3 à 16 lettres ou chiffres')
+  const id = `train-${Date.now().toString(36)}`
+  const n = Math.min(3000, Math.max(essai ? 10 : 600, Number(pas) || 1500))
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId, register: 'sfw', mode: 'photo', purpose: 'creative', recipeId: 'entrainement@v1', workflowFile: null,
+    seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai,
+    parentAssetId: null, userPrompt: `entraînement ${d} (${n} pas, ${Math.min(30, images.length)} images)`, userDirectives: null, composedPositive: null, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(n * 1600 + 180_000),
+  }
+  store.createJob(row); queue.push(row); pump()
+  return { id }
+}
+async function runEntrainement(job, t0) {
+  store.markStarted(job.id, null)
+  await comfy.freeMemory().catch(() => {})
+  const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas })
+  let dernier = 0
+  const lora = await entrainer({ ...prep, pas: job.entrainementPas }, n => { if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${n}/${job.entrainementPas}`) } })
+  const nom = `${String(job.personaId).replace(/[^a-z0-9_]/g, '')}_klein_${job.id.slice(6)}.safetensors`
+  fs.copyFileSync(lora, path.join(CONFIG.lorasDir, nom))
+  if (!job.entrainementEssai) {
+    const p = persona(job.personaId)
+    enregistrerPersona({ lorasKlein: [...p.lorasKlein.filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
+  }
+  console.log(`[job ${job.id}] LoRA ${nom} prête${job.entrainementEssai ? ' (essai, non attachée)' : ', ajoutée au personnage'}`)
+  store.markFinished(job.id, Date.now() - t0)
+  return 0
+}
+
+/* Doublage : InfiniteTalk (Wan 2.1, Apache-2.0), nœuds du cœur de ComfyUI. Le clip est réencodé
+   et débruité en partie : la scène et le geste restent, les lèvres suivent la nouvelle voix.
+   81 images à 25 i/s, soit 3,2 s par passe : un clip plus long est doublé sur ses 3,2 premières secondes. */
+export function enqueueDoublage({ source, audio, texte, parentAssetId, personaId }) {
+  const cle = Date.now().toString(36)
+  const video = `DUB_${cle}${path.extname(source) || '.mp4'}`, son = `DUB_${cle}${path.extname(audio) || '.wav'}`
+  fs.copyFileSync(source, path.join(CONFIG.comfyInput, video))
+  fs.copyFileSync(audio, path.join(CONFIG.comfyInput, son))
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', source], { encoding: 'utf8' }).trim().split(',').map(Number)
+  const id = `dub-${cle}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'doublage@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffff), op: 'doublage', videoEngine: 'infinitetalk', sourceImage: null,
+    reshootSource: video, doublageAudio: son, doublageFormat: w >= h ? [832, 480] : [480, 832],
+    parentAssetId: parentAssetId ?? null, userPrompt: String(texte ?? '').slice(0, 300) || 'doublage', userDirectives: null,
+    composedPositive: 'a person talking naturally, lips perfectly synchronised with the speech, same face, same scene, same light', composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 150_000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+function grapheDoublage(job) {
+  const [w, h] = job.doublageFormat
+  return {
+    src: { class_type: 'VHS_LoadVideo', inputs: { video: job.reshootSource, force_rate: 25, custom_width: w, custom_height: h, frame_load_cap: 81, skip_first_frames: 0, select_every_nth: 1 } },
+    premiere: { class_type: 'ImageFromBatch', inputs: { image: ['src', 0], batch_index: 0, length: 1 } },
+    son: { class_type: 'LoadAudio', inputs: { audio: job.doublageAudio } },
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.1_i2v_480p_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    lora: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors', strength_model: 1 } },
+    patch: { class_type: 'ModelPatchLoader', inputs: { name: 'wan2.1_infiniteTalk_single_fp16.safetensors' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp16.safetensors', type: 'wan', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
+    cv: { class_type: 'CLIPVisionLoader', inputs: { clip_name: 'clip_vision_h.safetensors' } },
+    cve: { class_type: 'CLIPVisionEncode', inputs: { clip_vision: ['cv', 0], image: ['premiere', 0], crop: 'none' } },
+    ae: { class_type: 'AudioEncoderLoader', inputs: { audio_encoder_name: 'wav2vec2-chinese-base_fp16.safetensors' } },
+    aee: { class_type: 'AudioEncoderEncode', inputs: { audio_encoder: ['ae', 0], audio: ['son', 0] } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: job.composedPositive } },
+    neg: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['pos', 0] } },
+    it: { class_type: 'WanInfiniteTalkToVideo', inputs: { mode: 'single_speaker', model: ['lora', 0], model_patch: ['patch', 0], positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0],
+      width: w, height: h, length: 81, audio_encoder_output_1: ['aee', 0], motion_frame_count: 9, audio_scale: 1, clip_vision_output: ['cve', 0], start_image: ['premiere', 0] } },
+    enc: { class_type: 'VAEEncode', inputs: { pixels: ['src', 0], vae: ['vae', 0] } },
+    bruit: { class_type: 'RandomNoise', inputs: { noise_seed: Number(job.seed) || 42 } },
+    guide: { class_type: 'CFGGuider', inputs: { model: ['it', 0], positive: ['it', 1], negative: ['it', 2], cfg: 1 } },
+    ech: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    sig: { class_type: 'BasicScheduler', inputs: { model: ['it', 0], scheduler: 'normal', steps: 6, denoise: 0.7 } },
+    sca: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['bruit', 0], guider: ['guide', 0], sampler: ['ech', 0], sigmas: ['sig', 0], latent_image: ['enc', 0] } },
+    dec: { class_type: 'VAEDecode', inputs: { samples: ['sca', 0], vae: ['vae', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], audio: ['son', 0], fps: 25 } },
+    out: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/doublage`, format: 'auto', codec: 'auto' } },
+  }
+}
+async function runDoublage(job, t0) {
+  const g = grapheDoublage(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { timeoutMs: 20 * 60_000, onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: ['doublage : InfiniteTalk (Wan 2.1) sur le clip réencodé, débruitage 0,7, 81 images à 25 i/s'], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
@@ -2788,6 +2912,8 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'reshoot' || job.op === 'cleanplate' || job.op === 'stage') return controler(await runReshoot(job, t0))
     if (job.op === 'detour') return await runDetour(job, t0)
     if (job.op === 'objet3d') return await runObjet3d(job, t0)
+    if (job.op === 'doublage') return await runDoublage(job, t0)
+    if (job.op === 'entrainement') return await runEntrainement(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
@@ -2942,7 +3068,12 @@ async function runJob(job, isRetry = false, connRetried = false) {
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
     }
-    if (job.references?.length) appliquerReferences(workflow, [...visageDuPersonnage(job, workflow, applied), ...job.references].slice(0, 6), applied)
+    // Klein sans LoRA du personnage : sa photo de profil tient le visage, références ou non
+    const kleinSansLora = job.mode === 'photo' && job.photoEngine === 'klein' && !isEdit
+    if (job.references?.length || kleinSansLora) {
+      const refs = [...visageDuPersonnage(job, workflow, applied), ...(job.references ?? [])].slice(0, 6)
+      if (refs.length) appliquerReferences(workflow, refs, applied)
+    }
     if (speech?.note) applied.unshift(speech.note)
     if (drawn.draws.length) applied.unshift(...wildcardNotes.filter(n => n.startsWith('tirage')))
     if (drawn.unknown.length) skipped.push(...wildcardNotes.filter(n => !n.startsWith('tirage')))

@@ -35,7 +35,7 @@ export function AssetNavArrows({ index, total, hasPrev, hasNext, prev, next }: {
       {btn('left', hasPrev, prev, '‹', t('Précédent (←)'))}
       {btn('right', hasNext, next, '›', t('Suivant (→)'))}
       {index >= 0 && (
-        <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 text-[10.5px] text-muted bg-bg/80 border border-border rounded-full px-2.5 py-[2px]">
+        <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10 text-[12px] text-muted bg-bg/80 border border-border rounded-full px-2.5 py-[2px]">
           {index + 1} / {total} · ← →
         </span>
       )}

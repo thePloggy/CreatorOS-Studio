@@ -43,6 +43,9 @@ export const APERCUS: Record<string, Apercu> = {
   'Netteté 1080p': compare('nette', 'Clip d’origine', 'SeedVR2'),
   'Masters HDR': { type: 'media', image: v('stage-b.webp'), puces: ['HLG', 'ProRes 4444', 'EXR ACEScg'] },
   'Fond vert ou transparent': compareVideo('detour', 'Clip', 'Fond vert'),
+  'Doublage': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
+  'Recadrer': compareVideo('recadrer', '9:16', '16:9'),
+  'Croquis vers vidéo': { type: 'media', image: v('croquis.webp'), video: v('croquis.mp4'), auto: true },
 }
 
 export function ApercuOutil({ apercu }: { apercu?: Apercu }) {

@@ -88,11 +88,11 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
         {/* contexte de composition : ce qui décide de l'intent et du format */}
         <div className="flex gap-1.5 items-center mt-1 flex-wrap">
           {mode === 'video' && engine && engine !== 'edit' && (
-            <span className="pill tool" style={{ fontSize: 10.5, cursor: 'default' }}>{t('moteur : {engine}', { engine })}</span>
+            <span className="pill tool" style={{ fontSize: 12, cursor: 'default' }}>{t('moteur : {engine}', { engine })}</span>
           )}
-          {engine === 'edit' && <span className="pill tool" style={{ fontSize: 10.5, cursor: 'default' }}>{t('mode : retouche')}</span>}
-          {(anchorFile || anchorUri) && <span className="pill tool used" style={{ fontSize: 10.5, cursor: 'default' }}>{t('👁 image lue')}</span>}
-          {previousPrompt && <span className="pill tool used" style={{ fontSize: 10.5, cursor: 'default' }}
+          {engine === 'edit' && <span className="pill tool" style={{ fontSize: 12, cursor: 'default' }}>{t('mode : retouche')}</span>}
+          {(anchorFile || anchorUri) && <span className="pill tool used" style={{ fontSize: 12, cursor: 'default' }}>{t('👁 image lue')}</span>}
+          {previousPrompt && <span className="pill tool used" style={{ fontSize: 12, cursor: 'default' }}
             title={t('Le réécriveur reçoit le prompt du clip prolongé pour enchaîner au même rythme')}>{t('↪ suite du plan précédent')}</span>}
         </div>
         <p className="hint">{mode === 'video'
@@ -204,9 +204,9 @@ export function ElementsPopup({ open, onClose, onInsert }: {
                   {(tab === 'tenues' || tab === 'lieux') && <span style={{ marginLeft: 'auto' }}><Etoile kind={tab} id={h.id} /></span>}</small>
               </button>
             ))}
-            {lines.length > 90 && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 10, padding: 6 }}>
+            {lines.length > 90 && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 6 }}>
               {t('{n} de plus — affine la recherche', { n: lines.length - 90 })}</div>}
-            {lines.length === 0 && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 11, padding: 10 }}>
+            {lines.length === 0 && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 10 }}>
               {needle ? t('aucun élément ne contient « {q} »', { q }) : t('aucun élément')}</div>}
           </div>
         )}
@@ -252,18 +252,18 @@ function LoraPickTab({ q }: { q: string }) {
     <>
     <LoraStacks cle="photo" picks={picks} apply={items => useAppStore.setState({ loraPicks: items })} />
     <div className="flex flex-col gap-1 mt-2" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
-      {usable.length === 0 && <div className="text-[11px]" style={{ color: 'var(--faint)', padding: 8 }}>{t('Aucune LoRA pour ce moteur : le studio lit chaque fichier et ne propose que celles qui agissent dessus.')}</div>}
+      {usable.length === 0 && <div className="text-[12px]" style={{ color: 'var(--faint)', padding: 8 }}>{t('Aucune LoRA pour ce moteur : le studio lit chaque fichier et ne propose que celles qui agissent dessus.')}</div>}
       {usable.map(l => {
         const pick = picks.find(x => x.name === l.name)
         return (
           <div key={l.name} className="engine" style={pick ? { boxShadow: 'inset 0 0 0 1px rgba(242,77,138,.35)' } : undefined}>
             <span className="nm" style={{ cursor: 'pointer' }} onClick={() => toggle(l.name)}>
-              <span className="text-[11px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
+              <span className="text-[12px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
               <small className="ml-2" style={{ color: 'var(--faint)' }}>{l.arch}{l.trigger ? ` · ${l.trigger}` : ''}</small>
-              <span className="ml-auto text-[10px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
+              <span className="ml-auto text-[12px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
             </span>
             {pick && (
-              <span className="flex items-center gap-2 mt-1.5 text-[10px]" style={{ color: 'var(--muted)', opacity: pick.off ? .5 : 1 }}>
+              <span className="flex items-center gap-2 mt-1.5 text-[12px]" style={{ color: 'var(--muted)', opacity: pick.off ? .5 : 1 }}>
                 <LoraSwitch off={pick.off} onToggle={() => toggleOff(l.name)} />
                 <input type="range" min={0} max={2} step={0.1} value={pick.strength}
                   style={{ flex: 1, accentColor: 'var(--accent)' }}
@@ -274,7 +274,7 @@ function LoraPickTab({ q }: { q: string }) {
           </div>
         )
       })}
-      {usable.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 11, padding: 10 }}>{t('aucune LoRA image ne correspond')}</div>}
+      {usable.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 12, padding: 10 }}>{t('aucune LoRA image ne correspond')}</div>}
     </div>
     </>
   )
@@ -322,7 +322,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
           ))}
           {tab === 'up' && onUploadFile && (
             <label className="pk" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', cursor: 'pointer',
-              fontSize: 11, color: 'var(--muted)', border: '1px dashed var(--line, rgba(255,255,255,.2))', minHeight: 90 }}>
+              fontSize: 12, color: 'var(--muted)', border: '1px dashed var(--line, rgba(255,255,255,.2))', minHeight: 90 }}>
               ＋<br />{t('Depuis l’ordinateur…')}
               <input type="file" accept={accept} className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) { onUploadFile(f); onClose() } }} />
@@ -334,7 +334,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
             </button>
           ))}
           {tab === 'up' && uploads.length === 0 && (
-            <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 11, padding: 12 }}>{t('aucun upload')}</div>
+            <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('aucun upload')}</div>
           )}
         </div>
         <div className="prow"><button className="b2" onClick={onClose}>{t('Annuler')}</button></div>
@@ -362,7 +362,7 @@ export function CompositionTab({ onInsert, onClose }: { onInsert: (t: string) =>
   const poses = allTextPoses().map(po => ({ id: po.id, label: po.labelFr ?? po.label }))
   const preview = buildPhotoPrompt(p)
   const sel = (label: string, value: string | null, items: { id: string; label?: string; name?: string }[], set: (id: string | null) => void) => (
-    <label className="flex flex-col gap-1 text-[10.5px]" style={{ color: 'var(--faint)' }}>
+    <label className="flex flex-col gap-1 text-[12px]" style={{ color: 'var(--faint)' }}>
       {t(label)}
       <select className="pin" style={{ marginTop: 0, padding: 8 }} value={value ?? ''}
         onChange={e => set(e.target.value || null)}>
@@ -382,7 +382,7 @@ export function CompositionTab({ onInsert, onClose }: { onInsert: (t: string) =>
       {p.outfitId && (
         <div className="grid grid-cols-2 gap-2">
           {(['material', 'fit', 'color'] as const).map(k => (
-            <label key={k} className="flex flex-col gap-1 text-[10.5px]" style={{ color: 'var(--faint)' }}>
+            <label key={k} className="flex flex-col gap-1 text-[12px]" style={{ color: 'var(--faint)' }}>
               {k === 'material' ? t('matière (override)') : k === 'fit' ? t('coupe (override)') : t('couleur (override)')}
               <input className="pin" style={{ marginTop: 0, padding: 8 }}
                 placeholder={t('défaut tenue')}
@@ -420,7 +420,7 @@ export function TriagePopup({ open, onClose, assets }: { open: boolean; onClose:
     <div className="pop" style={{ background: 'var(--bg)', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }}>
       <div className="flex items-center px-3 py-2.5">
         <button className="b2" onClick={onClose}>{t('‹ terminé')}</button>
-        <span className="ml-auto text-[11px]" style={{ color: 'var(--muted)' }}>
+        <span className="ml-auto text-[12px]" style={{ color: 'var(--muted)' }}>
           {t('reste {n} · ♥ {ok} · ✕ {ko}', { n: pending.length, ok: done.ok, ko: done.ko })}
         </span>
       </div>
@@ -635,7 +635,7 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
                   const corrige = !!corr[clef]?.trim()
                   const vu = corrige ? corr[clef] : lu
                   return <em style={{ width: '100%', marginTop: 3, fontStyle: 'normal',
-                    fontSize: 10, lineHeight: 1.35, color: corrige ? 'var(--accent)' : 'var(--faint)',
+                    fontSize: 12, lineHeight: 1.35, color: corrige ? 'var(--accent)' : 'var(--faint)',
                     overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
                     title={corrige ? t('corrigé (le VLM avait lu : {l})', { l: lu || '—' }) : vu}>
                     <span role="button" tabIndex={0} aria-label={t('corriger ce que le VLM a lu')}
@@ -734,7 +734,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
           <button className="b2" onClick={onClose}>{t('‹ retour')}</button>
           <b className="text-[13px]"><Ic n="grid" s={13} /></b>
           <b className="text-[13px]">{t('Lot — {n} rendus', { n: items.length })}</b>
-          {pending > 0 && <span className="text-[11px]" style={{ color: 'var(--attention)' }}>{t('{n} à revoir', { n: pending })}</span>}
+          {pending > 0 && <span className="text-[12px]" style={{ color: 'var(--attention)' }}>{t('{n} à revoir', { n: pending })}</span>}
         </div>
         {/* pleine LARGEUR, format d'origine, scroll vertical assumé : chaque
             colonne fait ~1/3 de la largeur, la hauteur suit le ratio réel
@@ -757,7 +757,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
       )}
       {/* ---- panneau détails du lot ---- */}
       <aside className="flex-none flex flex-col gap-2.5 p-4 overflow-y-auto" style={{ width: 300, background: 'var(--lv1)' }}>
-        <div className="rounded-xl p-3 text-[11px]" style={{ background: 'var(--lv2)' }}>
+        <div className="rounded-xl p-3 text-[12px]" style={{ background: 'var(--lv2)' }}>
           {([
             ['Type', t('Lot (carrousel)')],
             ['Lot', (first.batchId ?? '—').slice(0, 8)],
@@ -778,12 +778,12 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
         </div>
         {prompt && (
           <div className="rounded-xl p-3" style={{ background: 'var(--lv2)' }}>
-            <h4 className="text-[10px] uppercase tracking-wider flex items-center" style={{ color: 'var(--faint)', margin: 0 }}>
+            <h4 className="text-[12px] uppercase tracking-wider flex items-center" style={{ color: 'var(--faint)', margin: 0 }}>
               {t('Prompt d\'origine')}
-              <button className="ml-auto text-[10px] normal-case tracking-normal" style={{ color: 'var(--muted)', background: 'none', border: 0, cursor: 'pointer' }}
+              <button className="ml-auto text-[12px] normal-case tracking-normal" style={{ color: 'var(--muted)', background: 'none', border: 0, cursor: 'pointer' }}
                 onClick={() => void navigator.clipboard.writeText(prompt)}>{t('copier')}</button>
             </h4>
-            <div className="mt-2 text-[11px] max-h-[140px] overflow-y-auto" style={{ color: 'var(--muted)', lineHeight: 1.55 }}>{prompt}</div>
+            <div className="mt-2 text-[12px] max-h-[140px] overflow-y-auto" style={{ color: 'var(--muted)', lineHeight: 1.55 }}>{prompt}</div>
           </div>
         )}
         <div className="mt-auto flex flex-col gap-1.5">

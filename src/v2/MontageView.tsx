@@ -317,12 +317,12 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
       {/* ---------- projets ---------- */}
       <aside className="mt-projets" style={{ width: 210, flex: 'none', borderRight: '1px solid var(--lv2)', padding: 12, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', alignContent: 'start', gap: 6 }}>
         <button className="cta" style={{ padding: 10, flexDirection: 'row' }} onClick={() => void nouveau()}>＋ {t('Nouveau montage')}</button>
-        {liste.length === 0 && <div style={{ fontSize: 11.5, color: 'var(--faint)', padding: '6px 2px' }}>{t('Aucun montage pour ce personnage.')}</div>}
+        {liste.length === 0 && <div style={{ fontSize: 12, color: 'var(--faint)', padding: '6px 2px' }}>{t('Aucun montage pour ce personnage.')}</div>}
         {liste.map(m => (
           <div key={m.id} onClick={() => void ouvrir(m.id)} style={{ padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5,
             background: projet?.id === m.id ? 'var(--lv3)' : 'var(--lv1)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nom}</span>
-            <span style={{ fontSize: 10.5, color: 'var(--faint)' }}>{m.clips}</span>
+            <span style={{ fontSize: 12, color: 'var(--faint)' }}>{m.clips}</span>
             <button title={t('supprimer')} onClick={e => { e.stopPropagation(); if (window.confirm(t('Supprimer ce montage ? Les clips de la bibliothèque ne sont pas touchés.'))) void supprimer(m.id) }}
               style={{ border: 0, background: 'none', color: 'var(--faint)', cursor: 'pointer', fontSize: 13 }}>×</button>
           </div>
@@ -344,7 +344,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
           <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--lv2)', flexWrap: 'wrap' }}>
             <input value={projet.nom} onChange={e => setProjet({ ...projet, nom: e.target.value })} maxLength={80}
               style={{ background: 'transparent', border: 0, color: 'var(--text)', font: 'inherit', fontSize: 14, fontWeight: 700, minWidth: 120, flex: '0 1 240px' }} />
-            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t('{n} plan(s) · {d}', { n: d.clips.length, d: fmt(longueur) })}</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('{n} plan(s) · {d}', { n: d.clips.length, d: fmt(longueur) })}</span>
             <span style={{ flex: 1 }} />
             {(['9:16', '4:5', '1:1', '16:9'] as const).map(f => (
               <button key={f} className={`wtab ${d.format === f ? 'on' : ''}`} onClick={() => maj(x => ({ ...x, format: f }))}>{f}</button>
@@ -358,7 +358,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
               onClick={() => void exporter()}>{rendu?.etat === 'en cours' ? t('Export… {p} %', { p: Math.round((rendu.p ?? 0) * 100) }) : t('Exporter le reel')}</button>
           </div>
           {(err || rendu) && (
-            <div className="px-4 py-1.5 text-[11.5px] flex items-center gap-3" style={{ borderBottom: '1px solid var(--lv2)' }}>
+            <div className="px-4 py-1.5 text-[12px] flex items-center gap-3" style={{ borderBottom: '1px solid var(--lv2)' }}>
               {err && <span style={{ color: 'var(--danger)' }}>{err}</span>}
               {rendu?.etat === 'echec' && <span style={{ color: 'var(--danger)' }}>{t('Export échoué')} — {rendu.msg}</span>}
               {rendu?.etat === 'livre' && (<>
@@ -416,7 +416,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                       <span style={{ flex: 1 }} />
                       <button className="pill" onClick={() => setRecadre(false)}>{t('Terminer')}</button>
                     </div>
-                    {cropLibre && <span style={{ fontSize: 10.5, color: 'var(--faint)' }}>{t('libre : la zone gardée sera ensuite remplie ou posée sur le fond flou, selon le réglage du montage')}</span>}
+                    {cropLibre && <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('libre : la zone gardée sera ensuite remplie ou posée sur le fond flou, selon le réglage du montage')}</span>}
                   </div>
                 )}
                 <label style={{ display: 'grid', gap: 5 }}>
@@ -469,7 +469,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                     onChange={v => maj(x => ({ ...x, musique: x.musique && { ...x.musique, decalage: v } }))} />
                   <Curseur label={t('Fondu de fin')} min={0} max={8} pas={0.25} val={d.musique.fonduSortie} onChange={v => maj(x => ({ ...x, musique: x.musique && { ...x.musique, fonduSortie: v } }))} />
                 </>)}
-                <div style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: 'var(--faint)', lineHeight: 1.5 }}>
                   {t('Clique un plan de la frise pour le couper, lui mettre un texte ou choisir la transition vers le suivant. Glisse-dépose pour changer l’ordre.')}
                 </div>
               </>)}
@@ -481,7 +481,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
               promener dans le montage ; les plans se chevauchent sur leurs fondus. */}
           {d.clips.length > 0 && (
             <div style={{ borderTop: '1px solid var(--lv2)', padding: '8px 14px 2px', flex: 'none' }}>
-              <div className="flex items-center gap-2" style={{ fontSize: 10.5, color: 'var(--muted)', marginBottom: 4 }}>
+              <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
                 <span style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(tGlobal)}</span>
                 <span>/ {fmt(longueur)}</span>
                 <span style={{ color: 'var(--faint)' }}>{t('Entrée ou Espace : lecture / pause')}</span>
@@ -496,7 +496,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                     <div key={i} title={t('plan {n}', { n: i + 1 })} style={{ position: 'absolute', left: `${g}%`, width: `${w}%`, top: i % 2 ? 21 : 4, height: 15, borderRadius: 4, overflow: 'hidden',
                       background: sel === i ? 'var(--accent)' : 'var(--lv3)', opacity: .9, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,.35)' }}>
                       {a && <img src={a.mediaType === 'video' ? vignetteOf(a) : a.uri} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: sel === i ? .55 : .8 }} />}
-                      <span style={{ position: 'absolute', left: 3, top: -1, fontSize: 9, color: '#fff', textShadow: '0 0 3px #000' }}>{i + 1}</span>
+                      <span style={{ position: 'absolute', left: 3, top: -1, fontSize: 12, color: '#fff', textShadow: '0 0 3px #000' }}>{i + 1}</span>
                     </div>
                   )
                 })}
@@ -521,7 +521,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
               {geo.x.map((x, i) => (
                 <div key={i} style={{ position: 'absolute', left: x, width: geo.w[i], top: 7, height: 4, borderRadius: 2, background: 'var(--lv3)' }} />
               ))}
-              {geo.x.map((x, i) => <span key={`t${i}`} style={{ position: 'absolute', left: x + 2, top: -2, fontSize: 9, color: 'var(--faint)' }}>{fmt(geo.debut[i])}</span>)}
+              {geo.x.map((x, i) => <span key={`t${i}`} style={{ position: 'absolute', left: x + 2, top: -2, fontSize: 12, color: 'var(--faint)' }}>{fmt(geo.debut[i])}</span>)}
             </div>
             <div className="flex items-stretch" style={{ gap: 0, minHeight: 92, position: 'relative' }}>
               {d.clips.length > 0 && (
@@ -540,10 +540,10 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                       style={{ width: geo.w[i], height: 92, borderRadius: 10, overflow: 'hidden', position: 'relative', cursor: 'pointer', flex: 'none',
                         outline: sel === i ? '2px solid var(--accent)' : '1px solid var(--lv3)', background: '#111' }}>
                       {a ? <img src={a.mediaType === 'video' ? vignetteOf(a) : a.uri} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }} />
-                        : <span style={{ fontSize: 10, color: 'var(--danger)', padding: 6, display: 'block' }}>{t('asset supprimé')}</span>}
-                      <span style={{ position: 'absolute', left: 12, bottom: 4, fontSize: 10, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>{i + 1} · {fmt(dureePlan(c))}</span>
-                      {c.texte.trim() && <span style={{ position: 'absolute', right: 12, top: 4, fontSize: 10, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>T</span>}
-                      {c.crop && <span style={{ position: 'absolute', left: 12, top: 4, fontSize: 10, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>✂</span>}
+                        : <span style={{ fontSize: 12, color: 'var(--danger)', padding: 6, display: 'block' }}>{t('asset supprimé')}</span>}
+                      <span style={{ position: 'absolute', left: 12, bottom: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>{i + 1} · {fmt(dureePlan(c))}</span>
+                      {c.texte.trim() && <span style={{ position: 'absolute', right: 12, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>T</span>}
+                      {c.crop && <span style={{ position: 'absolute', left: 12, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>✂</span>}
                       {/* poignées de découpe : bord gauche = début, bord droit = fin (durée pour une photo) */}
                       {estVideo(c) && <Poignee cote="g" onDown={e => commencerRogne(e, i, 'g')} />}
                       <Poignee cote="d" onDown={e => commencerRogne(e, i, 'd')} />
@@ -558,7 +558,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                 )
               })}
               <button onClick={() => setChoisir(true)}
-                style={{ width: 92, height: 92, marginLeft: d.clips.length ? 12 : 0, borderRadius: 10, border: '1px dashed var(--lv4, rgba(255,255,255,.25))', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11.5, flex: 'none' }}>
+                style={{ width: 92, height: 92, marginLeft: d.clips.length ? 12 : 0, borderRadius: 10, border: '1px dashed var(--lv4, rgba(255,255,255,.25))', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, flex: 'none' }}>
                 ＋<br />{t('ajouter un plan')}
               </button>
             </div>
@@ -768,7 +768,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
         )}
         {!c && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 12 }}>{t('ajoute un premier plan ↓')}</div>}
       </div>
-      <div className="flex items-center gap-2" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+      <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--muted)' }}>
         {!recadre && <button className="pill" disabled={!d.clips.length} onClick={() => onLecture(!lecture)}>{lecture ? '❚❚' : '▶'}</button>}
         {c && <span>{recadre ? t('recadrage du plan {n} : glisse le cadre, tire un coin', { n: i + 1 }) : t('plan {n} / {t}', { n: i + 1, t: d.clips.length })}</span>}
         {!recadre && <span style={{ color: 'var(--faint)' }}>{t('la musique s’entend à l’export')}</span>}
@@ -795,10 +795,10 @@ function ChoixPlans({ assets, onClose, onPick }: { assets: Asset[]; onClose: () 
           {liste.map(a => (
             <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { onPick(a); setPris(n => n + 1) }} title={a.reviewStatus === 'approved' ? t('validé') : ''}>
               <img src={a.mediaType === 'video' ? vignetteOf(a) : a.uri} alt="" loading="lazy" />
-              {a.reviewStatus === 'approved' && <span style={{ position: 'absolute', right: 4, top: 4, fontSize: 10 }}>✓</span>}
+              {a.reviewStatus === 'approved' && <span style={{ position: 'absolute', right: 4, top: 4, fontSize: 12 }}>✓</span>}
             </button>
           ))}
-          {!liste.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 11, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}
+          {!liste.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}
         </div>
       </div>
     </div>

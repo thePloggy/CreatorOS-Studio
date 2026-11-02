@@ -30,6 +30,7 @@ const ParoleView = lazy(() => import('./ParoleView').then(m => ({ default: m.Par
 const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.VideoView })))
 const AssetsView = lazy(() => import('./AssetsView').then(m => ({ default: m.AssetsView })))
 const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
+const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.CroquisView })))
 const PersonaView = lazy(() => import('../features/persona/PersonaView').then(m => ({ default: m.PersonaView })))
 const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => ({ default: m.ConfigView })))
 const CreateurView = lazy(() => import('../features/createur/CreateurView').then(m => ({ default: m.CreateurView })))
@@ -55,10 +56,10 @@ function Telemetry() {
   const dot = <span style={{ color: 'var(--faint)', margin: '0 6px' }}>·</span>
   const cell = { display: 'flex', alignItems: 'center', gap: 6 } as const
   return (<>
-    <div className="hidden lg:max-[1500px]:flex items-center gap-1.5 font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
+    <div className="hidden lg:max-[1500px]:flex items-center gap-1.5 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.nom}</b>}<TBar pct={vramPct} />
     </div>
-    <div className="hidden min-[1500px]:flex items-center font-mono text-[10px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
+    <div className="hidden min-[1500px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
       title={t('GPU util · VRAM · température — CPU util · RAM (5 s)')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
       <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
@@ -77,7 +78,7 @@ export default function V2App() {
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
-  const [section, setSection] = useState<Section>(['accueil', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur'].includes(initial) ? initial : 'accueil')
+  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
@@ -138,7 +139,7 @@ export default function V2App() {
             style={{ background: section === 'createur' ? 'var(--lv3)' : 'transparent', color: section === 'createur' ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
-        <div className="ml-auto flex items-center gap-3 text-[11px]" style={{ color: 'var(--faint)' }}>
+        <div className="ml-auto flex items-center gap-3 text-[12px]" style={{ color: 'var(--faint)' }}>
           <Telemetry />
           {activeJobs > 0 && <span style={{ color: 'var(--accent)' }}>{t('{n} en rendu', { n: activeJobs })}</span>}
           <QuotaDemo />
@@ -163,6 +164,7 @@ export default function V2App() {
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
         {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
         {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}

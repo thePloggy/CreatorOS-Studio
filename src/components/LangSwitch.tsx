@@ -5,7 +5,7 @@ export function LangSwitch({ style }: { style?: React.CSSProperties }) {
   const lang = useLang()
   const bouton = (l: 'fr' | 'en', libelle: string) => (
     <button type="button" onClick={() => setLang(l)} aria-pressed={lang === l}
-      style={{ padding: '3px 7px', borderRadius: 6, border: 0, cursor: 'pointer', font: 'inherit', fontSize: 10.5,
+      style={{ padding: '3px 7px', borderRadius: 6, border: 0, cursor: 'pointer', font: 'inherit', fontSize: 12,
         fontWeight: lang === l ? 700 : 400, color: 'inherit', opacity: lang === l ? 1 : 0.55,
         background: lang === l ? 'rgba(127,127,127,0.22)' : 'transparent' }}>{libelle}</button>
   )

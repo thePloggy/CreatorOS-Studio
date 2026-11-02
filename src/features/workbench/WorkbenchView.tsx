@@ -64,7 +64,7 @@ const FN_LABEL: Record<string, string> = {
 
 function Badge({ fn }: { fn: string }) {
   return (
-    <span className="text-[10px] border rounded-full px-2 py-[2px] whitespace-nowrap text-muted border-border bg-surface2">
+    <span className="text-[12px] border rounded-full px-2 py-[2px] whitespace-nowrap text-muted border-border bg-surface2">
       {FN_ICON[fn] ?? '•'} {t(FN_LABEL[fn] ?? fn)}
     </span>
   )
@@ -241,16 +241,16 @@ export function WorkbenchView() {
         <div className="flex gap-1 flex-wrap mb-1">
           {badgesOf(e).map((b, i) => <Badge key={i} {...b} />)}
           {e.deprecated && (
-            <span className="text-[10px] border border-border bg-surface3 text-faint rounded-full px-2 py-[2px]">
+            <span className="text-[12px] border border-border bg-surface3 text-faint rounded-full px-2 py-[2px]">
               {t('dépréciée')}
             </span>
           )}
         </div>
-        {engine && <div className="text-[10.5px] text-muted leading-snug mb-0.5">{engine}</div>}
+        {engine && <div className="text-[12px] text-muted leading-snug mb-0.5">{engine}</div>}
         {e.kind === 'texte' && (
-          <div className="text-[10.5px] text-muted leading-snug mb-0.5">{e.label}</div>
+          <div className="text-[12px] text-muted leading-snug mb-0.5">{e.label}</div>
         )}
-        <div className="text-[9.5px] text-faint font-mono truncate">
+        <div className="text-[12px] text-faint font-mono truncate">
           {e.file} · {fmtBytes(e.bytes)} · {fmtTime(e.mtimeMs)}
         </div>
       </button>
@@ -261,22 +261,22 @@ export function WorkbenchView() {
     <div className="flex-1 overflow-hidden flex">
       {/* ---- colonne gauche ---- */}
       <div className="w-[330px] shrink-0 border-r border-border overflow-y-auto scroll-clean p-3">
-        <div className="flex items-center gap-1.5 flex-wrap mb-3 text-[10px] text-faint">
+        <div className="flex items-center gap-1.5 flex-wrap mb-3 text-[12px] text-faint">
           <span>{t('📷 génération · ✦ retouche · 🎬 vidéo · ✍ réécriveur · 👤 préambule')}</span>
         </div>
 
         <SectionTitle>{t('Recettes')}</SectionTitle>
-        <div className="text-[9.5px] text-faint mb-2 font-mono break-all">{dirs.recettes}</div>
+        <div className="text-[12px] text-faint mb-2 font-mono break-all">{dirs.recettes}</div>
         {prod.map(e => <Row key={e.file} e={e} />)}
 
         <button onClick={() => setShowArchive(v => !v)}
-          className="w-full text-left text-[10.5px] text-muted border border-border bg-surface3 rounded-ctl px-2.5 py-1.5 mb-2 mt-1 cursor-pointer">
+          className="w-full text-left text-[12px] text-muted border border-border bg-surface3 rounded-ctl px-2.5 py-1.5 mb-2 mt-1 cursor-pointer">
           {showArchive ? '▾' : '▸'} {t('Bancs d’essai et archives ({n})', { n: archive.length })}
         </button>
         {showArchive && archive.map(e => <Row key={e.file} e={e} dim />)}
 
         <SectionTitle className="mt-4">{t('Textes')}</SectionTitle>
-        <div className="text-[9.5px] text-faint mb-2 font-mono break-all">{dirs.textes}</div>
+        <div className="text-[12px] text-faint mb-2 font-mono break-all">{dirs.textes}</div>
         {texts
           .map(e => <Row key={e.file} e={e} />)}
       </div>
@@ -298,17 +298,17 @@ export function WorkbenchView() {
             <div className="flex items-baseline gap-2 flex-wrap mb-1">
               <span className="text-[13px] font-mono text-text">{sel.file}</span>
               {entry && badgesOf(entry).map((b, i) => <Badge key={i} {...b} />)}
-              <span className="text-[10px] text-faint ml-auto">{t('sur disque : {d}', { d: fmtTime(mtime) })}</span>
+              <span className="text-[12px] text-faint ml-auto">{t('sur disque : {d}', { d: fmtTime(mtime) })}</span>
             </div>
 
             {diskChanged && (
-              <div className="text-[11px] text-warn border border-warn/30 bg-warn/10 rounded-ctl px-3 py-2 mb-2">
+              <div className="text-[12px] text-warn border border-warn/30 bg-warn/10 rounded-ctl px-3 py-2 mb-2">
                 {t('Le fichier a changé sur le disque pendant votre édition. « Relire le disque » abandonnera vos modifications — les copier avant si elles comptent.')}
               </div>
             )}
             {banner && (
               <div className={cn(
-                'text-[11px] border rounded-ctl px-3 py-2 mb-2',
+                'text-[12px] border rounded-ctl px-3 py-2 mb-2',
                 banner.tone === 'ok' ? 'text-info border-info/30 bg-info/10'
                   : banner.tone === 'warn' ? 'text-warn border-warn/30 bg-warn/10'
                   : 'text-alert border-alert/40 bg-alert/10',
@@ -318,7 +318,7 @@ export function WorkbenchView() {
             )}
 
             {warnings.length > 0 && (
-              <div className="text-[11px] border rounded-ctl px-3 py-2 mb-2 text-warn border-warn/30 bg-warn/10">
+              <div className="text-[12px] border rounded-ctl px-3 py-2 mb-2 text-warn border-warn/30 bg-warn/10">
                 {t("⚠ Couche SOUL/MOOD — mots d'")}<b>{t('apparence')}</b>{t(' détectés :')} <span className="font-mono">{warnings.join(', ')}</span>{t('. Ces couches ne doivent décrire que le')} <b>{t("comportement / l'atmosphère")}</b> {t("(l'apparence vient de la LoRA). Signal non bloquant.")}
               </div>
             )}
@@ -331,13 +331,13 @@ export function WorkbenchView() {
                 'w-full min-h-[520px] bg-bg border rounded-ctl p-3 resize-y scroll-clean',
                 'focus:outline-none focus:ring-2 focus:ring-accent/15',
                 sel.kind === 'recette'
-                  ? 'font-mono text-[11px] text-[#c9d5e1]'
+                  ? 'font-mono text-[12px] text-[#c9d5e1]'
                   // Un system prompt se relit comme de la prose, pas comme du code.
                   : 'text-[12.5px] leading-relaxed text-[#dbe4ec]',
                 jsonError ? 'border-alert/50' : 'border-border focus:border-accent-dim',
               )}
             />
-            <div className="text-[10.5px] mt-1">
+            <div className="text-[12px] mt-1">
               {jsonError
                 ? <span className="text-alert">{t('JSON invalide : {e}', { e: jsonError })}</span>
                 : dirty
@@ -367,7 +367,7 @@ export function WorkbenchView() {
 
             {sel.kind === 'recette' && <RecetteRevue key={sel.file} file={sel.file} />}
 
-            <div className="text-[10.5px] text-faint mt-3 border border-border rounded-card bg-surface p-3 leading-snug">
+            <div className="text-[12px] text-faint mt-3 border border-border rounded-card bg-surface p-3 leading-snug">
               {t('Le serveur relit ce fichier à chaque job : une écriture prend effet au job suivant, sans redémarrage. L’ancienne version est copiée dans')}
               <span className="font-mono"> .backups/</span> {t('avant écrasement.')}
               {sel.kind === 'recette'

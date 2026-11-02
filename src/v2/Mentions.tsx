@@ -56,7 +56,7 @@ export function useMentions({ champ, valeur, surChange, surPersona }: {
   const panneau = liste.length > 0 && (
     <div className="flex flex-col mt-1" style={{ background: 'var(--panel, #15161a)', border: '1px solid var(--line, #2a2d35)', borderRadius: 10, overflow: 'hidden' }}>
       {liste.map((c, n) => (
-        <button key={c.id} type="button" className="text-left text-[11.5px]" onMouseDown={e => { e.preventDefault(); choisir(c) }}
+        <button key={c.id} type="button" className="text-left text-[12px]" onMouseDown={e => { e.preventDefault(); choisir(c) }}
           style={{ padding: '6px 10px', background: n === i ? 'rgba(242,77,138,.16)' : 'transparent', color: 'var(--text)' }}>
           {c.label} <small style={{ color: 'var(--faint)' }}>{t(c.groupe)}</small>
         </button>

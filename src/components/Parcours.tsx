@@ -50,7 +50,7 @@ export function Parcours({ onClose, aller }: { onClose: () => void; aller: (s: '
       <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
         {EXEMPLES.map(x => (
           <button key={x.titre} style={{ ...btn, textAlign: 'left' }} onClick={() => essayer(x.prompt)}>
-            {t(x.titre)} <span style={{ opacity: 0.55, fontSize: 11.5 }}>→ {t('remplir le prompt')}</span>
+            {t(x.titre)} <span style={{ opacity: 0.55, fontSize: 12 }}>→ {t('remplir le prompt')}</span>
           </button>
         ))}
       </div>

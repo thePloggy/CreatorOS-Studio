@@ -24,14 +24,14 @@ export function RecetteRevue({ file }: { file: string }) {
       setR(d); setEtat('ouvert')
     } catch (e) { setErr(String((e as Error).message || e)); setEtat('ferme') }
   }
-  const T = ({ children }: { children: React.ReactNode }) => <div className="text-[11px] font-semibold mt-3 mb-1">{children}</div>
+  const T = ({ children }: { children: React.ReactNode }) => <div className="text-[12px] font-semibold mt-3 mb-1">{children}</div>
   const L = ({ l, ton }: { l: Ligne; ton?: string }) => (
-    <div className="font-mono text-[10.5px] leading-relaxed" style={{ color: ton }}>
+    <div className="font-mono text-[12px] leading-relaxed" style={{ color: ton }}>
       {l.cle ? `${l.cle} → ` : ''}#{l.noeud} {l.classe}.{l.entree}{l.apres !== undefined ? ` : ${l.avant} → ${l.apres}` : ''}{l.pourquoi ? ` — ${l.pourquoi}` : ''}
     </div>
   )
   return (
-    <div className="text-[11px] border border-border rounded-card bg-surface p-3 mt-3">
+    <div className="text-[12px] border border-border rounded-card bg-surface p-3 mt-3">
       <div className="flex items-center gap-2">
         <b>{t('Revue de la recette')}</b>
         <span className="text-faint">{t("ce que l'interface pilote, ce qui manque")}</span>
@@ -50,7 +50,7 @@ export function RecetteRevue({ file }: { file: string }) {
           {r.declares.length
             ? r.declares.map((l, i) => <L key={i} l={l} ton={l.ok ? undefined : '#f05548'} />)
             : <div className="text-faint">{t('aucune déclaration. Pour imposer une entrée, crée ce fichier à côté de la recette, par exemple :')}
-                <pre className="font-mono text-[10.5px] mt-1 whitespace-pre-wrap">{r.exemple}</pre></div>}
+                <pre className="font-mono text-[12px] mt-1 whitespace-pre-wrap">{r.exemple}</pre></div>}
           <T>{t('Sur la machine')}</T>
           {r.noeudsAbsents.length === 0 && r.valeursAbsentes.length === 0
             ? <div style={{ color: '#5fd38d' }}>{t('tous les nœuds et tous les fichiers nommés sont présents')}</div>

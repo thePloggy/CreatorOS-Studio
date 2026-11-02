@@ -32,10 +32,10 @@ function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: 
     <div className="pop" onClick={onClose}>
       <div className="pbox" style={{ width: 'min(340px,94%)' }} onClick={e => e.stopPropagation()}>
         <h3>📱 {t('Filmer au téléphone')} <button className="x" onClick={onClose}>✕</button></h3>
-        {err && <div className="text-[11px]" style={{ color: 'var(--danger)' }}>{err}</div>}
+        {err && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{err}</div>}
         {q && <div style={{ background: '#fff', padding: 10, borderRadius: 10 }} dangerouslySetInnerHTML={{ __html: q.svg }} />}
-        {q?.local && <div className="text-[10.5px] mt-2" style={{ color: 'var(--warn, #ffb648)' }}>{t('Tu es sur localhost : le téléphone ne pourra pas joindre ce lien. Ouvre le studio par son adresse réseau.')}</div>}
-        <div className="text-[10.5px] mt-2" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{t('Scanne le code, filme le geste, il arrive ici. Lien valable 10 min, pour une seule vidéo.')}</div>
+        {q?.local && <div className="text-[12px] mt-2" style={{ color: 'var(--warn, #ffb648)' }}>{t('Tu es sur localhost : le téléphone ne pourra pas joindre ce lien. Ouvre le studio par son adresse réseau.')}</div>}
+        <div className="text-[12px] mt-2" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{t('Scanne le code, filme le geste, il arrive ici. Lien valable 10 min, pour une seule vidéo.')}</div>
       </div>
     </div>
   )
@@ -134,7 +134,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         <div className="flex gap-1 rounded-[11px] p-[3px]" style={{ background: 'var(--lv2)' }}>
           {(['creer', 'ambiance', 'rejouer', 'etendre', 'stage'] as VTab[]).map(tb => (
             <button key={tb}
-              className="flex-1 text-center text-[11px] leading-tight py-1.5 px-1 rounded-lg"
+              className="flex-1 text-center text-[12px] leading-tight py-1.5 px-1 rounded-lg"
               style={{ background: tab === tb ? 'var(--lv4)' : 'transparent', color: tab === tb ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
               onClick={() => tb === 'stage' ? s.ouvrirStage(s.stageRepris) : (useAppStore.setState({ stageOuvert: false }), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
               {tb === 'creer' ? t('Depuis une image') : tb === 'ambiance' ? t('Depuis un texte') : tb === 'rejouer' ? t('Rejouer') : tb === 'stage' ? 'Stage' : t('Étendre')}
@@ -159,24 +159,24 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               {endUri && <RetirerFrame titre={t('retirer la frame de fin')} onRetirer={() => s.updateVideo({ endAssetId: null, endFrameFile: '', endFrameError: '' })} />}
             </button>
           </div>
-          {v.startFrameError && <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.startFrameError}</div>}
-          {v.endFrameError && <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.endFrameError}</div>}
+          {v.startFrameError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.startFrameError}</div>}
+          {v.endFrameError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.endFrameError}</div>}
           {endUri && v.engine !== 'minimax' && (
-            <div className="text-[10.5px]" style={{ color: 'var(--attention)' }}>{t('frame de fin ignorée : seuls les moteurs MiniMax H3 savent arriver sur une image')}</div>
+            <div className="text-[12px]" style={{ color: 'var(--attention)' }}>{t('frame de fin ignorée : seuls les moteurs MiniMax H3 savent arriver sur une image')}</div>
           )}
           <button className={`tgl ${v.multiShot ? 'on' : ''}`} onClick={() => s.updateVideo({ multiShot: !v.multiShot })}>
-            <b>{t('Multi-plan')}</b> <span className="text-[9.5px]">{t('plans [Shot 1..n] chaînés')}</span><span className="sw" />
+            <b>{t('Multi-plan')}</b> <span className="text-[12px]">{t('plans [Shot 1..n] chaînés')}</span><span className="sw" />
           </button>
           <div className="varea">
             <ChoixPersonnage />
             <textarea placeholder={t('Mouvement — une action claire, temps réel…')}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2 flex-wrap">
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={() => setEnh(true)}>✦ Enhancer</button>
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={() => setElm(true)}>LoRA</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={() => setEnh(true)}>✦ Enhancer</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={() => setElm(true)}>LoRA</button>
               <SeedPill />
-              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 10.5 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊 {v.withAudio ? t('audio') : t('muet')}</button>
+              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 12 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊 {v.withAudio ? t('audio') : t('muet')}</button>
             </div>
           </div>
           <button className="engine" onClick={() => setEngOpen(o => !o)}>
@@ -194,7 +194,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
                 return (
                   <button key={e.key} className="engine" style={v.engine === e.key ? { boxShadow: 'inset 0 0 0 1px rgba(242,77,138,.35)' } : ferme ? { opacity: .55 } : undefined}
                     onClick={() => { if (ferme) { if (!s.h3?.demo) useAppStore.setState({ ongletConfig: 'modeles', navRequest: { section: 'config', nonce: Date.now() } }); return } s.updateVideo({ engine: e.key }); setEngOpen(false) }}>
-                    <span className="nm">{e.label}<span className="ml-auto text-[9.5px]" style={{ color: 'var(--faint)' }}>{ferme ? (s.h3?.demo ? t('indisponible sur la démo') : t('à installer')) : `~${e.minutes} min`}</span></span>
+                    <span className="nm">{e.label}<span className="ml-auto text-[12px]" style={{ color: 'var(--faint)' }}>{ferme ? (s.h3?.demo ? t('indisponible sur la démo') : t('à installer')) : `~${e.minutes} min`}</span></span>
                     {ferme && <span className="fo">{s.h3?.demo ? t('Démo hébergée dans l’UE, exclue par la licence MiniMax H3 : installe la version GitHub chez toi, si ta région est autorisée.') : t('Ajoute ses poids dans Paramètres > Modèles optionnels.')}</span>}
                   </button>
                 )
@@ -230,7 +230,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
         {/* ============ AMBIANCE (texte → vidéo, LTX-2.5) ============ */}
         {tab === 'ambiance' && (() => { const avecPerso = Boolean(v.t2vPersonnage && s.personaVideo); return (<>
-          <div className="text-[10.5px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
+          <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
             {avecPerso
               ? t('Le personnage apparaît depuis le texte seul, grâce à sa LoRA vidéo : décris la scène, l’action et la caméra.')
               : t('Plan de coupe sans le personnage : un lieu, une lumière, un mouvement de caméra. Il part du texte seul, avec le son d’ambiance.')}
@@ -238,7 +238,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           {s.personaVideo && (
             <div className="flex gap-1">
               {([[false, t('Ambiance seule')], [true, t('Avec {nom}', { nom: s.personaName })]] as const).map(([on, label]) => (
-                <button key={String(on)} className={`pill ${avecPerso === on ? 'used' : ''}`} style={{ flex: 1, justifyContent: 'center', fontSize: 11 }}
+                <button key={String(on)} className={`pill ${avecPerso === on ? 'used' : ''}`} style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
                   onClick={() => s.updateVideo({ t2vPersonnage: on })}>{label}</button>
               ))}
             </div>
@@ -248,9 +248,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             <textarea placeholder={t('Ex. : vagues au coucher du soleil sur une plage déserte, lent travelling latéral, bruit des vagues')}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2 flex-wrap">
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
               <SeedPill />
-              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 10.5 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊 {v.withAudio ? t('audio') : t('muet')}</button>
+              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 12 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊 {v.withAudio ? t('audio') : t('muet')}</button>
             </div>
           </div>
           <div className="engine">
@@ -297,13 +297,13 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               <b>Mix</b><small>{t('elle prend la place du personnage de la vidéo')}</small>
             </button>
           </div>
-          <div className="text-[10.5px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
+          <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
             {v.motionMode === 'replace'
               ? t('Le personnage actif prend la place de celui de la vidéo source, dans son décor et avec ses gestes. Il est d’abord rendu en pied dans la même tenue, puis son identité tient par sa LoRA vidéo Wan.')
               : t('La still bouge comme la vidéo source : seul le geste est transféré, le décor et le personnage viennent de la still.')}
           </div>
           <div className="flex gap-2">
-            {!edition && <div className="text-[10.5px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{t('Sur la démo publique, on part d’une image générée par le studio : l’envoi de vidéos est réservé au propriétaire.')}</div>}
+            {!edition && <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{t('Sur la démo publique, on part d’une image générée par le studio : l’envoi de vidéos est réservé au propriétaire.')}</div>}
             {edition && <label className={`slot ${v.motionDriverFile ? 'filled' : ''}`}>
               <span className="opt">{v.motionMode === 'replace' ? (getLang() === 'fr' ? '3-9,6 s' : '3-9.6 s') : '3-30 s'}</span>
               {v.motionRefUri ? <video src={v.motionRefUri} muted /> : <>▶＋<br />{t('Vidéo driver')}</>}
@@ -320,7 +320,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </div>
           {/* Mix borné à 153 images (server/jobs.js, MIX_MAX_IMAGES) : dit AVANT le lancement */}
           {v.motionMode === 'replace' && (
-            <div className="text-[10.5px]" style={{ color: v.motionDriverSeconds > 9.6 ? 'var(--warn, #ffb648)' : 'var(--muted)', lineHeight: 1.5 }}>
+            <div className="text-[12px]" style={{ color: v.motionDriverSeconds > 9.6 ? 'var(--warn, #ffb648)' : 'var(--muted)', lineHeight: 1.5 }}>
               {v.motionDriverSeconds > 9.6
                 ? t('Ta vidéo dure {s} s : le Mix n’en garde que les 9,6 premières secondes.', { s: v.motionDriverSeconds.toFixed(1).replace('.', getLang() === 'fr' ? ',' : '.') })
                 : t('Mix : 9,6 s de vidéo au plus, au-delà la fin est coupée.')}
@@ -333,7 +333,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             </div>
           )}
           {v.motionMode === 'replace' && (
-            <div className="flex flex-col gap-1 text-[10.5px]" style={{ color: 'var(--muted)' }}>
+            <div className="flex flex-col gap-1 text-[12px]" style={{ color: 'var(--muted)' }}>
               <div className="flex gap-1.5 items-center">
                 {t('Personnes à remplacer')}
                 {[1, 2, 3].map(n => <button key={n} className="pill" style={Math.max(1, v.mixPersonnes.length) === n ? { background: 'var(--lv4)', color: 'var(--text)' } : undefined}
@@ -341,14 +341,14 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               </div>
               {v.mixPersonnes.map((id, i) => <label key={i} className="flex items-center gap-2">{t(['à gauche', i === 1 && v.mixPersonnes.length === 2 ? 'à droite' : 'au milieu', 'à droite'][i])}
                 <select value={id} onChange={e => s.updateVideo({ mixPersonnes: v.mixPersonnes.map((x, k) => k === i ? e.target.value : x) })}
-                  style={{ flex: 1, padding: 5, borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 11 }}>
+                  style={{ flex: 1, padding: 5, borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12 }}>
                   {personas.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select></label>)}
               {v.mixPersonnes.length > 1 && <span>{t('Une passe par personne : compte le temps d’un Mix pour chacune.')}</span>}
             </div>
           )}
           {(v.motionDriverError || v.motionStillError) && (
-            <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.motionDriverError || v.motionStillError}</div>
+            <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.motionDriverError || v.motionStillError}</div>
           )}
           {/* Le texte PART au modèle : il doit être visible ici. Sans ce champ,
               le prompt resté dans « Créer » serait envoyé à l'insu de l'opérateur. */}
@@ -357,8 +357,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
                 value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} />
               {s.userPrompt.trim() && (
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10.5px]" style={{ color: 'var(--warn, #ffb648)' }}>{t('ce texte sera envoyé au modèle')}</span>
-                  <button className="pill" style={{ fontSize: 10, padding: '3px 9px', marginLeft: 'auto' }} onClick={() => s.setUserPrompt('')}>{t('vider')}</button>
+                  <span className="text-[12px]" style={{ color: 'var(--warn, #ffb648)' }}>{t('ce texte sera envoyé au modèle')}</span>
+                  <button className="pill" style={{ fontSize: 12, padding: '3px 9px', marginLeft: 'auto' }} onClick={() => s.setUserPrompt('')}>{t('vider')}</button>
                 </div>
               )}
           </div>
@@ -386,14 +386,14 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </div>
           <div className="flex gap-2">
             <button className={`slot ${v.extendVideoFile || v.extendAssetId ? 'filled' : ''}`} onClick={() => setFramePick('start')}>
-              {v.extendVideoUri ? <video src={v.extendVideoUri} muted /> : <>▶＋<br />{t('vidéo à prolonger')}<br /><span className="text-[8.5px]">{t('bibliothèque (clic) ou dépôt')}</span></>}
+              {v.extendVideoUri ? <video src={v.extendVideoUri} muted /> : <>▶＋<br />{t('vidéo à prolonger')}<br /><span className="text-[12px]">{t('bibliothèque (clic) ou dépôt')}</span></>}
             </button>
           </div>
-          {edition && <label className="pill" style={{ fontSize: 10.5, justifyContent: 'center' }}>{t('⇪ déposer une vidéo')}
+          {edition && <label className="pill" style={{ fontSize: 12, justifyContent: 'center' }}>{t('⇪ déposer une vidéo')}
             <input type="file" accept="video/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) void s.uploadExtendVideo(f) }} />
           </label>}
-          <div className="text-[10px] rounded-[11px] p-2" style={{ color: 'var(--muted)', background: 'var(--lv2)', lineHeight: 1.5 }}>
+          <div className="text-[12px] rounded-[11px] p-2" style={{ color: 'var(--muted)', background: 'var(--lv2)', lineHeight: 1.5 }}>
             {v.extendPrequel
               ? t('Première frame extraite → frame de fin : le rendu arrive dessus et se place devant le clip. Moteur Wan.')
               : t('Dernière frame extraite → frame de départ. Couture : raccord couleur (luma + chroma) au harvest.')}
@@ -406,25 +406,25 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               + concat
             </button>
           </div>
-          {v.extendError && <div className="text-[10.5px]" style={{ color: 'var(--danger)' }}>{v.extendError}</div>}
-          {v.extendWarn && <div className="text-[10.5px]" style={{ color: 'var(--attention)' }}>{v.extendWarn}</div>}
+          {v.extendError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.extendError}</div>}
+          {v.extendWarn && <div className="text-[12px]" style={{ color: 'var(--attention)' }}>{v.extendWarn}</div>}
           <div className="varea">
             <textarea placeholder={v.extendPrequel ? t('Ce qui se passe avant…') : t('Suite du mouvement…')} value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2">
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={() => setEnh(true)}>✦ Enhancer</button>
-              <button className="pill tool" style={{ fontSize: 10.5 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
-              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 10.5 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={() => setEnh(true)}>✦ Enhancer</button>
+              <button className="pill tool" style={{ fontSize: 12 }} onClick={briefs.open} title={t('briefs récents et étoilés (↑ dans un champ vide)')}>↺ Briefs</button>
+              <button className={`pill tool ${v.withAudio ? 'used' : ''}`} style={{ fontSize: 12 }} onClick={() => s.updateVideo({ withAudio: !v.withAudio })}>🔊</button>
             </div>
           </div>
         </>)}
 
-        {s.t0Error && <div className="text-[11px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
+        {s.t0Error && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
         {/* Nombre de rendus — COMMUN aux 3 onglets : cantonné à « Créer », un
             lot posé là resterait actif en Rejouer/Étendre sans moyen de le
             corriger (le CTA annoncerait « 4 jobs » sans stepper visible). */}
         {tab !== 'stage' && (<>
         <div className="flex items-center mt-auto mb-2">
-          <span className="text-[10.5px]" style={{ color: 'var(--muted)' }}>{t('nombre de rendus')}</span>
+          <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('nombre de rendus')}</span>
           <span className="stepper ml-auto">
             <button onClick={() => s.setBatchCount(Math.max(1, s.batchCount - 1))}>−</button>
             <span>× {s.batchCount}</span>
@@ -447,7 +447,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           review={review} setReview={setReview}
           cols={cols} setCols={setCols} picking={picking} setPicking={() => setPicked(new Set())}
           onPurge={purge} q={q} setQ={setQ} onTriage={() => setTriage(true)} />
-        {purgeArmed && <div className="px-4 text-[11px]" style={{ color: 'var(--danger)' }}>{t('⚠ re-cliquer pour confirmer')}</div>}
+        {purgeArmed && <div className="px-4 text-[12px]" style={{ color: 'var(--danger)' }}>{t('⚠ re-cliquer pour confirmer')}</div>}
         {picking && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 6 }}>
           <SelectionBar ids={[...picked]} assets={s.assets} onClear={() => setPicked(new Set())} />
         </div>}
@@ -583,11 +583,11 @@ function VideoLoraPopup({ open, onClose, engine }: { open: boolean; onClose: () 
             return (
               <div key={l.name} className="engine" style={pick ? { boxShadow: 'inset 0 0 0 1px rgba(242,77,138,.35)' } : undefined}>
                 <span className="nm" style={{ cursor: 'pointer' }} onClick={() => toggle(l.name)}>
-                  <span className="text-[11px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
-                  <span className="ml-auto text-[10px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
+                  <span className="text-[12px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
+                  <span className="ml-auto text-[12px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
                 </span>
                 {pick && (
-                  <span className="flex items-center gap-2 mt-1.5 text-[10px]" style={{ color: 'var(--muted)', opacity: pick.off ? .5 : 1 }}>
+                  <span className="flex items-center gap-2 mt-1.5 text-[12px]" style={{ color: 'var(--muted)', opacity: pick.off ? .5 : 1 }}>
                     <LoraSwitch off={pick.off} onToggle={() => useAppStore.getState().updateVideo({ videoLoras: picks.map(x => x.name === l.name ? { ...x, off: !x.off } : x) })} />
                     <input type="range" min={0} max={2} step={0.1} value={pick.strength}
                       style={{ flex: 1, accentColor: 'var(--accent)' }}
@@ -598,7 +598,7 @@ function VideoLoraPopup({ open, onClose, engine }: { open: boolean; onClose: () 
               </div>
             )
           })}
-          {usable.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 11, padding: 10 }}>{t('aucune LoRA pour ce moteur')}</div>}
+          {usable.length === 0 && <div style={{ color: 'var(--faint)', fontSize: 12, padding: 10 }}>{t('aucune LoRA pour ce moteur')}</div>}
         </div>
         <div className="prow"><button className="b2" onClick={onClose}>{t('Fermer')}</button></div>
       </div>
@@ -619,7 +619,7 @@ function LoraFold({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => v
     <div className="flex flex-col gap-1">
       <button className="engine" onClick={() => setOpen(!open)}>
         <span className="nm"><b>LoRA</b>
-          <span className="ml-auto text-[10px]" style={{ color: picks.length ? 'var(--text)' : 'var(--faint)' }}>
+          <span className="ml-auto text-[12px]" style={{ color: picks.length ? 'var(--text)' : 'var(--faint)' }}>
             {picks.length ? tp(picks.length, '{n} empilée', '{n} empilées') : t('aucune')} ›
           </span>
         </span>
@@ -629,11 +629,11 @@ function LoraFold({ open, setOpen }: { open: boolean; setOpen: (b: boolean) => v
         return (
           <div key={l.name} className="engine" style={pick ? { boxShadow: 'inset 0 0 0 1px rgba(242,77,138,.35)' } : undefined}>
             <span className="nm" style={{ cursor: 'pointer' }} onClick={() => toggle(l.name)}>
-              <span className="text-[11px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
-              <span className="ml-auto text-[10px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
+              <span className="text-[12px] truncate">{l.name.replace(/\.safetensors$/, '')}</span>
+              <span className="ml-auto text-[12px]" style={{ color: pick ? 'var(--accent)' : 'var(--faint)' }}>{pick ? '✓' : '+'}</span>
             </span>
             {pick && (
-              <span className="flex items-center gap-2 mt-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>
+              <span className="flex items-center gap-2 mt-1.5 text-[12px]" style={{ color: 'var(--muted)' }}>
                 <input type="range" min={0} max={2} step={0.1} value={pick.strength}
                   style={{ flex: 1, accentColor: 'var(--accent)' }}
                   onChange={e => setStrength(l.name, Number(e.target.value))} />
