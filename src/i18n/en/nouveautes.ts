@@ -745,4 +745,6 @@ export const nouveautes: Record<string, string> = {
   'choisis l’une des images proposées': 'pick one of the proposed images',
   'une image de référence est jointe : seul FLUX.2 Klein sait la lire — retire-la pour utiliser ce moteur': 'a reference image is attached: only FLUX.2 Klein can read it — remove it to use this engine',
   'référence jointe → FLUX.2 Klein': 'reference attached → FLUX.2 Klein',
+  '{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein': '{nom} has no Krea LoRA: the face will not hold, use FLUX.2 Klein',
+  'MOSS ne tient pas le visage de {nom}': 'MOSS does not hold {nom}’s face',
 }

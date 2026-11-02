@@ -182,6 +182,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                   <button className={`spill ${moteur === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
                     title={refs ? bloque : t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
                   {refs && s.photoEngine !== 'klein' && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
+                  {!refs && moteur === 'krea' && !s.personaKrea && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein', { nom: s.personaName })}</span>}
+                  {!refs && moteur === 'moss' && (s.personaKrea || s.personaKlein) && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('MOSS ne tient pas le visage de {nom}', { nom: s.personaName })}</span>}
                 </>)
               })()}
               {s.photoEngine === 'klein' && !kleinOk && (

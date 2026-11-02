@@ -42,6 +42,8 @@ interface AppState {
   personaId: string | null
   /** Le personnage actif a-t-il une LoRA d'identité FLUX.2 Klein ? Sinon la recette Klein est grisée. */
   personaKlein: boolean
+  /** le personnage a une LoRA Krea : sans elle, Krea ne tient pas son visage */
+  personaKrea: boolean
   /** Le personnage actif a-t-il une LoRA vidéo ? Le texte → vidéo peut alors le montrer. */
   personaVideo: boolean
   /** La LoRA vidéo du personnage est une LoRA Wan (texte → vidéo sur Wan T2V). */
@@ -471,6 +473,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     personaName: 'Personnage',
     personaId: null,
     personaKlein: false,
+    personaKrea: true,
     personaVideo: false,
     personaVideoWan: false,
     personaCredit: null,
@@ -687,13 +690,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     refreshPersona: async () => {
       try {
         const choisi = personnageChoisi()
-        const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]
+        const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]; loras?: unknown[]
           videoLoras?: unknown[]; credit?: PersonaCredit | null; garderobe?: Garderobe }
         set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE })
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
         // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
-        set({ personaKlein: klein })
+        set({ personaKlein: klein, personaKrea: Boolean(p.loras?.length) || p.id === SANS_PERSONNAGE })
         set({ personaName: p.id === SANS_PERSONNAGE ? t('Sans personnage') : p.name?.trim() || t('Personnage'), personaAvatar: p.id === SANS_PERSONNAGE ? null : p.avatar ?? null, personaId: p.id ?? null })
         if (change) set({ assets: await fetchAssets() })
       } catch { /* hors ligne : on garde l'affichage */ }
@@ -722,6 +725,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         set({ serverInfo: { preambles: h.preambles ?? {}, composerModels: h.composerModels ?? {}, renderRates: h.renderRates ?? null },
           personaId: (h.persona?.id as string | undefined) ?? null,
           personaKlein: Boolean((h.persona?.lorasKlein as unknown[] | undefined)?.length),
+          personaKrea: Boolean((h.persona?.loras as unknown[] | undefined)?.length),
           personaVideo: Boolean((h.persona?.videoLoras as unknown[] | undefined)?.length),
           personaVideoWan: estLoraWan(h.persona?.videoLoras as unknown[] | undefined),
           personaCredit: (h.persona?.credit as PersonaCredit | undefined) ?? null,

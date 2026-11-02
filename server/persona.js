@@ -174,10 +174,15 @@ export function personas() {
    a donné une silhouette d'enfant sur un personnage sans préambule. Tous les personnages
    du studio sont des femmes adultes : chaque rendu le dit, sauf si le préambule donne un âge. */
 const ADULTE = 'an adult woman in her mid-twenties'
-export function identityPreambleFor(id) {
+/* Le mot déclencheur n'a de sens que pour un moteur qui a une LoRA de ce personnage : ailleurs,
+   c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
+const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'moss' ? false : moteur === 'krea' ? p.loras.length > 0 : true
+export function identityPreambleFor(id, moteur) {
   const p = persona(id)
   const age = /\b(adult|\d{2}[- ]?(years?|yo))\b/i.test(p.preamble ?? '') ? null : ADULTE
-  const text = [p.trigger, p.preamble, p.trigger || p.preamble ? age : null].filter(Boolean).join(', ')
+  const trigger = aLoraPour(p, moteur) ? p.trigger : null
+  // la mention d'âge adulte reste dès que le personnage a un mot déclencheur ou une description, même si le mot est retiré
+  const text = [trigger, p.preamble, p.trigger || p.preamble ? age : null].filter(Boolean).join(', ')
   return text ? { key: 'persona', file: null, text: `${text}, ` } : null
 }
 
