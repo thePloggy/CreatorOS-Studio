@@ -2,6 +2,7 @@
    CreatorOS Studio — shell desktop : sections Assets · Image ·
    Vidéo · Personnage · Paramètres, bibliothèque au cœur.
    ============================================================ */
+import { BandeauGithub } from '../components/BandeauGithub'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
 import { RenderIsland, useTabTitle } from '../components/RenderWatch'
@@ -31,6 +32,12 @@ const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.Video
 const AssetsView = lazy(() => import('./AssetsView').then(m => ({ default: m.AssetsView })))
 const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
 const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.CroquisView })))
+const OutilsClip = () => import('./OutilsClipViews')
+const RecadrerView = lazy(() => OutilsClip().then(m => ({ default: m.RecadrerView })))
+const DoublageView = lazy(() => OutilsClip().then(m => ({ default: m.DoublageView })))
+const AnalyseView = lazy(() => OutilsClip().then(m => ({ default: m.AnalyseView })))
+const CreerPersonnageView = lazy(() => import('../features/persona/CreerPersonnageView').then(m => ({ default: m.CreerPersonnageView })))
+const PubView = lazy(() => import('./PubView').then(m => ({ default: m.PubView })))
 const ExtensionsView = lazy(() => import('./ExtensionsView').then(m => ({ default: m.ExtensionsView })))
 const PersonaView = lazy(() => import('../features/persona/PersonaView').then(m => ({ default: m.PersonaView })))
 const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => ({ default: m.ConfigView })))
@@ -79,7 +86,7 @@ export default function V2App() {
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
-  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions'].includes(initial) ? initial : 'accueil')
+  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
@@ -118,6 +125,7 @@ export default function V2App() {
     <div className="v2 h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       {/* ---------- barre du haut (couche basse) ---------- */}
       <h1 className="sr-only">CreatorOS Studio</h1>
+      <BandeauGithub />
       <header className="flex items-center gap-3 px-4 flex-none" style={{ background: '#0a0b0d', height: 62, paddingBottom: 12 }}>
         <span className="text-[15px] font-bold tracking-tight select-none" style={{ color: 'var(--text)', cursor: 'pointer' }} onClick={() => setSection('accueil')}>
           Creator<span style={{ background: 'var(--grad)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>OS</span>
@@ -166,7 +174,12 @@ export default function V2App() {
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
-        {section === 'extensions' && <ExtensionsView />}
+        {section === 'extensions' && <ExtensionsView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'pub' && <PubView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'recadrer' && <RecadrerView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'analyse' && <AnalyseView />}
+        {section === 'nouveau-personnage' && <CreerPersonnageView />}
         {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
         {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}

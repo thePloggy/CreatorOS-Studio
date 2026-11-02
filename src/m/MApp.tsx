@@ -9,6 +9,7 @@
    desktop (src/store/useAppStore). Cette couche est une présentation
    tactile, pas un second produit.
    ============================================================ */
+import { BandeauGithub } from '../components/BandeauGithub'
 import { PersonaMenu } from '../components/PersonaMenu'
 import { LangSwitch } from '../components/LangSwitch'
 import { QuotaDemo } from '../components/QuotaDemo'
@@ -103,6 +104,7 @@ export default function MApp() {
 
   return (
     <div className="m">
+      <BandeauGithub />
       <header className="top">
         <span className="logo">Creator<i>OS</i></span>
         <span style={{ marginLeft: 'auto' }} />

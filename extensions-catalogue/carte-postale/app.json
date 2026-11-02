@@ -19,5 +19,6 @@
    "defaut": "Lisbon",
    "aide": "Shown on the card: keep it short"
   }
- ]
+ ],
+ "apercu": "https://raw.githubusercontent.com/thePloggy/CreatorOS-Studio/main/extensions-catalogue/carte-postale/apercu.webp"
 }

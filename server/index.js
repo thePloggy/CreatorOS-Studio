@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -47,6 +47,7 @@ import { creerPersonnage, etatCreation, propositions } from './createurPersonnag
 import { etatPack, lancerPack } from './packPub.js'
 import * as extensions from './extensions.js'
 import * as workflowsComfy from './workflowsComfy.js'
+import * as noeudsComfy from './noeudsComfy.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -63,7 +64,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/comfy/maj', 'POST /api/comfy/noeuds', 'POST /api/comfy/redemarrer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -990,7 +991,7 @@ app.post('/api/jobs/:id/retry', async (req, reply) => {
   else if (Number.isFinite(row.seed)) p.seed = { mode: 'lock', value: row.seed }
   if (req.body?.draft) { if (p.videoEngine === 'motion') p.motionPreview = true; else p.videoDraft = true }
   try {
-    const r = deposerAvecCle(cleComfy(req), () => enqueue(p))
+    const r = deposerAvecCle(cleComfy(req), () => (OPS_RELANCABLES.has(p.op) ? relancerSpecial({ ...p, id: row.id }) : enqueue(p)))
     reply.code(202)
     return { ...r, status: 'queued', from: row.id }
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
@@ -2111,6 +2112,20 @@ app.post('/api/voix', async (req, reply) => {
 
 /** Extensions (cf. extensions.js) : les livrées se lancent par tous, l'installation et les
     extensions installées sont réservées au propriétaire. */
+/** Mise à niveau de ComfyUI et nœuds tiers (cf. noeudsComfy.js) : propriétaire seulement ;
+    la démo publique refuse tout code tiers. */
+app.get('/api/comfy/maj', async () => ({ demo: noeudsComfy.estDemo(), messageDemo: noeudsComfy.MESSAGE_DEMO, travaux: noeudsComfy.etat() }))
+app.post('/api/comfy/maj', async (req, reply) => {
+  try { return await noeudsComfy.mettreAJourComfy() } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/comfy/noeuds/chercher', async req => noeudsComfy.depotsPour((Array.isArray(req.body?.classes) ? req.body.classes : []).map(String).slice(0, 40)))
+app.post('/api/comfy/noeuds', async (req, reply) => {
+  try { return await noeudsComfy.installerDepot(req.body?.depot) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/comfy/redemarrer', async (req, reply) => {
+  try { return await noeudsComfy.redemarrerComfy(queueDepth() === 0) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
 /** Workflows officiels de ComfyUI (cf. workflowsComfy.js) : liste et miniatures pour tous,
     téléchargement des modèles pour le propriétaire. */
 app.get('/api/workflows-comfy', async (req, reply) => {
@@ -2148,13 +2163,27 @@ app.post('/api/assets/:id/analyse', async (req, reply) => {
   catch (e) { reply.code(502); return { error: String(e.message || e) } }
 })
 
-/** Pack publicitaire à partir d'une photo produit (cf. packPub.js). */
+/** Pack publicitaire (cf. packPub.js) : une photo de la bibliothèque, un dépôt (propriétaire sur la
+    démo) ou une simple description du produit, puis la mise en scène voulue avec le personnage. */
+const lancerPackDepuis = (req, reply, asset) => {
+  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  const b = req.body ?? {}
+  const admis = n => (estProprietaire(req) ? store.estInputStudio(n) : store.estInputGenere(n))
+  try {
+    return deposerAvecCle(cleComfy(req), () => lancerPack({ asset, fichier: asset ? null : b.fichier, description: asset ? null : b.description, produit: b.produit,
+      accroche: b.accroche, scene: b.scene, format: b.format, personaId: personaDe(req), admis }))
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+}
 app.post('/api/assets/:id/pack-pub', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'photo') { reply.code(404); return { error: 'photo inconnue' } }
-  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
-  try { return deposerAvecCle(cleComfy(req), () => lancerPack({ asset: a, produit: req.body?.produit, accroche: req.body?.accroche, personaId: personaDe(req) })) }
-  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  return lancerPackDepuis(req, reply, a)
+})
+app.post('/api/pack-pub', async (req, reply) => {
+  const id = req.body?.assetId
+  const a = id ? store.getAsset(String(id)) : null
+  if (id && (!a || a.media_type !== 'photo')) { reply.code(404); return { error: 'photo inconnue' } }
+  return lancerPackDepuis(req, reply, a)
 })
 app.get('/api/pack-pub/:id', async (req, reply) => etatPack(req.params.id) ?? (reply.code(404), { error: 'pack inconnu' }))
 

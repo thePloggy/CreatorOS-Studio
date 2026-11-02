@@ -41,6 +41,7 @@ export function valider(app, graphe) {
   return {
     id: app.id, nom: String(app.nom).slice(0, 60), description: String(app.description ?? '').slice(0, 300), auteur: String(app.auteur ?? '').slice(0, 60),
     licence: String(app.licence ?? '').slice(0, 40), version: String(app.version ?? '1.0.0').slice(0, 20), sortie: app.sortie,
+    apercu: /^(\/vitrine\/[\w.-]+|https:\/\/raw\.githubusercontent\.com\/[\w./-]+)\.(webp|png|jpg|mp4)$/.test(String(app.apercu ?? '')) ? app.apercu : null,
     entrees: entrees.map(e => ({ id: e.id, type: e.type, label: String(e.label ?? e.id).slice(0, 60), defaut: e.defaut ?? null,
       options: e.type === 'choix' ? e.options.map(String).slice(0, 30) : undefined, min: e.min, max: e.max, aide: e.aide ? String(e.aide).slice(0, 160) : undefined })),
   }
@@ -97,7 +98,8 @@ export function catalogue() {
   try { reg = JSON.parse(fs.readFileSync(path.join(LIVREES, 'registre.json'), 'utf8')).extensions ?? [] } catch { reg = [] }
   const ici = new Set(toutes().map(x => x.id))
   return reg.filter(e => ID.test(String(e.id))).map(e => ({ id: e.id, nom: String(e.nom ?? e.id), description: String(e.description ?? ''), auteur: String(e.auteur ?? ''),
-    licence: String(e.licence ?? ''), source: String(e.source ?? ''), installee: ici.has(e.id) }))
+    licence: String(e.licence ?? ''), source: String(e.source ?? ''), sortie: String(e.sortie ?? 'image'), installee: ici.has(e.id),
+    apercu: /^https:\/\/raw\.githubusercontent\.com\/[\w./-]+\.(webp|png|jpg)$/.test(String(e.apercu ?? '')) ? e.apercu : null }))
 }
 
 /* Installation depuis le catalogue seulement, fichiers lus sur raw.githubusercontent.com. */

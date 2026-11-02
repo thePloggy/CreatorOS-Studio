@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { GenererMusique } from './GenererMusique'
+import { OutilPage } from './OutilPage'
 
 type Mode = 'studio' | 'cloner' | 'changer'
 const nomCourt = (n: string) => n.replace(/_[a-z0-9]{6}\.\w+$/, '').replace(/\.\w+$/, '').replace(/_/g, ' ')
@@ -79,22 +80,27 @@ function VoixOff({ surPret }: { surPret: () => void }) {
 
 export function Musiques() {
   const [liste, setListe] = useState<{ nom: string; duree: number }[] | null>(null)
+  const [outil, setOutil] = useState<'voix' | 'musique'>('voix')
   const charger = () => void fetch('/api/montage/musiques').then(r => r.json()).then((d: { musiques?: { nom: string; duree: number }[] }) => setListe(d.musiques ?? [])).catch(() => setListe([]))
   useEffect(charger, [])
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="musiques">
-        <h2 className="titre-outil">{t('Musiques et sons')}</h2>
-        <VoixOff surPret={charger} />
-        <GenererMusique surPret={charger} />
-        {liste?.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12.5 }}>{t('Rien pour l’instant : génère ton premier morceau.')}</p>}
-        {liste?.map(m => (
-          <div key={m.nom} className="musique">
-            <b>{m.nom.replace(/_[a-z0-9]{6}\.\w+$/, '').replace(/\.\w+$/, '').replace(/_/g, ' ')}</b>
-            <audio controls preload="none" src={`/api/montage/musiques/${encodeURIComponent(m.nom)}`} />
-          </div>
-        ))}
+    <OutilPage titre={t('Musique et voix')} texte={t('Voix off, voix clonée ou changée, musique et bruitages : tout rejoint la bibliothèque audio, prêt pour le montage, le reel et le doublage.')}
+      vide={t('Rien pour l’instant : génère ton premier morceau.')}
+      resultat={liste && liste.length > 0 ? (
+        <div className="audio-grille">
+          {liste.map(m => (
+            <div key={m.nom} className="audio-carte">
+              <b>{nomCourt(m.nom)}</b>
+              <span className="texte-faible">{m.nom.startsWith('voix') ? t('voix') : t('musique ou son')}{m.duree ? ` · ${Math.round(m.duree)} s` : ''}</span>
+              <audio controls preload="none" src={`/api/montage/musiques/${encodeURIComponent(m.nom)}`} />
+            </div>
+          ))}
+        </div>) : undefined}>
+      <div className="segmente">
+        <button className={outil === 'voix' ? 'on' : ''} onClick={() => setOutil('voix')}>{t('Voix')}</button>
+        <button className={outil === 'musique' ? 'on' : ''} onClick={() => setOutil('musique')}>{t('Musique et bruitages')}</button>
       </div>
-    </div>
+      {outil === 'voix' ? <VoixOff surPret={charger} /> : <GenererMusique surPret={charger} />}
+    </OutilPage>
   )
 }

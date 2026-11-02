@@ -7,7 +7,9 @@
    "description": "A photo becomes a vintage travel postcard with a \"Greetings from …\" title.",
    "auteur": "CreatorOS Studio",
    "licence": "MIT",
-   "source": "https://raw.githubusercontent.com/thePloggy/CreatorOS-Studio/main/extensions-catalogue/carte-postale/"
+   "source": "https://raw.githubusercontent.com/thePloggy/CreatorOS-Studio/main/extensions-catalogue/carte-postale/",
+   "sortie": "image",
+   "apercu": "https://raw.githubusercontent.com/thePloggy/CreatorOS-Studio/main/extensions-catalogue/carte-postale/apercu.webp"
   }
  ]
 }

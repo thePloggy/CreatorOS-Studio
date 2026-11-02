@@ -1924,6 +1924,25 @@ async function runDoublage(job, t0) {
   return n
 }
 
+/* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
+   si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
+export const OPS_RELANCABLES = new Set(['inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'extension'])
+export function relancerSpecial(p) {
+  if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
+  const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque].filter(Boolean)
+  for (const f of fichiers) {
+    const ici = [path.join(CONFIG.comfyInput, f), path.join(CONFIG.mediaDir, f), path.join(CONFIG.comfyInput, path.basename(f))]
+    if (!ici.some(x => fs.existsSync(x))) throw new Error(`fichier d'entrée disparu : ${path.basename(f)}`)
+  }
+  if (p.recadrage?.source && !fs.existsSync(p.recadrage.source)) throw new Error('clip d’origine disparu')
+  const prefixe = String(p.id ?? p.op).split('-')[0].replace(/[^a-z0-9]/gi, '') || p.op
+  const graine = Number.isFinite(p.seed) ? p.seed : Number.isFinite(p.seed?.value) ? p.seed.value : Math.floor(Math.random() * 0xffffffffffff)
+  const row = { ...p, id: `${prefixe}-${Date.now().toString(36)}`, createdAt: Date.now(), status: 'queued', error: null, seed: graine }
+  if (p.extensionGraphe) row.extensionGraphe = JSON.parse(JSON.stringify(p.extensionGraphe).replaceAll(`creatoros/${p.id}/`, `creatoros/${row.id}/`))
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id: row.id }
+}
+
 /* Extension : un workflow ComfyUI fourni par une extension (cf. extensions.js), déjà rempli et
    vérifié. Sa sortie est une image, une vidéo ou un son ; les sons rejoignent la bibliothèque audio. */
 export function enqueueExtension({ graphe, sortie, nom, extensionId, personaId, parentAssetId, prompt }) {
@@ -2891,8 +2910,13 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
   store.setStatus(job.id, 'rendering')
   const tenue = await vision.describeOutfit(path.join(CONFIG.comfyInput, src))
   const p = persona(job.personaId)
+  /* Verrou SFW de la référence : la tenue lue peut n'avoir qu'un bas (« blue jeans ») ou qu'un
+     haut (« satin camisole ») ; la pièce manquante est demandée et la tenue entière reste opaque. */
+  const haut = /\b(shirt|t-?shirt|tee|top|blouse|sweater|jumper|hoodie|sweatshirt|pullover|jacket|coat|raincoat|parka|blazer|cardigan|vest|dress|jumpsuit|overalls|tunic|suit|bikini|swimsuit)\b/i.test(tenue ?? '')
+  const bas = /\b(jeans|trousers|pants|shorts|skirt|leggings|dress|jumpsuit|overalls|suit|bikini|swimsuit)\b/i.test(tenue ?? '')
+  const vetements = [tenue, !haut && 'a plain opaque top', !bas && 'plain opaque trousers'].filter(Boolean).join(', ')
   const positive = `full body photo, standing and facing the camera, arms relaxed, natural expression, `
-    + `${tenue ? `wearing ${tenue}, ` : ''}soft even daylight, plain background, sharp focus, 50mm`
+    + `fully clothed, wearing ${vetements}, opaque fabric, nothing see-through, soft even daylight, plain background, sharp focus, 50mm`
   const dv = videoSize(driverPath), portrait = !(dv.width > dv.height)
   const { workflow } = comfy.injectJob(comfy.loadWorkflow(RECIPES.sfw), {
     opTag: 'generate', positive, seed: job.seed, jobId: `${job.id}-ref`, identityPreamble: identityPreambleFor(job.personaId),
@@ -3104,7 +3128,12 @@ async function runJob(job, isRetry = false, connRetried = false) {
     const drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
     // Vidéo avec son : la réplique est la SEULE parole (voir speechGuard).
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
-    const positive = speech?.text ?? drawn.text
+    // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
+    const vetuOpaque = !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo'
+    const texteBrut = speech?.text ?? drawn.text
+    // un maillot sur une adulte reste permis : la consigne ne demande alors que des tissus opaques
+    const maillot = /\b(bikini|swimsuit|swimwear|one-piece|swim trunks)\b/i.test(texteBrut)
+    const positive = vetuOpaque ? `${texteBrut}, ${maillot ? '' : 'fully clothed, '}opaque fabric, nothing see-through` : texteBrut
     const wildcardNotes = [
       ...drawn.draws.map(d => `tirage wildcard ${d.token} → « ${d.value} »`),
       ...drawn.unknown.map(t => `wildcard ${t} INCONNU : aucun fichier dans ${CONFIG.wildcardsDir} — laissé tel quel`),

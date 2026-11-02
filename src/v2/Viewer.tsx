@@ -201,31 +201,6 @@ function AnalyseClip({ asset, ouvert }: { asset: Asset; ouvert: boolean }) {
   )
 }
 
-/* Pack publicitaire depuis une photo produit : cinq rendus d'un coup (cf. server/packPub.js). */
-function PackPub({ asset, ouvert, onLance }: { asset: Asset; ouvert: boolean; onLance: (ids: string[]) => Promise<void> }) {
-  const [produit, setProduit] = useState('')
-  const [accroche, setAccroche] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
-  const lancer = async () => {
-    setMsg(null)
-    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/pack-pub`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ produit, accroche }) })
-    const d = await r.json().catch(() => ({})) as { jobs?: Record<string, string | null>; error?: string }
-    if (!r.ok || !d.jobs) { setMsg(tServeur(d.error) ?? `HTTP ${r.status}`); return }
-    await onLance(Object.values(d.jobs).filter((j): j is string => !!j))
-  }
-  if (!ouvert) return null
-  return (
-    <div className="guide-outil">
-      <b>{t('Pack publicitaire')}</b>
-      <p>{t('Packshot, mise en scène, affiche avec ton accroche, ton personnage qui présente le produit, puis un clip produit de 4 s.')}</p>
-      <input value={produit} onChange={e => setProduit(e.target.value)} placeholder={t('le produit, en anglais : a red ceramic mug')} maxLength={60} className="champ" />
-      <input value={accroche} onChange={e => setAccroche(e.target.value)} placeholder={t('accroche de l’affiche (facultatif)')} maxLength={50} className="champ" />
-      <button className="pill" disabled={!produit.trim()} onClick={() => void lancer()}>{t('Lancer le pack (5 rendus)')}</button>
-      {msg && <span className="texte-erreur">{msg}</span>}
-    </div>
-  )
-}
-
 /* Recadrer et doubler un clip : deux petits panneaux, mis en avant quand l'outil a été choisi au menu. */
 function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionOutil; onLance: (jobId: string) => Promise<void> }) {
   const [voix, setVoix] = useState<{ nom: string }[]>([])
@@ -478,7 +453,6 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             </div>
           )}
           {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
-          {asset.mediaType === 'photo' && <PackPub asset={asset} ouvert={action === 'pack'} onLance={async ids => { for (const j of ids) await s.adoptServerJob(j); onClose() }} />}
           {asset.mediaType === 'video' && (action === 'analyse' || !action) && <AnalyseClip asset={asset} ouvert={action === 'analyse'} />}
           {asset.mediaType === 'video' && (action === 'recadrer' || action === 'doubler' || !action) && <OutilsClip asset={asset} ouvert={action} onLance={async id => { await s.adoptServerJob(id); onClose() }} />}
         {/* ---------- la chaîne du prompt, dans l'ordre où elle s'est faite ----------
