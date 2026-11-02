@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
 import { ChoixPersonnage } from './ChoixPersonnage'
+import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 
 interface PlanReel { still: string; motion: string; avertissements?: string[]; clipJob?: string | null; photoUri: string | null; clipUri: string | null; photoEtat: string | null; clipEtat: string | null; supprime?: boolean }
 interface Reel {
@@ -88,6 +89,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
               <option value="">{t('son des clips seulement')}</option>
               {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
             </select>
+            <Ecouter src={urlMusique(musique)} titre={t('Écouter la musique')} />
             {musique && <label className="flex gap-1.5 items-center" style={{ marginLeft: 10, cursor: 'pointer' }}><input type="checkbox" checked={caler} onChange={e => setCaler(e.target.checked)} /> {t('couper sur le rythme')}</label>}
             {voixListe.length > 0 && <>
               <span style={{ marginLeft: 10 }}>{t('Voix off')}</span>
@@ -96,6 +98,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
                 <option value="">{t('aucune')}</option>
                 {voixListe.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
               </select>
+              <Ecouter src={urlEchantillonVoix(voixOff)} titre={t('Écouter la voix')} />
             </>}
             <span style={{ flex: 1 }} />
             <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={busy || !brief.trim()} onClick={() => void lancer()}>

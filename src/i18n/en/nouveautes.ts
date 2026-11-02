@@ -712,4 +712,7 @@ export const nouveautes: Record<string, string> = {
   'Planche': 'Sheet',
   '12 images': '12 images',
   'LoRA': 'LoRA',
+  'Écouter': 'Listen',
+  'Écouter la voix': 'Listen to the voice',
+  'Écouter la musique': 'Listen to the music',
 }

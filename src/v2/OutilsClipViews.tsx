@@ -1,5 +1,6 @@
 /* Outils sur un clip, au gabarit studio : recadrer, doubler ; et l'analyse pour les réseaux au
    gabarit app (formulaire à gauche, exemple puis résultat à droite). */
+import { Ecouter, urlEchantillonVoix } from './Ecouter'
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
 import { getLang, t, tServeur } from '../i18n'
@@ -98,7 +99,7 @@ export function DoublageView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =>
       {mode === 'texte' ? <>
         <textarea className="champ" rows={3} value={texte} maxLength={300} onChange={e => setTexte(e.target.value)} placeholder={t('La réplique, en anglais')} />
         <label style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t('Voix')}</span>
-          <select className="champ" value={voixId} onChange={e => setVoixId(e.target.value)}>{voix.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}</select></label>
+          <select className="champ" value={voixId} onChange={e => setVoixId(e.target.value)}>{voix.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}</select><Ecouter src={urlEchantillonVoix(voixId)} titre={t('Écouter la voix')} /></label>
       </> : <label style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t('Audio')}</span>
         <select className="champ" value={audio} onChange={e => setAudio(e.target.value)}>{audios.map(n => <option key={n} value={n}>{nomCourt(n)}</option>)}</select></label>}
     </OutilPage>

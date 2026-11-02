@@ -75,3 +75,22 @@ export async function changerVoix({ source, voix, reference, accord }) {
   await lancer(pythonClone(), [path.join(import.meta.dirname, '..', 'scripts', 'changer_voix.py'), source, cible, path.join(MUSIQUES_DIR, nom)], { timeout: 600_000 })
   return { nom, chemin: path.join(MUSIQUES_DIR, nom) }
 }
+
+/** Échantillon d'écoute d'une voix du studio : phrase fixe, synthétisée une fois puis gardée. */
+const ECHANTILLONS = path.join(CONFIG.dataDir, 'voix-echantillons')
+const enCours = new Map()
+export async function echantillon(voix) {
+  const v = VOIX.find(x => x.id === voix)?.id
+  if (!v) throw new Error('voix inconnue')
+  const f = path.join(ECHANTILLONS, `${v}.wav`)
+  if (fs.existsSync(f)) return f
+  if (!voixDisponible()) throw new Error('voix non installée sur ce studio')
+  if (!enCours.has(v)) {
+    fs.mkdirSync(ECHANTILLONS, { recursive: true })
+    const tmp = `${f}.${process.pid}.tmp.wav`
+    enCours.set(v, lancer(python(), [path.join(import.meta.dirname, '..', 'scripts', 'voix.py'), "Hi, this is my voice. Here's how your reel will sound.", v, '1', tmp], { timeout: 180_000 })
+      .then(() => fs.renameSync(tmp, f)).finally(() => enCours.delete(v)))
+  }
+  await enCours.get(v)
+  return f
+}

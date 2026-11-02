@@ -41,7 +41,7 @@ import * as presets from './presets.js'
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis } from './croquis.js'
-import { VOIX, changerVoix, cloner, cloneDisponible, synthetiser, voixDisponible } from './voix.js'
+import { VOIX, changerVoix, cloner, cloneDisponible, echantillon, synthetiser, voixDisponible } from './voix.js'
 import { aiToolkitPret } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
@@ -2105,6 +2105,13 @@ app.post('/api/voix/changer', async (req, reply) => {
   finally { fs.rmSync(tmp, { recursive: true, force: true }) }
 })
 
+app.get('/api/voix/:id/echantillon', async (req, reply) => {
+  try {
+    const f = await echantillon(req.params.id)
+    reply.header('Cache-Control', 'public, max-age=86400').type('audio/wav')
+    return fs.createReadStream(f)
+  } catch (e) { reply.code(404); return { error: String(e.message || e).slice(-200) } }
+})
 app.post('/api/voix', async (req, reply) => {
   try { return await synthetiser({ texte: req.body?.texte, voix: req.body?.voix, vitesse: req.body?.vitesse }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }

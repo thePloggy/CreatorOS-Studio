@@ -1,4 +1,5 @@
 /* Musiques et bruitages de la bibliothèque : ceux générés ici et ceux déposés dans le montage. */
+import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 import { useEffect, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -64,6 +65,7 @@ function VoixOff({ surPret }: { surPret: () => void }) {
                   {refs.map(n => <option key={n} value={`extrait:${n}`}>{nomCourt(n)}</option>)}
                 </optgroup>}
               </select>}
+          <Ecouter src={mode === 'cloner' ? urlMusique(ref) : choix.startsWith('extrait:') ? urlMusique(choix.slice(8)) : urlEchantillonVoix(choix)} titre={t('Écouter la voix')} />
           <button className="pill" disabled={!pret || occupe || (accordRequis && (!accord || (mode === 'cloner' && !ref)))} onClick={() => void lancer()}>
             {occupe ? t('synthèse…') : mode === 'cloner' ? t('Cloner et dire') : mode === 'changer' ? t('Changer la voix') : t('Générer la voix')}</button>
           <span className="texte-faible">{mode === 'studio' ? 'Kokoro-82M · Apache-2.0' : 'Chatterbox · MIT'}</span>
