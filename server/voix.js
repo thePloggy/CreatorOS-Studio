@@ -44,3 +44,34 @@ export async function cloner({ texte, reference, accord }) {
   await lancer(pythonClone(), [path.join(import.meta.dirname, '..', 'scripts', 'clone_voix.py'), t, ref, path.join(MUSIQUES_DIR, nom)], { timeout: 300_000 })
   return { nom }
 }
+
+/* Changeur de voix (Chatterbox VC) : la cible est une voix du studio (Kokoro, synthétique) ou un
+   extrait dont le propriétaire déclare avoir le droit. Les mots et le rythme de la source restent. */
+const CIBLES = path.join(CONFIG.dataDir, 'voix-cibles')
+async function cibleStudio(id) {
+  const f = path.join(CIBLES, `${id}.wav`)
+  if (fs.existsSync(f)) return f
+  const { nom } = await synthetiser({ texte: 'Hello, this is a short sample of my voice. I speak calmly and clearly, with a natural rhythm, so you can hear its timbre.', voix: id })
+  fs.mkdirSync(CIBLES, { recursive: true })
+  fs.renameSync(path.join(MUSIQUES_DIR, nom), f)
+  return f
+}
+export async function changerVoix({ source, voix, reference, accord }) {
+  if (!cloneDisponible()) throw new Error('changeur de voix non installé sur ce studio (Chatterbox)')
+  if (!fs.existsSync(source)) throw new Error('enregistrement source introuvable')
+  let cible
+  if (reference) {
+    if (accord !== true) throw new Error('confirme que cette voix est la tienne ou que la personne a donné son accord')
+    cible = path.join(MUSIQUES_DIR, path.basename(String(reference)))
+    if (!fs.existsSync(cible)) throw new Error('choisis l’extrait de voix dans la bibliothèque audio')
+  } else {
+    const v = VOIX.find(x => x.id === voix)
+    if (!v) throw new Error('choisis la voix cible')
+    cible = await cibleStudio(v.id)
+  }
+  fs.mkdirSync(MUSIQUES_DIR, { recursive: true })
+  const racine = path.basename(source).replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w]+/g, '_').slice(0, 24).replace(/_+$/, '') || 'voix'
+  const nom = `voixchangee_${racine}_${Date.now().toString(36).slice(-6)}.wav`
+  await lancer(pythonClone(), [path.join(import.meta.dirname, '..', 'scripts', 'changer_voix.py'), source, cible, path.join(MUSIQUES_DIR, nom)], { timeout: 600_000 })
+  return { nom, chemin: path.join(MUSIQUES_DIR, nom) }
+}

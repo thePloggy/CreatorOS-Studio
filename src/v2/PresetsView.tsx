@@ -138,7 +138,7 @@ function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: s
           </div>
           <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
             <input value={detail} onChange={e => setDetail(e.target.value)} maxLength={300} placeholder={t('2. Optionnel : ce qu’elle fait pendant le plan (en anglais)')}
-              style={{ padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />
+              className="champ" style={{ fontSize: 12.5 }} />
             <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
               <span>{t('Durée')}</span>
               {(p.moteur.startsWith('wan21') ? [3, 4, 5] : [4, 5, 6, 8]).map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}

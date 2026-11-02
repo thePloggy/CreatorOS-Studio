@@ -46,7 +46,12 @@ export const APERCUS: Record<string, Apercu> = {
   'Doublage': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
   'Recadrer': compareVideo('recadrer', '9:16', '16:9'),
   'Croquis vers vidéo': { type: 'media', image: v('croquis.webp'), video: v('croquis.mp4'), auto: true },
+  'Pack publicitaire': { type: 'media', image: v('pack.webp'), puces: ['Packshot', 'Mise en scène', 'Affiche', 'Personnage', 'Clip'] },
+  'Analyse pour les réseaux': { type: 'media', image: v('analyse.webp'), puces: ['Accroche 8/10', 'Sujet 9/10', 'Image 9/10', 'Histoire 7/10'] },
 }
+
+/** Réglages montrés par un aperçu : affichés sous l'image, jamais posés dessus. */
+export const pucesDe = (a?: Apercu) => (a && a.type === 'media' ? a.puces ?? [] : [])
 
 export function ApercuOutil({ apercu }: { apercu?: Apercu }) {
   const racine = useRef<HTMLSpanElement>(null)
@@ -85,7 +90,6 @@ export function ApercuOutil({ apercu }: { apercu?: Apercu }) {
       {apercu.video ? <video src={apercu.video} poster={apercu.image} muted loop playsInline preload="none" /> : <img src={apercu.image} alt="" loading="lazy" />}
       {apercu.refs && <span className="refs">{apercu.refs.map(r => <img key={r} src={r} alt="" loading="lazy" />)}<small>{t('Image de référence')}</small></span>}
       {apercu.texte && <span className="prompt">{apercu.texte}</span>}
-      {apercu.puces && <span className="puces">{apercu.puces.map(p => <em key={p}>{t(p)}</em>)}</span>}
     </span>
   )
 }

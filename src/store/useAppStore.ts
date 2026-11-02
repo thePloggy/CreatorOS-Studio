@@ -729,8 +729,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           ...(nom?.trim() ? { personaName: nom.trim() } : {}) })
       } catch (e) { console.warn('[store] catalogue moteurs non chargé :', e) }
       if (personnageChoisi()) await get().refreshPersona()
-      try { set({ assets: await fetchAssets() }) }
-      catch (e) { console.error('[store] bibliothèque non chargée :', e) }
+      // la bibliothèque arrive quand le navigateur est libre : l'accueil s'affiche sans l'attendre
+      const chargerBibliotheque = () => void fetchAssets().then(assets => set({ assets })).catch(e => console.error('[store] bibliothèque non chargée :', e))
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(chargerBibliotheque, { timeout: 1500 })
+      else setTimeout(chargerBibliotheque, 300)
       /* Les jobs aussi — TOUS, y compris ceux en vol : la base est la source
          de vérité, et chaque appareil s'ABONNE aux jobs en cours (adopt =
          même boucle d'interrogation que submit, sans re-soumettre). C'est ce

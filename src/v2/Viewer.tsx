@@ -133,7 +133,7 @@ function CaptionCard({ asset }: { asset: Asset }) {
             <button key={o.caption} className="text-left text-[12px] rounded-md px-2 py-1"
               style={{ background: 'none', border: '1px solid var(--lv3)', color: 'var(--muted)', cursor: 'pointer' }}
               onClick={() => { setTexte(o.caption); s.setCaption(asset.id, o.caption) }}>
-              {o.caption} <span style={{ color: 'var(--faint)' }}>· {o.family}</span>
+              {o.caption} <span className="texte-faible">· {o.family}</span>
             </button>
           ))}
         </div>
@@ -193,10 +193,10 @@ function AnalyseClip({ asset, ouvert }: { asset: Asset; ouvert: boolean }) {
           <b style={{ fontSize: 18 }}>{r.global}/10</b>
           {Object.entries(r.notes).map(([k, v]) => <span key={k}>{t(k)} <b>{v}</b></span>)}
         </div>
-        <span style={{ color: 'var(--muted)' }}>{r.mesures.duree} s, {r.mesures.format}, {r.mesures.son ? t('avec son') : t('muet')}, {t('{n} coupes', { n: r.mesures.coupes })}</span>
+        <span className="texte-doux">{r.mesures.duree} s, {r.mesures.format}, {r.mesures.son ? t('avec son') : t('muet')}, {t('{n} coupes', { n: r.mesures.coupes })}</span>
         <ul style={{ margin: 0, paddingLeft: 18 }}>{r.conseils.map((c, i) => <li key={i}>{t(c)}</li>)}</ul>
       </>}
-      {msg && <span style={{ color: 'var(--danger)' }}>{msg}</span>}
+      {msg && <span className="texte-erreur">{msg}</span>}
     </div>
   )
 }
@@ -213,16 +213,15 @@ function PackPub({ asset, ouvert, onLance }: { asset: Asset; ouvert: boolean; on
     if (!r.ok || !d.jobs) { setMsg(tServeur(d.error) ?? `HTTP ${r.status}`); return }
     await onLance(Object.values(d.jobs).filter((j): j is string => !!j))
   }
-  const champ = { padding: '6px 9px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit' } as const
   if (!ouvert) return null
   return (
     <div className="guide-outil">
       <b>{t('Pack publicitaire')}</b>
       <p>{t('Packshot, mise en scène, affiche avec ton accroche, ton personnage qui présente le produit, puis un clip produit de 4 s.')}</p>
-      <input value={produit} onChange={e => setProduit(e.target.value)} placeholder={t('le produit, en anglais : a red ceramic mug')} maxLength={60} style={champ} />
-      <input value={accroche} onChange={e => setAccroche(e.target.value)} placeholder={t('accroche de l’affiche (facultatif)')} maxLength={50} style={champ} />
+      <input value={produit} onChange={e => setProduit(e.target.value)} placeholder={t('le produit, en anglais : a red ceramic mug')} maxLength={60} className="champ" />
+      <input value={accroche} onChange={e => setAccroche(e.target.value)} placeholder={t('accroche de l’affiche (facultatif)')} maxLength={50} className="champ" />
       <button className="pill" disabled={!produit.trim()} onClick={() => void lancer()}>{t('Lancer le pack (5 rendus)')}</button>
-      {msg && <span style={{ color: 'var(--danger)' }}>{msg}</span>}
+      {msg && <span className="texte-erreur">{msg}</span>}
     </div>
   )
 }
@@ -234,6 +233,19 @@ function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionO
   const [msg, setMsg] = useState<string | null>(null)
   useEffect(() => { void fetch('/api/montage/musiques').then(r => r.json()).then((d: { musiques?: { nom: string }[] }) => {
     const l = (d.musiques ?? []).sort((a, b) => Number(b.nom.startsWith('voix_')) - Number(a.nom.startsWith('voix_'))); setVoix(l); setAudio(l[0]?.nom ?? '') }).catch(() => {}) }, [])
+  // changeur de voix (propriétaire) : le timbre change, les mots et le rythme du clip restent
+  const edition = useEdition()
+  const [voixStudio, setVoixStudio] = useState<{ id: string; nom: string }[]>([])
+  const [cible, setCible] = useState('af_heart')
+  const [occupe, setOccupe] = useState(false)
+  useEffect(() => { if (edition) void fetch('/api/voix').then(r => r.json()).then((d: { voix: { id: string; nom: string }[]; clone?: boolean }) => setVoixStudio(d.clone ? d.voix : [])).catch(() => {}) }, [edition])
+  const changer = async () => {
+    setOccupe(true); setMsg(null)
+    const r = await fetch('/api/voix/changer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId: asset.id, voix: cible }) })
+    const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
+    setOccupe(false)
+    if (!r.ok || !d.jobId) setMsg(tServeur(d.error) ?? `HTTP ${r.status}`); else await onLance(d.jobId)
+  }
   const poster = async (route: string, body: object) => {
     setMsg(null)
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -244,7 +256,7 @@ function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionO
     <div className={ouvert === 'recadrer' ? 'guide-outil' : 'flex gap-1.5 items-center flex-wrap text-[12px]'} style={ouvert === 'recadrer' ? undefined : { color: 'var(--muted)' }}>
       {ouvert === 'recadrer' ? <b>{t('Recadrer')}</b> : t('Recadrer')}
       {ouvert === 'recadrer' && <p>{t('Wan VACE regarde le clip au centre du nouveau cadre et génère les bords image par image ; le clip d’origine reste intact. Environ 10 min.')}</p>}
-      <div className="flex gap-1.5 flex-wrap">{['9:16', '16:9', '1:1'].map(f => <button key={f} className="pill" onClick={() => void poster('recadrer', { format: f })}>{f}</button>)}</div>
+      <div className="flex gap-1.5 flex-wrap">{['9:16', '16:9', '1:1', '4:5'].map(f => <button key={f} className="pill" onClick={() => void poster('recadrer', { format: f })}>{f}</button>)}</div>
     </div>
     <div className={ouvert === 'doubler' ? 'guide-outil' : 'flex gap-1.5 items-center flex-wrap text-[12px]'} style={ouvert === 'doubler' ? undefined : { color: 'var(--muted)' }}>
       {ouvert === 'doubler' ? <b>{t('Doublage')}</b> : t('Doubler')}
@@ -254,7 +266,14 @@ function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionO
       </select>
       <button className="pill" disabled={!audio} onClick={() => void poster('doubler', { audio })}>{t('Doubler')}</button>
     </div>
-    {msg && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{msg}</div>}
+    {edition && voixStudio.length > 0 && <div className="flex gap-1.5 items-center flex-wrap text-[12px] texte-doux">
+      {t('Changer la voix')}
+      <select className="champ" value={cible} onChange={e => setCible(e.target.value)} aria-label={t('voix cible')} style={{ maxWidth: 200, fontSize: 12 }}>
+        {voixStudio.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+      </select>
+      <button className="pill" disabled={occupe} onClick={() => void changer()}>{occupe ? t('synthèse…') : t('Changer')}</button>
+    </div>}
+    {msg && <div className="text-[12px] texte-erreur">{msg}</div>}
   </>)
 }
 
@@ -415,7 +434,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     <div className="fixed inset-0 z-50 flex max-[820px]:flex-col" style={{ background: 'var(--bg)' }}>
       {pinceau && <Pinceau asset={asset} onClose={() => setPinceau(false)} />}
       {editer && <EditionVideo asset={asset} detourDirect={action === 'detour'} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
-      <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: '#08090b' }}>
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: 'var(--scene)' }}>
         {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
         <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
         <button className="absolute top-3 left-3 z-10 b2" onClick={onClose}>{t('‹ retour')}</button>
@@ -430,9 +449,9 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {parent && compare
           ? <AvantApres avant={parent} apres={asset} className="max-h-[92vh] max-w-full rounded-[10px]" style={{ maxWidth: '86%', boxShadow: 'var(--sh-md)' }} />
           : asset.mediaType === 'video'
-          ? <video src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6)' }}
+          ? <video src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
               onLoadedMetadata={e => { const el = e.target as HTMLVideoElement; setClip({ w: el.videoWidth, h: el.videoHeight, dur: el.duration }) }} />
-          : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6)' }} />}
+          : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: 'var(--sh-media)' }} />}
         <AssetNavArrows {...nav} />
       </div>
 
@@ -447,7 +466,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               </ol>
               <input value={cible3d} onChange={e => setCible3d(e.target.value)} placeholder={t('quel objet ? en anglais')} maxLength={80} />
               <button className="pill" title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans Stage')} disabled={!cible3d.trim()} onClick={() => void objet3d()}>{t('Créer le modèle 3D')}</button>
-              {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
+              {agrandirMsg && <span className="texte-erreur">{agrandirMsg}</span>}
             </div>
           )}
           {action === 'nette' && asset.mediaType === 'video' && (
@@ -455,7 +474,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               <b>{t('Netteté 1080p')}</b>
               <p>{t('SeedVR2 monte le clip en 1080p, le mouvement ne change pas.')}</p>
               <button className="pill" onClick={() => void nettete()}>{t('Lancer la netteté')}</button>
-              {netteMsg && <span style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
+              {netteMsg && <span className="texte-erreur">{netteMsg}</span>}
             </div>
           )}
           {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
@@ -529,9 +548,9 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         </div>
         <PileLoras loras={loras} charge />
         <div className="flex gap-1.5">
-          <button className="b2 flex-1" style={{ color: 'var(--positif)', background: asset.reviewStatus === 'approved' ? 'rgba(62,207,114,.14)' : undefined }}
+          <button className="b2 flex-1" style={{ color: 'var(--positif)', background: asset.reviewStatus === 'approved' ? 'var(--positif-doux)' : undefined }}
             onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'approved' ? 'pending' : 'approved')}>{t('♥ Valider')}</button>
-          <button className="b2 flex-1" style={{ color: 'var(--danger)', background: asset.reviewStatus === 'rejected' ? 'rgba(240,85,72,.14)' : undefined }}
+          <button className="b2 flex-1" style={{ color: 'var(--danger)', background: asset.reviewStatus === 'rejected' ? 'var(--danger-doux)' : undefined }}
             onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'rejected' ? 'pending' : 'rejected')}>{t('✕ Refuser')}</button>
           <button className="b2 flex-1" disabled={asset.reviewStatus !== 'approved'}
             style={{ opacity: asset.reviewStatus === 'approved' ? 1 : .4 }}
@@ -581,7 +600,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={placerDansStage}>{t('Placer dans Stage')}</button>
             </div>
           )}
-          {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: '#0b0c0e' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
+          {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'var(--scene)' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
             <button className="pill" style={{ position: 'absolute', top: 16, right: 16 }} onClick={() => setVoir3d(false)}>{t('fermer')}</button></div>, document.body)}
           {finMsg && <div className="text-[12px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
           {asset.mediaType === 'photo' && <details className="plus" open={plusOuvert} onToggle={e => setPlusOuvert(e.currentTarget.open)}><summary>{t('Plus…')}</summary><div>
@@ -608,7 +627,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t('le même instant, la caméra plus près')}
                 onClick={() => void lancerLook('Move the camera closer: a tighter shot of the same person at the same moment, framed from the chest up. Keep the same face, outfit, pose, light and background.')}>Push in</button>
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t('le moment d’après, imaginé à partir de l’image')} onClick={() => void nextBeat()}>Next beat</button>
-              {planMsg && <span style={{ color: 'var(--danger)' }}>{planMsg}</span>}
+              {planMsg && <span className="texte-erreur">{planMsg}</span>}
             </div>
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               {t('Lumière')}
@@ -623,7 +642,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
                 <button key={f} className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t('élargit le cadre et invente la suite de la scène sur les bords')}
                   onClick={() => void agrandir(f)}>{f}</button>
               ))}
-              {agrandirMsg && <span style={{ color: 'var(--danger)' }}>{agrandirMsg}</span>}
+              {agrandirMsg && <span className="texte-erreur">{agrandirMsg}</span>}
             </div>
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setGuide3d(true)}>{t('Objet 3D')}</button>

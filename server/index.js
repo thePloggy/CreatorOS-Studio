@@ -41,7 +41,7 @@ import * as presets from './presets.js'
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis } from './croquis.js'
-import { VOIX, cloner, cloneDisponible, synthetiser, voixDisponible } from './voix.js'
+import { VOIX, changerVoix, cloner, cloneDisponible, synthetiser, voixDisponible } from './voix.js'
 import { aiToolkitPret } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
@@ -61,7 +61,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2066,6 +2066,42 @@ app.post('/api/voix/clone', async (req, reply) => {
   try { return await cloner({ texte: req.body?.texte, reference: req.body?.reference, accord: req.body?.accord === true }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
+/** Changeur de voix (cf. voix.changerVoix) : un audio de la bibliothèque, ou la piste d'un clip
+    qui devient un nouveau clip avec la voix changée. Réservé au propriétaire. */
+app.post('/api/voix/changer', async (req, reply) => {
+  const b = req.body ?? {}
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'voix-'))
+  try {
+    const opts = { voix: b.voix, reference: b.reference, accord: b.accord === true }
+    if (!b.assetId) {
+      const source = path.join(montage.MUSIQUES_DIR, path.basename(String(b.audio ?? '')))
+      const { nom } = await changerVoix({ source, ...opts })
+      return { nom }
+    }
+    const a = store.getAsset(String(b.assetId))
+    if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
+    const video = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+    const piste = path.join(tmp, 'piste.wav')
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', video, '-vn', '-ac', '1', '-ar', '24000', piste])
+    const { nom, chemin } = await changerVoix({ source: piste, ...opts })
+    const jobId = `voix-${Date.now().toString(36)}`, sortie = `${jobId}-0.mp4`
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', video, '-i', chemin, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', path.join(CONFIG.mediaDir, sortie)])
+    store.createJob({ id: jobId, createdAt: Date.now(), status: 'rendering', personaId: a.persona_id ?? null, register: 'sfw', mode: 'video', purpose: 'creative',
+      recipeId: 'voix@v1', workflowFile: null, seed: null, op: 'voix', videoEngine: null, userPrompt: 'voix changée', composedPositive: null, parentAssetId: a.id, estimatedMs: 30_000 })
+    store.markStarted(jobId, null)
+    store.createAsset(
+      { id: `a-${jobId}-0`, jobId, createdAt: Date.now(), mediaType: 'video', uri: `/media/${sortie}`, filename: sortie, bytes: fs.statSync(path.join(CONFIG.mediaDir, sortie)).size,
+        width: a.width ?? null, height: a.height ?? null, aspect: a.aspect ?? null, register: 'sfw', op: 'voix', videoEngine: null },
+      { recipeId: 'voix@v1', workflowFile: null, comfyPromptId: null, seed: null, composedPositive: null, composedNegative: null, userPrompt: 'voix changée', userDirectives: null,
+        selections: null, resolvedText: null, identityPreamble: null, registerClause: null, sourceImage: null, extraLoras: null,
+        injections: { applied: [`voix changée par Chatterbox VC (${b.reference ? 'extrait déclaré consenti' : `voix du studio ${b.voix}`}), image du clip ${a.id} copiée sans réencodage`], skipped: [] }, workflowJson: null })
+    store.markFinished(jobId, 0)
+    fs.rmSync(chemin, { force: true })
+    return { jobId, assetId: `a-${jobId}-0`, nom }
+  } catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+  finally { fs.rmSync(tmp, { recursive: true, force: true }) }
+})
+
 app.post('/api/voix', async (req, reply) => {
   try { return await synthetiser({ texte: req.body?.texte, voix: req.body?.voix, vitesse: req.body?.vitesse }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }

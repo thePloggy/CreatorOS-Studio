@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { t } from '../i18n'
 import { Pastille } from './bits'
-import { APERCUS, ApercuOutil, BANDEAU_CAMERA, BANDEAU_REEL, BANDEAU_STAGE, type Apercu } from './Apercus'
+import { APERCUS, ApercuOutil, BANDEAU_CAMERA, BANDEAU_REEL, BANDEAU_STAGE, pucesDe, type Apercu } from './Apercus'
 import type { Asset } from '../types'
 import { ChoixMedia, GROUPES, useOuvrirOutil, type ActionOutil, type Section } from './Navigation'
 
@@ -31,6 +31,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
             <button key={b.titre} onClick={() => go(b.cible)} className="bandeau">
               <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>
               <b>{b.titre}</b>
+              {pucesDe(b.apercu).length > 0 && <span className="puces-sous">{pucesDe(b.apercu).map(p => <em key={p}>{t(p)}</em>)}</span>}
               <span>{b.texte}</span>
             </button>
           ))}
@@ -48,6 +49,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
                 <button key={o.label} onClick={() => ouvrir(o)} className="carte-outil">
                   <span className="carte-image"><ApercuOutil apercu={APERCUS[o.label]} />{o.pastille && <i><Pastille k={o.pastille} /></i>}</span>
                   <b>{t(o.label)}</b>
+                  {pucesDe(APERCUS[o.label]).length > 0 && <span className="puces-sous">{pucesDe(APERCUS[o.label]).map(p => <em key={p}>{t(p)}</em>)}</span>}
                   <span>{t(o.texte)}</span>
                 </button>
               ))}

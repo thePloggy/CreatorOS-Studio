@@ -262,7 +262,7 @@ export function ReshootView() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <input value={texte} onChange={e => setTexte(e.target.value)} maxLength={300} placeholder={t('3. Optionnel : ce que la nouvelle caméra découvre (en anglais)')}
-              style={{ flex: 1, minWidth: 240, padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />
+              className="champ" style={{ flex: 1, minWidth: 240, fontSize: 12.5 }} />
             <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('LTX-2.5 · IC-LoRA CrossView · ~2 min pour 4 s')}</span>
             <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={!clip || busy} onClick={() => void go()}>{busy ? '…' : `🎥 ${t('Re-tourner')}`}</button>
           </div>

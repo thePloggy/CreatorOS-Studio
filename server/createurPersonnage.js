@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import * as store from './db.js'
 import { enqueue, enqueueEntrainement } from './jobs.js'
-import { creer as creerPersona, enregistrer as enregistrerPersona, SANS_PERSONNAGE } from './persona.js'
+import { activer, creer as creerPersona, enregistrer as enregistrerPersona, persona as personaActif, SANS_PERSONNAGE } from './persona.js'
 import { t0Hit } from './t0.js'
 
 const nettoie = (v, n = 80) => String(v ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, n)
@@ -45,7 +45,10 @@ export function creerPersonnage({ assetId, nom, traits, entrainer }) {
   const a = store.getAsset(String(assetId ?? ''))
   if (!a || a.media_type !== 'photo') throw new Error('choisis l’un des portraits proposés')
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  // le personnage actif du studio (celui de la démo) ne change pas : le nouveau se choisit dans le menu
+  const avant = personaActif().id
   const p = creerPersona({ name: n })
+  if (avant) activer(avant)
   enregistrerPersona({ preamble: description(x), description: `${n} : ${description(x)}, ${x.style}` }, p.id)
   const dossier = path.join(CONFIG.mediaDir, '.persona', p.id.replace(/[^a-z0-9_]/g, ''))
   fs.mkdirSync(dossier, { recursive: true })

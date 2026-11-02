@@ -134,7 +134,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
           {source === 'replique' && <>
             <textarea value={replique} onChange={e => setReplique(e.target.value)} maxLength={220} rows={2}
               placeholder={t('La phrase qu’elle dit, dans sa langue (ex. « Hi! This is my favourite café in Paris, you have to try the croissants. »)')}
-              style={{ padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 13 }} />
+              className="champ" style={{ fontSize: 13 }} />
             <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')}</span>
           </>}
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
@@ -147,7 +147,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             {voix && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{voix.duree.toFixed(1)} s</span>}
           </div>}
           <input value={texte} onChange={e => setTexte(e.target.value)} maxLength={400} placeholder={t('Optionnel : son attitude pendant qu’elle parle (en anglais, ex. « smiling, enthusiastic, holding a coffee cup »)')}
-            style={{ padding: '9px 11px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />
+            className="champ" style={{ fontSize: 12.5 }} />
         </div>
         <div className="flex items-center gap-3">
           <button className="cta" style={{ padding: '11px 20px', flexDirection: 'row' }} disabled={!photo || busy || (source === 'voix' ? !voix : !replique.trim())} onClick={() => void (source === 'voix' ? lancer() : lancerReplique())}>{busy ? '…' : `✨ ${t('Faire parler')}`}</button>

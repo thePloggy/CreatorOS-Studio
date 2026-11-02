@@ -118,7 +118,7 @@ export function VocabView() {
               'text-[12px] border rounded-full px-3 py-1 cursor-pointer',
               tab === tb ? 'text-text border-accent-dim bg-accent/10' : 'text-muted border-border bg-surface2',
             )}>
-            {t(tb)} <span className="text-faint">{counts[tb]}</span>
+            {t(tb)} <span className="text-muted">{counts[tb]}</span>
           </button>
         ))}
         {canAdd && (

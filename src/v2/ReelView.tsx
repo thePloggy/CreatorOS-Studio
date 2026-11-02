@@ -84,7 +84,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
             {[3, 4, 5].map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}
             <span style={{ marginLeft: 10 }}>{t('Musique')}</span>
             <select value={musique} onChange={e => setMusique(e.target.value)}
-              style={{ padding: '5px 8px', borderRadius: 8, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12 }}>
+              className="champ" style={{ fontSize: 12 }}>
               <option value="">{t('son des clips seulement')}</option>
               {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
             </select>
@@ -92,7 +92,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
             {voixListe.length > 0 && <>
               <span style={{ marginLeft: 10 }}>{t('Voix off')}</span>
               <select value={voixOff} onChange={e => setVoixOff(e.target.value)} aria-label={t('Voix off')}
-                style={{ padding: '5px 8px', borderRadius: 8, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12 }}>
+                className="champ" style={{ fontSize: 12 }}>
                 <option value="">{t('aucune')}</option>
                 {voixListe.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
               </select>
@@ -145,7 +145,7 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
               {k < idx || r.etat === 'fini' ? '✓ ' : ''}{t(NOM_ETAPE[e])}{k === idx ? detail(e) : ''}
             </span>
           ))}
-          {r.etat === 'echec' && <span style={{ color: 'var(--danger)' }}>{t('échec')} — {tServeur(r.erreur ?? '')}</span>}
+          {r.etat === 'echec' && <span className="texte-erreur">{t('échec')} — {tServeur(r.erreur ?? '')}</span>}
         </div>
         <div className="flex gap-2" style={{ overflowX: 'auto' }}>
           {(r.plans.length ? r.plans : Array.from({ length: r.n }, () => null)).map((p, i) => p?.supprime ? null : (
@@ -154,12 +154,12 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
                 : p?.photoUri ? <img src={p.photoUri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: .8 }} />
                 : <div className="flex items-center justify-center" style={{ height: '100%', fontSize: 12, color: 'var(--faint)' }}>{t('plan {n}', { n: i + 1 })}</div>}
               {p && !p.clipUri && (p.photoEtat === 'rendering' || p.clipEtat === 'rendering' || p.clipEtat === 'queued-comfy') &&
-                <span style={{ position: 'absolute', left: 4, bottom: 4, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(0,0,0,.7)' }}>{p.clipJob ? t('anime…') : t('photo…')}</span>}
+                <span className="pastille-media" style={{ left: 4, bottom: 4 }}>{p.clipJob ? t('anime…') : t('photo…')}</span>}
               {/* contrôle du plan avant le rendu : ce que la réécriture n'a pas su corriger */}
               {p?.avertissements?.length ? <span title={p.avertissements.map(x => t(x)).join(' · ')}
-                style={{ position: 'absolute', right: 4, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,182,72,.9)', color: '#111' }}>⚠</span> : null}
+                className="pastille-media" style={{ right: 4, top: 4, background: 'var(--attention)', color: 'var(--bg)' }}>⚠</span> : null}
               {p && (r.etat === 'fini' || r.etat === 'echec') && <button title={t('Refaire ce plan')} onClick={() => { setPlanRefait(i); setGeste(p.motion) }}
-                style={{ position: 'absolute', left: 4, top: 4, fontSize: 12, width: 22, height: 22, border: 0, borderRadius: 6, cursor: 'pointer', color: '#fff', background: 'rgba(0,0,0,.65)' }}>↻</button>}
+                style={{ position: 'absolute', left: 4, top: 4, fontSize: 12, width: 22, height: 22, border: 0, borderRadius: 6, cursor: 'pointer', color: '#fff', background: 'var(--voile)' }}>↻</button>}
             </div>
           ))}
         </div>
@@ -167,7 +167,7 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
           <div style={{ display: 'grid', gap: 6 }}>
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Plan {n} : le mouvement à refaire, les autres plans ne bougent pas', { n: planRefait + 1 })}</span>
             <textarea value={geste} maxLength={300} rows={2} onChange={e => setGeste(e.target.value)}
-              style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12.5 }} />
+              className="champ" style={{ fontSize: 12.5 }} />
             <div className="flex gap-2 items-center">
               <button className="pill tool" onClick={() => void refaire()}>↻ {t('Refaire ce plan')}</button>
               <button className="pill tool" onClick={() => setPlanRefait(null)}>{t('Annuler')}</button>

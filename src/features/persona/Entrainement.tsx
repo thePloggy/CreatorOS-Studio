@@ -28,9 +28,9 @@ export function Entrainement() {
   return (
     <div className="border border-border rounded-card bg-surface2 p-4 mb-4" style={{ display: 'grid', gap: 10, fontSize: 13 }}>
       <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· LoRA FLUX.2 Klein · ai-toolkit</span></b>
-      {!edition ? <span style={{ color: 'var(--muted)' }}>{t('Réservé au propriétaire du studio.')}</span>
-        : pret === false ? <span style={{ color: 'var(--muted)' }}>{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
-        <span style={{ color: 'var(--muted)' }}>{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur Klein.')}</span>
+      {!edition ? <span className="texte-doux">{t('Réservé au propriétaire du studio.')}</span>
+        : pret === false ? <span className="texte-doux">{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
+        <span className="texte-doux">{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur Klein.')}</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
           {photos.map(a => (
             <button key={a.id} onClick={() => basculer(a.id)} aria-pressed={choix.has(a.id)} aria-label={t('sélectionner')}
@@ -42,8 +42,8 @@ export function Entrainement() {
         <div className="flex gap-2 items-center flex-wrap">
           <span>{choix.size} / 30</span>
           <input value={mot} onChange={e => setMot(e.target.value)} placeholder={t('mot déclencheur, ex. jzl4')} maxLength={16} aria-label={t('mot déclencheur')}
-            style={{ padding: '6px 10px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit' }} />
-          <select value={pas} onChange={e => setPas(Number(e.target.value))} aria-label={t('durée')} style={{ padding: '6px 8px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit' }}>
+            className="champ" />
+          <select value={pas} onChange={e => setPas(Number(e.target.value))} aria-label={t('durée')} className="champ">
             <option value={800}>{t('rapide · 800 pas')}</option><option value={1500}>{t('normal · 1500 pas')}</option><option value={2500}>{t('fin · 2500 pas')}</option>
           </select>
           <button className="pill" disabled={choix.size < 8 || mot.trim().length < 3} onClick={() => void lancer()}>{t('Entraîner')}</button>

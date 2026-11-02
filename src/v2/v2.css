@@ -21,6 +21,11 @@
   --danger: #f05548;
   --positif: #3ecf72;
   --attention: #f0b12f;
+  --positif-doux: rgba(62, 207, 114, 0.14);
+  --danger-doux: rgba(240, 85, 72, 0.14);
+  --voile: rgba(0, 0, 0, 0.68);
+  --scene: #08090b;
+  --sh-media: 0 30px 90px rgba(0, 0, 0, 0.6);
   --sh-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
   --sh-md: 0 8px 28px rgba(0, 0, 0, 0.45);
   --sh-lg: 0 18px 60px rgba(0, 0, 0, 0.6);
@@ -644,3 +649,14 @@
 @media (max-width: 900px) { .v2 .croquis { grid-template-columns: 1fr; } }
 .v2 .bandeaux { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 14px; align-items: end; }
 @media (max-width: 1100px) { .v2 .bandeaux { grid-template-columns: 1fr; } }
+
+/* Champs, textes d'état et pastilles posées sur un média : classes partagées des panneaux. */
+.v2 .champ { max-width: 100%; min-width: 0; padding: 7px 10px; border-radius: 9px; background: var(--lv2); border: 1px solid var(--lv3); color: var(--text); font: inherit; font-size: 13px; }
+.v2 .champ:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.v2 .texte-doux { color: var(--muted); }
+.v2 .texte-faible { color: var(--faint); }
+.v2 .texte-erreur { color: var(--danger); }
+.v2 .pastille-media { position: absolute; font-size: 12px; padding: 1px 5px; border-radius: 5px; background: var(--voile); color: #fff; }
+.v2 .puces-sous { display: flex; flex-wrap: wrap; gap: 4px; }
+.v2 .puces-sous em { font-style: normal; font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--lv2); color: var(--muted); }
+.v2 .bandeau, .v2 .carte-outil { align-content: start; }
