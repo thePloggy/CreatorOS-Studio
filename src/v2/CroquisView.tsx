@@ -66,7 +66,7 @@ export function CroquisView() {
         </div>
         <div className="croquis">
           <div className="croquis-toile">
-            <canvas ref={toile} width={w} height={h} style={{ aspectRatio: `${w} / ${h}` }}
+            <canvas ref={toile} width={w} height={h} style={{ aspectRatio: `${w} / ${h}`, width: `min(100%, calc(70vh * ${w / h}))` }}
               onPointerDown={debut} onPointerMove={trace} onPointerUp={() => { dessin.current = null }} onPointerLeave={() => { dessin.current = null }} />
             <div className="flex gap-1.5 flex-wrap items-center text-[12px]" style={{ color: 'var(--muted)' }}>
               {(Object.keys(FORMATS) as Format[]).map(f => <button key={f} className={`pill ${format === f ? 'on' : ''}`} onClick={() => setFormat(f)}>{f}</button>)}
