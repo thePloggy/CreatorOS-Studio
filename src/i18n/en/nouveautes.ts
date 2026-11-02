@@ -725,4 +725,12 @@ export const nouveautes: Record<string, string> = {
   'Créer de zéro': 'Create from scratch',
   'Importer une LoRA existante': 'Import an existing LoRA',
   'Un personnage vide : tu ajoutes ensuite sa LoRA (déposée dans le dossier des LoRA) et son crédit.': 'An empty character: then add its LoRA (dropped in the LoRA folder) and its credit.',
+  'Le suivi de cette création est perdu : ses images sont dans la Bibliothèque, et sa LoRA s’entraîne depuis Personnages → Entraînement.': 'This creation’s tracking was lost: its images are in the Library, and its LoRA trains from Characters → Training.',
+  '{n} images': '{n} images',
+  '{n} pas': '{n} steps',
+  'préparation…': 'preparing…',
+  'avancement de l’entraînement': 'training progress',
+  'pas {n} / {t}': 'step {n} / {t}',
+  'encore ~{m} min': 'about {m} min left',
+  'LoRA ajoutée au personnage : {nom}': 'LoRA added to the character: {nom}',
 }

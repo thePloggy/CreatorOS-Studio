@@ -12,7 +12,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { spawn, execFileSync } from 'node:child_process'
+import { spawn, spawnSync, execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import * as store from './db.js'
 import { ensurePoster } from './poster.js'
@@ -90,6 +90,33 @@ function nettoyer(d) {
 
 /* ---------- musiques (dossier du studio, jamais le dossier input de ComfyUI) ---------- */
 const nomMusiqueValide = nom => /^[\w.-]+$/.test(nom) && !nom.startsWith('.') && fs.existsSync(path.join(MUSIQUES_DIR, nom))
+/** Fin de la partie sonore d'un morceau : beaucoup finissent par plusieurs secondes de
+    silence, qui revenaient à chaque tour de boucle (un trou de 3 s en plein reel). */
+const finsSonores = new Map()
+export function finSonore(fichier) {
+  if (finsSonores.has(fichier)) return finsSonores.get(fichier)
+  let fin = null
+  try {
+    const duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', fichier], { encoding: 'utf8' })) || 0
+    const log = String(spawnSync('ffmpeg', ['-v', 'info', '-i', fichier, '-af', 'silencedetect=n=-45dB:d=0.4', '-f', 'null', '-'], { encoding: 'utf8', timeout: 60_000 }).stderr ?? '')
+    fin = duree
+    // un silence qui court jusqu'à la fin du fichier : sa fin est (à peu près) la durée, ou absente
+    const debuts = [...log.matchAll(/silence_start: ([\d.]+)/g)].map(x => Number(x[1]))
+    const fins = [...log.matchAll(/silence_end: ([\d.]+)/g)].map(x => Number(x[1]))
+    const dernierDebut = debuts.at(-1)
+    if (dernierDebut > 1 && (debuts.length > fins.length || fins.at(-1) >= duree - 0.1)) fin = dernierDebut
+  } catch { fin = null }
+  finsSonores.set(fichier, fin)
+  return fin
+}
+/** Filtre qui fait boucler la partie sonore d'un morceau à partir de `depart`, sur `longueur` secondes. */
+export function boucleSonore(fichier, depart, longueur) {
+  const fin = finSonore(fichier)
+  if (!fin || fin < 2) return `aresample=48000,aformat=channel_layouts=stereo,atrim=${depart}:${(depart + longueur).toFixed(3)},asetpts=PTS-STARTPTS`
+  return `aresample=48000,aformat=channel_layouts=stereo,atrim=0:${fin.toFixed(3)},asetpts=N/SR/TB,afade=t=out:st=${Math.max(0, fin - 0.08).toFixed(3)}:d=0.08,`
+    + `aloop=loop=-1:size=${Math.round(fin * 48000)},atrim=${depart}:${(depart + longueur).toFixed(3)},asetpts=PTS-STARTPTS`
+}
+
 export function listerMusiques() {
   try {
     return fs.readdirSync(MUSIQUES_DIR).filter(f => !f.startsWith('.'))
@@ -167,7 +194,7 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
     else args.push('-loop', '1', '-framerate', String(FPS), '-t', p.duree.toFixed(3), '-i', p.fichier)
   })
   const iMusique = d.musique ? plans.length : -1
-  if (d.musique) args.push('-ss', String(d.musique.decalage || 0), '-stream_loop', '-1', '-i', path.join(MUSIQUES_DIR, d.musique.fichier))
+  if (d.musique) args.push('-i', path.join(MUSIQUES_DIR, d.musique.fichier))
 
   const taille = Math.round(H * (H > W ? 0.042 : 0.058))
   const parLigne = Math.max(12, Math.floor(W / (taille * 0.56)))
@@ -226,7 +253,7 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
   let aOut = ac
   if (d.musique) {
     const m = d.musique
-    f.push(`[${iMusique}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${longueur.toFixed(3)},asetpts=PTS-STARTPTS,volume=${m.volume}`
+    f.push(`[${iMusique}:a]${boucleSonore(path.join(MUSIQUES_DIR, m.fichier), Number(m.decalage) || 0, longueur)},volume=${m.volume}`
       + (m.fonduEntree > 0 ? `,afade=t=in:d=${m.fonduEntree}` : '')
       + (m.fonduSortie > 0 ? `,afade=t=out:st=${Math.max(0, longueur - m.fonduSortie).toFixed(3)}:d=${m.fonduSortie}` : '') + '[mus]')
     // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air

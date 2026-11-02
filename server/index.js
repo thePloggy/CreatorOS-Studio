@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -2045,7 +2045,23 @@ app.post('/api/personnages/creer', async (req, reply) => {
 app.get('/api/personnages/creer/:id', async (req, reply) => etatCreation(req.params.id) ?? (reply.code(404), { error: 'création inconnue' }))
 
 /** Entraînement d'un personnage sur des images de la bibliothèque (propriétaire seulement). */
-app.get('/api/entrainement', async () => ({ pret: aiToolkitPret() }))
+/** Entraînements de LoRA des 14 derniers jours : état, pas faits, temps restant estimé, LoRA produite. */
+app.get('/api/entrainement', async () => {
+  const lignes = store.db.prepare(`SELECT id, persona_id, status, created_at, started_at, finished_at, error, payload FROM jobs
+    WHERE recipe_id = 'entrainement@v1' AND created_at > ? ORDER BY created_at DESC LIMIT 20`).all(Date.now() - 14 * 86400_000)
+  const travaux = lignes.map(r => {
+    let p = {}; try { p = JSON.parse(r.payload ?? '{}') } catch { /* payload illisible */ }
+    const av = avancementEntrainements.get(r.id)
+    const total = av?.total ?? p.entrainementPas ?? null
+    const ecoule = r.started_at ? Date.now() - r.started_at : 0
+    const resteMs = r.status === 'done' ? 0 : av?.pas > 20 ? Math.round((Date.now() - av.debut) / av.pas * (av.total - av.pas))
+      : Math.max(0, (p.estimatedMs ?? 0) - ecoule)
+    return { id: r.id, personaId: r.persona_id, statut: r.status, declencheur: p.entrainementDeclencheur ?? null, images: p.entrainementImages?.length ?? null,
+      pas: av?.pas ?? (r.status === 'done' ? total : null), total, debut: r.started_at, fin: r.finished_at, resteMs, erreur: r.error ? String(r.error).slice(0, 200) : null,
+      lora: r.status === 'done' && !p.entrainementEssai ? `${String(r.persona_id).replace(/[^a-z0-9_]/g, '')}_klein_${r.id.slice(6)}.safetensors` : null }
+  })
+  return { pret: aiToolkitPret(), travaux }
+})
 app.post('/api/personas/:id/entrainer', async (req, reply) => {
   const ids = Array.isArray(req.body?.assets) ? req.body.assets.slice(0, 30) : []
   const images = ids.map(i => store.getAsset(String(i))).filter(a => a && a.media_type === 'photo').map(a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))).filter(f => fs.existsSync(f))

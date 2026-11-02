@@ -24,6 +24,7 @@ import { persona } from './persona.js'
 import { enqueue as enfiler, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
+import { anatomieImage, anatomieVideo } from './anatomie.js'
 import { synthetiser, VOIX } from './voix.js'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -94,7 +95,7 @@ export async function pisteNarree(r, nbPlans, pasPlan) {
   const musique = r.musique ? montage.cheminMusique(r.musique) : null
   const depart = r.grille?.debut ?? 0
   const fc = musique
-    ? `${voix};${mix},asplit=2[vo][sc];[${morceaux.length}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=${depart}:${depart + total},asetpts=PTS-STARTPTS,volume=0.6[m];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];[md][vo]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5[a]`
+    ? `${voix};${mix},asplit=2[vo][sc];[${morceaux.length}:a]${montage.boucleSonore(musique, depart, total)},volume=0.6[m];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];[md][vo]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5[a]`
     : `${voix};${mix},loudnorm=I=-14:TP=-1.5[a]`
   await lancer('ffmpeg', ['-v', 'error', '-y', ...ins, ...(musique ? ['-i', musique] : []), '-filter_complex', fc, '-map', '[a]', '-t', String(total), sortie], { timeout: 120_000 })
   for (const m of morceaux) fs.rmSync(m.f, { force: true })
@@ -160,13 +161,13 @@ export function affectations(n) {
 }
 const ligneDe = (a, k) => `SHOT ${k + 1}: framing = ${a.cadrage}; camera = ${a.angle}; action = ${a.geste}; camera move = ${a.camera}; `
   + ({ aucun: 'object = none — nothing in her hands, her support comes from the setting',
-    lieu: 'object = one object that truly belongs in this place and this moment — she touches or uses it',
-    objet: 'object = one precise object of this place, the subject of the detail shot — her hands touch or hold it' })[a.objet]
+    lieu: 'object = an object the brief names (her cocktail, her book…) if there is one, otherwise one object that truly belongs in this place and this moment — she touches or uses it',
+    objet: 'object = the subject of the detail shot: an object the brief names if there is one, otherwise one precise object of this place — her hands touch or hold it' })[a.objet]
 
 const SCHEMA = n => ({
-  type: 'object', required: ['hook', 'outfit', 'location', 'light', 'shots'],
+  type: 'object', required: ['brief_objects', 'hook', 'outfit', 'location', 'light', 'shots'],
   properties: {
-    hook: { type: 'string' }, outfit: { type: 'string' }, location: { type: 'string' }, light: { type: 'string' },
+    brief_objects: { type: 'array', items: { type: 'string' } }, hook: { type: 'string' }, outfit: { type: 'string' }, location: { type: 'string' }, light: { type: 'string' },
     shots: { type: 'array', minItems: n, maxItems: n, items: {
       type: 'object', required: ['action', 'support', 'object', 'still', 'motion'],
       properties: { action: { type: 'string' }, support: { type: 'string' }, object: { type: 'string' }, still: { type: 'string' }, motion: { type: 'string' } } } },
@@ -180,6 +181,8 @@ Plan exactly ${n} shots that follow each other in time and tell a tiny story: a 
 The events of the brief happen across the shots, IN ORDER (a brief "coffee on a terrace, then a walk to the tram" gives terrace shots first, then the walk, then the tram).
 Write ONCE, for the whole reel: "outfit" (every garment with its colour and fabric), "location" (the area where the whole reel happens, with what is in it — a neighbourhood, a beach, a house), "light" (time of day and light quality). They are added to every shot by the system: never repeat them in a shot. When the story moves, each still names its exact spot within that area.
 Never name a real business, café, shop or brand: describe the place instead.
+"brief_objects": the objects the brief itself names for her (a cocktail, a guitar, a coffee), each with its colour and material; [] if it names none. They are HER objects: they come back across the shots where an object is assigned, and they are the subject of the detail shot. Never replace them with unrelated props.
+Keep the mood, the moment and the activity of the brief in every shot: a cocktail at sunset is an adult evening moment — no children's toys, buckets, spades or games, and "location" lists only what this mood calls for.
 Each shot has an assignment line. Follow it, and fill, in this order:
 - action: what her body does, adapted to this woman, this outfit, this place and this mood. Keep the KIND of movement assigned, choose the version that is credible here.
 - support: what her body rests on or is against, taken from this setting (a railing, a café chair, a stone step). "none" only in a close-up.
@@ -213,12 +216,12 @@ const partage = (a, b) => { const r = racinesAction(a), p = new Set(racinesActio
 const vide = x => /^(none|no|nothing|n\/a|-)?\.?$/i.test(String(x ?? '').trim())
 const teteObjet = o => String(o).toLowerCase().match(/[a-z]+/g)?.filter(w => w.length > 2 && !['the', 'and', 'with', 'her', 'its'].includes(w)).pop()
 /** Fautes d'un plan face à son affectation, en anglais pour le réalisateur. */
-export function fautesPlan(s, a, autres = []) {
+export function fautesPlan(s, a, autres = [], duBrief = []) {
   const f = [], still = String(s?.still ?? '').trim(), motion = String(s?.motion ?? '').trim()
   const mots = still.split(/\s+/).filter(Boolean).length
   if (mots < 26) f.push('the still is missing or too short (30 to 55 words)')
   const objMots = String(s?.object ?? '').trim().split(/\s+/).length
-  if (!vide(s?.object) && (objMots > 9 || /,|\b(lying|sitting|resting|placed|on the|she|her)\b/i.test(String(s.object))))
+  if (!vide(s?.object) && (objMots > 9 || /\b(lying|sitting|resting|placed|on the|she|her)\b/i.test(String(s.object))))
     f.push('object: only the name of the thing with its colour and material, 2 to 8 words, no verb and no position')
   else if (!vide(s?.object) && objMots < 2) f.push('object: name it precisely, with its colour and material')
   if (racinesAction(s?.action).length && partage(s?.action, still) < 0.34) f.push('the still does not show the action: write the action in the still')
@@ -229,7 +232,11 @@ export function fautesPlan(s, a, autres = []) {
   if (a.objet !== 'aucun' && vide(s?.object)) f.push('an object is assigned but object is empty')
   const tete = !vide(s?.object) && teteObjet(s.object)
   if (tete && !still.toLowerCase().includes(tete)) f.push('the object is not named in the still')
-  if (tete && autres.some(o => teteObjet(o) === tete)) f.push('another shot already uses this object: choose a different one')
+  const tetesBrief = duBrief.map(teteObjet).filter(Boolean)
+  const objetBrief = tete && tetesBrief.some(b => b === tete || String(s.object).toLowerCase().includes(b))
+  if (tete && !objetBrief && autres.some(o => teteObjet(o) === tete)) f.push('another shot already uses this object: choose a different one')
+  if (tete && tetesBrief.length && !objetBrief) f.push(`the brief names ${duBrief.join(', ')}: use it as her object instead of an unrelated prop`)
+  if (/\b(toys?|bucket|spade|shovel|sandcastle|kite|beach ball)\b/i.test(`${s?.object ?? ''} ${still}`) && tetesBrief.length) f.push('no children\'s toys or games: keep the adult mood of the brief')
   if (SERRE.test(a.cadrage) && /\b(legs?|knees?|feet|foot|shoes?|boots?|sandals?|heels?|standing|stands|sits|sitting|seated)\b/i.test(still))
     f.push('close-up: describe only her face, her hands and what they touch — no legs, feet, shoes or posture')
   if (/\b(I|me|my|we|our)\b/.test(`${still} ${motion}`)) f.push('first person used: write she, her')
@@ -246,7 +253,8 @@ export async function rediger({ brief, n, nom, langue }) {
   if (!Array.isArray(out.shots) || out.shots.length < 2) throw new Error('le réalisateur n’a pas rendu de plans exploitables')
   const shots = out.shots.slice(0, n)
   const objetsAvant = k => shots.slice(0, k).map(x => x.object).filter(o => !vide(o))
-  let fautes = shots.map((x, k) => fautesPlan(x, aff[k], objetsAvant(k)))
+  const duBrief = (out.brief_objects ?? []).map(String).filter(x => x.trim()).slice(0, 4)
+  let fautes = shots.map((x, k) => fautesPlan(x, aff[k], objetsAvant(k), duBrief))
   const aRefaire = fautes.map((f, k) => (f.length ? k : -1)).filter(k => k >= 0)
   if (aRefaire.length) {
     try {
@@ -256,10 +264,10 @@ export async function rediger({ brief, n, nom, langue }) {
       const refaits = (await appeler({ system, prompt: u2, format: SCHEMA_PLANS(aRefaire.length), temperature: 0.5, predire: 2000 })).shots ?? []
       aRefaire.forEach((k, j) => {
         const neuf = refaits[j]
-        if (neuf && !t0Hit(`${neuf.still} ${neuf.motion}`) && fautesPlan(neuf, aff[k], objetsAvant(k)).length < fautes[k].length) shots[k] = neuf
+        if (neuf && !t0Hit(`${neuf.still} ${neuf.motion}`) && fautesPlan(neuf, aff[k], objetsAvant(k), duBrief).length < fautes[k].length) shots[k] = neuf
       })
     } catch (e) { console.warn(`réécriture des plans impossible — ${e.message || e}`) }
-    fautes = shots.map((x, k) => fautesPlan(x, aff[k], objetsAvant(k)))
+    fautes = shots.map((x, k) => fautesPlan(x, aff[k], objetsAvant(k), duBrief))
   }
   return { ...out, shots, affectations: aff, fautes }
 }
@@ -341,7 +349,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
           const reste = controlerPlan(pl)
           if (reste.length) pl.avertissements = reste.map(c => c.fr)
         }
-        pl.still = `${pl.still} She wears ${bas(tenueCadree(r.outfit, a.cadrage))}. ${lieu}. ${lumiere}.`
+        pl.still = `${pl.still} She wears ${bas(tenueCadree(r.outfit, a.cadrage))}. ${lieu}. ${lumiere}.${anatomieImage(b)}`
         return pl
       })
       for (const pl of plans) {
@@ -389,7 +397,7 @@ function avancer(r) {
           if (!a) { rates++; continue }
           pl.photoAsset = a.id
           const j = enqueue(r.id, { id: `${r.id}-c${r.plans.indexOf(pl) + 1}${pl.refait ? `-r${pl.refait}` : ''}`, mode: 'video', register: 'sfw', personaId: r.personaId, purpose: 'creative', videoEngine: 'ltx_hq', withAudio: true,
-            sourceImage: versInput(a), composedPositive: `${pl.motion}. single continuous shot, no cuts`, userPrompt: pl.motion, composedNegative: '',
+            sourceImage: versInput(a), composedPositive: `${pl.motion}. single continuous shot, no cuts.${anatomieVideo(r.brief)}`, userPrompt: pl.motion, composedNegative: '',
             videoSeconds: r.duree, videoFps: 24, videoAspect: '9:16', reelId: r.id })
           pl.clipJob = j.id; change = true
         } else if (s === 'blocked' || s === 'cancelled' || s === 'absent') rates++

@@ -46,7 +46,10 @@ export function CreerPersonnageView() {
   const portraits = useMemo(() => s.assets.filter(a => a.jobId && jobs.includes(a.jobId) && a.mediaType === 'photo'), [s.assets, jobs])
   useEffect(() => {
     if (!suivi || suivi.entrainementEtat === 'done') return
-    const h = setInterval(() => void fetch(`/api/personnages/creer/${suivi.id}`).then(r => r.json()).then(setSuivi).catch(() => {}), 4000)
+    const h = setInterval(() => void fetch(`/api/personnages/creer/${suivi.id}`).then(async r => {
+      if (r.ok) { setSuivi(await r.json()); return }
+      if (r.status === 404) { setSuivi(null); setMsg(t('Le suivi de cette création est perdu : ses images sont dans la Bibliothèque, et sa LoRA s’entraîne depuis Personnages → Entraînement.')) }
+    }).catch(() => {}), 4000)
     return () => clearInterval(h)
   }, [suivi])
   const poster = async (url: string, corps: object) => {

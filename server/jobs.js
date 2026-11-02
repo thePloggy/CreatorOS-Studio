@@ -1844,12 +1844,18 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
   store.createJob(row); queue.push(row); pump()
   return { id }
 }
+/** Avancement des entraînements en cours (pas faits / pas prévus), pour l'écran du personnage. */
+export const avancementEntrainements = new Map()
 async function runEntrainement(job, t0) {
   store.markStarted(job.id, null)
   await comfy.freeMemory().catch(() => {})
   const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas })
   let dernier = 0
-  const lora = await entrainer({ ...prep, pas: job.entrainementPas }, n => { if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${n}/${job.entrainementPas}`) } })
+  avancementEntrainements.set(job.id, { pas: 0, total: job.entrainementPas, debut: Date.now() })
+  const lora = await entrainer({ ...prep, pas: job.entrainementPas }, n => {
+    avancementEntrainements.set(job.id, { pas: n, total: job.entrainementPas, debut: avancementEntrainements.get(job.id)?.debut ?? Date.now() })
+    if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${n}/${job.entrainementPas}`) }
+  }).finally(() => avancementEntrainements.delete(job.id))
   const nom = `${String(job.personaId).replace(/[^a-z0-9_]/g, '')}_klein_${job.id.slice(6)}.safetensors`
   fs.copyFileSync(lora, path.join(CONFIG.lorasDir, nom))
   if (!job.entrainementEssai) {

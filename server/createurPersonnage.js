@@ -36,7 +36,15 @@ const SCENES = [
   'laughing indoors, warm lamp light', 'looking over the shoulder in a park', 'black and white portrait, dramatic side light',
   'wearing a coat in the rain at night, neon reflections', 'working at a desk with a laptop, soft daylight', 'full body in sportswear in a park, morning light',
 ]
+/* Les créations en cours sont gardées sur le disque : un redémarrage du service ne doit ni
+   faire oublier leur avancement, ni empêcher l'entraînement de partir à la fin des images. */
+const FICHIER_SUIVIS = path.join(CONFIG.dataDir, 'creations-personnages.json')
 const suivis = new Map()
+try {
+  for (const c of JSON.parse(fs.readFileSync(FICHIER_SUIVIS, 'utf8')))
+    if (c?.id && Date.now() - (c.debut ?? 0) < 7 * 86400_000) suivis.set(c.id, c)
+} catch { /* aucun suivi enregistré */ }
+const garder = () => { try { fs.writeFileSync(FICHIER_SUIVIS, JSON.stringify([...suivis.values()])) } catch (e) { console.warn(`[création] suivi non enregistré : ${e.message || e}`) } }
 
 export function creerPersonnage({ assetId, nom, traits, entrainer }) {
   const x = lireTraits(traits)
@@ -59,7 +67,8 @@ export function creerPersonnage({ assetId, nom, traits, entrainer }) {
   const images = SCENES.map(s => enqueue({ mode: 'photo', register: 'sfw', personaId: p.id, purpose: 'creative', photoEngine: 'klein', composedNegative: '', width: 832, height: 1216,
     composedPositive: `${s}, photorealistic`, userPrompt: s }).id)
   const id = `perso-${Date.now().toString(36)}`
-  suivis.set(id, { id, personaId: p.id, nom: n, planche, images, entrainer: !!entrainer, entrainement: null, declencheur: `${n.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}x` })
+  suivis.set(id, { id, personaId: p.id, nom: n, planche, images, entrainer: !!entrainer, entrainement: null, debut: Date.now(), declencheur: `${n.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10)}x` })
+  garder()
   return etatCreation(id)
 }
 
@@ -78,5 +87,6 @@ setInterval(() => {
     const fichiers = c.images.flatMap(j => store.assetsOfJob(j).filter(a => !String(a.id).endsWith('-full')).map(a => path.join(CONFIG.mediaDir, path.basename(a.filename))))
     try { c.entrainement = enqueueEntrainement({ personaId: c.personaId, images: fichiers, declencheur: c.declencheur, pas: 1200 }).id }
     catch (e) { c.entrainer = false; console.warn(`[création ${c.id}] entraînement : ${e.message || e}`) }
+    garder()
   }
 }, 5000).unref()

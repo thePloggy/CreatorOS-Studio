@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import * as store from './db.js'
 import { enqueue } from './jobs.js'
+import { anatomieImage, anatomieVideo } from './anatomie.js'
 
 const FORMATS = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024] }
 const suivis = new Map()
@@ -38,11 +39,11 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
   }
   store.noterInput(nom, 'croquis')
   const photo = enqueue({ mode: 'photo', register: 'sfw', personaId, purpose: 'creative', photoEngine: 'klein', references: [nom],
-    composedPositive: `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.`,
+    composedPositive: `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.${anatomieImage(s)}`,
     userPrompt: s, composedNegative: '', width: w, height: h })
   const id = `crq-${cle}`
   suivis.set(id, { id, photoJob: photo.id, clipJob: null, mouvement: String(mouvement ?? '').trim().slice(0, 300) || 'gentle natural motion, slow cinematic camera move',
-    format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId, croquis: nom })
+    scene: s, format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId, croquis: nom })
   return etatCroquis(id)
 }
 
@@ -65,7 +66,7 @@ function avancer(c) {
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
   store.noterInput(nom)
   const j = enqueue({ mode: 'video', register: 'sfw', personaId: c.personaId, purpose: 'creative', videoEngine: 'ltx_hq', sourceImage: nom,
-    composedPositive: `${c.mouvement}. single continuous shot`, userPrompt: c.mouvement, composedNegative: '', withAudio: true,
+    composedPositive: `${c.mouvement}. single continuous shot.${anatomieVideo(`${c.scene ?? ''} ${c.mouvement}`)}`, userPrompt: c.mouvement, composedNegative: '', withAudio: true,
     videoSeconds: c.secondes, videoFps: 24, videoAspect: c.format, parentAssetId: a.id })
   c.clipJob = j.id
 }
