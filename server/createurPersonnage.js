@@ -49,7 +49,7 @@ export function creerPersonnage({ assetId, nom, traits, entrainer }) {
   const avant = personaActif().id
   const p = creerPersona({ name: n })
   if (avant) activer(avant)
-  enregistrerPersona({ preamble: description(x), description: `${n} : ${description(x)}, ${x.style}` }, p.id)
+  enregistrerPersona({ preamble: description(x), description: `${n} : ${description(x)}, ${x.style}`, credit: { auteur: 'CreatorOS Studio', url: '', licence: 'personnage fictif créé dans le studio, libre' } }, p.id)
   const dossier = path.join(CONFIG.mediaDir, '.persona', p.id.replace(/[^a-z0-9_]/g, ''))
   fs.mkdirSync(dossier, { recursive: true })
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', src, '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=512:512', '-q:v', '3', path.join(dossier, 'avatar.jpg')])

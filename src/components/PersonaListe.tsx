@@ -33,9 +33,11 @@ async function appel(url: string, init?: RequestInit) {
 
 /** `onChange` : appelé avec l'id de l'actif après chaque changement, pour que
  *  l'éditeur se recharge sur le bon personnage. */
-export function PersonaListe({ onChange }: { onChange: (actif: string | null) => void }) {
+/** `onCreerDeZero` : ouvre le créateur de personnage (description → visages → planche → LoRA). */
+export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: string | null) => void; onCreerDeZero?: () => void }) {
   const [liste, setListe] = useState<PersonaResume[] | null>(null)
   const [nouveau, setNouveau] = useState<string | null>(null)
+  const [choix, setChoix] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const refresh = useAppStore(s => s.refreshPersona)
   const edition = useEdition()
@@ -98,7 +100,19 @@ export function PersonaListe({ onChange }: { onChange: (actif: string | null) =>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {!edition ? null : nouveau === null
-          ? <button style={bouton} onClick={() => setNouveau('')}>{t('+ Nouveau personnage')}</button>
+          ? choix
+            ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, width: '100%' }}>
+                {onCreerDeZero && <button style={{ ...bouton, padding: '12px 14px', textAlign: 'left', display: 'grid', gap: 4 }} onClick={() => { setChoix(false); onCreerDeZero() }}>
+                  <b style={{ fontSize: 13 }}>✨ {t('Créer de zéro')}</b>
+                  <span style={{ opacity: 0.7 }}>{t('Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.')}</span>
+                </button>}
+                <button style={{ ...bouton, padding: '12px 14px', textAlign: 'left', display: 'grid', gap: 4 }} onClick={() => { setChoix(false); setNouveau('') }}>
+                  <b style={{ fontSize: 13 }}>⬆ {t('Importer une LoRA existante')}</b>
+                  <span style={{ opacity: 0.7 }}>{t('Un personnage vide : tu ajoutes ensuite sa LoRA (déposée dans le dossier des LoRA) et son crédit.')}</span>
+                </button>
+                <button style={{ ...bouton, justifySelf: 'start' }} onClick={() => setChoix(false)}>{t('Annuler')}</button>
+              </div>
+            : <button style={bouton} onClick={() => setChoix(true)}>{t('+ Nouveau personnage')}</button>
           : <>
               <input autoFocus value={nouveau} placeholder={t('Nom')} maxLength={60}
                 onChange={e => setNouveau(e.target.value)}

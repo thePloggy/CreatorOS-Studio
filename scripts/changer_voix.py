@@ -14,7 +14,12 @@ import torchaudio as ta
 from chatterbox.vc import ChatterboxVC
 
 source, cible, sortie = sys.argv[1], sys.argv[2], sys.argv[3]
-modele = ChatterboxVC.from_pretrained('cuda' if torch.cuda.is_available() else 'cpu')
+# la carte peut être prise entière par ComfyUI : repli sur le processeur, plus lent mais sûr
+try:
+    modele = ChatterboxVC.from_pretrained('cuda') if torch.cuda.is_available() else ChatterboxVC.from_pretrained('cpu')
+except (RuntimeError, torch.cuda.OutOfMemoryError):
+    torch.cuda.empty_cache()
+    modele = ChatterboxVC.from_pretrained('cpu')
 modele.set_target_voice(cible)
 y, _ = librosa.load(source, sr=16000)
 pas = 20 * 16000

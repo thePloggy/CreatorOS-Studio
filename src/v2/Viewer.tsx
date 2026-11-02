@@ -14,7 +14,7 @@ import { posterOf } from '../components/AssetMedia'
 import { renderTime } from '../lib/renderTime'
 import { resumeControle } from '../lib/controle'
 import { trierDossiers } from '../lib/folders'
-import { FolderMenu, Ic, lancerFinition, useConfirm, useExclusiveMenu } from './bits'
+import { FolderMenu, Ic, lancerFinition, useConfirm, useExclusiveMenu, useVideoArretee } from './bits'
 import { createPortal } from 'react-dom'
 import { CarouselPopup } from './popups'
 import { AvantApres } from '../components/AvantApres'
@@ -262,6 +262,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   goVideo: () => void
   goImage: () => void
 }) {
+  const videoArretee = useVideoArretee()
   const s = useAppStore()
   const nav = useAssetNav(list, asset, a => (a ? onGo(a) : onClose()))
   const [prov, setProv] = useState<string | null>(null)
@@ -424,7 +425,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {parent && compare
           ? <AvantApres avant={parent} apres={asset} className="max-h-[92vh] max-w-full rounded-[10px]" style={{ maxWidth: '86%', boxShadow: 'var(--sh-md)' }} />
           : asset.mediaType === 'video'
-          ? <video src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
+          ? <video ref={videoArretee} src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
               onLoadedMetadata={e => { const el = e.target as HTMLVideoElement; setClip({ w: el.videoWidth, h: el.videoHeight, dur: el.duration }) }} />
           : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: 'var(--sh-media)' }} />}
         <AssetNavArrows {...nav} />

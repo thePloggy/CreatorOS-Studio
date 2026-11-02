@@ -9,7 +9,8 @@ from kokoro import KPipeline
 
 texte, voix, vitesse, sortie = sys.argv[1], sys.argv[2], float(sys.argv[3]), sys.argv[4]
 langue = 'b' if voix.startswith('b') else 'a'
-p = KPipeline(lang_code=langue, repo_id='hexgrad/Kokoro-82M')
+# sur le processeur : la carte est souvent prise entière par ComfyUI, et ce petit modèle y est rapide
+p = KPipeline(lang_code=langue, repo_id='hexgrad/Kokoro-82M', device='cpu')
 morceaux = [np.asarray(x.audio) for x in p(texte, voice=voix, speed=vitesse)]
 if not morceaux:
     sys.exit('texte vide')

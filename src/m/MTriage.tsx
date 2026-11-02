@@ -7,12 +7,14 @@
    ============================================================ */
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useVideoArretee } from '../v2/bits'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { Ic } from './bits'
 import { t, tc, tp } from '../i18n'
 
 export function MTriage({ assets, onClose }: { assets: Asset[]; onClose: () => void }) {
+  const videoArretee = useVideoArretee()
   const s = useAppStore()
   /* La file est FIGÉE à l'ouverture : valider un média le sortirait sinon de
      `assets` et ferait sauter la position. */
@@ -60,7 +62,7 @@ export function MTriage({ assets, onClose }: { assets: Asset[]; onClose: () => v
             <button style={{ color: 'var(--acc)', marginTop: 12 }} onClick={onClose}>{t('Revenir à la bibliothèque')}</button>
           </div>
         ) : a.mediaType === 'video'
-          ? <video src={a.uri} controls playsInline autoPlay loop />
+          ? <video ref={videoArretee} src={a.uri} controls playsInline autoPlay loop />
           : <img src={a.uri} alt="" />}
       </div>
 

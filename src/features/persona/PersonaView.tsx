@@ -19,7 +19,8 @@ export function PersonaView() {
     <div className="flex-1 overflow-y-auto scroll-clean p-4 max-w-[720px]">
       <SectionTitle>{t('Personnages — clique pour changer de personnage actif')}</SectionTitle>
       <div className="border border-border rounded-card bg-surface2 p-4 mb-4">
-        <PersonaListe onChange={setActif} />
+        <PersonaListe onChange={setActif}
+          onCreerDeZero={() => useAppStore.setState(st => ({ navRequest: { section: 'nouveau-personnage', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))} />
       </div>
 
       <SectionTitle>{t('Personnage actif')}</SectionTitle>

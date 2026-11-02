@@ -9,7 +9,12 @@ import torchaudio as ta
 from chatterbox.tts import ChatterboxTTS
 
 texte, reference, sortie = sys.argv[1], sys.argv[2], sys.argv[3]
-modele = ChatterboxTTS.from_pretrained(device='cuda' if torch.cuda.is_available() else 'cpu')
+# la carte peut être prise entière par ComfyUI : repli sur le processeur, plus lent mais sûr
+try:
+    modele = ChatterboxTTS.from_pretrained(device='cuda') if torch.cuda.is_available() else ChatterboxTTS.from_pretrained(device='cpu')
+except (RuntimeError, torch.cuda.OutOfMemoryError):
+    torch.cuda.empty_cache()
+    modele = ChatterboxTTS.from_pretrained(device='cpu')
 wav = modele.generate(texte, audio_prompt_path=reference)
 ta.save(sortie, wav, modele.sr)
 print(sortie)

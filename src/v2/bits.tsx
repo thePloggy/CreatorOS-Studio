@@ -1112,3 +1112,15 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
     </div>
   )
 }
+
+/** Ref d'une vidéo qui s'arrête vraiment quand elle quitte l'écran : certains navigateurs
+ *  (Safari) continuent de lire le son d'un élément retiré de la page. */
+export function useVideoArretee() {
+  const ref = useRef<HTMLVideoElement | null>(null)
+  useEffect(() => () => {
+    const v = ref.current
+    if (!v) return
+    try { v.pause(); v.removeAttribute('src'); v.load() } catch { /* déjà détachée */ }
+  }, [])
+  return ref
+}

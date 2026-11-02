@@ -73,7 +73,7 @@ export async function narrer({ brief, plans, nom, pas }) {
 const dureeAudio = f => { try { return Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f], { encoding: 'utf8' })) || 0 } catch { return 0 } }
 
 /** Une piste : chaque phrase posée au début de son plan, sous la musique (abaissée quand la voix parle). */
-async function pisteNarree(r, nbPlans, pasPlan) {
+export async function pisteNarree(r, nbPlans, pasPlan) {
   const morceaux = []
   for (const [k, l] of (r.narration ?? []).entries()) {
     if (!l || k >= nbPlans) continue

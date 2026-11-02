@@ -229,10 +229,11 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
     f.push(`[${iMusique}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${longueur.toFixed(3)},asetpts=PTS-STARTPTS,volume=${m.volume}`
       + (m.fonduEntree > 0 ? `,afade=t=in:d=${m.fonduEntree}` : '')
       + (m.fonduSortie > 0 ? `,afade=t=out:st=${Math.max(0, longueur - m.fonduSortie).toFixed(3)}:d=${m.fonduSortie}` : '') + '[mus]')
-    if (d.sonClips) { f.push(`[${ac}][mus]amix=inputs=2:duration=first:normalize=0[amx]`); aOut = 'amx' }
-    else aOut = 'mus'
+    // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air
+    f.push(`[${ac}][mus]amix=inputs=2:duration=first:normalize=0[amx]`); aOut = 'amx'
   }
   const avecSon = d.sonClips || !!d.musique
+  if (!avecSon) f.push(`[${ac}]anullsink`)
   args.push('-filter_complex', f.join(';'), '-map', `[${vc}]`)
   if (avecSon) args.push('-map', `[${aOut}]`, '-c:a', 'aac', '-b:a', '192k')
   else args.push('-an')

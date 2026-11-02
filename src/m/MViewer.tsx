@@ -6,6 +6,7 @@ import { resumeControle } from '../lib/controle'
 import { useEffect, useRef, useState } from 'react'
 import type { LoraLigne } from '../v2/Viewer'
 import { createPortal } from 'react-dom'
+import { useVideoArretee } from '../v2/bits'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { Ic, Opt, Sheet, fmtDur, useConfirm } from './bits'
@@ -23,6 +24,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   asset: Asset; list: Asset[]; onGo: (a: Asset) => void; onClose: () => void
   folders: FolderInfo[]; onFoldersChanged: () => void; onTriage?: () => void
 }) {
+  const videoArretee = useVideoArretee()
   const edition = useEdition()
   const s = useAppStore()
   const [sheet, setSheet] = useState<null | 'more' | 'info' | 'folders' | 'carousel'>(null)
@@ -102,7 +104,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           cette classe, l'interface elle-même ne zoome pas). */}
       <div className="stage zoomable" onTouchStart={onStart} onTouchEnd={onEnd}>
         {isVid
-          ? <video src={fresh.uri} controls playsInline autoPlay loop muted={false} />
+          ? <video ref={videoArretee} src={fresh.uri} controls playsInline autoPlay loop muted={false} />
           : <img src={fresh.uri} alt="" />}
       </div>
 

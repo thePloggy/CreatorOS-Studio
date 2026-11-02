@@ -722,4 +722,7 @@ export const nouveautes: Record<string, string> = {
   'Les rendus en file sont arrêtés ; ce qui est déjà fait reste dans la bibliothèque': 'Queued renders are stopped; what is already done stays in the library',
   'Arrête le reel et le retire de la liste ; ce qui est déjà fait reste dans la bibliothèque': 'Stops the reel and removes it from the list; what is already done stays in the library',
   'Annulé': 'Cancelled',
+  'Créer de zéro': 'Create from scratch',
+  'Importer une LoRA existante': 'Import an existing LoRA',
+  'Un personnage vide : tu ajoutes ensuite sa LoRA (déposée dans le dossier des LoRA) et son crédit.': 'An empty character: then add its LoRA (dropped in the LoRA folder) and its credit.',
 }

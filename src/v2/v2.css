@@ -322,8 +322,8 @@
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 12;
   display: flex; gap: 12px; align-items: stretch;
   width: min(820px, 94%); max-height: 50vh;
-  background: rgba(24, 25, 30, 0.82); backdrop-filter: blur(18px);
-  border-radius: 20px; box-shadow: var(--sh-lg); padding: 12px 14px;
+  background: rgb(24, 25, 30); box-shadow: 0 0 0 1px var(--lv3), var(--sh-lg);
+  border-radius: 20px; padding: 12px 14px;
 }
 .v2 .fbar .fmain { display: flex; flex-direction: column; min-height: 0; }
 .v2 .fbar textarea { flex: 1; min-height: 40px; max-height: calc(50vh - 130px); overflow-y: auto !important; }
