@@ -102,7 +102,7 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
             {t(g.titre)} <span style={{ fontSize: 12, opacity: .6 }}>▾</span>
           </button>
           {ouvert === g.titre && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, paddingTop: 6, zIndex: 300 }}>
+            <div data-popup style={{ position: 'absolute', top: '100%', left: 0, paddingTop: 6, zIndex: 300 }}>
               <div style={{ width: 340, padding: 6, borderRadius: 14, background: 'var(--lv2)', border: '1px solid var(--lv3)', boxShadow: '0 18px 50px rgba(0,0,0,.55)', display: 'grid', gap: 2 }}>
                 {g.outils.map(o => (
                   <button key={o.label} className="nav-outil" onClick={() => { setOuvert(null); ouvrir(o) }}>

@@ -28,6 +28,8 @@ import { MStudio } from './MStudio'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { useDraftPersistence } from './useDraft'
 import { t } from '../i18n'
+import { installerDansEcran } from '../lib/dansEcran'
+installerDansEcran()
 
 export type Space = 'library' | 'create' | 'studio' | 'jobs' | 'atelier'
 const SPACES: [Space, string, 'library' | 'create' | 'studio' | 'jobs'][] = [

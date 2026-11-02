@@ -53,7 +53,7 @@ export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
         <span aria-hidden style={{ fontSize: 12, opacity: 0.6, marginLeft: 2 }}>▾</span>
       </button>
       {ouvert && (
-        <div role="menu" style={{
+        <div data-popup role="menu" style={{
           position: 'absolute', top: 'calc(100% + 6px)', ...(alignDroite ? { right: 0 } : { left: 0 }), maxWidth: 'calc(100vw - 32px)', zIndex: 1000, minWidth: 220, padding: 6,
           borderRadius: 12, background: '#16181c', color: '#e8e8ea', border: '1px solid rgba(127,127,127,0.3)',
           boxShadow: '0 12px 32px rgba(0,0,0,0.5)',

@@ -18,6 +18,8 @@ import { Ic } from './bits'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
 import { MenusOutils, type ActionOutil, type Section } from './Navigation'
+import { installerDansEcran } from '../lib/dansEcran'
+installerDansEcran()
 
 /* Un écran se charge quand on l'ouvre : la démo n'envoie pas tout le studio à chaque visite. */
 const ImageView = lazy(() => import('./ImageView').then(m => ({ default: m.ImageView })))
