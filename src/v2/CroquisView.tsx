@@ -19,6 +19,9 @@ export function CroquisView() {
   const [mouvement, setMouvement] = useState('')
   const [suivi, setSuivi] = useState<Etat | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // proposition survolée (aperçu en grand) et proposition retenue (à confirmer avant d'animer)
+  const [survol, setSurvol] = useState<string | null>(null)
+  const [retenue, setRetenue] = useState<string | null>(null)
   const histo = useRef<ImageData[]>([])
   const adopter = useAppStore(s => s.adoptServerJob)
   const [w, h] = FORMATS[format]
@@ -55,6 +58,7 @@ export function CroquisView() {
       body: JSON.stringify({ image: toile.current!.toDataURL('image/png'), scene, mouvement, format, secondes: 5 }) })
     const d = await r.json().catch(() => ({}))
     if (!r.ok) { setErr(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    setRetenue(null); setSurvol(null)
     setSuivi(d); for (const p of (d.photos ?? []) as Photo[]) void adopter(p.job)
   }
   const choisir = async (assetId: string) => {
@@ -65,9 +69,11 @@ export function CroquisView() {
     if (!r.ok) { setErr(tServeur(d.error) ?? `HTTP ${r.status}`); return }
     setSuivi(d); if (d.clipJob) void adopter(d.clipJob)
   }
+  // l'image survolée ou retenue s'affiche en grand par-dessus le croquis ; le croquis revient dès qu'on quitte
+  const apercu = (suivi?.photos ?? []).find(p => p.assetId && p.assetId === (survol ?? (suivi?.clipJob ? null : retenue)))?.uri ?? undefined
   const enAttenteDeChoix = !!suivi && !suivi.clipJob && suivi.photo !== 'blocked'
   const etape = !suivi ? null : suivi.clip === 'done' ? t('Clip prêt : il est dans la bibliothèque.') : suivi.clipJob ? t('Le clip se rend à partir de l’image choisie (~5 min)…')
-    : suivi.photo === 'blocked' ? t('Les images ont échoué : réessaie.') : suivi.photos?.some(p => p.uri) ? t('Choisis l’image à animer : regarde bien la pose et les membres.') : t('Trois images se rendent à partir du croquis…')
+    : suivi.photo === 'blocked' ? t('Les images ont échoué : réessaie.') : suivi.photos?.some(p => p.uri) ? t('Survole une image pour la voir en grand, clique pour la retenir, puis confirme.') : t('Trois images se rendent à partir du croquis…')
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
@@ -78,8 +84,13 @@ export function CroquisView() {
         </div>
         <div className="croquis">
           <div className="croquis-toile">
-            <canvas ref={toile} width={w} height={h} style={{ aspectRatio: `${w} / ${h}`, width: `min(100%, calc(70vh * ${w / h}))` }}
+            <div style={{ position: 'relative', justifySelf: 'center', width: `min(100%, calc(70vh * ${w / h}))` }}>
+            <canvas ref={toile} width={w} height={h} style={{ aspectRatio: `${w} / ${h}`, width: '100%' }}
               onPointerDown={debut} onPointerMove={trace} onPointerUp={() => { dessin.current = null }} onPointerLeave={() => { dessin.current = null }} />
+              {apercu && (
+                <img src={apercu} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', borderRadius: 14, pointerEvents: 'none', boxShadow: '0 0 0 2px var(--accent)' }} />
+              )}
+            </div>
             <div className="flex gap-1.5 flex-wrap items-center text-[12px]" style={{ color: 'var(--muted)' }}>
               {(Object.keys(FORMATS) as Format[]).map(f => <button key={f} className={`pill ${format === f ? 'on' : ''}`} onClick={() => setFormat(f)}>{f}</button>)}
               <span style={{ width: 10 }} />
@@ -99,15 +110,22 @@ export function CroquisView() {
             {suivi?.photos && (enAttenteDeChoix || suivi.choix) && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {suivi.photos.map(p => (
-                  <button key={p.job} disabled={!p.assetId || !!suivi.clipJob} onClick={() => p.assetId && void choisir(p.assetId)}
-                    aria-pressed={suivi.choix === p.assetId} aria-label={t('animer cette image')}
+                  <button key={p.job} disabled={!p.assetId || !!suivi.clipJob} onClick={() => p.assetId && setRetenue(p.assetId)}
+                    onMouseEnter={() => p.assetId && setSurvol(p.assetId)} onMouseLeave={() => setSurvol(null)} onFocus={() => p.assetId && setSurvol(p.assetId)} onBlur={() => setSurvol(null)}
+                    aria-pressed={(retenue ?? suivi.choix) === p.assetId} aria-label={t('voir cette image en grand et la retenir')}
                     style={{ padding: 0, borderRadius: 8, overflow: 'hidden', aspectRatio: format === '9:16' ? '9 / 16' : format === '1:1' ? '1' : '16 / 9', background: 'var(--lv2)',
-                      border: suivi.choix && suivi.choix === p.assetId ? '2px solid var(--accent)' : '2px solid transparent', cursor: p.assetId && !suivi.clipJob ? 'pointer' : 'default',
-                      opacity: suivi.choix && suivi.choix !== p.assetId ? 0.45 : 1 }}>
+                      border: (retenue ?? suivi.choix) === p.assetId ? '2px solid var(--accent)' : '2px solid transparent', cursor: p.assetId && !suivi.clipJob ? 'pointer' : 'default',
+                      opacity: (retenue ?? suivi.choix) && (retenue ?? suivi.choix) !== p.assetId ? 0.45 : 1 }}>
                     {p.uri ? <img src={p.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       : <span className="texte-faible" style={{ fontSize: 11 }}>{p.statut === 'blocked' ? t('échec') : '…'}</span>}
                   </button>
                 ))}
+              </div>
+            )}
+            {retenue && !suivi?.clipJob && (
+              <div className="flex gap-2 items-center flex-wrap">
+                <button className="btn-gen" style={{ flex: 1 }} onClick={() => void choisir(retenue)}>{t('Animer cette image')}</button>
+                <button className="pill" onClick={() => setRetenue(null)}>{t('Annuler')}</button>
               </div>
             )}
             {err && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{err}</p>}

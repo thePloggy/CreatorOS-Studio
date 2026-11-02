@@ -747,4 +747,7 @@ export const nouveautes: Record<string, string> = {
   'référence jointe → FLUX.2 Klein': 'reference attached → FLUX.2 Klein',
   '{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein': '{nom} has no Krea LoRA: the face will not hold, use FLUX.2 Klein',
   'MOSS ne tient pas le visage de {nom}': 'MOSS does not hold {nom}’s face',
+  'voir cette image en grand et la retenir': 'see this image large and select it',
+  'Animer cette image': 'Animate this image',
+  'Survole une image pour la voir en grand, clique pour la retenir, puis confirme.': 'Hover an image to see it large, click to select it, then confirm.',
 }
