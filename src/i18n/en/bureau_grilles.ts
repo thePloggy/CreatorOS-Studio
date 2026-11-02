@@ -6,7 +6,7 @@ export const bureau_grilles: Record<string, string> = {
   'Vidéo': 'Video',
   'Paramètres': 'Settings',
   '{n} en rendu': '{n} rendering',
-  'GPU util · VRAM · température — CPU util · RAM (5 s)': 'GPU util · VRAM · temperature — CPU util · RAM (5 s)',
+  'GPU util, VRAM, température — CPU util, RAM (5 s)': 'GPU util, VRAM, temperature, CPU util, RAM (5 s)',
   'Go': 'GB',
   // Diagnostic
   'serveur injoignable': 'server unreachable',

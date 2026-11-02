@@ -5,6 +5,9 @@
    prompt de diffusion : les gardes code en aval s'appliquent inchangées.
    ============================================================ */
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import { fetchOllama } from './gpu.js'
 
@@ -259,4 +262,45 @@ export function filterOutfit(raw) {
   const ordre = ['robe', 'haut', 'bas', 'jambes', 'pieds', 'accessoire']
   const out = ordre.filter(k => best.has(k)).map(k => best.get(k)).join(', ')
   return out.length > 8 ? out : null
+}
+
+/* Analyse d'un clip pour les réseaux : des mesures (durée, format, son, coupes, netteté du
+   début) et une lecture du modèle de vision sur 4 images (accroche, sujet, lisibilité).
+   C'est une estimation de qualité, pas une prédiction de vues. */
+export async function analyserClip(absPath, langue = 'fr') {
+  const sonde = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,width,height', '-of', 'json', absPath], { encoding: 'utf8' }))
+  const duree = Number(sonde.format?.duration) || 0
+  const v = sonde.streams?.find(s => s.codec_type === 'video') ?? {}
+  const son = sonde.streams?.some(s => s.codec_type === 'audio')
+  let coupes = 0
+  try {
+    const o = execFileSync('ffmpeg', ['-hide_banner', '-i', absPath, '-vf', "select='gt(scene,0.35)',showinfo", '-an', '-f', 'null', '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    coupes = (o.match(/pts_time/g) ?? []).length
+  } catch (e) { coupes = (String(e.stderr ?? '').match(/pts_time/g) ?? []).length }
+  const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'analyse-'))
+  const instants = [0.3, 1.2, duree * 0.5, Math.max(0.3, duree - 0.4)]
+  const images = instants.map((t, i) => { const f = path.join(dossier, `${i}.jpg`); execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', absPath, '-frames:v', '1', '-vf', 'scale=512:-2', f]); return fs.readFileSync(f).toString('base64') })
+  fs.rmSync(dossier, { recursive: true, force: true })
+  const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(240000),
+    body: JSON.stringify({ model: DESC_MODEL(), stream: false, images, options: DESC_OPTS({ num_predict: 500 }),
+      prompt: `These are 4 frames of a short social video, in order: at 0.3 s, 1.2 s, the middle and the end. Judge it as a social media editor. Score from 1 to 10: "hook" (do the first two frames make you stop scrolling?), "subject" (is the main subject instantly clear?), "visual" (light, sharpness, composition), "story" (does something change between the first and last frame?). Then give exactly 3 short, concrete tips to improve it, written in ${langue === 'en' ? 'English' : 'French'}. Answer in JSON only: {"hook":n,"subject":n,"visual":n,"story":n,"tips":["...","...","..."]}`,
+      format: 'json' }),
+  })
+  if (!res.ok) throw new Error(`modèle de vision : HTTP ${res.status}`)
+  const lu = JSON.parse(String((await res.json()).response || '{}'))
+  const note = k => Math.min(10, Math.max(1, Math.round(Number(lu[k]) || 5)))
+  const ratio = v.width && v.height ? v.width / v.height : 1
+  const mesures = {
+    duree: Math.round(duree * 10) / 10, format: ratio < 0.7 ? '9:16' : ratio > 1.4 ? '16:9' : 'carré', son: !!son, coupes,
+    rythme: duree ? Math.round((coupes / duree) * 60) : 0,
+  }
+  const conseilsMesures = [
+    ...(mesures.format !== '9:16' ? ['Pour TikTok, Reels et Shorts, passe-le en 9:16 (outil Recadrer).'] : []),
+    ...(!son ? ['Il est muet : ajoute un son ou une musique, la plupart des vidéos sont regardées avec le son au moins une fois.'] : []),
+    ...(duree > 4 && coupes === 0 ? ['Un seul plan de plus de 4 s : une coupe ou un mouvement de caméra relance l’attention.'] : []),
+  ]
+  const notes = { accroche: note('hook'), sujet: note('subject'), image: note('visual'), histoire: note('story') }
+  return { notes, global: Math.round((notes.accroche * 2 + notes.sujet + notes.image + notes.histoire) / 5 * 10) / 10, mesures,
+    conseils: [...conseilsMesures, ...(Array.isArray(lu.tips) ? lu.tips.slice(0, 3).map(x => String(x).slice(0, 200)) : [])] }
 }

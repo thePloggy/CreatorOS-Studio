@@ -432,7 +432,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </span>
         </div>
         <button className="cta" style={{ padding: isMobile ? '14px' : '26px 15px', flexDirection: 'row' }} onClick={() => void s.submitJob()}>
-          {tab === 'etendre' ? t('Prolonger') : t('Générer')} <small>{v.aspect === 'origine' ? '' : `${v.aspect} · `}{v.durationS} s · {s.batchCount} job{s.batchCount > 1 ? 's' : ''} · ~{fmtDur(s.batchCount * vidEtaMs)}</small>
+          {tab === 'etendre' ? t('Prolonger') : t('Générer')} <small>{v.aspect === 'origine' ? '' : `${v.aspect}, `}{v.durationS} s, {s.batchCount} job{s.batchCount > 1 ? 's' : ''} · ~{fmtDur(s.batchCount * vidEtaMs)}</small>
         </button>
         </>)}
       </>)

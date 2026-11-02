@@ -69,7 +69,7 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
       setResult(d.positive)
       setSeen(typeof d.sceneDesc === 'string' ? d.sceneDesc : null)
       setTenue(d.outfitRequested ? { asked: true, text: typeof d.outfitAnchor === 'string' ? d.outfitAnchor : null } : null)
-      setMeta(`${d.model ?? 'composer'} · ${((Date.now() - t0) / 1000).toFixed(1)} s${d.cached ? ' · cache' : ''}`)
+      setMeta(`${d.model ?? 'composer'} · ${((Date.now() - t0) / 1000).toFixed(1)} s${d.cached ? ', cache' : ''}`)
       if (!d.cached) pushRolling('v2_compose_ms', Date.now() - t0)
     } catch (e) {
       if ((e as Error).name !== 'AbortError') setErr(String((e as Error).message || e))
@@ -421,7 +421,7 @@ export function TriagePopup({ open, onClose, assets }: { open: boolean; onClose:
       <div className="flex items-center px-3 py-2.5">
         <button className="b2" onClick={onClose}>{t('‹ terminé')}</button>
         <span className="ml-auto text-[12px]" style={{ color: 'var(--muted)' }}>
-          {t('reste {n} · ♥ {ok} · ✕ {ko}', { n: pending.length, ok: done.ok, ko: done.ko })}
+          {t('reste {n} · ♥ {ok}, ✕ {ko}', { n: pending.length, ok: done.ok, ko: done.ko })}
         </span>
       </div>
       {!cur ? (

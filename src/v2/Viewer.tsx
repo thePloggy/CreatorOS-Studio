@@ -170,6 +170,63 @@ const LUMIERES = [
 const FORMATS = ['16:9', '9:16', '4:5', '1:1', '+30%']
 
 /* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
+/* Analyse pour les réseaux : notes du modèle de vision et mesures, présentées comme une estimation. */
+function AnalyseClip({ asset, ouvert }: { asset: Asset; ouvert: boolean }) {
+  const [r, setR] = useState<{ notes: Record<string, number>; global: number; mesures: { duree: number; format: string; son: boolean; coupes: number }; conseils: string[] } | null>(null)
+  const [occupe, setOccupe] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  useEffect(() => { setR(null); setMsg(null) }, [asset.id])
+  const lancer = async () => {
+    setOccupe(true); setMsg(null)
+    const x = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/analyse`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ langue: getLang() }) })
+    const d = await x.json().catch(() => ({}))
+    setOccupe(false)
+    if (!x.ok) setMsg(tServeur(d.error) ?? `HTTP ${x.status}`); else setR(d)
+  }
+  return (
+    <div className={ouvert || r ? 'guide-outil' : 'flex gap-1.5 items-center flex-wrap text-[12px]'} style={ouvert || r ? undefined : { color: 'var(--muted)' }}>
+      {ouvert || r ? <b>{t('Analyse pour les réseaux')}</b> : t('Analyse')}
+      {(ouvert || r) && <p>{t('Une estimation de qualité par le modèle de vision local et quelques mesures, pas une prédiction de vues.')}</p>}
+      {!r && <button className="pill" disabled={occupe} onClick={() => void lancer()}>{occupe ? t('analyse…') : t('Analyser ce clip')}</button>}
+      {r && <>
+        <div className="flex gap-3 flex-wrap" style={{ fontSize: 13 }}>
+          <b style={{ fontSize: 18 }}>{r.global}/10</b>
+          {Object.entries(r.notes).map(([k, v]) => <span key={k}>{t(k)} <b>{v}</b></span>)}
+        </div>
+        <span style={{ color: 'var(--muted)' }}>{r.mesures.duree} s, {r.mesures.format}, {r.mesures.son ? t('avec son') : t('muet')}, {t('{n} coupes', { n: r.mesures.coupes })}</span>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>{r.conseils.map((c, i) => <li key={i}>{t(c)}</li>)}</ul>
+      </>}
+      {msg && <span style={{ color: 'var(--danger)' }}>{msg}</span>}
+    </div>
+  )
+}
+
+/* Pack publicitaire depuis une photo produit : cinq rendus d'un coup (cf. server/packPub.js). */
+function PackPub({ asset, ouvert, onLance }: { asset: Asset; ouvert: boolean; onLance: (ids: string[]) => Promise<void> }) {
+  const [produit, setProduit] = useState('')
+  const [accroche, setAccroche] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  const lancer = async () => {
+    setMsg(null)
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/pack-pub`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ produit, accroche }) })
+    const d = await r.json().catch(() => ({})) as { jobs?: Record<string, string | null>; error?: string }
+    if (!r.ok || !d.jobs) { setMsg(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    await onLance(Object.values(d.jobs).filter((j): j is string => !!j))
+  }
+  const champ = { padding: '6px 9px', borderRadius: 8, background: 'var(--lv1)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit' } as const
+  if (!ouvert) return null
+  return (
+    <div className="guide-outil">
+      <b>{t('Pack publicitaire')}</b>
+      <p>{t('Packshot, mise en scène, affiche avec ton accroche, ton personnage qui présente le produit, puis un clip produit de 4 s.')}</p>
+      <input value={produit} onChange={e => setProduit(e.target.value)} placeholder={t('le produit, en anglais : a red ceramic mug')} maxLength={60} style={champ} />
+      <input value={accroche} onChange={e => setAccroche(e.target.value)} placeholder={t('accroche de l’affiche (facultatif)')} maxLength={50} style={champ} />
+      <button className="pill" disabled={!produit.trim()} onClick={() => void lancer()}>{t('Lancer le pack (5 rendus)')}</button>
+      {msg && <span style={{ color: 'var(--danger)' }}>{msg}</span>}
+    </div>
+  )
+}
+
 /* Recadrer et doubler un clip : deux petits panneaux, mis en avant quand l'outil a été choisi au menu. */
 function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionOutil; onLance: (jobId: string) => Promise<void> }) {
   const [voix, setVoix] = useState<{ nom: string }[]>([])
@@ -402,6 +459,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             </div>
           )}
           {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
+          {asset.mediaType === 'photo' && <PackPub asset={asset} ouvert={action === 'pack'} onLance={async ids => { for (const j of ids) await s.adoptServerJob(j); onClose() }} />}
+          {asset.mediaType === 'video' && (action === 'analyse' || !action) && <AnalyseClip asset={asset} ouvert={action === 'analyse'} />}
           {asset.mediaType === 'video' && (action === 'recadrer' || action === 'doubler' || !action) && <OutilsClip asset={asset} ouvert={action} onLance={async id => { await s.adoptServerJob(id); onClose() }} />}
         {/* ---------- la chaîne du prompt, dans l'ordre où elle s'est faite ----------
             Brief → ce que le VLM a lu dans la still → prompt composé. Les deux
@@ -592,7 +651,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               }}><Ic n="dots" /></button>
           </div>
         </div>
-        {nav.index >= 0 && <div className="aide-clavier">{t('← → pour parcourir · Échap pour fermer · {n} médias', { n: nav.total })}</div>}
+        {nav.index >= 0 && <div className="aide-clavier">{t('← → pour parcourir, Échap pour fermer · {n} médias', { n: nav.total })}</div>}
       </aside>
       {menu && <ViewerMenu asset={asset} at={menu} onClose={() => setMenu(null)}
         onCarousel={() => { setMenu(null); setCarousel(true) }}

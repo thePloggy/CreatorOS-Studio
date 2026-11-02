@@ -16,7 +16,7 @@ import { installerVisites } from './visites.js'
 import { CONFIG } from './config.js'
 import { fetchOllama, blocOllama, etat as etatGpu } from './gpu.js'
 import * as store from './db.js'
-import { describeOutfit, describeScene, decomposeScene, momentSuivant } from './vision.js'
+import { analyserClip, describeOutfit, describeScene, decomposeScene, momentSuivant } from './vision.js'
 import * as comfy from './comfy.js'
 import * as prompts from './prompts.js'
 import * as composer from './composer.js'
@@ -41,8 +41,10 @@ import * as presets from './presets.js'
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis } from './croquis.js'
-import { VOIX, synthetiser, voixDisponible } from './voix.js'
+import { VOIX, cloner, cloneDisponible, synthetiser, voixDisponible } from './voix.js'
 import { aiToolkitPret } from './entrainement.js'
+import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
+import { etatPack, lancerPack } from './packPub.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -59,7 +61,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2026,6 +2028,16 @@ app.put('/api/modeles/h3/:nom', { bodyLimit: 64 * 1024 ** 3 }, async (req, reply
   try { return await recevoirFichierH3(req.params.nom, req.body) } catch (e) { reply.code(e.statusCode ?? 500); return { error: String(e.message || e) } }
 })
 
+/** Créer un personnage de zéro (cf. createurPersonnage.js), propriétaire seulement. */
+app.post('/api/personnages/propositions', async (req, reply) => {
+  try { return { jobs: propositions(req.body?.traits) } } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/personnages/creer', async (req, reply) => {
+  try { return creerPersonnage({ assetId: req.body?.assetId, nom: req.body?.nom, traits: req.body?.traits, entrainer: req.body?.entrainer === true }) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/personnages/creer/:id', async (req, reply) => etatCreation(req.params.id) ?? (reply.code(404), { error: 'création inconnue' }))
+
 /** Entraînement d'un personnage sur des images de la bibliothèque (propriétaire seulement). */
 app.get('/api/entrainement', async () => ({ pret: aiToolkitPret() }))
 app.post('/api/personas/:id/entrainer', async (req, reply) => {
@@ -2049,11 +2061,33 @@ app.post('/api/assets/:id/doubler', async (req, reply) => {
 })
 
 /** Voix off (cf. voix.js). */
-app.get('/api/voix', async () => ({ disponible: voixDisponible(), voix: VOIX }))
+app.get('/api/voix', async () => ({ disponible: voixDisponible(), voix: VOIX, clone: cloneDisponible() }))
+app.post('/api/voix/clone', async (req, reply) => {
+  try { return await cloner({ texte: req.body?.texte, reference: req.body?.reference, accord: req.body?.accord === true }) }
+  catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+})
 app.post('/api/voix', async (req, reply) => {
   try { return await synthetiser({ texte: req.body?.texte, voix: req.body?.voix, vitesse: req.body?.vitesse }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
+
+/** Analyse d'un clip pour les réseaux (cf. vision.analyserClip) : estimation, pas prédiction. */
+app.post('/api/assets/:id/analyse', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
+  try { return await analyserClip(path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri)), req.body?.langue === 'en' ? 'en' : 'fr') }
+  catch (e) { reply.code(502); return { error: String(e.message || e) } }
+})
+
+/** Pack publicitaire à partir d'une photo produit (cf. packPub.js). */
+app.post('/api/assets/:id/pack-pub', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'photo') { reply.code(404); return { error: 'photo inconnue' } }
+  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  try { return deposerAvecCle(cleComfy(req), () => lancerPack({ asset: a, produit: req.body?.produit, accroche: req.body?.accroche, personaId: personaDe(req) })) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/pack-pub/:id', async (req, reply) => etatPack(req.params.id) ?? (reply.code(404), { error: 'pack inconnu' }))
 
 /** Croquis vers vidéo (cf. croquis.js). */
 app.post('/api/croquis', async (req, reply) => {

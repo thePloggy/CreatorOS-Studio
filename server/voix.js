@@ -27,3 +27,20 @@ export async function synthetiser({ texte, voix, vitesse }) {
   await lancer(python(), [path.join(import.meta.dirname, '..', 'scripts', 'voix.py'), t, v, String(Math.min(1.4, Math.max(0.7, Number(vitesse) || 1))), path.join(MUSIQUES_DIR, nom)], { timeout: 180_000 })
   return { nom }
 }
+
+/* Voix clonée (Chatterbox, MIT) : réservée au propriétaire, sur un extrait de la bibliothèque audio
+   dont il déclare avoir le droit (sa voix, ou l'accord de la personne). */
+const pythonClone = () => process.env.CREATOROS_CLONE_PYTHON || path.join(CONFIG.dataDir, 'clone-venv', 'bin', 'python')
+export const cloneDisponible = () => fs.existsSync(pythonClone())
+export async function cloner({ texte, reference, accord }) {
+  if (accord !== true) throw new Error('confirme que cette voix est la tienne ou que la personne a donné son accord')
+  const t = String(texte ?? '').trim().slice(0, 800)
+  if (!t) throw new Error('écris le texte à dire, en anglais')
+  const ref = path.join(MUSIQUES_DIR, path.basename(String(reference ?? '')))
+  if (!reference || !fs.existsSync(ref)) throw new Error('choisis l’extrait de voix dans la bibliothèque audio')
+  if (!cloneDisponible()) throw new Error('clonage de voix non installé sur ce studio')
+  const racine = t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '_').slice(0, 26).replace(/_+$/, '') || 'voix'
+  const nom = `voixclone_${racine}_${Date.now().toString(36).slice(-6)}.wav`
+  await lancer(pythonClone(), [path.join(import.meta.dirname, '..', 'scripts', 'clone_voix.py'), t, ref, path.join(MUSIQUES_DIR, nom)], { timeout: 300_000 })
+  return { nom }
+}

@@ -13,7 +13,7 @@ import { FramePicker } from './popups'
 
 export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
-export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler'
+export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'pack' | 'analyse'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
   { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
@@ -38,12 +38,14 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
     { label: 'Move', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
     { label: 'Objet 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
     { label: 'Retouche et objet', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
+    { label: 'Pack publicitaire', texte: 'Une photo produit : packshot, mise en scène, affiche, ton personnage et un clip.', depuis: 'photo', titre: 'Photo du produit', action: 'pack', pastille: 'new' },
     { label: 'Doublage', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', depuis: 'video', titre: 'Clip à doubler', action: 'doubler', pastille: 'new' },
     { label: 'Angles, looks, lumière', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
   ] },
   { titre: 'Finir', outils: [
     { label: 'Montage', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
     { label: 'Recadrer', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont inventés.', depuis: 'video', titre: 'Clip à recadrer', action: 'recadrer', pastille: 'new' },
+    { label: 'Analyse pour les réseaux', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', depuis: 'video', titre: 'Clip à analyser', action: 'analyse', pastille: 'new' },
     { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
     { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
     { label: 'Fond vert ou transparent', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },

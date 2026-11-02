@@ -450,7 +450,7 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
             <span className="hovmeta">
               {renderTime(a.renderMs) ? t('rendu {x}', { x: renderTime(a.renderMs) ?? '' }) : ''}
               {clipS ? `${renderTime(a.renderMs) ? ' · ' : ''}clip ${clipS >= 9.5 ? Math.round(clipS) : clipS.toFixed(1)} s` : ''}
-              {defautsDe(a.controle).length ? ` · ${defautsDe(a.controle).join(', ')}` : ''}
+              {defautsDe(a.controle).length ? `, ${defautsDe(a.controle).join(', ')}` : ''}
             </span>
           )}
           <div className="acts">

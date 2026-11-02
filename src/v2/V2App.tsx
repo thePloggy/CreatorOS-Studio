@@ -60,7 +60,7 @@ function Telemetry() {
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.nom}</b>}<TBar pct={vramPct} />
     </div>
     <div className="hidden min-[1500px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
-      title={t('GPU util · VRAM · température — CPU util · RAM (5 s)')}>
+      title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
       <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
       {dot}

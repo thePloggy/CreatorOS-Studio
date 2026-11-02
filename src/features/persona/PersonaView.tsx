@@ -3,6 +3,7 @@
    l'éditeur (nom, mot déclencheur, préambule, LoRA d'identité).
    ============================================================ */
 import { Entrainement } from './Entrainement'
+import { CreerPersonnage } from './CreerPersonnage'
 import { SectionTitle } from '../../components/ui'
 import { Avatar, AvatarUpload } from '../../components/Avatar'
 import { useAppStore } from '../../store/useAppStore'
@@ -23,6 +24,7 @@ export function PersonaView() {
       </div>
 
       <SectionTitle>{t('Personnage actif')}</SectionTitle>
+      <CreerPersonnage />
       <Entrainement />
 
       {/* Carte identité */}

@@ -126,15 +126,42 @@ function renduLong() {
 /** Remplace `fetch(`${ollamaUrl}/api/generate`, init)`. Choisit la carte ou le
  *  CPU, prend la carte si besoin, et retombe sur le CPU si le chargement sur
  *  la carte échoue. */
+/* Sans flux, Node abandonne une réponse dont les en-têtes tardent plus de 5 min (modèle sur
+   processeur, machine chargée). On demande donc le flux et on le réassemble : l'appelant reçoit
+   la même réponse JSON qu'en mode non continu. */
+async function fetchLong(url, init) {
+  const corps = JSON.parse(init.body)
+  if (corps.stream !== false) return fetch(url, init)
+  const res = await fetch(url, { ...init, body: JSON.stringify({ ...corps, stream: true }) })
+  if (!res.ok || !res.body) return res
+  const dec = new TextDecoder()
+  let reste = '', texte = '', contenu = '', dernier = {}
+  for await (const bout of res.body) {
+    reste += dec.decode(bout, { stream: true })
+    let i
+    while ((i = reste.indexOf('\n')) >= 0) {
+      const ligne = reste.slice(0, i).trim(); reste = reste.slice(i + 1)
+      if (!ligne) continue
+      const o = JSON.parse(ligne)
+      if (o.error) return new Response(JSON.stringify({ error: o.error }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+      if (o.response) texte += o.response
+      if (o.message?.content) contenu += o.message.content
+      dernier = o
+    }
+  }
+  const out = { ...dernier, response: texte, ...(url.endsWith('/api/chat') ? { message: { ...(dernier.message ?? {}), role: 'assistant', content: contenu } } : {}) }
+  return new Response(JSON.stringify(out), { status: res.status, headers: { 'Content-Type': 'application/json' } })
+}
+
 export async function fetchOllama(url, init) {
   const bloc = dansJob.getStore()
-  if (!ACTIF || bloc === true) return fetch(url, init)
+  if (!ACTIF || bloc === true) return fetchLong(url, init)
   const corps = JSON.parse(init.body)
-  const surCpu = () => fetch(url, { ...init, body: JSON.stringify({ ...corps, options: { ...corps.options, num_gpu: 0 } }) })
+  const surCpu = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options: { ...corps.options, num_gpu: 0 } }) })
   if (bloc === 'cpu' || (!bloc && renduLong())) return surCpu()
   const options = { ...corps.options }; delete options.num_gpu
   /* Il reste chargé : c'est le prochain rendu qui le videra, s'il arrive. */
-  const surCarte = () => fetch(url, { ...init, body: JSON.stringify({ ...corps, options, keep_alive: '30m' }) })
+  const surCarte = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options, keep_alive: '30m' }) })
   let res
   if (bloc === 'ollama') res = await surCarte()          // la carte est déjà tenue par le bloc
   else {

@@ -187,6 +187,6 @@ export function StagePanel() {
       </div>
     )}
     {msg && <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{msg}</div>}
-    <button className="cta" style={{ padding: '14px', flexDirection: 'row' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{t('Tourner le plan')} <small>{format} · {secondes} s · ~3 min</small></button>
+    <button className="cta" style={{ padding: '14px', flexDirection: 'row' }} disabled={occupe || !prompt.trim()} onClick={() => void lancer()}>{t('Tourner le plan')} <small>{format}, {secondes} s · ~3 min</small></button>
   </>)
 }

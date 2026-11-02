@@ -24,6 +24,49 @@ import { persona } from './persona.js'
 import { enqueue as enfiler, deposerAvecCle } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
+import { synthetiser, VOIX } from './voix.js'
+import { execFile, execFileSync } from 'node:child_process'
+import { promisify } from 'node:util'
+const lancer = promisify(execFile)
+
+/* Voix off du reel : une phrase par plan, écrite par le même LLM, dite par Kokoro (anglais). */
+async function narrer({ brief, plans, nom }) {
+  const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(Math.max(CONFIG.composerTimeoutMs, 240000)),
+    body: JSON.stringify({ model: composer.modelFor(), stream: false, think: false, keep_alive: '10m',
+      system: `You write the voice-over of a short vertical reel about ${nom}. One line per shot, in English, 5 to 12 words each, spoken in the first person by ${nom}, warm and natural, telling the moment as a tiny story. No hashtags, no emojis, no brand names, nothing unsafe.`,
+      prompt: `Brief: ${brief}\n${plans.map((p, k) => `Shot ${k + 1}: ${p.still}`).join('\n')}`,
+      format: { type: 'object', required: ['lines'], properties: { lines: { type: 'array', items: { type: 'string' } } } },
+      options: { num_gpu: 0, num_ctx: 4096, num_predict: 600, temperature: 0.7 } }),
+  })
+  if (!res.ok) throw new Error(`voix off : HTTP ${res.status}`)
+  const out = JSON.parse(String((await res.json()).response || '{}'))
+  return plans.map((_, k) => String(out.lines?.[k] ?? '').trim().slice(0, 140)).map(l => (t0Hit(l) ? '' : l))
+}
+
+/** Une piste : chaque phrase posée au début de son plan, sous la musique (abaissée quand la voix parle). */
+async function pisteNarree(r, nbPlans, pasPlan) {
+  const morceaux = []
+  for (const [k, l] of (r.narration ?? []).entries()) {
+    if (!l || k >= nbPlans) continue
+    const { nom } = await synthetiser({ texte: l, voix: r.voix })
+    morceaux.push({ f: path.join(montage.MUSIQUES_DIR, nom), t: k * pasPlan + 0.25 })
+  }
+  if (!morceaux.length) return null
+  const total = nbPlans * pasPlan + 1
+  const nom = `reel_${r.id}_voix.wav`, sortie = path.join(montage.MUSIQUES_DIR, nom)
+  const ins = morceaux.flatMap(m => ['-i', m.f])
+  const voix = morceaux.map((m, i) => `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${Math.round(m.t * 1000)}|${Math.round(m.t * 1000)}[v${i}]`).join(';')
+  const mix = `${morceaux.map((_, i) => `[v${i}]`).join('')}amix=inputs=${morceaux.length}:normalize=0,apad=whole_dur=${total}`
+  const musique = r.musique ? montage.cheminMusique(r.musique) : null
+  const depart = r.grille?.debut ?? 0
+  const fc = musique
+    ? `${voix};${mix},asplit=2[vo][sc];[${morceaux.length}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=${depart}:${depart + total},asetpts=PTS-STARTPTS,volume=0.6[m];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];[md][vo]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5[a]`
+    : `${voix};${mix},loudnorm=I=-14:TP=-1.5[a]`
+  await lancer('ffmpeg', ['-v', 'error', '-y', ...ins, ...(musique ? ['-i', musique] : []), '-filter_complex', fc, '-map', '[a]', '-t', String(total), sortie], { timeout: 120_000 })
+  for (const m of morceaux) fs.rmSync(m.f, { force: true })
+  return nom
+}
 
 store.db.exec(`CREATE TABLE IF NOT EXISTS reels (
   id TEXT PRIMARY KEY, persona_id TEXT, brief TEXT NOT NULL, etat TEXT NOT NULL,
@@ -134,7 +177,7 @@ async function reecrirePlans(plans, fautifs, nom) {
 }
 
 /* ---------- lancement ---------- */
-export function realiser({ brief, n, duree, musique, langue, cle, personaId }) {
+export function realiser({ brief, n, duree, musique, langue, cle, personaId, voix, calerMusique }) {
   const b = String(brief ?? '').trim().slice(0, 600)
   if (!b) throw new Error('écris un brief : le lieu, l’ambiance, ce qui se passe')
   if (t0Hit(b)) throw new Error('brief refusé (liste T0)')
@@ -145,6 +188,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId }) {
     duree: Math.min(6, Math.max(3, Number(duree) || 4)),
     musique: typeof musique === 'string' && montage.cheminMusique(musique) ? musique : null,
     langue: langue === 'en' ? 'English' : 'French',
+    voix: VOIX.some(v => v.id === voix) ? voix : null, narration: null, calerMusique: calerMusique === true,
     plans: [], erreur: null,
   }
   store.db.prepare('INSERT INTO reels (id, persona_id, brief, etat, data, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
@@ -181,7 +225,9 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId }) {
           composedPositive: pl.still, userPrompt: pl.still, composedNegative: '', width: 768, height: 1344, batchId: lot, reelId: id })
         pl.photoJob = j.id
       }
-      ecrire(id, 'photos', { accroche: r.hook.trim().replace(/^[«"']+|[»"']+$/g, '').replace(/\.$/, '').trim(), tenue: r.outfit, lieu: r.location, lumiere: r.light, plans })
+      let narration = null
+      if (data.voix) { try { narration = await narrer({ brief: b, plans, nom }) } catch (e) { console.warn(`[reel ${id}] voix off : ${e.message || e}`) } }
+      ecrire(id, 'photos', { narration, accroche: r.hook.trim().replace(/^[«"']+|[»"']+$/g, '').replace(/\.$/, '').trim(), tenue: r.outfit, lieu: r.location, lumiere: r.light, plans })
       console.log(`[reel ${id}] ${plans.length} plans rédigés, photos en file`)
     } catch (e) {
       ecrire(id, 'echec', { erreur: String(e.message || e).slice(0, 400) })
@@ -235,12 +281,35 @@ function avancer(r) {
   }
 }
 
+/* Clip musical : les temps forts du morceau (scripts/temps.py) donnent la longueur des plans,
+   un nombre entier de temps proche de 3 s, et les coupes tombent sur les temps. */
+function grilleMusique(r) {
+  if (!r.calerMusique || !r.musique) return null
+  try {
+    const py = fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3'
+    const g = JSON.parse(execFileSync(py, [path.join(import.meta.dirname, '..', 'scripts', 'temps.py'), montage.cheminMusique(r.musique)], { encoding: 'utf8', timeout: 60_000 }))
+    if (!g.temps?.length || g.temps.length < 4) return null
+    const p = (g.temps[g.temps.length - 1] - g.temps[0]) / (g.temps.length - 1)
+    return { debut: g.temps[0], pas: p * Math.max(2, Math.round(3 / p)), bpm: g.bpm }
+  } catch (e) { console.warn(`[reel ${r.id}] tempo : ${e.message || e}`); return null }
+}
+
 function monter(r, prets, rates) {
+  if (r.grille === undefined) r = { ...r, grille: grilleMusique(r) }
+  if (r.voix && r.narration?.some(Boolean) && !r.pisteVoix) {
+    ecrire(r.id, 'montage', { plans: r.plans })
+    void pisteNarree(r, prets.length, r.grille?.pas ?? 3 - 0.35).then(nom => monter({ ...r, pisteVoix: nom || 'aucune' }, prets, rates))
+      .catch(e => { console.warn(`[reel ${r.id}] voix off : ${e.message || e}`); monter({ ...r, pisteVoix: 'aucune' }, prets, rates) })
+    return
+  }
+  const voixOff = r.pisteVoix && r.pisteVoix !== 'aucune' ? r.pisteVoix : null
+  if (voixOff) r = { ...r, musique: voixOff }
   const proj = montage.creerProjet(`Reel — ${r.brief.slice(0, 50)}`, r.personaId)
-  const clips = prets.map((p, i) => ({ assetId: p.clipAsset, debut: 0, fin: null, duree: 3, texte: i === 0 ? r.accroche ?? '' : '',
-    textePos: 'centre', transition: i === prets.length - 1 ? 'coupe' : 'fondu', transitionDuree: 0.35, crop: null }))
-  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: true, volumeClips: r.musique ? 0.35 : 1,
-    musique: r.musique ? { fichier: r.musique, volume: 0.85, fonduEntree: 0.3, fonduSortie: 1.2, decalage: 0 } : null, clips } })
+  const g = r.grille
+  const clips = prets.map((p, i) => ({ assetId: p.clipAsset, debut: 0, fin: null, duree: g ? Math.round(g.pas * 100) / 100 : 3, texte: i === 0 ? r.accroche ?? '' : '',
+    textePos: 'centre', transition: g || i === prets.length - 1 ? 'coupe' : 'fondu', transitionDuree: 0.35, crop: null }))
+  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: true, volumeClips: voixOff ? 0.2 : r.musique ? 0.35 : 1,
+    musique: r.musique ? { fichier: r.musique, volume: voixOff ? 1 : 0.85, fonduEntree: g ? 0 : 0.3, fonduSortie: 1.2, decalage: g && !voixOff ? g.debut : 0 } : null, clips } })
   try {
     const { jobId } = montage.exporter(p2)
     return ecrire(r.id, 'export', { plans: r.plans, montageId: proj.id, exportJob: jobId, ratés: rates })

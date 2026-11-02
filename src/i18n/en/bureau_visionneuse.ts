@@ -66,7 +66,7 @@ export const bureau_visionneuse: Record<string, string> = {
 
   /* ---------- popups : triage ---------- */
   '‹ terminé': '‹ done',
-  'reste {n} · ♥ {ok} · ✕ {ko}': '{n} left · ♥ {ok} · ✕ {ko}',
+  'reste {n} · ♥ {ok}, ✕ {ko}': '{n} left · ♥ {ok}, ✕ {ko}',
   'Tout est trié ✓': 'All sorted ✓',
 
   /* ---------- popups : carrousel ---------- */

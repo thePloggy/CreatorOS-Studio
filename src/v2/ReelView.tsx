@@ -30,6 +30,10 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
   const [n, setN] = useState(5)
   const [duree, setDuree] = useState(4)
   const [musique, setMusique] = useState('')
+  const [voixOff, setVoixOff] = useState('')
+  const [caler, setCaler] = useState(true)
+  const [voixListe, setVoixListe] = useState<{ id: string; nom: string }[]>([])
+  useEffect(() => { void fetch('/api/voix').then(json).then(d => setVoixListe(d.disponible ? d.voix ?? [] : [])).catch(() => {}) }, [])
   const [musiques, setMusiques] = useState<MusiqueRow[]>([])
   const [reels, setReels] = useState<Reel[]>([])
   const [err, setErr] = useState<string | null>(null)
@@ -49,7 +53,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     setBusy(true); setErr(null)
     try {
       const r = await json(await fetch('/api/reels', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief, n, duree, musique: musique || undefined, langue: getLang() }) }))
+        body: JSON.stringify({ brief, n, duree, musique: musique || undefined, voix: voixOff || undefined, calerMusique: !!musique && caler, langue: getLang() }) }))
       setReels(x => [r, ...x]); setBrief('')
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
@@ -84,6 +88,15 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
               <option value="">{t('son des clips seulement')}</option>
               {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
             </select>
+            {musique && <label className="flex gap-1.5 items-center" style={{ marginLeft: 10, cursor: 'pointer' }}><input type="checkbox" checked={caler} onChange={e => setCaler(e.target.checked)} /> {t('couper sur le rythme')}</label>}
+            {voixListe.length > 0 && <>
+              <span style={{ marginLeft: 10 }}>{t('Voix off')}</span>
+              <select value={voixOff} onChange={e => setVoixOff(e.target.value)} aria-label={t('Voix off')}
+                style={{ padding: '5px 8px', borderRadius: 8, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 12 }}>
+                <option value="">{t('aucune')}</option>
+                {voixListe.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+              </select>
+            </>}
             <span style={{ flex: 1 }} />
             <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={busy || !brief.trim()} onClick={() => void lancer()}>
               {busy ? '…' : `✨ ${t('Réaliser le reel')}`}
