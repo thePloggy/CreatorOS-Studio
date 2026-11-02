@@ -16,7 +16,7 @@ import * as comfy from './comfy.js'
 import { pourRendu } from './gpu.js'
 import * as sdk from './transport-sdk.js'
 import * as store from './db.js'
-import { identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
+import { SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
 import { ensurePoster } from './poster.js'
 import { controlerJob } from './controle.js'
 import * as wildcards from './wildcards.js'
@@ -2710,6 +2710,23 @@ function grapheMix(job, motion, applied, skipped) {
 
 /* Images de référence : chacune passe dans le latent et s'ajoute au conditionnement
    (ReferenceLatent en chaîne), à la manière d'un plateau de FLUX.2. */
+/* Références sur Klein : un personnage sans LoRA Klein n'y garde pas son visage. Sa photo de
+   profil passe alors en première référence, et le prompt la désigne. */
+function visageDuPersonnage(job, g, applied) {
+  const p = persona(job.personaId)
+  if (!p || p.lorasKlein?.length || job.personaId === SANS_PERSONNAGE) return []
+  const id = String(job.personaId ?? '').replace(/[^a-z0-9_]/g, '')
+  const photo = ['.png', '.jpg', '.webp'].map(e => path.join(CONFIG.mediaDir, '.persona', id, `avatar${e}`)).find(f => fs.existsSync(f))
+  if (!photo) { applied.push(`pas de photo de profil pour ${p.name || id} : le visage n'est pas tenu sur Klein`); return [] }
+  const nom = `PAV_${id}${path.extname(photo)}`
+  fs.copyFileSync(photo, path.join(CONFIG.comfyInput, nom))
+  let n = g[Object.values(g).find(x => x.class_type === 'KSampler')?.inputs.positive?.[0]]
+  while (n && n.class_type !== 'CLIPTextEncode') n = g[Object.values(n.inputs).find(v => Array.isArray(v))?.[0]]
+  if (n) n.inputs.text = `The woman in the first reference image is ${p.name?.replace(/\s*\(.*\)\s*/g, '') || 'the main character'}: keep her face exactly. ${n.inputs.text}`
+  applied.push(`photo de profil de ${p.name || id} en première référence (visage)`)
+  return [nom]
+}
+
 function appliquerReferences(g, noms, applied) {
   const k = Object.values(g).find(n => n.class_type === 'KSampler')
   const vae = Object.entries(g).find(([, n]) => n.class_type === 'VAELoader')?.[0]
@@ -2903,7 +2920,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
     }
-    if (job.references?.length) appliquerReferences(workflow, job.references, applied)
+    if (job.references?.length) appliquerReferences(workflow, [...visageDuPersonnage(job, workflow, applied), ...job.references].slice(0, 6), applied)
     if (speech?.note) applied.unshift(speech.note)
     if (drawn.draws.length) applied.unshift(...wildcardNotes.filter(n => n.startsWith('tirage')))
     if (drawn.unknown.length) skipped.push(...wildcardNotes.filter(n => !n.startsWith('tirage')))
