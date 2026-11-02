@@ -441,7 +441,7 @@ function monter(r, prets, rates) {
   const g = r.grille
   const clips = prets.map((p, i) => ({ assetId: p.clipAsset, debut: 0, fin: null, duree: g ? Math.round(g.pas * 100) / 100 : r.duree, texte: i === 0 ? r.accroche ?? '' : '',
     textePos: 'centre', transition: g || i === prets.length - 1 ? 'coupe' : 'fondu', transitionDuree: 0.35, crop: null }))
-  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: true, volumeClips: voixOff ? 0.2 : r.musique ? 0.35 : 1,
+  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: !(voixOff || r.musique), volumeClips: 1,
     musique: r.musique ? { fichier: r.musique, volume: voixOff ? 1 : 0.85, fonduEntree: g ? 0 : 0.3, fonduSortie: 1.2, decalage: g && !voixOff ? g.debut : 0 } : null, clips } })
   try {
     const { jobId } = montage.exporter(p2)
