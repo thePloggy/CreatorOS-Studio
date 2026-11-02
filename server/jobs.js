@@ -2916,7 +2916,7 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
   const bas = /\b(jeans|trousers|pants|shorts|skirt|leggings|dress|jumpsuit|overalls|suit|bikini|swimsuit)\b/i.test(tenue ?? '')
   const vetements = [tenue, !haut && 'a plain opaque top', !bas && 'plain opaque trousers'].filter(Boolean).join(', ')
   const positive = `full body photo, standing and facing the camera, arms relaxed, natural expression, `
-    + `fully clothed, wearing ${vetements}, opaque fabric, nothing see-through, soft even daylight, plain background, sharp focus, 50mm`
+    + `fully clothed, wearing ${vetements}, opaque fabric, soft even daylight, plain background, sharp focus, 50mm`
   const dv = videoSize(driverPath), portrait = !(dv.width > dv.height)
   const { workflow } = comfy.injectJob(comfy.loadWorkflow(RECIPES.sfw), {
     opTag: 'generate', positive, seed: job.seed, jobId: `${job.id}-ref`, identityPreamble: identityPreambleFor(job.personaId),
@@ -3129,11 +3129,12 @@ async function runJob(job, isRetry = false, connRetried = false) {
     // Vidéo avec son : la réplique est la SEULE parole (voir speechGuard).
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
     // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
+    // (sans les mots du filtre T0, que le prompt final traverse ensuite)
     const vetuOpaque = !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo'
     const texteBrut = speech?.text ?? drawn.text
     // un maillot sur une adulte reste permis : la consigne ne demande alors que des tissus opaques
     const maillot = /\b(bikini|swimsuit|swimwear|one-piece|swim trunks)\b/i.test(texteBrut)
-    const positive = vetuOpaque ? `${texteBrut}, ${maillot ? '' : 'fully clothed, '}opaque fabric, nothing see-through` : texteBrut
+    const positive = vetuOpaque ? `${texteBrut}, ${maillot ? '' : 'fully clothed, '}opaque fabric, fully covered` : texteBrut
     const wildcardNotes = [
       ...drawn.draws.map(d => `tirage wildcard ${d.token} → « ${d.value} »`),
       ...drawn.unknown.map(t => `wildcard ${t} INCONNU : aucun fichier dans ${CONFIG.wildcardsDir} — laissé tel quel`),
