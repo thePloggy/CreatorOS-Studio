@@ -715,4 +715,11 @@ export const nouveautes: Record<string, string> = {
   'Écouter': 'Listen',
   'Écouter la voix': 'Listen to the voice',
   'Écouter la musique': 'Listen to the music',
+  'en cours': 'in progress',
+  'Arrêter ce reel ?': 'Stop this reel?',
+  'Oui': 'Yes',
+  'Non': 'No',
+  'Les rendus en file sont arrêtés ; ce qui est déjà fait reste dans la bibliothèque': 'Queued renders are stopped; what is already done stays in the library',
+  'Arrête le reel et le retire de la liste ; ce qui est déjà fait reste dans la bibliothèque': 'Stops the reel and removes it from the list; what is already done stays in the library',
+  'Annulé': 'Cancelled',
 }

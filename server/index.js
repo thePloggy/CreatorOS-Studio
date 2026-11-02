@@ -2540,7 +2540,8 @@ app.get('/api/reels/:id', async (req, reply) => reelOut(reel.lireReel(req.params
 app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
   try { return reelOut(reel.refairePlan(req.params.id, req.params.k, req.body?.motion)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-app.delete('/api/reels/:id', async (req, reply) => reel.supprimerReel(req.params.id) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
+app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req.params.id)) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
+app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   try { return reelOut(reel.realiser({ ...(req.body ?? {}), personaId: personaDe(req), cle: cleComfy(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }

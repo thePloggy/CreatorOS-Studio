@@ -110,7 +110,8 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
         </div>
 
         {reels.filter(r => r.etat !== 'fini' || r.reelUri || r.plans.some(p => !p.supprime)).map(r => <CarteReel key={r.id} r={r} goMontage={goMontage}
-          onRetirer={() => void fetch(`/api/reels/${r.id}`, { method: 'DELETE' }).then(json).then(() => setReels(x => x.filter(y => y.id !== r.id))).catch(e => setErr(String(e.message)))} />)}
+          onRetirer={() => void fetch(`/api/reels/${r.id}`, { method: 'DELETE' }).then(json).then(() => setReels(x => x.filter(y => y.id !== r.id))).catch(e => setErr(String(e.message)))}
+          onAnnuler={() => void fetch(`/api/reels/${r.id}/annuler`, { method: 'POST' }).then(json).then((n: Reel) => setReels(x => x.map(y => y.id === r.id ? n : y))).catch(e => setErr(String(e.message)))} />)}
         {!reels.length && <div style={{ fontSize: 12.5, color: 'var(--faint)', textAlign: 'center', padding: 20 }}>{t('Aucun reel pour ce personnage.')}</div>}
       </div>
     </div>
@@ -120,9 +121,11 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
 const ETAPES: Reel['etat'][] = ['redaction', 'photos', 'clips', 'export', 'fini']
 const NOM_ETAPE: Record<string, string> = { redaction: 'Rédaction', photos: 'Photos', clips: 'Clips', export: 'Montage', fini: 'Prêt' }
 
-function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: string) => void; onRetirer: () => void }) {
+function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage: (id: string) => void; onRetirer: () => void; onAnnuler: () => void }) {
   // refaire un seul plan : sa photo reste, son clip est rendu à nouveau, le reel est remonté
   const [planRefait, setPlanRefait] = useState<number | null>(null)
+  const [confirme, setConfirme] = useState<'annuler' | 'supprimer' | null>(null)
+  const enCours = r.etat !== 'fini' && r.etat !== 'echec'
   const [geste, setGeste] = useState('')
   const [errPlan, setErrPlan] = useState<string | null>(null)
   const refaire = async () => {
@@ -133,7 +136,7 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
       setPlanRefait(null)
     } catch (e) { setErrPlan(String((e as Error).message)) }
   }
-  const idx = r.etat === 'echec' ? -1 : ETAPES.indexOf(r.etat)
+  const idx = r.etat === 'echec' ? -1 : (r.etat as string) === 'montage' ? ETAPES.indexOf('export') : ETAPES.indexOf(r.etat)
   const photos = r.plans.filter(p => p.photoUri).length, clips = r.plans.filter(p => p.clipUri).length
   const detail = (e: Reel['etat']) => e === 'photos' ? ` ${photos}/${r.plans.length || r.n}` : e === 'clips' ? ` ${clips}/${r.plans.length || r.n}` : ''
   return (
@@ -143,12 +146,13 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
         {r.accroche && <div style={{ fontSize: 12, color: 'var(--faint)' }}>{r.brief}</div>}
         <div className="flex items-center gap-1.5 flex-wrap" style={{ fontSize: 12 }}>
           {ETAPES.map((e, k) => (
-            <span key={e} style={{ padding: '3px 9px', borderRadius: 999, background: k < idx || r.etat === 'fini' ? 'var(--lv3)' : k === idx ? 'var(--accent)' : 'var(--lv2)',
+            <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px', borderRadius: 999, background: k < idx || r.etat === 'fini' ? 'var(--lv3)' : k === idx ? 'var(--accent)' : 'var(--lv2)',
               color: k === idx && r.etat !== 'fini' ? '#fff' : k <= idx ? 'var(--text)' : 'var(--faint)' }}>
               {k < idx || r.etat === 'fini' ? '✓ ' : ''}{t(NOM_ETAPE[e])}{k === idx ? detail(e) : ''}
+              {k === idx && r.etat !== 'fini' && <span className="reel-loader" role="status" aria-label={t('en cours')} />}
             </span>
           ))}
-          {r.etat === 'echec' && <span className="texte-erreur">{t('échec')} — {tServeur(r.erreur ?? '')}</span>}
+          {r.etat === 'echec' && (r.erreur === 'annulé' ? <span style={{ color: 'var(--muted)' }}>{t('Annulé')}</span> : <span className="texte-erreur">{t('échec')} — {tServeur(r.erreur ?? '')}</span>)}
         </div>
         <div className="flex gap-2" style={{ overflowX: 'auto' }}>
           {(r.plans.length ? r.plans : Array.from({ length: r.n }, () => null)).map((p, i) => p?.supprime ? null : (
@@ -181,6 +185,16 @@ function CarteReel({ r, goMontage, onRetirer }: { r: Reel; goMontage: (id: strin
         <div className="flex gap-2">
           {r.montageId && <button className="pill tool" onClick={() => goMontage(r.montageId!)}>{t('Ouvrir dans le Montage')}</button>}
           {(r.etat === 'fini' || r.etat === 'echec') && <button className="pill tool" title={t('Les photos et clips restent dans la bibliothèque')} onClick={onRetirer}>✕ {t('Retirer de la liste')}</button>}
+          {enCours && (confirme
+            ? <>
+                <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>{t('Arrêter ce reel ?')}</span>
+                <button className="pill tool" onClick={() => { setConfirme(null); confirme === 'annuler' ? onAnnuler() : onRetirer() }}>{t('Oui')}</button>
+                <button className="pill tool" onClick={() => setConfirme(null)}>{t('Non')}</button>
+              </>
+            : <>
+                <button className="pill tool" title={t('Les rendus en file sont arrêtés ; ce qui est déjà fait reste dans la bibliothèque')} onClick={() => setConfirme('annuler')}>■ {t('Annuler')}</button>
+                <button className="pill tool" title={t('Arrête le reel et le retire de la liste ; ce qui est déjà fait reste dans la bibliothèque')} onClick={() => setConfirme('supprimer')}>✕ {t('Supprimer')}</button>
+              </>)}
         </div>
       </div>
       {r.reelUri && (

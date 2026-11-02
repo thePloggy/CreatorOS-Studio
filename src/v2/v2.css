@@ -744,3 +744,8 @@
 .v2 .app-ariane button { border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
 .v2 .app-ariane b { color: var(--text); }
 .v2 .outil-volet .texte-faible, .v2 .outil-volet .texte-doux:not(.titre-outil) { font-size: 12px; line-height: 1.45; }
+
+/* Étape de reel en cours : petit anneau qui tourne à côté du nom */
+.reel-loader { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: reel-tourne .8s linear infinite; flex: none; }
+@keyframes reel-tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .reel-loader { animation-duration: 2.4s; } }
