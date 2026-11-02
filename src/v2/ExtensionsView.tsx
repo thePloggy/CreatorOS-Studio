@@ -72,6 +72,73 @@ function CarteExtension({ x, onRetirer }: { x: Extension; onRetirer: () => void 
   )
 }
 
+type WorkflowComfy = { id: string; titre: string; description: string; categorie: string; tags: string[]; taille: number | null; tutoriel: string | null; modeles: number;
+  manquants: { nom: string; dossier: string }[]; noeuds: string[]; majComfy: boolean; versionMin: string | null;
+  telechargement: { etat: string; fait: number; total: number; fichier: string | null; erreur: string | null } | null }
+const go = (o: number | null) => (o ? `${(o / 1e9).toFixed(o > 10e9 ? 0 : 1)} Go` : '')
+
+/* Les workflows officiels de ComfyUI : modèles présents ou à télécharger, nœuds absents. */
+function WorkflowsComfy() {
+  const edition = useEdition()
+  const [liste, setListe] = useState<WorkflowComfy[] | null>(null)
+  const [erreur, setErreur] = useState<string | null>(null)
+  const [cherche, setCherche] = useState('')
+  const [cat, setCat] = useState('')
+  const [n, setN] = useState(24)
+  const charger = () => void fetch('/api/workflows-comfy').then(r => r.json()).then((d: { workflows?: WorkflowComfy[]; error?: string }) => { if (d.workflows) setListe(d.workflows); else setErreur(d.error ?? '…') }).catch(e => setErreur(String(e)))
+  useEffect(charger, [])
+  useEffect(() => {
+    if (!liste?.some(w => w.telechargement?.etat === 'en cours')) return
+    const h = setInterval(charger, 5000)
+    return () => clearInterval(h)
+  }, [liste])
+  const telecharger = async (id: string) => { try { await poster(`/api/workflows-comfy/${id}/telecharger`); charger() } catch (e) { setErreur(String((e as Error).message)) } }
+  const cats = [...new Set(liste?.map(w => w.categorie) ?? [])]
+  const q = cherche.trim().toLowerCase()
+  const vus = (liste ?? []).filter(w => (!cat || w.categorie === cat) && (!q || `${w.titre} ${w.description} ${w.tags.join(' ')}`.toLowerCase().includes(q)))
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <b style={{ fontSize: 18 }}>{t('Workflows officiels de ComfyUI')}</b>
+      <span className="texte-doux" style={{ fontSize: 13 }}>{t('Les workflows open source livrés avec ComfyUI. Le studio dit quels modèles manquent et les télécharge depuis l’adresse officielle inscrite dans le workflow. Un nœud absent veut dire que ComfyUI doit être mis à jour : le studio ne le fait pas à ta place.')}</span>
+      <div className="flex gap-2 items-center flex-wrap">
+        <input className="champ" value={cherche} onChange={e => { setCherche(e.target.value); setN(24) }} placeholder={t('Chercher un workflow')} style={{ minWidth: 220 }} />
+        <select className="champ" value={cat} onChange={e => { setCat(e.target.value); setN(24) }} aria-label={t('catégorie')}>
+          <option value="">{t('Toutes les catégories')}</option>
+          {cats.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span className="texte-faible">{t('{n} workflows', { n: vus.length })}</span>
+      </div>
+      {erreur && <span className="texte-erreur">{erreur}</span>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+        {vus.slice(0, n).map(w => {
+          const d = w.telechargement
+          const pret = !w.manquants.length && !w.majComfy
+          return (
+            <div key={w.id} className="guide-outil" style={{ alignContent: 'start', padding: 0, overflow: 'hidden' }}>
+              <img src={`/api/workflows-comfy/vignette/${encodeURIComponent(w.id)}-1.webp`} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', background: 'var(--lv1)' }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }} />
+              <div style={{ display: 'grid', gap: 6, padding: '0 12px 12px' }}>
+                <b>{w.titre}</b>
+                <p style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{w.description}</p>
+                <span className={pret ? 'texte-doux' : 'texte-faible'}>
+                  {pret ? t('prêt : tous les modèles sont là') : w.majComfy ? t('ComfyUI à mettre à jour ({v})', { v: w.versionMin ?? w.noeuds.slice(0, 2).join(', ') }) : t('{n} modèle(s) à télécharger {g}', { n: w.manquants.length, g: go(w.taille) })}
+                </span>
+                {d && <span className={d.etat === 'échec' ? 'texte-erreur' : 'texte-doux'}>{d.etat === 'en cours' ? t('téléchargement {a}/{b} : {f}', { a: d.fait, b: d.total, f: d.fichier ?? '' }) : d.etat === 'fini' ? t('modèles téléchargés') : d.erreur}</span>}
+                <div className="flex gap-2 flex-wrap">
+                  {edition && w.manquants.length > 0 && d?.etat !== 'en cours' && <button className="pill" onClick={() => void telecharger(w.id)}>{t('Télécharger les modèles')}</button>}
+                  {edition && <a className="pill" href={`${location.protocol}//${location.hostname}:8188/?template=${encodeURIComponent(w.id)}`} target="_blank" rel="noreferrer">{t('Ouvrir dans ComfyUI')}</a>}
+                  {w.tutoriel && <a className="pill" href={w.tutoriel} target="_blank" rel="noreferrer">{t('Guide')}</a>}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {vus.length > n && <button className="pill" style={{ justifySelf: 'center' }} onClick={() => setN(x => x + 24)}>{t('Voir plus')}</button>}
+    </div>
+  )
+}
+
 export function ExtensionsView() {
   const edition = useEdition()
   const [liste, setListe] = useState<Extension[] | null>(null)
@@ -108,6 +175,7 @@ export function ExtensionsView() {
           ))}
         </div>
         {msg && <span className="texte-erreur">{msg}</span>}
+        <WorkflowsComfy />
       </div>
     </div>
   )

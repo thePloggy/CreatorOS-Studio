@@ -46,6 +46,7 @@ import { aiToolkitPret } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
 import * as extensions from './extensions.js'
+import * as workflowsComfy from './workflowsComfy.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
 /* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
@@ -62,7 +63,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2110,6 +2111,22 @@ app.post('/api/voix', async (req, reply) => {
 
 /** Extensions (cf. extensions.js) : les livrées se lancent par tous, l'installation et les
     extensions installées sont réservées au propriétaire. */
+/** Workflows officiels de ComfyUI (cf. workflowsComfy.js) : liste et miniatures pour tous,
+    téléchargement des modèles pour le propriétaire. */
+app.get('/api/workflows-comfy', async (req, reply) => {
+  try { return { workflows: await workflowsComfy.lister() } } catch (e) { reply.code(502); return { error: String(e.message || e) } }
+})
+app.get('/api/workflows-comfy/vignette/:nom', async (req, reply) => {
+  const f = workflowsComfy.vignette(String(req.params.nom))
+  if (!f) { reply.code(404); return { error: 'miniature introuvable' } }
+  const types = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg' }
+  reply.header('Cache-Control', 'public, max-age=86400')
+  return reply.type(types[path.extname(f).slice(1)] ?? 'application/octet-stream').send(fs.createReadStream(f))
+})
+app.post('/api/workflows-comfy/:id/telecharger', async (req, reply) => {
+  try { return await workflowsComfy.telecharger(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
 app.get('/api/extensions', async () => ({ extensions: await extensions.lister(), catalogue: extensions.catalogue() }))
 app.post('/api/extensions/:id/installer', async (req, reply) => {
   try { return await extensions.installer(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }

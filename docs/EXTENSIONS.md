@@ -69,3 +69,7 @@ The workflow needs at least one save node (`SaveImage`, `SaveVideo`, `SaveAudio`
 ```
 
 The studio downloads only `app.json` and `workflow.json` from that folder (raw.githubusercontent.com only, 512 KB each at most) and validates them before saving.
+
+## Official ComfyUI workflows
+
+The Extensions page also lists the open-source workflows that ship with ComfyUI (the `comfyui_workflow_templates` package). For each one, the studio shows which model files are missing and whether ComfyUI is too old for it (a node class it does not know, or a newer `minComfyUIVersion`). The owner can download the missing models: only from `huggingface.co` or GitHub addresses written in the workflow itself, one file after the other, into `ComfyUI/models/<folder>` (or `CREATOROS_MODELES_DIR`), and only with at least 60 GB free. The studio never updates ComfyUI or installs nodes.
