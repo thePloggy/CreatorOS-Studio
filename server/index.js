@@ -40,7 +40,7 @@ import * as presets from './presets.js'
 // pour les JPEG mais un clip mp4 les dépasse → 413 à l'upload).
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
-import { lancerCroquis, etatCroquis } from './croquis.js'
+import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
 import { VOIX, changerVoix, cloner, cloneDisponible, echantillon, synthetiser, voixDisponible } from './voix.js'
 import { aiToolkitPret } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
@@ -2221,6 +2221,9 @@ app.post('/api/croquis', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/croquis/:id', async (req, reply) => etatCroquis(req.params.id) ?? (reply.code(404), { error: 'croquis inconnu' }))
+app.post('/api/croquis/:id/choisir', async (req, reply) => {
+  try { return choisirCroquis(req.params.id, req.body?.assetId) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 
 /** Recadrage vidéo vers un autre format, bords inventés (cf. enqueueRecadrage). */
 app.post('/api/assets/:id/recadrer', async (req, reply) => {

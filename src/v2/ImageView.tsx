@@ -169,12 +169,21 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
             <button className={`spill ${task === 'edit' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'edit' })}>✦ {t('Retouche')}</button>
             {task === 'generate' && (<>
               <span className="text-[12px] ml-3" style={{ color: 'var(--faint)' }}>{t('Recette')}</span>
-              <button className={`spill ${s.photoEngine === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')}
-                title={t('Krea 2 — la recette de production, identité tenue par les LoRA Krea')}>Krea 2</button>
-              <button className={`spill ${s.photoEngine === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}
-                title={t('FLUX.2 Klein 9B — références multiples ; sans LoRA Klein, le visage vient de la photo de profil du personnage')}>FLUX.2 Klein</button>
-              <button className={`spill ${s.photoEngine === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')}
-                title={t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
+              {/* une image de référence jointe : seul Klein sait la lire, le serveur rend donc en Klein */}
+              {(() => {
+                const refs = s.references.length > 0
+                const moteur = refs ? 'klein' : s.photoEngine
+                const bloque = t('une image de référence est jointe : seul FLUX.2 Klein sait la lire — retire-la pour utiliser ce moteur')
+                return (<>
+                  <button className={`spill ${moteur === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
+                    title={refs ? bloque : t('Krea 2 — la recette de production, identité tenue par les LoRA Krea')}>Krea 2</button>
+                  <button className={`spill ${moteur === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}
+                    title={t('FLUX.2 Klein 9B — références multiples ; sans LoRA Klein, le visage vient de la photo de profil du personnage')}>FLUX.2 Klein</button>
+                  <button className={`spill ${moteur === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
+                    title={refs ? bloque : t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
+                  {refs && s.photoEngine !== 'klein' && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
+                </>)
+              })()}
               {s.photoEngine === 'klein' && !kleinOk && (
                 <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Klein : son visage vient de sa photo de profil', { nom: s.personaName })}</span>
               )}

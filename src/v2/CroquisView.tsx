@@ -7,7 +7,8 @@ import { ChoixPersonnage } from './ChoixPersonnage'
 
 const FORMATS = { '16:9': [960, 540], '9:16': [405, 720], '1:1': [600, 600] } as const
 type Format = keyof typeof FORMATS
-type Etat = { id: string; photo: string | null; clip: string | null }
+type Photo = { job: string; statut: string | null; assetId: string | null; uri: string | null }
+type Etat = { id: string; photo: string | null; clip: string | null; photos?: Photo[]; choix?: string | null; clipJob?: string | null }
 
 export function CroquisView() {
   const toile = useRef<HTMLCanvasElement>(null)
@@ -26,7 +27,8 @@ export function CroquisView() {
   useEffect(fond, [format])
   useEffect(() => {
     if (!suivi || suivi.clip === 'done') return
-    const h = setInterval(() => void fetch(`/api/croquis/${suivi.id}`).then(r => r.json()).then((d: Etat & { photoJob?: string; clipJob?: string }) => {
+    const h = setInterval(() => void fetch(`/api/croquis/${suivi.id}`).then(r => (r.ok ? r.json() : null)).then((d: Etat | null) => {
+      if (!d) return
       setSuivi(d)
       if (d.clipJob) void adopter(d.clipJob)
     }).catch(() => {}), 2500)
@@ -53,9 +55,19 @@ export function CroquisView() {
       body: JSON.stringify({ image: toile.current!.toDataURL('image/png'), scene, mouvement, format, secondes: 5 }) })
     const d = await r.json().catch(() => ({}))
     if (!r.ok) { setErr(tServeur(d.error) ?? `HTTP ${r.status}`); return }
-    setSuivi(d); if (d.photoJob) void adopter(d.photoJob)
+    setSuivi(d); for (const p of (d.photos ?? []) as Photo[]) void adopter(p.job)
   }
-  const etape = !suivi ? null : suivi.clip === 'done' ? t('Clip prêt : il est dans la bibliothèque.') : suivi.clip ? t('Image prête, le clip se rend (~5 min)…') : suivi.photo === 'blocked' ? t('L’image a échoué : réessaie.') : t('L’image se rend à partir du croquis…')
+  const choisir = async (assetId: string) => {
+    if (!suivi) return
+    setErr(null)
+    const r = await fetch(`/api/croquis/${suivi.id}/choisir`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { setErr(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    setSuivi(d); if (d.clipJob) void adopter(d.clipJob)
+  }
+  const enAttenteDeChoix = !!suivi && !suivi.clipJob && suivi.photo !== 'blocked'
+  const etape = !suivi ? null : suivi.clip === 'done' ? t('Clip prêt : il est dans la bibliothèque.') : suivi.clipJob ? t('Le clip se rend à partir de l’image choisie (~5 min)…')
+    : suivi.photo === 'blocked' ? t('Les images ont échoué : réessaie.') : suivi.photos?.some(p => p.uri) ? t('Choisis l’image à animer : regarde bien la pose et les membres.') : t('Trois images se rendent à partir du croquis…')
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
@@ -82,8 +94,22 @@ export function CroquisView() {
             <ChoixPersonnage />
             <label>{t('Ce que montre le dessin')}<textarea value={scene} onChange={e => setScene(e.target.value)} maxLength={400} rows={3} placeholder={t('en anglais : a lighthouse on a cliff at sunset, waves below')} /></label>
             <label>{t('Ce qui bouge')}<textarea value={mouvement} onChange={e => setMouvement(e.target.value)} maxLength={300} rows={2} placeholder={t('en anglais : waves crash, slow push in')} /></label>
-            <button className="btn-gen" disabled={!scene.trim() || (!!suivi && suivi.clip !== 'done' && suivi.photo !== 'blocked')} onClick={() => void lancer()}>{t('Image puis clip')}</button>
+            <button className="btn-gen" disabled={!scene.trim() || (!!suivi && !!suivi.clipJob && suivi.clip !== 'done')} onClick={() => void lancer()}>{suivi && !suivi.clipJob ? t('3 autres images') : t('3 images, puis le clip')}</button>
             {etape && <p style={{ margin: 0, fontSize: 13 }}>{etape}</p>}
+            {suivi?.photos && (enAttenteDeChoix || suivi.choix) && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                {suivi.photos.map(p => (
+                  <button key={p.job} disabled={!p.assetId || !!suivi.clipJob} onClick={() => p.assetId && void choisir(p.assetId)}
+                    aria-pressed={suivi.choix === p.assetId} aria-label={t('animer cette image')}
+                    style={{ padding: 0, borderRadius: 8, overflow: 'hidden', aspectRatio: format === '9:16' ? '9 / 16' : format === '1:1' ? '1' : '16 / 9', background: 'var(--lv2)',
+                      border: suivi.choix && suivi.choix === p.assetId ? '2px solid var(--accent)' : '2px solid transparent', cursor: p.assetId && !suivi.clipJob ? 'pointer' : 'default',
+                      opacity: suivi.choix && suivi.choix !== p.assetId ? 0.45 : 1 }}>
+                    {p.uri ? <img src={p.uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      : <span className="texte-faible" style={{ fontSize: 11 }}>{p.statut === 'blocked' ? t('échec') : '…'}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
             {err && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{err}</p>}
           </div>
         </div>

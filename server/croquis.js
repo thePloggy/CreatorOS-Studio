@@ -11,6 +11,7 @@ import { anatomieImage, anatomieVideo } from './anatomie.js'
 
 const FORMATS = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024] }
 const suivis = new Map()
+const PROPOSITIONS = 3
 
 export function lancerCroquis({ image, scene, mouvement, format, secondes, personaId }) {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(image ?? ''))
@@ -38,12 +39,15 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
     fs.rmSync(brut, { force: true })
   }
   store.noterInput(nom, 'croquis')
-  const photo = enqueue({ mode: 'photo', register: 'sfw', personaId, purpose: 'creative', photoEngine: 'klein', references: [nom],
-    composedPositive: `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.${anatomieImage(s)}`,
-    userPrompt: s, composedNegative: '', width: w, height: h })
+  /* Trois images, tirées avec des graines différentes : on choisit celle qui sera animée. Un
+     croquis se lit de plusieurs façons (une cape prise pour une 3e jambe) ; animer une image
+     ratée coûte un clip entier, la refaire coûte une vingtaine de secondes. */
+  const positif = `${s}. A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for (a box is a building, a stick figure is a real person with natural anatomy), fully detailed and textured.${anatomieImage(s)}`
+  const photoJobs = Array.from({ length: PROPOSITIONS }, () => enqueue({ mode: 'photo', register: 'sfw', personaId, purpose: 'creative', photoEngine: 'klein', references: [nom],
+    composedPositive: positif, userPrompt: s, composedNegative: '', width: w, height: h }).id)
   const id = `crq-${cle}`
-  suivis.set(id, { id, photoJob: photo.id, clipJob: null, mouvement: String(mouvement ?? '').trim().slice(0, 300) || 'gentle natural motion, slow cinematic camera move',
-    scene: s, format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId, croquis: nom })
+  suivis.set(id, { id, photoJobs, choix: null, clipJob: null, mouvement: String(mouvement ?? '').trim().slice(0, 300) || 'gentle natural motion, slow cinematic camera move',
+    scene: s, format: format in FORMATS ? format : '16:9', secondes: Math.min(8, Math.max(3, Number(secondes) || 5)), personaId, croquis: nom, debut: Date.now() })
   return etatCroquis(id)
 }
 
@@ -53,22 +57,28 @@ export function etatCroquis(id) {
   const c = suivis.get(id)
   if (!c) return null
   const etat = j => (j ? store.getJob(j)?.status ?? 'absent' : null)
-  return { id, photoJob: c.photoJob, photo: etat(c.photoJob), clipJob: c.clipJob, clip: etat(c.clipJob) }
+  const photos = c.photoJobs.map(j => { const a = etat(j) === 'done' ? premierAsset(j) : null; return { job: j, statut: etat(j), assetId: a?.id ?? null, uri: a?.uri ?? null } })
+  const statuts = photos.map(p => p.statut)
+  const photo = statuts.some(x => x === 'done') ? 'done' : statuts.every(x => x === 'blocked' || x === 'absent' || x === 'failed') ? 'blocked' : 'rendering'
+  return { id, photos, choix: c.choix, photo, clipJob: c.clipJob, clip: etat(c.clipJob) }
 }
 
-function avancer(c) {
-  if (c.clipJob) return
-  const s = store.getJob(c.photoJob)?.status
-  if (s !== 'done') { if (s === 'blocked') suivis.delete(c.id); return }
-  const a = premierAsset(c.photoJob)
-  if (!a) return
+/** Anime l'image choisie parmi les propositions du croquis. */
+export function choisirCroquis(id, assetId) {
+  const c = suivis.get(id)
+  if (!c) throw new Error('croquis inconnu : relance-le')
+  if (c.clipJob) throw new Error('ce croquis est déjà animé')
+  const a = c.photoJobs.map(premierAsset).find(x => x && x.id === String(assetId ?? ''))
+  if (!a) throw new Error('choisis l’une des images proposées')
   const nom = `crs_still_${path.basename(a.filename)}`
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
   store.noterInput(nom)
   const j = enqueue({ mode: 'video', register: 'sfw', personaId: c.personaId, purpose: 'creative', videoEngine: 'ltx_hq', sourceImage: nom,
     composedPositive: `${c.mouvement}. single continuous shot.${anatomieVideo(`${c.scene ?? ''} ${c.mouvement}`)}`, userPrompt: c.mouvement, composedNegative: '', withAudio: true,
     videoSeconds: c.secondes, videoFps: 24, videoAspect: c.format, parentAssetId: a.id })
-  c.clipJob = j.id
+  c.choix = a.id; c.clipJob = j.id
+  return etatCroquis(id)
 }
 
-setInterval(() => { for (const c of suivis.values()) { try { avancer(c) } catch (e) { console.warn(`[croquis ${c.id}] ${e.message || e}`) } } }, 3000).unref()
+// un croquis oublié (jamais choisi) quitte le suivi au bout d'une journée
+setInterval(() => { for (const c of suivis.values()) if (Date.now() - (c.debut ?? 0) > 86400_000) suivis.delete(c.id) }, 600_000).unref()
