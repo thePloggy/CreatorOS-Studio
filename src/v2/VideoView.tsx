@@ -137,7 +137,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               className="flex-1 text-center text-[12px] leading-tight py-1.5 px-1 rounded-lg"
               style={{ background: tab === tb ? 'var(--lv4)' : 'transparent', color: tab === tb ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
               onClick={() => tb === 'stage' ? s.ouvrirStage(s.stageRepris) : (useAppStore.setState({ stageOuvert: false }), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
-              {tb === 'creer' ? 'Image to Video' : tb === 'ambiance' ? 'Text to Video' : tb === 'rejouer' ? 'Motion Control' : tb === 'stage' ? '3D Scene' : 'Extend'}
+              {tb === 'creer' ? 'Image to Video' : tb === 'ambiance' ? 'Text to Video' : tb === 'rejouer' ? 'Motion Control' : tb === 'stage' ? t('Scène 3D') : 'Extend'}
             </button>
           ))}
         </div>

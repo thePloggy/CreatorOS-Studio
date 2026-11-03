@@ -126,9 +126,9 @@ const CONFS: Record<IdOutil, Conf> = {
       if (!r.ok || !d.texte) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
       return retouche(a, `The same person, same outfit, same place and same light, a few seconds later: ${d.texte} Keep the same face and photo style.`)
     } },
-  'image-3d': { titre: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans 3D Scene.', media: 'photo', prefixes: ['objet3d-'], bouton: 'Créer le modèle 3D',
+  'image-3d': { titre: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans la scène 3D.', media: 'photo', prefixes: ['objet3d-'], bouton: 'Créer le modèle 3D',
     champ: { label: 'Objet à garder (en anglais)', placeholder: 'toy robot · red armchair · perfume bottle', requis: true },
-    etapes: [{ titre: 'Choisis la photo', texte: 'Un objet bien détaché, entier dans le cadre.' }, { titre: 'Nomme l’objet', texte: 'En anglais : SAM3 le découpe.' }, { titre: 'Récupère le GLB', texte: 'TRELLIS.2 en une minute : à faire tourner, télécharger ou poser dans 3D Scene.' }],
+    etapes: [{ titre: 'Choisis la photo', texte: 'Un objet bien détaché, entier dans le cadre.' }, { titre: 'Nomme l’objet', texte: 'En anglais : SAM3 le découpe.' }, { titre: 'Récupère le GLB', texte: 'TRELLIS.2 en une minute : à faire tourner, télécharger ou poser dans la scène 3D.' }],
     lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/objet3d`, { cible: v.texte.trim() }) },
   'hdr': { titre: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', media: 'video', bouton: '',
     etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu fini.' }, { titre: 'Choisis le master', texte: 'HLG pour les écrans HDR, ProRes ou EXR pour l’étalonnage.' }, { titre: 'Télécharge', texte: 'Le fichier se prépare puis se télécharge.' }] },

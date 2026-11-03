@@ -48,7 +48,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Talking Avatar': { type: 'media', image: v('v2-avatar.webp'), video: v('v2-avatar.mp4'), texte: 'Hi, I’m Jessica.' },
   'Voice-over': { type: 'media', image: v('onde.webp'), onde: true, texte: 'Welcome to the studio' },
   'Music & Sound Effects': { type: 'media', image: v('onde.webp'), onde: true, texte: 'warm lo-fi hip hop, soft piano' },
-  '3D Scene': { ...compare('stage', 'Maquette 3D', 'Rendu final') },
+  'Scène 3D': { ...compare('stage', 'Maquette 3D', 'Rendu final') },
   'Movie Studio': { type: 'media', image: v('v2-cine.webp'), video: v('v2-cine-v.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', '500T'] },
   'Camera Moves': anime('camera-z', { auto: true }),
   'Effects': anime('effets-z', { auto: true }),

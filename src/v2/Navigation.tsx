@@ -49,7 +49,7 @@ export const MENUS: Menu[] = [
       { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', section: 'outil', dedie: 'multi-angle' },
       { label: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', section: 'outil', dedie: 'coverage', pastille: 'new' },
       { label: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', section: 'outil', dedie: 'next-shot', pastille: 'new' },
-      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans 3D Scene.', section: 'outil', dedie: 'image-3d', pastille: 'new' },
+      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans la scène 3D.', section: 'outil', dedie: 'image-3d', pastille: 'new' },
       ] },
     ], modeles: [['Krea 2', 'Photo du personnage, LoRA d’identité'], ['FLUX.2 Klein 9B', 'Images de référence, croquis'], ['Qwen-Image-Edit 2511', 'Angles, looks, retouche'], ['SeedVR2', 'Restauration et HD'], ['TRELLIS.2', 'Photo vers modèle 3D']] },
   { titre: 'Vidéo', defaut: 'Image to Video', colonnes: [
@@ -62,7 +62,7 @@ export const MENUS: Menu[] = [
       { label: 'Seamless Loop', texte: 'Un clip qui revient à son image de départ : il tourne en boucle sans raccord.', section: 'outil', dedie: 'loop', pastille: 'new' },
       ] },
       { titre: 'Réaliser', outils: [
-      { label: '3D Scene', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
+      { label: 'Scène 3D', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
       { label: 'Camera Moves', texte: 'Dolly, orbite, crash zoom, drone, bullet time : un mouvement de cinéma sur n’importe quelle photo.', section: 'presets', tache: 'camera' },
       { label: 'Effects', texte: 'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.', section: 'presets', tache: 'effets' },
       { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },

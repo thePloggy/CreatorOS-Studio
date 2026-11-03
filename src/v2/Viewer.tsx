@@ -439,10 +439,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               <ol>
                 <li>{t('Écris en anglais l’objet à garder sur la photo, par exemple toy robot.')}</li>
                 <li>{t('Lance la création : environ 1 minute.')}</li>
-                <li>{t('Ouvre le résultat dans la bibliothèque : fais-le tourner, télécharge le GLB ou pose-le dans 3D Scene.')}</li>
+                <li>{t('Ouvre le résultat dans la bibliothèque : fais-le tourner, télécharge le GLB ou pose-le dans la scène 3D.')}</li>
               </ol>
               <input value={cible3d} onChange={e => setCible3d(e.target.value)} placeholder={t('quel objet ? en anglais')} maxLength={80} />
-              <button className="pill" title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans 3D Scene')} disabled={!cible3d.trim()} onClick={() => void objet3d()}>{t('Créer le modèle 3D')}</button>
+              <button className="pill" title={t('TRELLIS.2 : la photo devient un modèle GLB, utilisable dans la scène 3D')} disabled={!cible3d.trim()} onClick={() => void objet3d()}>{t('Créer le modèle 3D')}</button>
               {agrandirMsg && <span className="texte-erreur">{agrandirMsg}</span>}
             </div>
           )}
@@ -554,7 +554,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             onClick={() => s.toggleExportReady(asset.id)}>⇪ Export{asset.exportReady ? ' ✓' : ''}</button>
         </div>
 
-        {String(asset.jobId).startsWith('stage-') && <button className="b2" onClick={() => void rouvrirStage()}>{t('Ouvrir dans 3D Scene')}</button>}
+        {String(asset.jobId).startsWith('stage-') && <button className="b2" onClick={() => void rouvrirStage()}>{t('Ouvrir dans la scène 3D')}</button>}
         <div className="mt-auto flex flex-col gap-1.5">
           {asset.mediaType === 'photo' && (
             <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}
@@ -594,7 +594,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               {t('Objet 3D')}
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setVoir3d(v => !v)}>{t('Voir en 3D')}</button>
               <a className="pill" style={{ fontSize: 12, padding: '4px 9px' }} href={asset.modele3d} download>{t('Télécharger le GLB')}</a>
-              <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={placerDansStage}>{t('Placer dans 3D Scene')}</button>
+              <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={placerDansStage}>{t('Placer dans la scène 3D')}</button>
             </div>
           )}
           {voir3d && asset.modele3d && createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'var(--scene)' }}><Suspense fallback={null}><Objet3D url={asset.modele3d} /></Suspense>
