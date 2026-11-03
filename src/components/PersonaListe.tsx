@@ -67,30 +67,32 @@ export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: st
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
         {liste.map(p => (
           <div key={p.id} role="button" tabIndex={0} aria-pressed={p.active}
             onClick={() => { if (!p.active) void agir(() => appel(`/api/personas/${p.id}/activer`, { method: 'POST' })) }}
             onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !p.active) void agir(() => appel(`/api/personas/${p.id}/activer`, { method: 'POST' })) }}
             style={{
-              padding: 10, borderRadius: 12, cursor: p.active ? 'default' : 'pointer',
+              padding: '10px 12px', borderRadius: 12, cursor: p.active ? 'default' : 'pointer',
               border: p.active ? '2px solid rgba(234,78,137,0.9)' : '1px solid rgba(127,127,127,0.30)',
               background: p.active ? 'rgba(234,78,137,0.10)' : 'rgba(127,127,127,0.06)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', minWidth: 0,
+              display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
             }}>
             {p.avatar
-              ? <img src={p.avatar} alt="" draggable={false} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
-              : <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#3a4a5c,#232d38)' }} />}
-            <b style={{ fontSize: 13, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || t('sans nom')}</b>
-            <span style={{ fontSize: 12, opacity: 0.6 }}>
-              {p.active ? t('actif · ') : ''}{[p.loras.length && 'Krea', p.lorasKlein?.length && 'Klein', p.videoLoras.length && t('vidéo')].filter(Boolean).join(' · ') || t('sans LoRA')}
-            </span>
-            <CreditLigne credit={p.credit} />
-            {edition && <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-              <button style={{ ...bouton, padding: '3px 8px', fontSize: 12 }} title={t('Créer une copie de ce personnage')}
+              ? <img src={p.avatar} alt="" draggable={false} style={{ flex: 'none', width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
+              : <span style={{ flex: 'none', width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,#3a4a5c,#232d38)' }} />}
+            <div style={{ display: 'grid', gap: 2, minWidth: 0, flex: 1 }}>
+              <b style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || t('sans nom')}</b>
+              <span style={{ fontSize: 12, opacity: 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.active ? t('actif · ') : ''}{[p.loras.length && 'Krea', p.lorasKlein?.length && 'Klein', p.videoLoras.length && t('vidéo')].filter(Boolean).join(' · ') || t('sans LoRA')}
+              </span>
+              <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><CreditLigne credit={p.credit} /></span>
+            </div>
+            {edition && <div style={{ display: 'grid', gap: 4, flex: 'none' }} onClick={e => e.stopPropagation()}>
+              <button style={{ ...bouton, padding: '2px 7px', fontSize: 11.5 }} title={t('Créer une copie de ce personnage')}
                 onClick={() => void creer(p.id)}>{t('dupliquer')}</button>
               {liste.length > 1 && (
-                <button style={{ ...bouton, padding: '3px 8px', fontSize: 12 }} aria-label={t('supprimer {nom}', { nom: p.name ?? p.id })}
+                <button style={{ ...bouton, padding: '2px 7px', fontSize: 11.5 }} aria-label={t('supprimer {nom}', { nom: p.name ?? p.id })}
                   onClick={() => { if (confirm(t('Supprimer « {nom} » ? Ses rendus restent dans la bibliothèque, ses LoRA dans le dossier.', { nom: p.name || p.id })))
                     void agir(() => appel(`/api/personas/${p.id}`, { method: 'DELETE' })) }}>✕</button>
               )}

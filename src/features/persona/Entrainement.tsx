@@ -1,5 +1,5 @@
-/* Entraîner le personnage : une LoRA FLUX.2 Klein apprise sur ses images de la bibliothèque.
-   Réservé au propriétaire du studio ; le GPU y est occupé une quarantaine de minutes. */
+/* Entraîner le personnage : une LoRA par moteur coché (FLUX.2 Klein, Krea 2), apprise sur ses images de la bibliothèque.
+   Réservé au propriétaire du studio ; le GPU y est occupé une demi-heure environ par moteur. */
 import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
@@ -20,7 +20,7 @@ function SuiviEntrainements({ travaux, onAnnuler, moteurs }: { travaux: Travail[
         const enCours = EN_COURS.includes(w.statut)
         const pc = w.pas != null && w.total ? Math.min(100, Math.round(w.pas / w.total * 100)) : null
         return (
-          <div key={w.id} style={{ display: 'grid', gap: 5, padding: '10px 12px', borderRadius: 10, background: 'rgba(127,127,127,0.10)' }}>
+          <div key={w.id} style={{ display: 'grid', gap: 5, padding: enCours ? '10px 12px' : '7px 12px', borderRadius: 10, background: 'rgba(127,127,127,0.10)' }} title={w.lora ?? undefined}>
             <div className="flex gap-2 items-center flex-wrap">
               <b>{moteurs.find(m => m.id === (w.moteur ?? 'klein'))?.nom ?? w.moteur} · {w.declencheur ?? w.id}</b>
               <span className="texte-doux">{w.images ? t('{n} images', { n: w.images }) : ''}{w.total ? ` · ${t('{n} pas', { n: w.total })}` : ''}</span>
@@ -38,7 +38,6 @@ function SuiviEntrainements({ travaux, onAnnuler, moteurs }: { travaux: Travail[
               {w.pas != null && w.total ? t('pas {n} / {t}', { n: w.pas, t: w.total }) + ' · ' : ''}{w.resteMs > 0 ? t('encore ~{m} min', { m: Math.max(1, Math.round(w.resteMs / 60000)) }) : ''}
             </span>}
             {enCours && <button className="pill" style={{ justifySelf: 'start', fontSize: 12 }} onClick={() => onAnnuler(w.id)}>■ {t('Annuler l’entraînement')}</button>}
-            {w.statut === 'done' && w.lora && <span className="texte-doux" style={{ fontSize: 12 }}>{t('LoRA ajoutée au personnage : {nom}', { nom: w.lora })}</span>}
             {w.erreur && !enCours && w.statut !== 'done' && !/^annulé/.test(w.erreur) && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{tServeur(w.erreur) ?? w.erreur}</span>}
           </div>
         )
@@ -69,7 +68,7 @@ export function Entrainement() {
   const cochables = moteurs.filter(m => m.pret)
   const totalMin = cochables.filter(m => coches.has(m.id)).reduce((n, m) => n + dureeMin(m, pas), 0)
   useEffect(() => { void charger().catch(() => setPret(false)) }, [])
-  const miens = useMemo(() => travaux.filter(w => w.personaId === s.personaId).slice(0, 4), [travaux, s.personaId])
+  const miens = useMemo(() => travaux.filter(w => w.personaId === s.personaId).slice(0, 3), [travaux, s.personaId])
   const actif = miens.some(w => EN_COURS.includes(w.statut))
   useEffect(() => {
     if (!actif) return
@@ -90,43 +89,47 @@ export function Entrainement() {
     setMsg({ ok: true, txt: t('Entraînement lancé : la LoRA s’ajoute au personnage à la fin (~{m} min).', { m: totalMin }) })
   }
   return (
-    <div className="border border-border rounded-card bg-surface2 p-4 mb-4" style={{ display: 'grid', gap: 10, fontSize: 13 }}>
-      <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· LoRA FLUX.2 Klein · ai-toolkit</span></b>
+    <div className="border border-border rounded-card bg-surface2 p-4" style={{ display: 'grid', gap: 12, fontSize: 13 }}>
+      <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {t('une LoRA par moteur coché')} · ai-toolkit</span></b>
       {!edition ? <span className="texte-doux">{t('Réservé au propriétaire du studio.')}</span>
         : pret === false ? <span className="texte-doux">{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
         <SuiviEntrainements travaux={miens} moteurs={moteurs} onAnnuler={id => void annuler(id)} />
         {aConfirmer && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{t('Clique encore sur Annuler pour arrêter cet entraînement (le travail fait est perdu).')}</span>}
-        <span className="texte-doux">{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur Klein.')}</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+        {/* réglages et lancement d'abord, au-dessus du choix des images */}
+        <div className="entrainement-reglages">
+          <div className="flex gap-3 items-center flex-wrap">
+            <span className="texte-doux">{t('LoRA pour')}</span>
+            {moteurs.map(m => (
+              <label key={m.id} className="flex gap-1.5 items-center" style={{ cursor: m.pret ? 'pointer' : 'not-allowed', opacity: m.pret ? 1 : 0.45 }}
+                title={m.pret ? t('~{m} min avec ces réglages', { m: dureeMin(m, pas) }) : t('modèle de base absent sur ce studio')}>
+                <input type="checkbox" disabled={!m.pret} checked={m.pret && coches.has(m.id)}
+                  onChange={e => setCoches(c => { const n = new Set(c); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n })} />
+                {m.nom} <span className="texte-doux">~{dureeMin(m, pas)} min</span>
+              </label>
+            ))}
+            <label className="flex gap-1.5 items-center" style={{ opacity: 0.45, cursor: 'not-allowed' }} title={t('MOSS n’accepte pas de LoRA')}><input type="checkbox" disabled /> MOSS Image</label>
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input value={mot} onChange={e => setMot(e.target.value)} placeholder={t('mot déclencheur, ex. jzl4')} maxLength={16} aria-label={t('mot déclencheur')}
+              className="champ" />
+            <select value={pas} onChange={e => setPas(Number(e.target.value))} aria-label={t('durée')} className="champ">
+              <option value={800}>{t('rapide · 800 pas')}</option><option value={1500}>{t('normal · 1500 pas')}</option><option value={2500}>{t('fin · 2500 pas')}</option>
+            </select>
+            <button className="pill" disabled={choix.size < 8 || mot.trim().length < 3 || totalMin === 0} onClick={() => void lancer()}>{t('Entraîner')}{totalMin ? ` · ~${totalMin} min` : ''}</button>
+            <span style={{ marginLeft: 'auto', fontWeight: 600, color: choix.size >= 8 ? 'var(--positif)' : 'var(--muted)' }}>{t('{n} / 30 images', { n: choix.size })}</span>
+          </div>
+          {msg && <span style={{ color: msg.ok ? 'var(--positif)' : 'var(--danger)' }}>{msg.txt}</span>}
+        </div>
+        <span className="texte-doux">{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur les moteurs cochés.')}</span>
+        {/* images entières, sans recadrage : on juge le visage et la tenue */}
+        <div className="entrainement-images">
           {photos.map(a => (
-            <button key={a.id} onClick={() => basculer(a.id)} aria-pressed={choix.has(a.id)} aria-label={t('sélectionner')}
-              style={{ padding: 0, aspectRatio: '3/4', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', border: choix.has(a.id) ? '3px solid var(--accent)' : '3px solid transparent', background: 'none' }}>
-              <img src={a.uri} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <button key={a.id} onClick={() => basculer(a.id)} aria-pressed={choix.has(a.id)} aria-label={t('sélectionner')} className={choix.has(a.id) ? 'choisie' : ''}>
+              <img src={a.uri} alt="" loading="lazy" />
+              {choix.has(a.id) && <i>✓</i>}
             </button>
           ))}
         </div>
-        <div className="flex gap-3 items-center flex-wrap">
-          <span className="texte-doux">{t('LoRA pour')}</span>
-          {moteurs.map(m => (
-            <label key={m.id} className="flex gap-1.5 items-center" style={{ cursor: m.pret ? 'pointer' : 'not-allowed', opacity: m.pret ? 1 : 0.45 }}
-              title={m.pret ? t('~{m} min avec ces réglages', { m: dureeMin(m, pas) }) : t('modèle de base absent sur ce studio')}>
-              <input type="checkbox" disabled={!m.pret} checked={m.pret && coches.has(m.id)}
-                onChange={e => setCoches(c => { const n = new Set(c); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n })} />
-              {m.nom} <span className="texte-doux">~{dureeMin(m, pas)} min</span>
-            </label>
-          ))}
-          <label className="flex gap-1.5 items-center" style={{ opacity: 0.45, cursor: 'not-allowed' }} title={t('MOSS n’accepte pas de LoRA')}><input type="checkbox" disabled /> MOSS Image</label>
-        </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          <span>{choix.size} / 30</span>
-          <input value={mot} onChange={e => setMot(e.target.value)} placeholder={t('mot déclencheur, ex. jzl4')} maxLength={16} aria-label={t('mot déclencheur')}
-            className="champ" />
-          <select value={pas} onChange={e => setPas(Number(e.target.value))} aria-label={t('durée')} className="champ">
-            <option value={800}>{t('rapide · 800 pas')}</option><option value={1500}>{t('normal · 1500 pas')}</option><option value={2500}>{t('fin · 2500 pas')}</option>
-          </select>
-          <button className="pill" disabled={choix.size < 8 || mot.trim().length < 3 || totalMin === 0} onClick={() => void lancer()}>{t('Entraîner')}{totalMin ? ` · ~${totalMin} min` : ''}</button>
-        </div>
-        {msg && <span style={{ color: msg.ok ? 'var(--positif)' : 'var(--danger)' }}>{msg.txt}</span>}
       </>)}
     </div>
   )
