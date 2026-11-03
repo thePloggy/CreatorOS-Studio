@@ -130,14 +130,14 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
       {briefs.panel}
       {/* ---------- création : sidebar (desktop) / sheet à crans (mobile) ---------- */}
       {(() => { const side = (<>
-        {tab !== 'stage' && <h2 className="titre-outil">{tab === 'creer' ? t('Vidéo') : tab === 'ambiance' ? t('Depuis un texte') : tab === 'rejouer' ? (v.motionMode === 'replace' ? 'Mix' : 'Move') : t('Étendre')}</h2>}
+        {tab !== 'stage' && <h2 className="titre-outil">{tab === 'creer' ? 'Image to Video' : tab === 'ambiance' ? 'Text to Video' : tab === 'rejouer' ? 'Swap' : 'Extend'}</h2>}
         <div className="flex gap-1 rounded-[11px] p-[3px]" style={{ background: 'var(--lv2)' }}>
           {(['creer', 'ambiance', 'rejouer', 'etendre', 'stage'] as VTab[]).map(tb => (
             <button key={tb}
               className="flex-1 text-center text-[12px] leading-tight py-1.5 px-1 rounded-lg"
               style={{ background: tab === tb ? 'var(--lv4)' : 'transparent', color: tab === tb ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
               onClick={() => tb === 'stage' ? s.ouvrirStage(s.stageRepris) : (useAppStore.setState({ stageOuvert: false }), s.updateVideo({ task: tb === 'creer' ? 'i2v' : tb === 'ambiance' ? 't2v' : tb === 'etendre' ? 'extend' : 'motion_pure' }))}>
-              {tb === 'creer' ? t('Depuis une image') : tb === 'ambiance' ? t('Depuis un texte') : tb === 'rejouer' ? t('Rejouer') : tb === 'stage' ? 'Stage' : t('Étendre')}
+              {tb === 'creer' ? 'Image to Video' : tb === 'ambiance' ? 'Text to Video' : tb === 'rejouer' ? 'Motion Control' : tb === 'stage' ? 'Stage' : 'Extend'}
             </button>
           ))}
         </div>
@@ -154,8 +154,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
                 onRetirer={() => s.updateVideo({ startAssetId: null, startFrameFile: '', startFrameUri: '', startFrameError: '' })} />}
             </button>
             <button className={`slot ${endUri ? 'filled' : ''}`} onClick={() => setFramePick('end')}>
-              <span className="opt">{t('optionnel')}</span>
-              {endUri ? <img src={endUri} alt="" /> : <>＋<br />{t('Frame fin')}</>}
+              {endUri ? <img src={endUri} alt="" /> : <>＋<br />{t('Frame fin')}<br /><span className="text-[12px]" style={{ color: 'var(--faint)' }}>{t('(optionnel)')}</span></>}
               {endUri && <RetirerFrame titre={t('retirer la frame de fin')} onRetirer={() => s.updateVideo({ endAssetId: null, endFrameFile: '', endFrameError: '' })} />}
             </button>
           </div>
@@ -291,10 +290,10 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         {tab === 'rejouer' && (<>
           <div className="modes">
             <button className={`mode ${v.motionMode !== 'replace' ? 'on' : ''}`} onClick={() => s.updateVideo({ motionMode: 'animate' })}>
-              <b>Move</b><small>{t('la still bouge comme la vidéo')}</small>
+              <b>Motion Control</b><small>{t('la still bouge comme la vidéo')}</small>
             </button>
             <button className={`mode ${v.motionMode === 'replace' ? 'on' : ''}`} onClick={() => s.updateVideo({ motionMode: 'replace' })}>
-              <b>Mix</b><small>{t('elle prend la place du personnage de la vidéo')}</small>
+              <b>Character Swap</b><small>{t('elle prend la place du personnage de la vidéo')}</small>
             </button>
           </div>
           <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>

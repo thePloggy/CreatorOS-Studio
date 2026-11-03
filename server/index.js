@@ -27,7 +27,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -42,7 +42,7 @@ const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
 import { lancerRestauration, etatRestauration } from './restauration.js'
-import { VOIX, changerVoix, cloner, cloneDisponible, echantillon, synthetiser, voixDisponible } from './voix.js'
+import { VOIX, changerVoix, cloner, cloneDisponible, dire, echantillon, synthetiser, voixAcceptee, voixDisponible } from './voix.js'
 import { aiToolkitPret, moteurEntrainementPret, MOTEURS_ENTRAINEMENT } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
 import { etatPack, lancerPack } from './packPub.js'
@@ -71,7 +71,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   'PATCH /api/assets/:id', 'POST /api/briefs/star',
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
-  'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
+  'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/parole/dire', 'POST /api/montage/musiques',
   'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/comfy/maj', 'POST /api/comfy/noeuds', 'POST /api/comfy/redemarrer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
@@ -227,7 +227,7 @@ const personaPublique = (id) => {
   const p = persona(id)
   const actif = id === undefined || id === personas().active
   return { id: p.id, name: p.name || null, trigger: p.trigger, description: p.description,
-    preamble: p.preamble, loras: p.loras, lorasKlein: p.lorasKlein, videoLoras: p.videoLoras, credit: p.credit, garderobe: p.garderobe, figes: actif ? champsFiges() : [],
+    preamble: p.preamble, loras: p.loras, lorasKlein: p.lorasKlein, videoLoras: p.videoLoras, credit: p.credit, garderobe: p.garderobe, voix: p.voix ?? null, figes: actif ? champsFiges() : [],
     active: actif, avatar: avatarMeta(p.id).url,
     configured: Boolean(p.name || p.trigger || p.loras.length) }
 }
@@ -2015,9 +2015,11 @@ app.post('/api/assets/:id/agrandir', async (req, reply) => {
   const e = [24, 24, 24, 24].map((m, i) => ((i < 2 ? (i ? H > ih : W > iw) : (i === 2 ? W > iw : H > ih)) ? m : 0))
   const ff = args => execFileSync('ffmpeg', ['-loglevel', 'error', '-y', ...args], { timeout: 30_000 })
   try {
-    ff(['-i', src, '-filter_complex', `color=0x808080:s=${W}x${H}[f];[0:v]scale=${iw}:${ih}[i];[f][i]overlay=${x}:${y},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, entree)])
+    // marges pré-remplies par un prolongement flou de la photo : des bandes grises unies se lisent comme
+    // des bandes à retirer (le modèle recadre ou les laisse grises) ; un flou se lit comme une scène à préciser
+    ff(['-i', src, '-filter_complex', `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=40,eq=saturation=0.85[f];[0:v]scale=${iw}:${ih}[i];[f][i]overlay=${x}:${y},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, entree)])
     ff(['-f', 'lavfi', '-i', `color=white:s=${W}x${H}`, '-f', 'lavfi', '-i', `color=black:s=${iw - e[0] - e[2]}x${ih - e[1] - e[3]}`, '-filter_complex', `[0][1]overlay=${x + e[0]}:${y + e[1]},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
-    const consigne = String(req.body?.prompt ?? '').trim() || 'Outpaint: replace the flat grey margins by extending the scene seamlessly, same place, same light, same style, photorealistic. Do not add any person. Keep the center unchanged.'
+    const consigne = String(req.body?.prompt ?? '').trim() || 'Outpaint: the blurred margins around the photo are an unfinished extension of the scene. Redraw them as a sharp, detailed, natural continuation of the same place, at the same scale, with the same light, perspective and style, photorealistic. Keep the whole image at this exact framing: do not zoom, crop or reframe. Do not add any person. Keep the center unchanged.'
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaint({ sourceFile: entree, maskFile: masque, parentAssetId: a.id, prompt: consigne, strength: 1, personaId: personaDuRendu(a), agrandir: true }))
     return { jobId: id, largeur: W, hauteur: H }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
@@ -2120,7 +2122,27 @@ app.post('/api/assets/:id/doubler', async (req, reply) => {
 })
 
 /** Voix off (cf. voix.js). */
-app.get('/api/voix', async () => ({ disponible: voixDisponible(), voix: VOIX, clone: cloneDisponible() }))
+app.get('/api/voix', async req => ({ disponible: voixDisponible(), voix: VOIX, clone: cloneDisponible(),
+  // voix clonées possibles : les extraits de la bibliothèque audio (propriétaire seul), hors pistes de reel
+  clones: estProprietaire(req) && cloneDisponible() ? montage.listerMusiques().filter(m => !/^reel_/.test(m.nom) && m.duree >= 4 && m.duree <= 25).map(m => ({ id: `clone:${m.nom}`, nom: m.nom })) : [] }))
+/* Avatar parlant : la phrase dite par une voix (du personnage, du studio ou clonée), déposée comme voix
+   d'InfiniteTalk ; les lèvres suivent ensuite ce fichier. */
+app.post('/api/parole/dire', async (req, reply) => {
+  const proprio = estProprietaire(req)
+  let v = String(req.body?.voix ?? '')
+  if (v === 'perso') v = persona(personaDe(req)).voix ?? ''
+  const voix = voixAcceptee(v, proprio)
+  if (!voix) { reply.code(400); return { error: 'choisis une voix' } }
+  try {
+    const { nom } = await dire({ texte: req.body?.texte, voix, proprietaire: proprio })
+    const fichier = `crs_voix_${Date.now().toString(36)}.wav`
+    fs.copyFileSync(path.join(montage.MUSIQUES_DIR, nom), path.join(CONFIG.comfyInput, fichier))
+    store.noterInput(fichier, 'voix')
+    let duree = 0
+    try { duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(CONFIG.comfyInput, fichier)], { encoding: 'utf8' }).trim()) || 0 } catch { /* illisible */ }
+    return { fichier, duree, nom }
+  } catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+})
 app.post('/api/voix/clone', async (req, reply) => {
   try { return await cloner({ texte: req.body?.texte, reference: req.body?.reference, accord: req.body?.accord === true }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
@@ -2358,6 +2380,19 @@ app.get('/api/assets/:id/master/:format', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
+/** Carte de profondeur de la photo (cf. enqueueProfondeur). */
+app.post('/api/assets/:id/profondeur', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier image introuvable' } }
+  try {
+    const entree = `DEPTH_${Date.now().toString(36)}${path.extname(src) || '.png'}`
+    fs.copyFileSync(src, path.join(CONFIG.comfyInput, entree))
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueProfondeur({ sourceFile: entree, parentAssetId: a.id, personaId: a.persona_id }))
+    return { jobId: id }
+  } catch (err) { reply.code(400); return { error: String(err.message || err) } }
+})
 /** Fond transparent : la photo sort en PNG avec alpha (cf. enqueueTransparent). */
 app.post('/api/assets/:id/transparent', async (req, reply) => {
   const a = store.getAsset(req.params.id)
@@ -2367,7 +2402,7 @@ app.post('/api/assets/:id/transparent', async (req, reply) => {
   try {
     const entree = `TRANSP_${Date.now().toString(36)}${path.extname(src) || '.png'}`
     fs.copyFileSync(src, path.join(CONFIG.comfyInput, entree))
-    const { id } = deposerAvecCle(cleComfy(req), () => enqueueTransparent({ sourceFile: entree, parentAssetId: a.id, personaId: a.persona_id }))
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueTransparent({ sourceFile: entree, parentAssetId: a.id, personaId: a.persona_id, sujet: req.body?.sujet }))
     return { jobId: id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
@@ -2629,7 +2664,10 @@ app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
-  try { return reelOut(reel.realiser({ ...(req.body ?? {}), personaId: personaDe(req), cle: cleComfy(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  // « perso » : la voix enregistrée sur la fiche du personnage
+  const corps = { ...(req.body ?? {}) }
+  if (corps.voix === 'perso') corps.voix = persona(personaDe(req)).voix ?? null
+  try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/montage/musiques', async () => ({ musiques: montage.listerMusiques() }))
 app.post('/api/montage/musiques', async (req, reply) => {

@@ -241,7 +241,10 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
   const [msg, setMsg] = useState<string | null>(null)
   const [ouverte, setOuverte] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
-  const [filtre, setFiltre] = useState<'tout' | 'image' | 'video' | 'audio' | 'comfy'>('tout')
+  const [filtre, setFiltre] = useState<'tout' | 'image' | 'video' | 'audio' | 'comfy'>(() => useAppStore.getState().ongletExtensions ?? 'tout')
+  // le menu ouvre Extensions ou le catalogue officiel de ComfyUI, à l'ouverture comme page déjà ouverte
+  const demande = useAppStore(st => st.ongletExtensions)
+  useEffect(() => { if (demande) { setFiltre(demande); useAppStore.setState({ ongletExtensions: null }) } }, [demande])
   const charger = () => void fetch('/api/extensions').then(r => r.json()).then((d: { extensions: Extension[]; catalogue: Fiche[] }) => { setListe(d.extensions); setCat(d.catalogue) }).catch(() => setListe([]))
   useEffect(charger, [])
   const agir = async (url: string) => { setMsg(null); try { await poster(url); charger() } catch (e) { setMsg(String((e as Error).message)) } }

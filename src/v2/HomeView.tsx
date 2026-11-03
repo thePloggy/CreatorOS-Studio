@@ -5,20 +5,21 @@
 import { useState } from 'react'
 import { t } from '../i18n'
 import { Pastille } from './bits'
-import { APERCUS, ApercuOutil, BANDEAU_CAMERA, BANDEAU_REEL, BANDEAU_STAGE, pucesDe, type Apercu } from './Apercus'
+import { APERCUS, ApercuOutil, BANDEAU_CINEMA, BANDEAU_RESTORE, BANDEAU_REEL, BANDEAU_STAGE, pucesDe, type Apercu } from './Apercus'
 import type { Asset } from '../types'
 import { ChoixMedia, GROUPES, useOuvrirOutil, type ActionOutil, type Section } from './Navigation'
 
-type Cible = 'reel' | 'presets' | 'parole' | 'montage' | 'image' | 'video' | 'assets' | 'stage' | 'reshoot' | 'cinema'
+type Cible = 'reel' | 'presets' | 'parole' | 'montage' | 'image' | 'video' | 'assets' | 'stage' | 'reshoot' | 'cinema' | 'restaurer'
 
 export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller: (s: Section) => void; onPick: (a: Asset, action?: ActionOutil) => void }) {
   const { ouvrir, choix, fermerChoix } = useOuvrirOutil(aller)
   const [groupe, setGroupe] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
   const BANDEAUX: { cible: Cible; titre: string; texte: string; apercu: Apercu }[] = [
+    { cible: 'cinema', titre: 'Cinema Studio', texte: t('Boîtier, objectif, lumière, pellicule : une fiche de plan, et la scène se joue comme au cinéma.'), apercu: BANDEAU_CINEMA },
     { cible: 'stage', titre: 'Stage', texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), apercu: BANDEAU_STAGE },
     { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), apercu: BANDEAU_REEL },
-    { cible: 'presets', titre: t('Caméra & effets'), texte: t('Un mouvement de caméra de cinéma sur n’importe quelle photo, en un clic.'), apercu: BANDEAU_CAMERA },
+    { cible: 'restaurer', titre: 'Restore', texte: t('Vieille photo ou clip abîmé : réparé, colorisé, en HD, avec le comparateur avant / après.'), apercu: BANDEAU_RESTORE },
   ]
   const mot = cherche.trim().toLowerCase()
   // un outil rangé dans deux familles (Restaurer : photo et clip) ne s'affiche qu'une fois dans « Tout »
@@ -29,7 +30,18 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 28 }}>
         <div className="bandeaux">
-          {BANDEAUX.map(b => (
+          {BANDEAUX.map((b, i) => i === 0 ? (
+            // l'outil vedette : nom, réglages et texte posés sur l'image, sur un dégradé noir
+            <button key={b.titre} onClick={() => go(b.cible)} className="bandeau bandeau-vedette">
+              <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>
+              <span className="vedette-texte">
+                <i>{t('À la une')}</i>
+                <b>{b.titre}</b>
+                {pucesDe(b.apercu).length > 0 && <span className="puces-sous">{pucesDe(b.apercu).map(p => <em key={p}>{t(p)}</em>)}</span>}
+                <span>{b.texte}</span>
+              </span>
+            </button>
+          ) : (
             <button key={b.titre} onClick={() => go(b.cible)} className="bandeau">
               <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>
               <b>{b.titre}</b>

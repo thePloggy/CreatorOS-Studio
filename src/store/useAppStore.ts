@@ -52,6 +52,8 @@ interface AppState {
   personaCredit: PersonaCredit | null
   /** Garde-robe du personnage actif : éléments favoris (tenues, lieux) et lignes libres. */
   personaGarderobe: Garderobe
+  /** voix du personnage (id Kokoro ou « clone:<extrait> »), pour la voix off du reel et l'avatar parlant */
+  personaVoix: string | null
   setGarderobe: (g: Garderobe) => Promise<string | null>
   /** URL de la photo de profil de la persona (avec jeton ?v=), null = rond neutre. */
   personaAvatar: string | null
@@ -188,6 +190,12 @@ interface AppState {
   ongletConfig: 'cloud' | 'vocab' | 'workbench' | 'modeles' | null
   /** famille ouverte dans la galerie (Camera Moves ou Effects), demandée par le menu */
   famillePresets: 'camera' | 'effet' | null
+  /** onglet ouvert dans Extensions, demandé par le menu */
+  ongletExtensions: 'tout' | 'comfy' | null
+  /** réglage de départ demandé par le menu à la page ouverte (Restore en HD seule, Clone de voix…) */
+  demandeOutil: 'hd' | 'cloner' | 'changer' | null
+  /** l'outil ouvert dans la page dédiée (section « outil ») */
+  outilDedie: import('../v2/OutilsDedies').IdOutil
   stageRepris: StageScene | null
   ouvrirStage: (scene?: StageScene | null) => void
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
@@ -457,6 +465,7 @@ function jobFromApi(j: Record<string, unknown>): Job {
    marche : sans lui, `jobs` et `assets` partiraient en localStorage et la
    galerie se rechargerait sur un instantané périmé, en concurrence avec
    `hydrate()` qui lit la base. Ce qui vient du serveur doit venir du serveur. */
+let suiviFileLance = false
 export const useAppStore = create<AppState>()(persist((set, get) => {
   // Abonnement unique aux updates du worker (mock ou réel).
   worker.onUpdate((job, asset) => {
@@ -482,6 +491,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     personaVideoWan: false,
     personaCredit: null,
     personaGarderobe: GARDEROBE_VIDE,
+    personaVoix: null,
     setGarderobe: async g => {
       const id = get().personaId
       if (!id) return t('aucun personnage actif')
@@ -600,6 +610,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     h3: null,
     ongletConfig: null,
     famillePresets: null,
+    ongletExtensions: null,
+    demandeOutil: null,
+    outilDedie: 'inpaint',
     stageRepris: null,
     ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
@@ -696,8 +709,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       try {
         const choisi = personnageChoisi()
         const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]; loras?: unknown[]
-          videoLoras?: unknown[]; credit?: PersonaCredit | null; garderobe?: Garderobe }
-        set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE })
+          videoLoras?: unknown[]; credit?: PersonaCredit | null; garderobe?: Garderobe; voix?: string | null }
+        set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE, personaVoix: p.voix ?? null })
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
         // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
@@ -763,6 +776,22 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         for (const j of get().jobs)
           if (known.has(j.id) && j.status !== 'done' && j.status !== 'blocked') worker.adopt(j)
       } catch (e) { console.error('[store] jobs non rechargés :', e) }
+      /* Rendus lancés ailleurs après l'ouverture de la page (un autre onglet, le téléphone, l'API) :
+         toutes les 8 s, ceux qui sont encore en cours et inconnus de cet onglet sont adoptés, leur carte s'affiche. */
+      if (!suiviFileLance) {
+        suiviFileLance = true
+        window.setInterval(async () => {
+          if (document.hidden) return
+          try {
+            const { jobs } = await (await fetch('/api/jobs?limit=60')).json() as { jobs: Array<Record<string, unknown>> }
+            const known = new Set(get().jobs.map(j => j.id))
+            const neufs = jobs.filter(j => !known.has(j.id as string) && j.status !== 'done' && j.status !== 'blocked' && j.status !== 'failed').map(jobFromApi)
+            if (!neufs.length) return
+            set(st => ({ jobs: [...st.jobs, ...neufs] }))
+            for (const j of neufs) worker.adopt(j)
+          } catch { /* serveur injoignable : on réessaie au tour suivant */ }
+        }, 8000)
+      }
     },
 
     /** Clone : réinjecte toute la lignée d'un asset dans la console.

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
 import { ChoixPersonnage } from './ChoixPersonnage'
+import { ChoixVoix } from './ChoixVoix'
 import { useEdition } from '../lib/proprietaire'
 import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 
@@ -32,11 +33,35 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
   const [n, setN] = useState(5)
   const [duree, setDuree] = useState(4)
   const [musique, setMusique] = useState('')
-  const [voixOff, setVoixOff] = useState('')
+  // par défaut, la voix enregistrée sur la fiche du personnage
+  const [voixOff, setVoixOff] = useState(() => (useAppStore.getState().personaVoix ? 'perso' : ''))
   const [caler, setCaler] = useState(true)
-  const [voixListe, setVoixListe] = useState<{ id: string; nom: string }[]>([])
-  useEffect(() => { void fetch('/api/voix').then(json).then(d => setVoixListe(d.disponible ? d.voix ?? [] : [])).catch(() => {}) }, [])
   const [musiques, setMusiques] = useState<MusiqueRow[]>([])
+  /* Nouveau morceau depuis le reel : ACE-Step le compose à la durée du reel, puis il est choisi. */
+  const [nouvelle, setNouvelle] = useState<{ prompt: string; job: string | null; msg: string } | null>(null)
+  const genererMorceau = async () => {
+    if (!nouvelle?.prompt.trim()) return
+    const r = await fetch('/api/musique', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: nouvelle.prompt, paroles: '', secondes: n * duree + 2, genre: 'musique' }) })
+    const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
+    if (!r.ok || !d.jobId) { setNouvelle(x => x && { ...x, msg: tServeur(d.error) ?? `HTTP ${r.status}` }); return }
+    setNouvelle(x => x && { ...x, job: d.jobId!, msg: '' })
+    void s.adoptServerJob(d.jobId)
+    const avant = new Set(musiques.map(m => m.nom))
+    for (let k = 0; k < 120; k++) {
+      await new Promise(p => setTimeout(p, 2000))
+      const j = await fetch(`/api/jobs/${encodeURIComponent(d.jobId)}`).then(json).catch(() => null) as { job?: { status?: string; error?: string } } | null
+      const st = j?.job?.status
+      if (st === 'done') {
+        const liste = await fetch('/api/montage/musiques').then(json).then((x: { musiques?: MusiqueRow[] }) => x.musiques ?? []).catch(() => [] as MusiqueRow[])
+        setMusiques(liste)
+        const neuf = liste.find(m => !avant.has(m.nom))
+        if (neuf) setMusique(neuf.nom)
+        setNouvelle(null); return
+      }
+      if (st === 'blocked' || st === 'failed') { setNouvelle(x => x && { ...x, job: null, msg: tServeur(j?.job?.error) ?? t('échec') }); return }
+    }
+  }
   const [reels, setReels] = useState<Reel[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -84,23 +109,31 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
             {[3, 4, 5, 6].map(k => <button key={k} className={`wtab ${n === k ? 'on' : ''}`} onClick={() => setN(k)}>{k}</button>)}
             <span style={{ marginLeft: 10 }}>{t('Durée par plan')}</span>
             {[3, 4, 5].map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}
-            <span style={{ marginLeft: 10 }}>{t('Musique')}</span>
-            <select value={musique} onChange={e => setMusique(e.target.value)}
-              className="champ" style={{ fontSize: 12 }}>
-              <option value="">{t('son des clips seulement')}</option>
-              {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
-            </select>
-            <Ecouter src={urlMusique(musique)} titre={t('Écouter la musique')} />
-            {musique && <label className="flex gap-1.5 items-center" style={{ marginLeft: 10, cursor: 'pointer' }}><input type="checkbox" checked={caler} onChange={e => setCaler(e.target.checked)} /> {t('couper sur le rythme')}</label>}
-            {voixListe.length > 0 && <>
-              <span style={{ marginLeft: 10 }}>{t('Voix off')}</span>
-              <select value={voixOff} onChange={e => setVoixOff(e.target.value)} aria-label={t('Voix off')}
-                className="champ" style={{ fontSize: 12 }}>
-                <option value="">{t('aucune')}</option>
-                {voixListe.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+            {/* chaque réglage reste groupé avec son étiquette : un retour à la ligne ne les sépare plus */}
+            <span className="reel-reglage">
+              <span>{t('Musique')}</span>
+              <select value={musique} onChange={e => setMusique(e.target.value)} className="champ" style={{ fontSize: 12 }} aria-label={t('Musique')}>
+                <option value="">{t('son des clips seulement')}</option>
+                {musiques.map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
               </select>
-              <Ecouter src={urlEchantillonVoix(voixOff)} titre={t('Écouter la voix')} />
-            </>}
+              <Ecouter src={urlMusique(musique)} titre={t('Écouter la musique')} />
+              <button className="pill tool" style={{ fontSize: 12 }} disabled={!!nouvelle?.job} onClick={() => setNouvelle(x => x ? null : { prompt: '', job: null, msg: '' })}>
+                {nouvelle?.job ? t('morceau en cours…') : `＋ ${t('Nouveau morceau')}`}</button>
+              {musique && <label className="flex gap-1.5 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={caler} onChange={e => setCaler(e.target.checked)} /> {t('couper sur le rythme')}</label>}
+            </span>
+            <span className="reel-reglage">
+              <span>{t('Voix off')}</span>
+              <ChoixVoix valeur={voixOff} onChange={setVoixOff} vide={t('aucune')} ariaLabel={t('Voix off')} />
+              {voixOff && !voixOff.startsWith('clone:') && voixOff !== 'perso' && <Ecouter src={urlEchantillonVoix(voixOff)} titre={t('Écouter la voix')} />}
+            </span>
+            {nouvelle && !nouvelle.job && <span className="reel-reglage" style={{ flexBasis: '100%' }}>
+              <input className="champ" style={{ flex: 1, fontSize: 12 }} value={nouvelle.prompt} autoFocus maxLength={300}
+                placeholder={t('Le style du morceau, ex. sunny acoustic guitar and light percussion, upbeat, 100 bpm')}
+                onChange={e => setNouvelle(x => x && { ...x, prompt: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' && nouvelle.prompt.trim()) void genererMorceau() }} />
+              <button className="pill" disabled={!nouvelle.prompt.trim()} onClick={() => void genererMorceau()}>{t('Générer')} · {n * duree + 2} s</button>
+              {nouvelle.msg && <span className="texte-erreur">{nouvelle.msg}</span>}
+            </span>}
             <span style={{ flex: 1 }} />
             <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={busy || !brief.trim()} onClick={() => void lancer()}>
               {busy ? '…' : `✨ ${t('Réaliser le reel')}`}

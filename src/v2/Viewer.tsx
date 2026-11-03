@@ -7,6 +7,7 @@ import { telechargerWorkflow } from '../lib/workflowComfy'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
+import { LUMIERES, FORMATS } from '../data/lumieres'
 import LOOKS from '../data/looks.json'
 import { useAssetNav } from '../components/useAssetNav'
 import { AssetNavArrows } from '../components/AssetNavArrows'
@@ -156,18 +157,7 @@ const ANGLES = [
   { id: 'serre', label: 'Gros plan', vue: 'front view eye-level shot close-up' },
 ]
 
-/* Lumière : la même photo, un autre éclairage. */
-const GARDE = 'Keep the person, face, pose, outfit, background and framing unchanged.'
-const LUMIERES = [
-  { id: 'gauche', label: 'Par la gauche', consigne: `Relight the photo with soft directional light coming from the left, with shadows falling to the right. ${GARDE}` },
-  { id: 'droite', label: 'Par la droite', consigne: `Relight the photo with soft directional light coming from the right, with shadows falling to the left. ${GARDE}` },
-  { id: 'fenetre', label: 'Fenêtre', consigne: `Relight the photo with soft natural window light from one side. ${GARDE}` },
-  { id: 'studio', label: 'Studio', consigne: `Relight the photo with clean professional softbox studio lighting. ${GARDE}` },
-  { id: 'bleue', label: 'Heure bleue', consigne: `Relight the photo to cool blue hour dusk light. ${GARDE}` },
-  { id: 'neon', label: 'Néons', consigne: `Relight the photo with magenta and cyan neon light from both sides, at night. ${GARDE}` },
-  { id: 'bougie', label: 'Bougie', consigne: `Relight the photo with warm flickering candlelight in a dim room. ${GARDE}` },
-]
-const FORMATS = ['16:9', '9:16', '4:5', '1:1', '+30%']
+
 
 /* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
 /* Analyse pour les réseaux : notes du modèle de vision et mesures, présentées comme une estimation. */
@@ -274,8 +264,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   const [compare, setCompare] = useState(false)
   // un clip affiné ou une restauration s'ouvre sur son avant / après : c'est ce qu'on vient voir
   useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2' || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
-  const [pinceau, setPinceau] = useState(false)
-  const [editer, setEditer] = useState(action === 'retouche' || action === 'detour')
+  const [pinceau, setPinceau] = useState(action === 'pinceau' && asset.mediaType === 'photo')
+  const [editer, setEditer] = useState(action === 'retouche' || action === 'detour' || action === 'retirer' || action === 'fond')
   const [plusOuvert, setPlusOuvert] = useState(action === 'looks')
   const [finMsg, setFinMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   useEffect(() => { setFinMsg(null) }, [asset.id])
@@ -396,6 +386,14 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/transparent`, { method: 'POST' })
     if (!r.ok) setAgrandirMsg(tServeur((await r.json().catch(() => ({}))).error) ?? `HTTP ${r.status}`)
   }
+  const [profMsg, setProfMsg] = useState('')
+  const profondeur = async () => {
+    setProfMsg('')
+    const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/profondeur`, { method: 'POST' })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { setProfMsg(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    await s.adoptServerJob(d.jobId); onClose(); goImage()
+  }
   const agrandir = async (format: string) => {
     setAgrandirMsg('')
     const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/agrandir`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format }) })
@@ -412,7 +410,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   return (
     <div className="fixed inset-0 z-50 flex max-[820px]:flex-col" style={{ background: 'var(--bg)' }}>
       {pinceau && <Pinceau asset={asset} onClose={() => setPinceau(false)} />}
-      {editer && <EditionVideo asset={asset} detourDirect={action === 'detour'} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
+      {editer && <EditionVideo asset={asset} detourDirect={action === 'detour'} opDepart={action === 'retirer' || action === 'fond' ? action : undefined} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: 'var(--scene)' }}>
         {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
         <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
@@ -456,6 +454,27 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               {netteMsg && <span className="texte-erreur">{netteMsg}</span>}
             </div>
           )}
+          {action === 'profondeur' && asset.mediaType === 'photo' && <div className="guide-outil"><b>{t('Carte de profondeur')}</b>
+            <span>{t('La carte de profondeur d’une photo (Depth Anything V2), pour le relief, le compositing et les ControlNet.')}</span>
+            <button className="cta" style={{ alignSelf: 'flex-start' }} onClick={() => void profondeur()}>{t('Calculer la profondeur')}</button>
+            {profMsg && <span className="texte-erreur">{profMsg}</span>}</div>}
+          {action === 'transparent' && asset.mediaType === 'photo' && <div className="guide-outil"><b>{t('Fond transparent')}</b>
+            <span>{t('Le sujet est gardé, le fond disparaît : un PNG transparent, rien n’est redessiné.')}</span>
+            <button className="cta" style={{ alignSelf: 'flex-start' }} onClick={() => void transparent().then(() => { onClose(); goImage() })}>{t('Retirer le fond')}</button>
+            {agrandirMsg && <span className="texte-erreur">{agrandirMsg}</span>}</div>}
+          {(action === 'coverage' || action === 'suivant') && asset.mediaType === 'photo' && <div className="guide-outil">
+            <b>{action === 'coverage' ? 'Coverage' : 'Next Shot'}</b>
+            <span>{t(action === 'coverage' ? 'Trois plans de la même scène en un clic : large, trois-quarts et serré.' : 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.')}</span>
+            <button className="cta" style={{ alignSelf: 'flex-start' }} onClick={() => void (action === 'coverage' ? coverage() : nextBeat())}>{t('Lancer')}</button>
+            {planMsg && <span className="texte-erreur">{planMsg}</span>}</div>}
+          {action === 'boucle' && asset.mediaType === 'photo' && <div className="guide-outil"><b>Seamless Loop</b>
+            <span>{t('Un clip qui revient à son image de départ : il tourne en boucle sans raccord.')}</span>
+            <button className="cta" style={{ alignSelf: 'flex-start' }} onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}>{t('Préparer la boucle')}</button></div>}
+          {(action === 'son' || action === 'fluide') && asset.mediaType === 'video' && <div className="guide-outil">
+            <b>{action === 'son' ? 'Add Sound' : 'Smooth Motion'}</b>
+            <span>{t(action === 'son' ? 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).' : 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.')}</span>
+            <button className="cta" style={{ alignSelf: 'flex-start' }} onClick={() => void finition(action === 'son' ? 'foley' : 'interpolate')}>{t('Lancer')}</button>
+            {finMsg && <span className={finMsg.ok ? 'texte-doux' : 'texte-erreur'}>{finMsg.txt}</span>}</div>}
           {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
           {asset.mediaType === 'video' && (action === 'analyse' || !action) && <AnalyseClip asset={asset} ouvert={action === 'analyse'} />}
           {asset.mediaType === 'video' && (action === 'recadrer' || action === 'doubler' || !action) && <OutilsClip asset={asset} ouvert={action} onLance={async id => { await s.adoptServerJob(id); onClose() }} />}
@@ -628,6 +647,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             </div>
             <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('PNG avec alpha : le sujet est gardé, le fond disparaît, rien n’est redessiné')}
               onClick={() => void transparent()}>{t('Fond transparent')}</button>
+            <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} title={t('La carte de profondeur d’une photo (Depth Anything V2), pour le relief, le compositing et les ControlNet.')}
+              onClick={() => void profondeur()}>{t('Carte de profondeur')}</button>
           </div></details>}
           <div className="flex gap-1.5">
             {asset.mediaType === 'photo' && (<>

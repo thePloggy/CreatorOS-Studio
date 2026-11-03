@@ -6,6 +6,15 @@ export const SANS_PERSONNAGE = 'aucun'
 
 let choisi: string | null = null
 try { choisi = localStorage.getItem(CLE) } catch { /* stockage indisponible */ }
+/* Propriétaire : chaque nouvel onglet part sans personnage (toute la bibliothèque, aucun visage
+   imposé) ; un personnage choisi ensuite reste pour l'onglet. Les visiteurs gardent le leur. */
+try {
+  if (localStorage.getItem('creatoros.ownerKey') && !sessionStorage.getItem('creatoros.personnageOnglet')) {
+    sessionStorage.setItem('creatoros.personnageOnglet', '1')
+    choisi = SANS_PERSONNAGE
+    localStorage.setItem(CLE, SANS_PERSONNAGE)
+  }
+} catch { /* stockage indisponible */ }
 
 export const personnageChoisi = () => choisi
 

@@ -2001,7 +2001,7 @@ async function runDoublage(job, t0) {
 
 /* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
    si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
-export const OPS_RELANCABLES = new Set(['restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'extension'])
+export const OPS_RELANCABLES = new Set(['inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'profondeur', 'extension'])
 export function relancerSpecial(p) {
   if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
   const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque].filter(Boolean)
@@ -2142,25 +2142,58 @@ async function preparerObjet(job) {
   job.inpaintVideo = colle
 }
 
-/* Fond transparent : SAM3 donne le masque de la personne, la photo sort en PNG avec alpha,
+const sujetDetour = v => { const x = String(v ?? '').toLowerCase().replace(/[^a-z \-]/g, '').trim().slice(0, 40); return x || 'person' }
+/* Fond transparent : SAM3 donne le masque de la personne (ou de l'objet nommé), la photo sort en PNG avec alpha,
    rien n'est redessiné. BiRefNet n'a pas de noyau pour les cartes récentes (« no kernel image »). */
-export function enqueueTransparent({ sourceFile, parentAssetId, personaId }) {
+export function enqueueTransparent({ sourceFile, parentAssetId, personaId, sujet }) {
   const id = `transp-${Date.now().toString(36)}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'photo', purpose: 'creative', recipeId: 'transparent@v1', workflowFile: null,
     seed: 1, op: 'transparent', sourceImage: sourceFile, parentAssetId: parentAssetId ?? null,
+    // ce que SAM3 garde : une personne par défaut, ou l'objet nommé (« perfume bottle »)
+    detourSujet: sujetDetour(sujet),
     userPrompt: 'transparent background', userDirectives: null, composedPositive: null, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: 8000,
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
+/* Carte de profondeur : Depth Anything V2 sur la photo, en niveaux de gris (proche = clair),
+   à la résolution de la photo ; sert au compositing, au relief et aux ControlNet. */
+export function enqueueProfondeur({ sourceFile, parentAssetId, personaId }) {
+  const id = `depth-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'profondeur@v1', workflowFile: null,
+    seed: 1, op: 'profondeur', sourceImage: sourceFile, parentAssetId: parentAssetId ?? null,
+    userPrompt: 'depth map', userDirectives: null, composedPositive: null, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 8000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runProfondeur(job, t0) {
+  const taille = videoSize(path.join(CONFIG.comfyInput, job.sourceImage))
+  const res = Math.min(2048, Math.max(512, Math.round(Math.max(taille?.width ?? 1024, taille?.height ?? 1024) / 64) * 64))
+  const g = {
+    src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+    depth: { class_type: 'DepthAnythingV2Preprocessor', inputs: { image: ['src', 0], ckpt_name: 'depth_anything_v2_vitl.pth', resolution: res } },
+    save: { class_type: 'SaveImage', inputs: { images: ['depth', 0], filename_prefix: `creatoros/${job.id}/depth` } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [`carte de profondeur : Depth Anything V2, ${res} px`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  if (!n) throw new Error('la carte de profondeur n’a rendu aucune image')
+}
 async function runTransparent(job, t0) {
   const g = {
     src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
     sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
-    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: 'person' } },
+    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: job.detourSujet ?? 'person' } },
     trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['src', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, conditioning: ['txt', 0] } },
     masque: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
     inv: { class_type: 'InvertMask', inputs: { mask: ['masque', 0] } },
@@ -3023,7 +3056,9 @@ async function grapheMix(job, motion, applied, skipped) {
      UNE fenêtre qui couvre tout le driver (plusieurs fenêtres désynchronisent le fond). */
   const wan = persona(job.personaId).videoLoras.filter(l => /wan/i.test(l.name) && !/wan.?2\.?1|wan21|ltx/i.test(l.name))
   const haut = wan.find(l => /high/i.test(l.name)), bas = wan.find(l => /low/i.test(l.name))
-  mg['171'].inputs.lora_0 = 'none'
+  // la LoRA de relight de la recette dégrade le rendu (couleurs et visage) : elle reste coupée
+  if (!job.mixRelight) mg['171'].inputs.lora_0 = 'none'
+  else applied.push('relight WanAnimate : lumière du décor appliquée au personnage')
   mg['171'].inputs.strength_1 = 0.8
   if (haut && bas) {
     mg['171'].inputs.lora_2 = haut.name; mg['171'].inputs.strength_2 = 0.9
@@ -3136,6 +3171,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'restauration_hd') return await runRestaurationHd(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
+    if (job.op === 'profondeur') return await runProfondeur(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)

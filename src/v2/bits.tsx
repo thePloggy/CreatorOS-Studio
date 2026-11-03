@@ -4,7 +4,7 @@
    luminance, zéro bordure) ; ici uniquement la structure.
    ============================================================ */
 import { telechargerWorkflow } from '../lib/workflowComfy'
-import { Children, useEffect, useRef, useState } from 'react'
+import { Children, useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import type { Asset, Job } from '../types'
 import { STATUTS_EN_CALCUL } from '../types'
@@ -1118,11 +1118,17 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
 /** Ref d'une vidéo qui s'arrête vraiment quand elle quitte l'écran : certains navigateurs
  *  (Safari) continuent de lire le son d'un élément retiré de la page. */
 export function useVideoArretee() {
-  const ref = useRef<HTMLVideoElement | null>(null)
-  useEffect(() => () => {
-    const v = ref.current
-    if (!v) return
-    try { v.pause(); v.removeAttribute('src'); v.load() } catch { /* déjà détachée */ }
+  /* La référence de React est vidée AVANT le nettoyage au démontage : on garde la nôtre,
+     sinon rien n'est mis en pause et Safari continue de lire la vidéo retirée, en boucle. */
+  const garde = useRef<HTMLVideoElement | null>(null)
+  const ref = useCallback((v: HTMLVideoElement | null) => {
+    if (v) { garde.current = v; return }
+    arreterVideo(garde.current); garde.current = null
   }, [])
+  useEffect(() => () => { arreterVideo(garde.current); garde.current = null }, [])
   return ref
+}
+function arreterVideo(v: HTMLVideoElement | null) {
+  if (!v) return
+  try { v.pause(); v.removeAttribute('src'); v.load() } catch { /* déjà détachée */ }
 }

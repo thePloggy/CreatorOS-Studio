@@ -24,6 +24,9 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
   const [hd, setHd] = useState(true)
   const [etat, setEtat] = useState<Etat | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // Upscale Image du menu : la photo en HD seule, sans réparation ni couleur
+  const demande = useAppStore(st => st.demandeOutil)
+  useEffect(() => { if (demande === 'hd') { setMedia('photo'); setNettoyer(false); setCouleur(false); setHd(true); useAppStore.setState({ demandeOutil: null }) } }, [demande])
   const [occupe, setOccupe] = useState(false)
   const avant = etat?.avant ?? source?.asset?.uri ?? source?.apercu ?? null
 

@@ -22,11 +22,11 @@ const choix: React.CSSProperties = {
 }
 const bouton: React.CSSProperties = { padding: '8px 14px', borderRadius: 10, border: 0, font: 'inherit', fontSize: 13, cursor: 'pointer', background: '#24262c', color: '#e8e9ec' }
 
-export function EditionVideo({ asset, onClose, onPinceau, detourDirect }: { asset: Asset; onClose: () => void; onPinceau: () => void; detourDirect?: boolean }) {
-  const [mode, setMode] = useState<'choix' | 'prompt'>(detourDirect ? 'prompt' : 'choix')
+export function EditionVideo({ asset, onClose, onPinceau, detourDirect, opDepart }: { asset: Asset; onClose: () => void; onPinceau: () => void; detourDirect?: boolean; opDepart?: 'retirer' | 'fond' }) {
+  const [mode, setMode] = useState<'choix' | 'prompt'>(detourDirect || opDepart ? 'prompt' : 'choix')
   const [cible, setCible] = useState('')
   // modifier un élément, le retirer, ou changer le fond autour de la personne
-  const [op, setOp] = useState<'modifier' | 'retirer' | 'fond' | 'detourer' | 'alpha'>(detourDirect ? 'detourer' : 'modifier')
+  const [op, setOp] = useState<'modifier' | 'retirer' | 'fond' | 'detourer' | 'alpha'>(detourDirect ? 'detourer' : opDepart ?? 'modifier')
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)

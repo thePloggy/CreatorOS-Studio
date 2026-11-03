@@ -7,6 +7,7 @@ import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
+import { ChoixVoix } from './ChoixVoix'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 
@@ -29,6 +30,19 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
      (InfiniteTalk) reste au propriétaire. */
   const [source, setSource] = useState<'replique' | 'voix'>(edition ? 'voix' : 'replique')
   const [replique, setReplique] = useState('')
+  // voix de la phrase : « ltx » (LTX invente la voix, un seul rendu) ou une voix du studio, du personnage, clonée
+  const [voixPhrase, setVoixPhrase] = useState<string>(() => (edition && useAppStore.getState().personaVoix ? 'perso' : 'ltx'))
+  const lancerAvecVoix = async () => {
+    if (!photo || !replique.trim()) return
+    setBusy(true); setErr(null); setFait(null)
+    try {
+      const v = await json(await fetch('/api/parole/dire', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texte: replique.trim(), voix: voixPhrase }) }))
+      const r = await json(await fetch('/api/parole', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: photo.id, voix: v.fichier, texte }) }))
+      void s.adoptServerJob(r.jobId); setFait(r.jobId)
+    } catch (e) { setErr(String((e as Error).message)) }
+    setBusy(false)
+  }
   // « Utiliser dans… » depuis la visionneuse : ce visage est déjà choisi
   useEffect(() => { const a = useAppStore.getState().prendrePasserelle('parole'); if (a) setPhoto(a) }, [])
 
@@ -135,7 +149,19 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             <textarea value={replique} onChange={e => setReplique(e.target.value)} maxLength={220} rows={2}
               placeholder={t('La phrase qu’elle dit, dans sa langue (ex. « Hi! This is my favourite café in Paris, you have to try the croissants. »)')}
               className="champ" style={{ fontSize: 13 }} />
-            <span style={{ fontSize: 12, color: 'var(--faint)' }}>{t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')}</span>
+            <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12 }}>
+              <span>{t('Voix')}</span>
+              {edition
+                ? <select value={voixPhrase === 'ltx' ? 'ltx' : 'choisie'} onChange={e => setVoixPhrase(e.target.value === 'ltx' ? 'ltx' : (useAppStore.getState().personaVoix ? 'perso' : 'af_heart'))} className="champ" style={{ fontSize: 12 }} aria-label={t('Voix')}>
+                    <option value="ltx">{t('Voix inventée par LTX-2.5 (un seul rendu)')}</option>
+                    <option value="choisie">{t('Une voix choisie (la même partout)')}</option>
+                  </select>
+                : <span style={{ color: 'var(--faint)' }}>{t('Voix inventée par LTX-2.5 (un seul rendu)')}</span>}
+              {edition && voixPhrase !== 'ltx' && <ChoixVoix valeur={voixPhrase} onChange={setVoixPhrase} />}
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--faint)' }}>{voixPhrase === 'ltx'
+              ? t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')
+              : t('La phrase est dite par cette voix, puis InfiniteTalk cale les lèvres dessus : le personnage garde la même voix dans le reel et l’avatar.')}</span>
           </>}
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
             {!edition && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
@@ -150,7 +176,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             className="champ" style={{ fontSize: 12.5 }} />
         </div>
         <div className="flex items-center gap-3">
-          <button className="cta" style={{ padding: '11px 20px', flexDirection: 'row' }} disabled={!photo || busy || (source === 'voix' ? !voix : !replique.trim())} onClick={() => void (source === 'voix' ? lancer() : lancerReplique())}>{busy ? '…' : `✨ ${t('Faire parler')}`}</button>
+          <button className="cta" style={{ padding: '11px 20px', flexDirection: 'row' }} disabled={!photo || busy || (source === 'voix' ? !voix : !replique.trim())} onClick={() => void (source === 'voix' ? lancer() : voixPhrase === 'ltx' ? lancerReplique() : lancerAvecVoix())}>{busy ? '…' : `✨ ${t('Faire parler')}`}</button>
           {fait && <span style={{ fontSize: 12.5 }}>✓ {t('En file de rendu')} — {fait}. <button className="pill tool" onClick={goVideo}>{t('Aller à Vidéo')}</button></span>}
           {err && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</span>}
         </div>

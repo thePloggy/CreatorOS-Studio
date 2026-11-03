@@ -25,7 +25,7 @@ import { enqueue as enfiler, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
 import { anatomieImage, anatomieVideo } from './anatomie.js'
-import { synthetiser, VOIX } from './voix.js'
+import { dire, voixAcceptee } from './voix.js'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 const lancer = promisify(execFile)
@@ -78,11 +78,11 @@ export async function pisteNarree(r, nbPlans, pasPlan) {
   const morceaux = []
   for (const [k, l] of (r.narration ?? []).entries()) {
     if (!l || k >= nbPlans) continue
-    let { nom } = await synthetiser({ texte: l, voix: r.voix })
+    let { nom } = await dire({ texte: l, voix: r.voix, proprietaire: true })
     const d = dureeAudio(path.join(montage.MUSIQUES_DIR, nom)), place = pasPlan - 0.4
     if (d > place) {
       fs.rmSync(path.join(montage.MUSIQUES_DIR, nom), { force: true })
-      ;({ nom } = await synthetiser({ texte: l, voix: r.voix, vitesse: Math.min(1.25, d / place) }))
+      ;({ nom } = await dire({ texte: l, voix: r.voix, vitesse: Math.min(1.25, d / place), proprietaire: true }))
     }
     morceaux.push({ f: path.join(montage.MUSIQUES_DIR, nom), t: k * pasPlan + 0.25 })
   }
@@ -141,7 +141,7 @@ const SERRE = /close-up/i
 // toujours le visage dans le champ : l'identité du clip vient du visage de la photo de départ
 const ANGLES = ['camera at her eye level', 'slightly low angle', 'from slightly above', 'three-quarter front view', 'three-quarter view from her side, her face toward the camera']
 const DOS = /\b(from behind|her back (is )?(to|toward)|back to the camera|facing away|seen from behind|over her shoulder|turn(s|ing|ed)? away|walk(s|ing)? away|looks? away from the camera|her face (is )?(hidden|out of frame|not visible)|only her hands|hands only|silhouette)\b/i
-const CAMERA = [['slow push-in', /push(es|ing)?[- ]in|dolly in|moves? (in|closer)/i], ['gentle pan', /\bpan/i], ['handheld follow', /handheld|follows?/i],
+const CAMERA = [['subtle slow push-in, the framing tightens only slightly', /push(es|ing)?[- ]in|dolly in|moves? (in|closer)/i], ['gentle pan', /\bpan/i], ['handheld follow', /handheld|follows?/i],
   ['slow orbit around her', /orbit|arc(s|ing)? around|circles?/i], ['slow tilt up', /tilt/i], ['slow pull back', /pull(s|ing)? back|dolly out|moves? back/i]]
 const GESTES = ['walking a few steps toward the camera', 'a glance toward the view, then back to the camera', 'a soft laugh', 'tucking her hair behind her ear',
   'leaning on something from the setting', 'a deep breath, her shoulders relax', 'running her hand along a surface of the setting',
@@ -196,6 +196,9 @@ HER FACE IS IN EVERY SHOT: in every still and every motion her face is visible, 
 Never describe her face, her eye colour or her body shape: the system adds her identity.
 She is ALONE: no other person acts in the reel, nobody else's face.
 In motion, never: putting on, taking off or adjusting glasses, hats, jewellery or clothing; getting in or out of a vehicle, driving off, opening doors; picking up, holding up or handing over objects. If she sits in the still, she stays seated; if she stands, she stays on her feet.
+In motion, the camera stays gentle: the framing changes by one step at most (a wide shot ends as a medium-wide, a medium shot never ends as a close-up of her face).
+In motion, what she holds in the still stays in the same hand for the whole shot, no new object appears (no bag, no phone, no cup that was not there), and she never turns around or turns her back.
+Vehicles in the frame (tram, funicular, car, boat) stay on their rails, road or water, move slowly in a straight line at real speed or stay still; nothing floats, lifts off or flies.
 No text, signs, logos or lettering anywhere in the frame.
 Everything is safe for work: fully clothed, no nudity, no lingerie, no real celebrities.
 "hook": the on-screen opening text of the reel, 3 to 7 words, catchy, in ${langue}.
@@ -244,6 +247,9 @@ export function fautesPlan(s, a, autres = [], duBrief = []) {
     f.push('close-up: describe only her face, her hands and what they touch — no legs, feet, shoes or posture')
   if (DOS.test(still)) f.push('her face must be visible in the still, turned toward the camera or three-quarters: never from behind, facing away or hands only')
   if (DOS.test(motion)) f.push('in motion she never turns or walks away from the camera: her face stays visible')
+  if (/\b(turns? around|spins? around|turns? her back)\b/i.test(motion)) f.push('in motion she never turns around: she keeps facing the camera')
+  if (/\b(close-up|close up|extreme close|fills the frame|right up to her face)\b/i.test(motion) && !SERRE.test(a.cadrage)) f.push('the camera move must stay gentle: it never ends on a close-up of her face')
+  if (/\b(flies|flying|lifts? off|takes? off|floats?|floating|rises into the (air|sky))\b/i.test(motion)) f.push('nothing flies or floats: vehicles stay on their rails or road')
   if (/\bdetail\b/i.test(a.cadrage) && !/\b(face|smil|eyes|lips|gaze|looks?)\w*/i.test(still)) f.push('detail shot: frame her face AND her hands with the object')
   if (/\b(I|me|my|we|our)\b/.test(`${still} ${motion}`)) f.push('first person used: write she, her')
   if (!a.cameraRe.test(motion)) f.push(`the motion must use the assigned camera move: ${a.camera}`)
@@ -319,7 +325,7 @@ const CONTROLES_PLAN = [
 export function controlerPlan(pl) { return CONTROLES_PLAN.filter(c => c.test(pl)) }
 
 /* ---------- lancement ---------- */
-export function realiser({ brief, n, duree, musique, langue, cle, personaId, voix, calerMusique }) {
+export function realiser({ brief, n, duree, musique, langue, cle, personaId, voix, calerMusique, proprietaire }) {
   const b = String(brief ?? '').trim().slice(0, 600)
   if (!b) throw new Error('écris un brief : le lieu, l’ambiance, ce qui se passe')
   if (t0Hit(b)) throw new Error('brief refusé (liste T0)')
@@ -330,7 +336,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
     duree: Math.min(6, Math.max(3, Number(duree) || 4)),
     musique: typeof musique === 'string' && montage.cheminMusique(musique) ? musique : null,
     langue: langue === 'en' ? 'English' : 'French',
-    voix: VOIX.some(v => v.id === voix) ? voix : null, narration: null, calerMusique: calerMusique === true,
+    voix: voixAcceptee(voix, proprietaire), narration: null, calerMusique: calerMusique === true,
     plans: [], erreur: null,
   }
   store.db.prepare('INSERT INTO reels (id, persona_id, brief, etat, data, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
@@ -361,17 +367,14 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
       for (const pl of plans) {
         if (t0Hit(`${pl.still} ${pl.motion}`)) throw new Error('un plan rédigé contient un terme bloqué (liste T0) — relancer')
       }
-      // une photo par plan, toutes au même lot
-      const lot = `reel-${id}`
-      for (const [k, pl] of plans.entries()) {
-        const j = enqueue(id, { id: `${id}-p${k + 1}`, mode: 'photo', register: 'sfw', personaId: p.id, purpose: 'creative', photoEngine: CONFIG.photoEngine,
-          composedPositive: pl.still, userPrompt: pl.still, composedNegative: '', width: 768, height: 1344, batchId: lot, reelId: id })
-        pl.photoJob = j.id
-      }
-      if (!enCours(id)) { for (const pl of plans) await cancelJob(pl.photoJob).catch(() => {}); return }
+      // la photo du plan 1 d'abord : c'est l'ancrage de la séance, les autres plans en sont tirés (cf. avancer)
+      const j = enqueue(id, { id: `${id}-p1`, mode: 'photo', register: 'sfw', personaId: p.id, purpose: 'creative', photoEngine: CONFIG.photoEngine,
+        composedPositive: plans[0].still, userPrompt: plans[0].still, composedNegative: '', width: 768, height: 1344, batchId: `reel-${id}`, reelId: id })
+      plans[0].photoJob = j.id
+      if (!enCours(id)) { await cancelJob(j.id).catch(() => {}); return }
       let narration = null
       if (data.voix) { try { narration = await narrer({ brief: b, plans, nom, pas: data.duree - 0.35 }) } catch (e) { console.warn(`[reel ${id}] voix off : ${e.message || e}`) } }
-      if (!enCours(id)) { for (const pl of plans) await cancelJob(pl.photoJob).catch(() => {}); return }
+      if (!enCours(id)) { await cancelJob(j.id).catch(() => {}); return }
       ecrire(id, 'photos', { narration, accroche: r.hook.trim().replace(/^[«"']+|[»"']+$/g, '').replace(/\.$/, '').trim(), tenue: r.outfit, lieu: r.location, lumiere: r.light, plans })
       console.log(`[reel ${id}] ${plans.length} plans rédigés, photos en file`)
     } catch (e) {
@@ -392,9 +395,34 @@ const versInput = a => {
   return nom
 }
 
+/* Les plans 2 à n sortent de la même séance que le plan 1 : sa photo leur sert de référence
+   (même femme, même tenue, même lieu, même lumière), seuls le cadrage et le geste changent. */
+const SOEUR = 'The same woman, in the same outfit, in the same place and under the same light as in the reference photo, a few seconds later in the same continuous shoot; the background, the colours and the time of day stay identical. '
+function lancerSoeurs(r) {
+  const p0 = r.plans[0], attente = r.plans.filter(pl => !pl.photoJob)
+  if (!attente.length) return false
+  const s0 = etatJob(p0.photoJob)
+  if (s0 === 'blocked' || s0 === 'cancelled' || s0 === 'absent') {
+    ecrire(r.id, 'echec', { plans: r.plans, erreur: 'la photo du plan 1, qui ancre la séance, a échoué — relancer le reel' })
+    return true
+  }
+  if (s0 !== 'done') return false
+  const a0 = premierAsset(p0.photoJob)
+  if (!a0) return false
+  const ref = versInput(a0)
+  for (const pl of attente) {
+    const k = r.plans.indexOf(pl)
+    const j = enqueue(r.id, { id: `${r.id}-p${k + 1}`, mode: 'photo', register: 'sfw', personaId: r.personaId, purpose: 'creative', references: [ref],
+      composedPositive: SOEUR + pl.still, userPrompt: pl.still, composedNegative: '', width: 768, height: 1344, batchId: `reel-${r.id}`, reelId: r.id })
+    pl.photoJob = j.id
+  }
+  return true
+}
+
 function avancer(r) {
   if (r.etat === 'photos' || r.etat === 'clips') {
-    let change = false, rates = 0
+    let change = lancerSoeurs(r), rates = 0
+    if (lireReel(r.id)?.etat === 'echec') return
     for (const pl of r.plans) {
       if (!pl.clipJob) {
         const s = etatJob(pl.photoJob)
@@ -469,6 +497,8 @@ export function demarrerSuivi() {
   // une rédaction interrompue par un redémarrage ne reprendra pas toute seule
   for (const r of store.db.prepare(`SELECT id FROM reels WHERE etat = 'redaction'`).all())
     ecrire(r.id, 'echec', { erreur: 'rédaction interrompue par un redémarrage du service — relancer le reel' })
+  // un montage interrompu (voix off en cours) repart de l'étape des clips, qui le relance
+  for (const r of store.db.prepare(`SELECT id FROM reels WHERE etat = 'montage'`).all()) ecrire(r.id, 'clips', {})
   setInterval(() => {
     for (const row of store.db.prepare(`SELECT id FROM reels WHERE etat IN ('photos','clips','export')`).all()) {
       try { avancer(lireReel(row.id)) } catch (e) { console.warn(`[reel ${row.id}] suivi : ${e.message || e}`) }

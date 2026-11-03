@@ -107,7 +107,15 @@ function normaliser(f, actif) {
     videoLoras: lorasDe(f?.videoLoras),
     credit: creditDe(f?.credit),
     garderobe: garderobeDe(f?.garderobe),
+    voix: voixDe(f?.voix),
   }
+}
+
+/* Voix du personnage : une voix du studio (Kokoro, ex. « af_heart ») ou « clone:<extrait> », un
+   extrait de la bibliothèque audio pour la voix clonée du propriétaire. Reel et avatar parlant la prennent. */
+export function voixDe(v) {
+  const x = String(v ?? '').trim()
+  return /^[a-z]{2}_[a-z]+$/.test(x) || /^clone:[\w.-]{1,120}$/.test(x) ? x : null
 }
 
 /* Crédit du personnage (auteur de la LoRA, page, licence) : affiché sur sa
@@ -236,6 +244,7 @@ export function enregistrer(corps, id) {
        recevoir un, une fois. */
     credit: creditDe(a.credit) ?? (has('credit') ? creditDe(corps.credit) : null),
     garderobe: has('garderobe') ? garderobeDe(corps.garderobe) : garderobeDe(a.garderobe),
+    voix: has('voix') ? voixDe(corps.voix) : voixDe(a.voix),
   }
   ecrireFichier(d)
   return persona(d.personas[i].id)

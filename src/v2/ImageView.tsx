@@ -39,7 +39,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const [elm, setElm] = useState(false)
   const [srcPick, setSrcPick] = useState(false)
   const [refPick, setRefPick] = useState(false)
-  // Retouche = pinceau : une image choisie s'ouvre directement dans l'outil de zone
+  // pinceau de retouche : ouvert seulement par le bouton Pinceau (choisir l'image ne fait que la poser)
   const [pinceauDe, setPinceauDe] = useState<Asset | null>(null)
   const kleinOk = s.personaKlein
   const champPrompt = useRef<HTMLTextAreaElement>(null)
@@ -296,7 +296,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
         onPickAsset={a => { void s.ajouterReference(a); setRefPick(false) }} onPickUpload={() => setRefPick(false)} />
       <FramePicker open={srcPick} onClose={() => setSrcPick(false)} assets={s.assets}
         title={t('Image à retoucher')}
-        onPickAsset={a => { void s.pickEditSource(a.id); setPinceauDe(a) }}
+        onPickAsset={a => { void s.pickEditSource(a.id) }}
         onPickUpload={() => { /* upload input direct non câblé sur photo (v1 idem) */ }} />
       {pinceauDe && <Pinceau asset={pinceauDe} onClose={() => setPinceauDe(null)} />}
     </div>

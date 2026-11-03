@@ -15,7 +15,9 @@ function VoixOff({ surPret }: { surPret: () => void }) {
   const [voix, setVoix] = useState<{ id: string; nom: string }[]>([])
   const [dispo, setDispo] = useState(true)
   const [clone, setClone] = useState(false)
-  const [mode, setMode] = useState<Mode>('studio')
+  const [mode, setMode] = useState<Mode>(() => { const d = useAppStore.getState().demandeOutil; return d === 'cloner' || d === 'changer' ? d : 'studio' })
+  const demande = useAppStore(st => st.demandeOutil)
+  useEffect(() => { if (demande === 'cloner' || demande === 'changer') { setMode(demande); useAppStore.setState({ demandeOutil: null }) } }, [demande])
   const [refs, setRefs] = useState<string[]>([])
   const [ref, setRef] = useState('')
   const [source, setSource] = useState('')
@@ -101,6 +103,9 @@ export function Musiques() {
     setAConfirmer(null); charger()
   }
   const [outil, setOutil] = useState<'voix' | 'musique'>('voix')
+  // le menu Audio ouvre directement le clonage ou le changement de voix
+  const demande = useAppStore(st => st.demandeOutil)
+  useEffect(() => { if (demande === 'cloner' || demande === 'changer') setOutil('voix') }, [demande])
   const charger = () => void fetch('/api/montage/musiques').then(r => r.json()).then((d: { musiques?: { nom: string; duree: number }[] }) => setListe(d.musiques ?? [])).catch(() => setListe([]))
   useEffect(charger, [])
   return (

@@ -17,6 +17,8 @@ const compare = (nom: string, legA: string, legB: string): Apercu => ({ type: 'c
 const anime = (nom: string, reste: Partial<Extract<Apercu, { type: 'media' }>> = {}): Apercu => ({ type: 'media', image: v(`${nom}.webp`), video: v(`${nom}.mp4`), ...reste })
 
 export const BANDEAU_STAGE: Apercu = { ...compare('stage', 'Maquette 3D', 'Rendu final'), videoA: v('stage-a.mp4'), videoB: v('stage-b.mp4') } as Apercu
+export const BANDEAU_CINEMA: Apercu = { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', 'Pellicule 500T'], auto: true }
+export const BANDEAU_RESTORE: Apercu = { type: 'compare', a: v('restaurer-a.webp'), b: v('restaurer-b.webp'), legA: 'Photo d’origine', legB: 'Restaurée et colorisée' }
 export const BANDEAU_REEL = anime('reel-w', { texte: 'Sunday morning at a flower market' })
 const compareVideo = (nom: string, legA: string, legB: string): Apercu => ({ ...compare(nom, legA, legB), videoA: v(`${nom}-a.mp4`), videoB: v(`${nom}-b.mp4`), auto: true } as Apercu)
 
@@ -24,34 +26,52 @@ export const BANDEAU_CAMERA = anime('camera-w', { puces: ['Orbite', 'Dolly zoom'
 
 /** Clé : le libellé de l'outil dans GROUPES. */
 export const APERCUS: Record<string, Apercu> = {
+  'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Tailleur bleu marine' },
+  'Inpaint': compare('retouche', 'Avant', 'Zone repeinte'),
+  'Remove Background': { type: 'compare', a: v('v2-transp-a.webp'), b: v('v2-transp-b.webp'), legA: 'Photo', legB: 'PNG transparent' },
+  'Upscale Image': compare('nette', 'Avant', 'SeedVR2'),
+  'Coverage': { type: 'media', image: v('v2-coverage.webp'), puces: ['Large', '¾', 'Serré'] },
+  'Next Shot': { type: 'media', image: v('v2-suivant.webp'), puces: ['Plan 1', 'Plan 2'] },
+  'Seamless Loop': { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w.mp4'), auto: true },
+  'Extend Video': { type: 'media', image: v('v2-video-b.webp'), video: v('v2-video-b.mp4'), auto: true },
+  'Remove Objects': compareVideo('retouche', 'Avant', 'Nettoyé'),
+  'Change Background': compareVideo('detour', 'Clip', 'Nouveau décor'),
+  'Add Sound': { type: 'media', image: v('onde.webp'), onde: true, texte: 'waves, gulls, distant tram' },
+  'Smooth Motion': compare('nette', '24 i/s', '48 i/s'),
+  'Voice Clone': { type: 'media', image: v('onde.webp'), onde: true, texte: 'your voice, from a short sample' },
+  'Voice Changer': { type: 'media', image: v('onde.webp'), onde: true, texte: 'same line, another voice' },
   'One-click Reel': { type: 'media', image: v('reel.webp'), texte: 'Sunday morning at a flower market' },
-  'Text to Image': { type: 'media', image: v('photo.webp'), refs: [v('ref.webp')] },
-  'Image to Video': { type: 'media', image: v('video-a.webp'), video: v('video-b.mp4'), puces: ['Photo → clip'] },
-  'Text to Video': anime('texte', { texte: 'Rain on a quiet Lisbon street at dusk, slow push-in' }),
-  'Talking Avatar': anime('avatar', { texte: 'Are you ready to run!' }),
+  'Text to Image': { type: 'media', image: v('v2-photo.webp'), puces: ['Krea 2', 'LoRA d’identité'] },
+  'Image to Video': { type: 'media', image: v('v2-video-a.webp'), video: v('v2-video-b.mp4'), puces: ['Photo → clip', 'Son'] },
+  'Text to Video': { type: 'media', image: v('v2-texte.webp'), video: v('v2-texte.mp4'), texte: 'A jazz trumpeter plays alone in a narrow alley at night' },
+  'Talking Avatar': { type: 'media', image: v('v2-avatar.webp'), video: v('v2-avatar.mp4'), texte: 'Hi, I’m Jessica.' },
   'Voice-over': { type: 'media', image: v('onde.webp'), onde: true, texte: 'Welcome to the studio' },
   'Music & Sound Effects': { type: 'media', image: v('onde.webp'), onde: true, texte: 'warm lo-fi hip hop, soft piano' },
   'Stage': { ...compare('stage', 'Maquette 3D', 'Rendu final') },
-  'Cinema Studio': { type: 'media', image: v('cine.webp'), puces: ['50 mm', 'f/2.8', 'Heure dorée'] },
+  'Cinema Studio': { type: 'media', image: v('v2-cine.webp'), video: v('v2-cine-v.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', '500T'] },
   'Camera Moves': anime('camera', { auto: true }),
-  'Effects': anime('camera', { auto: true }),
-  'Re-shoot': compareVideo('reshoot', 'Plan d’origine', 'Caméra qui tourne'),
+  'Effects': anime('effets', { auto: true }),
+  'Re-shoot': { type: 'compare', a: v('v2-reshoot-a.webp'), b: v('v2-reshoot-b.webp'), videoA: v('v2-reshoot-a.mp4'), videoB: v('v2-reshoot-b.mp4'), legA: 'Plan d’origine', legB: 'Caméra qui tourne', auto: true },
   'Swap': compareVideo('mix', 'Original', 'Personnages échangés'),
   'Motion Control': compareVideo('move', 'Vidéo d’origine', 'Geste repris'),
   'Image to 3D': { ...compare('objet', 'Photo', 'Modèle 3D'), videoB: v('objet-b.mp4') } as Apercu,
   'Retouch': compareVideo('retouche', 'Avant', 'Objet posé'),
-  'Multi-Angle, Styles & Relight': compare('look', 'Photo', 'Figurine'),
+  'Styles': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-briques.webp'), legA: 'Photo', legB: 'Brick toy' },
+  'Relight': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-neon.webp'), legA: 'Photo', legB: 'Néons' },
+  'Expand': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-expand.webp'), legA: '1:1', legB: '16:9' },
+  'Multi-Angle': { type: 'compare', a: v('v2-vespa-a.webp'), b: v('v2-vespa-b.webp'), legA: 'Photo', legB: 'Contre-plongée' },
   'Editor': { type: 'media', image: v('montage.webp') },
   'Upscale 1080p': compare('nette', 'Clip d’origine', 'SeedVR2'),
   'HDR Masters': { type: 'media', image: v('stage-b.webp'), puces: ['HLG', 'ProRes 4444', 'EXR ACEScg'] },
   'Green Screen': compareVideo('detour', 'Clip', 'Fond vert'),
   'Lip Sync': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
-  'Extend': compareVideo('recadrer', '9:16', '16:9'),
+  'Reframe': compareVideo('recadrer', '9:16', '16:9'),
   'Restore': compare('restaurer', 'Photo d’origine', 'Restaurée et colorisée'),
   'Sketch to Video': { type: 'media', image: v('croquis.webp'), video: v('croquis.mp4'), auto: true },
+  'ComfyUI Official Workflows': { type: 'media', image: v('v2-comfy.webp'), puces: ['262 workflows', 'Modèles manquants', 'Ouvrir dans ComfyUI'] },
   'Extensions': compare('extensions', 'Photo', 'Extension Illustration'),
-  'Character': { type: 'media', image: v('personnage.webp'), puces: ['4 visages', 'Planche', '12 images', 'LoRA'] },
-  'Product Shot': { type: 'media', image: v('pack.webp'), puces: ['Packshot', 'Mise en scène', 'Affiche', 'Personnage', 'Clip'] },
+  'Character': { type: 'media', image: v('v2-personnage.webp'), puces: ['4 visages', 'Planche', '12 images', 'LoRA'] },
+  'Product Shot': { type: 'media', image: v('v2-pack.webp'), video: v('v2-pack.mp4'), auto: true, puces: ['Packshot', 'Mise en scène', 'Affiche', 'Personnage', 'Clip'] },
   'Social Check': { type: 'media', image: v('analyse.webp'), puces: ['Accroche 8/10', 'Sujet 9/10', 'Image 9/10', 'Histoire 7/10'] },
 }
 

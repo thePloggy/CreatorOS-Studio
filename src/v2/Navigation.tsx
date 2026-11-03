@@ -5,6 +5,7 @@
    qui part d'un média existant ouvre le choix dans la bibliothèque, puis la
    visionneuse où se trouve son bouton.
    ============================================================ */
+import type { IdOutil } from './OutilsDedies'
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -13,17 +14,18 @@ import { Pastille } from './bits'
 import { FramePicker } from './popups'
 import { APERCUS } from './Apercus'
 
-export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer'
+export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
-export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse'
+export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
+  | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
-  { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'camera' | 'effets' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
+  { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'camera' | 'effets' | 'comfy' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 /** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
-export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][] }
+export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][]; defaut?: string }
 
 export const MENUS: Menu[] = [
-  { titre: 'Image', colonnes: [
+  { titre: 'Image', defaut: 'Text to Image', colonnes: [
       { titre: 'Créer une image', outils: [
       { label: 'Text to Image', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
       { label: 'Cinema Studio', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
@@ -31,18 +33,33 @@ export const MENUS: Menu[] = [
       { label: 'Product Shot', texte: 'Ton produit en photo ou en mots, ton personnage, une scène : affiche, visuels et clip.', section: 'pub', pastille: 'new' },
       ] },
       { titre: 'Modifier une image', outils: [
-      { label: 'Multi-Angle, Styles & Relight', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
+      { label: 'Edit Image', texte: 'Décris le changement : la photo est retouchée, le reste ne bouge pas (Qwen-Image-Edit).', section: 'image', tache: 'edition' },
+      { label: 'Inpaint', texte: 'Peins une zone de la photo et dis ce qui doit y apparaître : le reste ne change pas.', section: 'outil', dedie: 'inpaint' },
+      { label: 'Remove Background', texte: 'Le sujet est gardé, le fond disparaît : un PNG transparent, rien n’est redessiné.', section: 'outil', dedie: 'remove-bg', pastille: 'new' },
+      { label: 'Upscale Image', texte: 'SeedVR2 monte la photo en haute définition sans la redessiner.', section: 'outil', dedie: 'upscale' },
       { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
+      { label: 'Depth Map', texte: 'La carte de profondeur d’une photo (Depth Anything V2), pour le relief, le compositing et les ControlNet.', section: 'outil', dedie: 'depth', pastille: 'new' },
+      ] },
+      { titre: 'Styles et lumière', outils: [
+      { label: 'Styles', texte: 'Une mosaïque de styles : BD, manga, pâte à modeler, pixel, affiche, néon… sur n’importe quelle photo.', section: 'styles', pastille: 'new' },
+      { label: 'Relight', texte: 'La même photo sous un autre éclairage : fenêtre, studio, néons, bougie, heure bleue…', section: 'relight', pastille: 'new' },
+      { label: 'Expand', texte: 'La photo élargie en 16:9, 9:16, 4:5 ou 1:1 : les bords sont inventés dans la continuité.', section: 'expand', pastille: 'new' },
+      ] },
+      { titre: 'Réaliser', outils: [
+      { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
+      { label: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', depuis: 'photo', titre: 'Photo de départ', action: 'coverage', pastille: 'new' },
+      { label: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', depuis: 'photo', titre: 'Photo de départ', action: 'suivant', pastille: 'new' },
       { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
       ] },
     ], modeles: [['Krea 2', 'Photo du personnage, LoRA d’identité'], ['FLUX.2 Klein 9B', 'Images de référence, croquis'], ['Qwen-Image-Edit 2511', 'Angles, looks, retouche'], ['SeedVR2', 'Restauration et HD'], ['TRELLIS.2', 'Photo vers modèle 3D']] },
-  { titre: 'Vidéo', colonnes: [
+  { titre: 'Vidéo', defaut: 'Image to Video', colonnes: [
       { titre: 'Créer une vidéo', outils: [
       { label: 'One-click Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
       { label: 'Image to Video', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
       { label: 'Text to Video', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
       { label: 'Sketch to Video', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },
       { label: 'Talking Avatar', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
+      { label: 'Seamless Loop', texte: 'Un clip qui revient à son image de départ : il tourne en boucle sans raccord.', section: 'outil', dedie: 'loop', pastille: 'new' },
       ] },
       { titre: 'Réaliser', outils: [
       { label: 'Stage', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
@@ -53,32 +70,41 @@ export const MENUS: Menu[] = [
       ] },
       { titre: 'Modifier une vidéo', outils: [
       { label: 'Swap', texte: 'Tes personnages prennent la place de 1 à 3 personnes.', section: 'video', tache: 'mix', pastille: 'new' },
-      { label: 'Retouch', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
-      { label: 'Extend', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
+      { label: 'Retouch', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', section: 'outil', dedie: 'retouch', pastille: 'new' },
+      { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.', section: 'video', tache: 'etendre' },
+      { label: 'Reframe', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
+      { label: 'Remove Objects', texte: 'Retire une personne ou un objet du clip : le décor derrière est reconstitué.', section: 'outil', dedie: 'remove-objects', pastille: 'new' },
+      { label: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', section: 'outil', dedie: 'change-bg', pastille: 'new' },
       { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
-      { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
-      { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },
+      { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', section: 'outil', dedie: 'upscale' },
+      { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', section: 'outil', dedie: 'green-screen' },
       ] },
       { titre: 'Finir', outils: [
       { label: 'Editor', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
       { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
-      { label: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
+      { label: 'Add Sound', texte: 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).', section: 'outil', dedie: 'add-sound', pastille: 'new' },
+      { label: 'Smooth Motion', texte: 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.', section: 'outil', dedie: 'smooth' },
+      { label: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', section: 'outil', dedie: 'hdr', pastille: 'new' },
       { label: 'Social Check', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
       ] },
     ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['MiniMax H3', 'Clip avec son, le plus fluide · prébranché, à installer', 'h3'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
-  { titre: 'Audio', colonnes: [
+  { titre: 'Audio', defaut: 'Music & Sound Effects', colonnes: [
       { titre: 'Créer du son', outils: [
       { label: 'Music & Sound Effects', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
       { label: 'Voice-over', texte: 'Tape une phrase, choisis une voix : le fichier rejoint la bibliothèque audio.', section: 'assets', tache: 'musiques' },
+      { label: 'Voice Clone', texte: 'Ta voix, d’après un court extrait que tu enregistres avec ton accord (propriétaire du studio).', section: 'assets', tache: 'cloner', pastille: 'new' },
+      { label: 'Voice Changer', texte: 'Une phrase enregistrée, redite avec une autre voix (propriétaire du studio).', section: 'assets', tache: 'changer', pastille: 'new' },
       ] },
       { titre: 'Sur un clip', outils: [
       { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
       { label: 'Talking Avatar', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
+      { label: 'Add Sound', texte: 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).', section: 'outil', dedie: 'add-sound', pastille: 'new' },
       ] },
     ], modeles: [['ACE-Step 1.5', 'Musique et bruitages'], ['Kokoro-82M', 'Voix off'], ['Chatterbox', 'Clonage et changement de voix (propriétaire)']] },
-  { titre: 'Extensions', colonnes: [
+  { titre: 'Extensions', defaut: 'Extensions', colonnes: [
       { titre: 'Ajouter des fonctions', outils: [
       { label: 'Extensions', texte: 'Des fonctions ajoutées par la communauté, sans code : un workflow ComfyUI et un formulaire.', section: 'extensions', pastille: 'new' },
+      { label: 'ComfyUI Official Workflows', texte: 'Le catalogue des workflows officiels de ComfyUI, avec les modèles manquants, à télécharger et ouvrir dans ComfyUI.', section: 'extensions', tache: 'comfy' },
       ] },
     ], modeles: [['Workflows ComfyUI', 'Un workflow et un formulaire, sans code']] },
 ]
@@ -99,10 +125,16 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
     useAppStore.setState({ ongletMusiques: o.tache === 'musiques' })
+    if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : 'tout' })
     if (o.tache === 'camera' || o.tache === 'effets') useAppStore.setState({ famillePresets: o.tache === 'camera' ? 'camera' : 'effet' })
+    useAppStore.setState({ demandeOutil: o.tache === 'hd' || o.tache === 'cloner' || o.tache === 'changer' ? o.tache : null })
+    if (o.tache === 'cloner' || o.tache === 'changer') useAppStore.setState({ ongletMusiques: true })
+    if (o.tache === 'edition') useAppStore.getState().updatePhoto({ task: 'edit' })
+    if (o.tache === 'etendre') updateVideo({ task: 'extend' })
     if (o.tache === 'creer') updateVideo({ task: 'i2v' })
     if (o.tache === 'texte') updateVideo({ task: 't2v' })
     if (o.tache === 'move' || o.tache === 'mix') updateVideo({ task: 'motion_pure', motionMode: o.tache === 'mix' ? 'replace' : 'animate' })
+    if (o.section === 'outil' && o.dedie) useAppStore.setState({ outilDedie: o.dedie })
     aller(o.section)
   }
   return { ouvrir, choix, fermerChoix: () => setChoix(null) }
@@ -136,13 +168,21 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
     return () => { document.removeEventListener('mousedown', dehors); document.removeEventListener('keydown', echap) }
   }, [ouvert])
   const outils = (m: Menu) => m.colonnes.flatMap(c => c.outils)
-  const actif = (m: Menu) => outils(m).some(o => ('stage' in o ? section === 'video' && stageOuvert : 'section' in o && o.section === section && !stageOuvert))
+  const outilDedie = useAppStore(st => st.outilDedie)
+  // la page dédiée « outil » sert plusieurs familles : seule celle qui porte l'outil ouvert s'allume
+  const actif = (m: Menu) => outils(m).some(o => ('stage' in o ? section === 'video' && stageOuvert
+    : 'section' in o && o.section === section && !stageOuvert && (section !== 'outil' || o.dedie === outilDedie)))
   const nb = (m: Menu) => new Set(outils(m).map(o => o.label)).size
   return (
     <div ref={racine} className="flex gap-0.5 items-center" style={{ position: 'relative' }} onMouseLeave={() => setOuvert(null)}>
       {MENUS.map(m => (
         <div key={m.titre} onMouseEnter={() => setOuvert(m.titre)}>
-          <button aria-expanded={ouvert === m.titre} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]" onClick={() => setOuvert(o => (o === m.titre ? null : m.titre))}
+          <button aria-expanded={ouvert === m.titre} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]" onClick={() => {
+              // un clic sur la famille ouvre son outil principal (le survol montre le menu)
+              const o = m.defaut ? outils(m).find(x => x.label === m.defaut) : null
+              setOuvert(null)
+              if (o) ouvrir(o)
+            }}
             style={{ background: ouvert === m.titre || actif(m) ? 'var(--lv3)' : 'transparent', color: ouvert === m.titre || actif(m) ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             {t(m.titre)}
           </button>

@@ -94,3 +94,21 @@ export async function echantillon(voix) {
   await enCours.get(v)
   return f
 }
+
+/** Dit une phrase avec une voix : du studio (Kokoro) ou « clone:<extrait> » (Chatterbox, propriétaire seul,
+    l'extrait ayant été déclaré consenti en le choisissant comme voix du personnage). */
+export async function dire({ texte, voix, vitesse, proprietaire }) {
+  const v = String(voix ?? '')
+  if (v.startsWith('clone:')) {
+    if (!proprietaire) throw new Error('la voix clonée est réservée au propriétaire du studio')
+    return cloner({ texte, reference: v.slice(6), accord: true })
+  }
+  return synthetiser({ texte, voix: v, vitesse })
+}
+/** Voix acceptée : une voix du studio, ou une voix clonée pour le propriétaire. */
+export const voixAcceptee = (v, proprietaire) => {
+  const x = String(v ?? '')
+  if (VOIX.some(y => y.id === x)) return x
+  if (proprietaire && /^clone:[\w.-]{1,120}$/.test(x) && fs.existsSync(path.join(MUSIQUES_DIR, x.slice(6))) && cloneDisponible()) return x
+  return null
+}

@@ -7,6 +7,7 @@
    couleurs héritées, pour tenir dans les deux thèmes sans dépendre de l'un.
    ============================================================ */
 import { useEffect, useState } from 'react'
+import { ChoixVoix } from '../v2/ChoixVoix'
 import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -15,7 +16,7 @@ import { Verrouille } from '../features/config/CleProprietaire'
 interface LoraRef { name: string; strength: number }
 interface Persona {
   name: string | null; trigger: string; description: string; preamble?: string
-  loras: LoraRef[]; lorasKlein?: LoraRef[]; videoLoras: LoraRef[]; figes?: string[]
+  loras: LoraRef[]; lorasKlein?: LoraRef[]; videoLoras: LoraRef[]; figes?: string[]; voix?: string | null
 }
 interface LoraDispo { name: string; arch?: string; bytes?: number | null }
 
@@ -150,6 +151,11 @@ export function PersonaEditeur() {
       {texte('trigger', t('Mot déclencheur'), t('Le mot appris par la LoRA d’identité, placé en tête de chaque prompt (ex. ava_token).'))}
       {texte('preamble', t('Préambule d’identité'), t('Description fixe ajoutée après le mot déclencheur : âge, cheveux, traits qui ne changent jamais.'), true)}
       {texte('description', t('Description'), t('Pour toi : qui est ce personnage. N’entre pas dans le prompt.'), true)}
+      <label style={etiquette}>{t('Voix')}</label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <ChoixVoix valeur={p.voix ?? ''} onChange={v => maj({ voix: v || null })} perso={false} vide={t('aucune voix attitrée')} />
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.5, marginTop: 3 }}>{t('Sa voix partout : voix off de ses reels et avatar parlant. Une voix du studio, ou ta voix clonée depuis un extrait de la bibliothèque audio.')}</div>
       <ListeLoras titre={t('LoRA d’identité — photo Krea 2')} aide={t('Empilées sur chaque rendu photo Krea 2 et chaque retouche au pinceau photo.')}
         liste={p.loras} dispo={dispo} garde={a => a === 'krea2' || a === 'inconnue'} onChange={l => maj({ loras: l })} />
       <ListeLoras titre={t('LoRA d’identité — photo FLUX.2 Klein')} aide={t('Empilées sur les rendus photo FLUX.2 Klein. Une LoRA Krea n’agit pas sur Klein : il faut une LoRA entraînée sur Klein.')}

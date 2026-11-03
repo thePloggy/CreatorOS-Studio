@@ -2,6 +2,7 @@
    CreatorOS Studio — shell desktop : sections Assets · Image ·
    Vidéo · Personnage · Paramètres, bibliothèque au cœur.
    ============================================================ */
+import { OutilDedie } from './OutilsDedies'
 import { BandeauGithub } from '../components/BandeauGithub'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
@@ -19,6 +20,7 @@ import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
 import { MenusOutils, type ActionOutil, type Section } from './Navigation'
 import { arreterEcoute } from './Ecouter'
+import { couperOrphelins } from '../lib/medias'
 import { installerDansEcran } from '../lib/dansEcran'
 installerDansEcran()
 
@@ -38,6 +40,7 @@ const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.C
 const OutilsClip = () => import('./OutilsClipViews')
 const RecadrerView = lazy(() => OutilsClip().then(m => ({ default: m.RecadrerView })))
 const RestaurerView = lazy(() => import('./RestaurerView').then(m => ({ default: m.RestaurerView })))
+const StylesView = lazy(() => import('./StylesView').then(m => ({ default: m.StylesView })))
 const DoublageView = lazy(() => OutilsClip().then(m => ({ default: m.DoublageView })))
 const AnalyseView = lazy(() => OutilsClip().then(m => ({ default: m.AnalyseView })))
 const CreerPersonnageView = lazy(() => import('../features/persona/CreerPersonnageView').then(m => ({ default: m.CreerPersonnageView })))
@@ -68,10 +71,12 @@ function Telemetry() {
   const dot = <span style={{ color: 'var(--faint)', margin: '0 6px' }}>·</span>
   const cell = { display: 'flex', alignItems: 'center', gap: 6 } as const
   return (<>
-    <div className="hidden lg:max-[1500px]:flex items-center gap-1.5 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('VRAM utilisée')}>
-      {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.nom}</b>}<TBar pct={vramPct} />
+    {/* version courte, toujours là : charge du GPU et mémoire vidéo */}
+    <div className="flex min-[1800px]:hidden items-center gap-1.5 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
+      GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b>
+      <span style={{ color: 'var(--faint)' }}>·</span> VRAM <TBar pct={vramPct} />
     </div>
-    <div className="hidden min-[1500px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
+    <div className="hidden min-[1800px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
       title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
       <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
@@ -90,7 +95,8 @@ export default function V2App() {
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
-  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer'].includes(initial) ? initial : 'accueil')
+  const outilDedie = useAppStore(st => st.outilDedie)
+  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
@@ -115,6 +121,7 @@ export default function V2App() {
     const h = window.setTimeout(() => {
       document.querySelectorAll<HTMLMediaElement>('video, audio').forEach(m => { if (!m.muted && !m.paused && !m.hasAttribute('data-lecture-active')) m.pause() })
       if (!focus) arreterEcoute()
+      couperOrphelins()
     }, 0)
     return () => window.clearTimeout(h)
   }, [section, focus?.a.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -162,7 +169,7 @@ export default function V2App() {
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
         <div className="ml-auto flex items-center gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>
-          <span className="masquer-etroit"><Telemetry /></span>
+          <Telemetry />
           {activeJobs > 0 && <span className="masquer-etroit" style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{t('{n} en rendu', { n: activeJobs })}</span>}
           <span className="masquer-tres-etroit"><QuotaDemo /></span>
           <VoyantMachine />
@@ -191,6 +198,8 @@ export default function V2App() {
         {section === 'pub' && <PubView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'recadrer' && <RecadrerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'restaurer' && <RestaurerView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'outil' && <OutilDedie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />}
+        {(section === 'styles' || section === 'relight' || section === 'expand') && <StylesView key={section} mode={section} goImage={() => setSection('image')} />}
         {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'analyse' && <AnalyseView />}
         {section === 'nouveau-personnage' && <CreerPersonnageView />}

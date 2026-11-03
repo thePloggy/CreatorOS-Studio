@@ -1,191 +1,261 @@
 [
  {
-  "id": "or",
-  "label": "Heure dorée",
-  "en": "Golden hour",
-  "outil": "Relight",
-  "consigne": "Relight the photo to warm golden hour sunlight with long soft shadows. Keep the person, pose, outfit and framing unchanged."
- },
- {
-  "id": "nuit",
-  "label": "Nuit",
-  "en": "Night",
-  "outil": "VFX: relight",
-  "consigne": "Turn the scene into night time with warm city lights and soft moonlight. Keep the person, pose, outfit and framing unchanged."
- },
- {
-  "id": "coucher",
-  "label": "Couchant de feu",
-  "en": "Burning sunset",
-  "outil": "Burning Sunset",
-  "consigne": "Change the sky and light to a dramatic burning orange and crimson sunset. Keep the person, pose, outfit and framing unchanged."
- },
- {
   "id": "etal",
   "label": "Étalonnage ciné",
   "en": "Film grade",
-  "outil": "Color Grading",
-  "consigne": "Apply a cinematic teal and orange colour grade with rich contrast and fine film grain. Do not change anything else in the image."
+  "consigne": "Apply a cinematic teal and orange colour grade with rich contrast and fine film grain. Do not change anything else in the image.",
+  "famille": "Retouche et couleur"
  },
  {
   "id": "peau",
   "label": "Peau soignée",
   "en": "Skin retouch",
-  "outil": "Skin Enhancer",
-  "consigne": "Retouch the skin naturally: even tone, keep real pores and texture, reduce shine. Do not change the face shape, pose, outfit or background."
+  "consigne": "Retouch the skin naturally: even tone, keep real pores and texture, reduce shine. Do not change the face shape, pose, outfit or background.",
+  "famille": "Retouche et couleur"
  },
  {
   "id": "pro",
   "label": "Portrait pro",
   "en": "Pro headshot",
-  "outil": "AI Headshot Generator",
-  "consigne": "Turn this into a professional corporate headshot of the same adult woman: tailored dark blazer, clean soft grey studio backdrop, soft studio lighting, shoulders-up framing."
+  "consigne": "Turn this into a professional corporate headshot of the same adult woman: tailored dark blazer, clean soft grey studio backdrop, soft studio lighting, shoulders-up framing.",
+  "famille": "Portrait et produit"
  },
  {
   "id": "pub",
   "label": "Visage de pub",
   "en": "Beauty ad",
-  "outil": "Commercial Faces",
-  "consigne": "Turn this into a high-end beauty commercial close-up of the same adult woman: flawless studio light, clean coloured backdrop, sharp focus on the face."
+  "consigne": "Turn this into a luxury skincare and beauty campaign close-up of the same woman, keeping her exact face, age, features and hair. Framing: tight head-and-shoulders close-up, a calm confident gaze into the lens, chin slightly lifted. Lighting: large soft beauty dish from the front and slightly above with a white fill from below, so the light wraps the face evenly with very soft shadows, a gentle rim light on the hair, luminous catchlights in the eyes. Background: a seamless smooth backdrop in a soft muted pastel colour that complements her skin tone. Skin: smooth, even, luminous and healthy, softly and professionally retouched like a real beauty advertisement, natural and believable, her real age kept. Do not emphasise pores, wrinkles or skin texture; no embossed, bumpy, waffled or grainy skin, no harsh micro-contrast, no sharpening artefacts. Makeup: refined and natural, a dewy glow, groomed brows, softly defined lips. Shot on a medium-format camera with an 85 mm lens, eyes in sharp focus, gentle falloff, rich true-to-life colour, clean high-end magazine advertising quality, no text, no logo.",
+  "famille": "Portrait et produit"
  },
  {
   "id": "peluche",
   "label": "Peluche",
   "en": "Plush toy",
-  "outil": "Plushies",
-  "consigne": "Turn the person into a cute soft plush toy with the same hair and outfit colours, visible fabric texture and stitching, sitting in the same place."
+  "consigne": "Turn the person into a cute soft plush toy with the same hair and outfit colours, visible fabric texture and stitching, sitting in the same place.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "figurine",
   "label": "Figurine",
   "en": "Figurine",
-  "outil": "3D Figure",
-  "consigne": "Turn the photo into a collectible 3D figurine of the same person and outfit, standing on a round base on a desk, with its toy packaging box beside it."
+  "consigne": "Turn the photo into a collectible 3D figurine of the same person and outfit, standing on a round base on a desk, with its toy packaging box beside it.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "mascotte",
   "label": "Mascotte",
   "en": "Mascot",
-  "outil": "Mascot",
-  "consigne": "Turn the person into a friendly round brand mascot character wearing the same outfit colours, clean 3D style, on a plain colour background."
+  "consigne": "Turn the person into a friendly round brand mascot character wearing the same outfit colours, clean 3D style, on a plain colour background.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "pixel",
   "label": "Pixel art",
   "en": "Pixel game",
-  "outil": "Pixel Game",
-  "consigne": "Redraw the whole scene as 16-bit pixel art from a retro video game, limited palette, crisp visible pixels. Same composition."
+  "consigne": "Redraw the whole scene as 16-bit pixel art from a retro video game, limited palette, crisp visible pixels. Same composition.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "briques",
   "label": "Briques",
   "en": "Brick toy",
-  "outil": "Brick Cube",
-  "consigne": "Rebuild the whole scene out of small plastic toy bricks, visible studs, same composition and colours."
+  "consigne": "Rebuild the whole scene out of small plastic toy bricks, visible studs, same composition and colours.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "sticker",
   "label": "Sticker paillettes",
   "en": "Glitter sticker",
-  "outil": "Glitter Sticker",
-  "consigne": "Turn the person into a die-cut glitter sticker with a thick white border, sparkling holographic texture, on a plain background."
+  "consigne": "Turn the person into a die-cut glitter sticker with a thick white border, sparkling holographic texture, on a plain background.",
+  "famille": "Dessin et 3D"
  },
  {
-  "id": "bd",
-  "label": "BD",
-  "en": "Comic",
-  "outil": "Comic Book",
-  "consigne": "Redraw the photo as a vibrant comic book panel with bold ink outlines, flat colours and halftone shading. Same person, pose and framing."
+  "id": "bd-belge",
+  "label": "BD franco-belge",
+  "en": "Franco-Belgian comic",
+  "consigne": "Redraw this photo as a European ligne claire comic panel: clean, uniform black outlines of the same weight around every shape, no hatching, large areas of flat bright colour with no gradients, simple soft cast shadows as flat darker tones, crisp readable details, a sunny storybook atmosphere, like a frame from a classic Franco-Belgian album. No photographic texture anywhere: the subject and the whole background are redrawn in this clean illustrated style. No depth of field, no blur, no bokeh: the background is as sharp, detailed and drawn as the subject, like every comic panel. Keep exactly the same subject, pose, composition and framing.",
+  "famille": "Dessin et 3D"
+ },
+ {
+  "id": "bd-super",
+  "label": "Comics de super-héros",
+  "en": "Superhero comic",
+  "consigne": "Completely redraw this photo as a bold American superhero comic book panel, sharp hand-drawn line art: heavy black ink outlines with dynamic varied line weight, deep shadows rendered as solid black shapes, crisp hatching on the forms, vivid saturated cel-shaded colours with hard edges, strong rim highlights, Ben-Day halftone dots in the background, dramatic heroic lighting and energy. Everything is drawn and sharp like a printed comic page: no photo, no blur, no photographic texture left anywhere, the background redrawn in the same style. No depth of field, no blur, no bokeh: the background is as sharp, detailed and drawn as the subject, like every comic panel. Keep exactly the same subject, pose, composition and framing.",
+  "famille": "Dessin et 3D"
+ },
+ {
+  "id": "manga",
+  "label": "Manga",
+  "en": "Manga",
+  "consigne": "Completely redraw this photo as a black and white Japanese manga panel: clean confident black ink line art, expressive eyes and simplified anatomy in manga style, grey screentone dot patterns for shading and the sky, speed lines or a subtle sparkle background where it fits, crisp white paper, sharp drawn details everywhere. No colour, no photographic texture left anywhere, the background redrawn in the same manga style. No depth of field, no blur, no bokeh: the background is as sharp, detailed and drawn as the subject, like every comic panel. Keep exactly the same subject, pose, composition and framing.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "argile",
   "label": "Pâte à modeler",
   "en": "Clay",
-  "outil": "Style transfer",
-  "consigne": "Turn the whole scene into stop-motion clay animation style, plasticine textures and fingerprints. Same person, pose and framing."
+  "consigne": "Turn the whole scene into stop-motion clay animation style, plasticine textures and fingerprints. Same person, pose and framing.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "griffonnage",
   "label": "Griffonnage fondant",
   "en": "Melting doodle",
-  "outil": "Melting Doodle",
-  "consigne": "Turn the photo into a playful hand-drawn marker doodle with colours melting and dripping down the page, on white paper."
+  "consigne": "Turn the photo into a playful hand-drawn marker doodle with colours melting and dripping down the page, on white paper.",
+  "famille": "Dessin et 3D"
  },
  {
   "id": "cafe60",
   "label": "Café années 60",
   "en": "60s café",
-  "outil": "60s Cafe",
-  "consigne": "Place the same adult woman in a 1960s Parisian café, period clothing, faded Kodachrome colours, soft film grain."
+  "consigne": "Place the same adult woman in a 1960s Parisian café, period clothing, faded Kodachrome colours, soft film grain.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "giallo",
   "label": "Giallo",
   "en": "Giallo horror",
-  "outil": "Giallo Horror",
-  "consigne": "Restyle the photo as a 1970s Italian giallo film still: saturated red and green gels, deep shadows, heavy film grain. Same person and framing."
+  "consigne": "Restyle the photo as a 1970s Italian giallo film still: saturated red and green gels, deep shadows, heavy film grain. Same person and framing.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "affiche",
   "label": "Affiche de film",
   "en": "Movie poster",
-  "outil": "Poster",
-  "consigne": "Turn the photo into a cinematic movie poster with dramatic light, a bold title reading MIDNIGHT RAIN at the bottom and small credits."
+  "consigne": "Turn the photo into a cinematic movie poster with dramatic light, a bold title reading MIDNIGHT RAIN at the bottom and small credits.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "panneau",
   "label": "Panneau géant",
   "en": "Billboard",
-  "outil": "Billboard Ad",
-  "consigne": "Show this exact photo printed on a giant billboard above a busy city avenue at dusk, seen from street level."
+  "consigne": "Show this exact photo printed on a giant billboard above a busy city avenue at dusk, seen from street level.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "nuages",
   "label": "Surf sur les nuages",
   "en": "Cloud surf",
-  "outil": "Cloud Surf",
-  "consigne": "Show the same adult woman surfing on a board across a sea of white clouds high above the earth, bright sun, same outfit."
+  "consigne": "Show the same adult woman surfing on a board across a sea of white clouds high above the earth, bright sun, same outfit.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "animaux",
   "label": "Entourée d’animaux",
   "en": "Among animals",
-  "outil": "Surrounded by Animals",
-  "consigne": "Surround the same adult woman with friendly wild animals: deer, foxes, rabbits and birds, in the same place and light."
+  "consigne": "Surround the same adult woman with friendly wild animals: deer, foxes, rabbits and birds, in the same place and light.",
+  "famille": "Cinéma et mise en scène"
  },
  {
   "id": "tempete",
   "label": "Créature de tempête",
   "en": "Storm creature",
-  "outil": "Storm Creature",
-  "consigne": "Add a colossal creature made of storm clouds and lightning towering in the sky behind the person. Keep the person and foreground unchanged."
+  "consigne": "Add a colossal creature made of storm clouds and lightning towering in the sky behind the person. Keep the person and foreground unchanged.",
+  "famille": "Cinéma et mise en scène"
  },
  {
+  "famille": "Portrait et produit",
   "id": "tenue",
   "label": "Tenue de soirée",
   "en": "Evening outfit",
-  "outil": "Outfit Swap",
-  "consigne": "Change only her outfit to an elegant long black evening dress with long sleeves and a high neckline. Keep her face, hair, pose and the background unchanged."
+  "consigne": "Change only the person's outfit to elegant evening wear that suits them: for a woman a long black evening gown with long sleeves and a high neckline, for a man a tailored black tuxedo with a white shirt and a bow tie. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
+ },
+ {
+  "famille": "Portrait et produit",
+  "id": "tenue-costume",
+  "label": "Tenue de bureau",
+  "en": "Business outfit",
+  "consigne": "Change only the person's outfit to sharp business attire that suits them: a well-cut navy suit with a crisp white shirt (a tailored trouser suit or a blazer and pencil skirt for a woman, a suit and tie for a man), polished shoes. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
+ },
+ {
+  "famille": "Portrait et produit",
+  "id": "tenue-street",
+  "label": "Streetwear",
+  "en": "Streetwear",
+  "consigne": "Change only the person's outfit to modern streetwear that suits them: an oversized hoodie or bomber jacket, relaxed cargo trousers or jeans, clean sneakers and a cap or beanie, in muted urban colours. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
+ },
+ {
+  "famille": "Portrait et produit",
+  "id": "tenue-ete",
+  "label": "Tenue d’été",
+  "en": "Summer outfit",
+  "consigne": "Change only the person's outfit to a light summer look that suits them: a flowing linen shirt or a light summer dress, linen trousers or shorts, sandals, straw hat optional, in white and soft natural colours. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
+ },
+ {
+  "famille": "Portrait et produit",
+  "id": "tenue-hiver",
+  "label": "Tenue d’hiver",
+  "en": "Winter outfit",
+  "consigne": "Change only the person's outfit to a cosy winter look that suits them: a long wool coat over a chunky knit sweater, a scarf, warm trousers and leather boots, in camel, grey and cream. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
+ },
+ {
+  "famille": "Portrait et produit",
+  "id": "tenue-sport",
+  "label": "Tenue de sport",
+  "en": "Sportswear",
+  "consigne": "Change only the person's outfit to modern athletic wear that suits them: a technical running jacket or a sports top, training leggings or shorts, running shoes, in a clean colour palette. Keep the same person, face, hair, body, pose, framing and background unchanged; only the clothes change, fully clothed and tasteful."
  },
  {
   "id": "packshot",
   "label": "Packshot produit",
   "en": "Product packshot",
-  "outil": "Product Photography",
-  "consigne": "Turn this into a clean e-commerce packshot of the main product only: product centred on a seamless pure white background, soft even studio light, gentle contact shadow, sharp detail, no person, no text."
+  "consigne": "Turn this into a clean e-commerce packshot of the main product only: product centred on a seamless pure white background, soft even studio light, gentle contact shadow, sharp detail, no person, no text.",
+  "famille": "Portrait et produit"
  },
  {
   "id": "vitrine",
   "label": "Produit en scène",
   "en": "Product scene",
-  "outil": "Product Placement",
-  "consigne": "Place the main product of this photo in an elegant lifestyle scene on a marble counter with soft window light and shallow depth of field; keep the product exactly unchanged, no text."
+  "consigne": "Place the main product of this photo in an elegant lifestyle scene on a marble counter with soft window light and shallow depth of field; keep the product exactly unchanged, no text.",
+  "famille": "Portrait et produit"
  },
  {
   "id": "cv",
   "label": "Photo CV",
   "en": "Resume photo",
-  "outil": "AI Headshot Generator",
-  "consigne": "Turn this into a friendly professional resume photo of the same adult person: smart casual clothes, plain light backdrop, soft front light, chest-up framing, natural smile."
+  "consigne": "Turn this into a friendly professional resume photo of the same adult person: smart casual clothes, plain light backdrop, soft front light, chest-up framing, natural smile.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "renaissance",
+  "label": "Portrait Renaissance",
+  "en": "Renaissance portrait",
+  "consigne": "Repaint this photo as an Italian High Renaissance oil painting on a wood panel: soft sfumato blending with no hard edges, warm earthy palette of ochres, umbers and muted greens, a hazy atmospheric landscape receding into blue distance behind the subject, subtle craquelure in the old varnish, gentle diffused light on the face. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
+  "famille": "Peinture"
+ },
+ {
+  "id": "clair-obscur",
+  "label": "Clair-obscur baroque",
+  "en": "Baroque chiaroscuro",
+  "consigne": "Repaint this photo as a 17th-century Baroque oil painting in dramatic chiaroscuro: a single strong light falling from one side out of a deep near-black background, rich warm flesh tones and deep reds, theatrical contrast, visible brushwork and thick glazes, a dark museum-varnish patina. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
+  "famille": "Peinture"
+ },
+ {
+  "id": "enluminure",
+  "label": "Enluminure médiévale",
+  "en": "Medieval illumination",
+  "consigne": "Repaint this photo as a page of a medieval illuminated manuscript: flat tempera colours in lapis blue, vermilion and green, burnished gold leaf for the background and halos, fine black outlines, stylised flattened perspective, decorative vine borders around the scene, parchment texture, no readable text. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
+  "famille": "Peinture"
+ },
+ {
+  "id": "impressionniste",
+  "label": "Impressionnisme",
+  "en": "Impressionism",
+  "consigne": "Completely repaint this photo as a late 19th-century French Impressionist oil painting on canvas: the whole image is made of thick, visible, separate dabs and short strokes of pure unmixed colour, like a painting by the Impressionist masters; outlines dissolve, there are no smooth gradients and no photographic detail left anywhere; sunlight rendered with dabs of yellow and white, shadows in violet and blue, the sky and the grass as vibrating strokes, canvas weave visible through the paint. Keep the same subject, pose, composition and framing; every part of the image, subject included, is painted in this loose broken-stroke style.",
+  "famille": "Peinture"
+ },
+ {
+  "id": "estampe",
+  "label": "Estampe japonaise",
+  "en": "Ukiyo-e print",
+  "consigne": "Redraw this photo as a Japanese ukiyo-e woodblock print: bold flowing black outlines, flat areas of colour in indigo, vermilion and soft ochre, subtle wood-grain texture and paper fibres, stylised clouds or waves where they fit, no text or seal. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
+  "famille": "Peinture"
+ },
+ {
+  "id": "aquarelle",
+  "label": "Aquarelle",
+  "en": "Watercolour",
+  "consigne": "Repaint this photo as a delicate watercolour painting on cold-press paper: transparent washes that bleed into each other, soft blooms, light pencil underdrawing showing through, white paper left for the highlights. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
+  "famille": "Peinture"
  }
 ]
