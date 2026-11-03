@@ -19,15 +19,16 @@ const anime = (nom: string, reste: Partial<Extract<Apercu, { type: 'media' }>> =
 export const BANDEAU_STAGE: Apercu = { ...compare('stage', 'Maquette 3D', 'Rendu final'), videoA: v('stage-a.mp4'), videoB: v('stage-b.mp4') } as Apercu
 export const BANDEAU_CINEMA: Apercu = { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', 'Pellicule 500T'], auto: true }
 export const BANDEAU_RESTORE: Apercu = { type: 'compare', a: v('restaurer-a.webp'), b: v('restaurer-b.webp'), legA: 'Photo d’origine', legB: 'Restaurée et colorisée' }
-export const BANDEAU_REEL = anime('reel-w', { texte: 'Sunday morning at a flower market' })
+export const BANDEAU_REEL = anime('reel-w', { texte: 'Golden hour in Alfama', auto: true })
 const compareVideo = (nom: string, legA: string, legB: string): Apercu => ({ ...compare(nom, legA, legB), videoA: v(`${nom}-a.mp4`), videoB: v(`${nom}-b.mp4`), auto: true } as Apercu)
 
 export const BANDEAU_CAMERA = anime('camera-w', { puces: ['Orbite', 'Dolly zoom', 'Crash zoom', 'Drone', 'Arc', 'Bullet time'], auto: true })
 
 /** Clé : le libellé de l'outil dans GROUPES. */
 export const APERCUS: Record<string, Apercu> = {
-  'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Tailleur bleu marine' },
+  'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Cheveux violets, collier' },
   'Inpaint': compare('retouche', 'Avant', 'Zone repeinte'),
+  'Depth Map': { type: 'compare', a: v('v2-depth-a.webp'), b: v('v2-depth-b.webp'), legA: 'Photo', legB: 'Profondeur' },
   'Remove Background': { type: 'compare', a: v('v2-transp-a.webp'), b: v('v2-transp-b.webp'), legA: 'Photo', legB: 'PNG transparent' },
   'Upscale Image': compare('nette', 'Avant', 'SeedVR2'),
   'Coverage': { type: 'media', image: v('v2-coverage.webp'), puces: ['Large', '¾', 'Serré'] },
@@ -40,7 +41,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Smooth Motion': compare('nette', '24 i/s', '48 i/s'),
   'Voice Clone': { type: 'media', image: v('onde.webp'), onde: true, texte: 'your voice, from a short sample' },
   'Voice Changer': { type: 'media', image: v('onde.webp'), onde: true, texte: 'same line, another voice' },
-  'One-click Reel': { type: 'media', image: v('reel.webp'), texte: 'Sunday morning at a flower market' },
+  'One-click Reel': anime('reel', { texte: 'Golden hour in Alfama', auto: true }),
   'Text to Image': { type: 'media', image: v('v2-photo.webp'), puces: ['Krea 2', 'LoRA d’identité'] },
   'Image to Video': { type: 'media', image: v('v2-video-a.webp'), video: v('v2-video-b.mp4'), puces: ['Photo → clip', 'Son'] },
   'Text to Video': { type: 'media', image: v('v2-texte.webp'), video: v('v2-texte.mp4'), texte: 'A jazz trumpeter plays alone in a narrow alley at night' },
@@ -58,7 +59,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Retouch': compareVideo('retouche', 'Avant', 'Objet posé'),
   'Styles': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-briques.webp'), legA: 'Photo', legB: 'Brick toy' },
   'Relight': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-neon.webp'), legA: 'Photo', legB: 'Néons' },
-  'Expand': { type: 'compare', a: v('v2-renard.webp'), b: v('v2-expand.webp'), legA: '1:1', legB: '16:9' },
+  'Expand': { type: 'compare', a: v('v2-expand-a.webp'), b: v('v2-expand-b.webp'), legA: '9:16', legB: '16:9' },
   'Multi-Angle': { type: 'compare', a: v('v2-vespa-a.webp'), b: v('v2-vespa-b.webp'), legA: 'Photo', legB: 'Contre-plongée' },
   'Editor': { type: 'media', image: v('montage.webp') },
   'Upscale 1080p': compare('nette', 'Clip d’origine', 'SeedVR2'),

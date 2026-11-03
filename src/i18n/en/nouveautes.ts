@@ -1006,6 +1006,7 @@ export const nouveautes: Record<string, string> = {
   'Gros plan': "Close-up",
   'FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; pas de LoRA d’identité : le visage du personnage n’est pas tenu': "FLUX 3 Image Klein — text to image, FLUX Kommunity License; no identity LoRA: the character's face is not kept",
   '{moteur} ne tient pas le visage de {nom}': "{moteur} does not keep {nom}'s face",
+  'Cheveux violets, collier': 'Violet hair, necklace',
   'Glisse la barre pour comparer avant et après.': 'Drag the bar to compare before and after.',
   'La retouche': 'The retouch',
   'Rayures, poussière, taches et zones passées sont réparées, sans changer les visages ni le cadrage. La couleur est en option.': 'Scratches, dust, stains and faded areas are repaired without changing faces or framing. Colour is optional.',
