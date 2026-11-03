@@ -321,12 +321,12 @@
 .v2 .fbar {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 12;
   display: flex; gap: 12px; align-items: stretch;
-  width: min(820px, 94%); max-height: 50vh;
+  width: min(1180px, 94%); max-height: 56vh;
   background: rgb(24, 25, 30); box-shadow: 0 0 0 1px var(--lv3), var(--sh-lg);
   border-radius: 20px; padding: 12px 14px;
 }
 .v2 .fbar .fmain { display: flex; flex-direction: column; min-height: 0; }
-.v2 .fbar textarea { flex: 1; min-height: 40px; max-height: calc(50vh - 130px); overflow-y: auto !important; }
+.v2 .fbar textarea { flex: 1; min-height: 64px; max-height: calc(50vh - 130px); overflow-y: auto !important; }
 /* Le volet s'élargit au survol jusqu'à 35 % de l'écran : il passe par-dessus la
    bibliothèque au lieu de la pousser, les vignettes ne bougent pas. Il reste ouvert
    tant qu'on écrit dedans, même si la souris en sort. */
@@ -830,3 +830,7 @@
 .v2 .style-image i { font-style: normal; font-size: 42px; font-weight: 800; color: var(--faint); }
 .v2 .style-carte b { font-size: 13px; font-weight: 600; }
 .v2 .style-format { width: 62%; max-height: 80%; border: 2px dashed var(--muted); border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: var(--muted); }
+
+/* îlot photo : la ligne tâche / recette passe à la ligne au lieu de se chevaucher ; les avertissements prennent leur propre ligne */
+.v2 .fbar .ligne-taches { flex-wrap: wrap; row-gap: 6px; }
+.v2 .fbar .ligne-taches .avis { flex-basis: 100%; }

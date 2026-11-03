@@ -4,6 +4,8 @@
    dans la bibliothèque (onglet Vidéo). Les presets vivent côté serveur
    (server/presets.js) ; ici on choisit et on lance.
    ============================================================ */
+import { APERCUS, ApercuOutil } from './Apercus'
+import type { IdOutil } from './OutilsDedies'
 import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -27,16 +29,22 @@ function VideoVisible({ src, style }: { src: string; style: React.CSSProperties 
   return <video ref={v} src={src} muted loop playsInline preload="none" style={style} />
 }
 
-const OUTILS_CLIP = [
-  { nom: 'Retirer des personnes', texte: 'Ouvre un clip, Éditer : le décor est reconstruit derrière.' },
-  { nom: 'Changer le fond', texte: 'Ouvre un clip, Éditer : la personne reste, le lieu change.' },
-  { nom: 'Fond vert', texte: 'Ouvre un clip, Éditer : SAM3 suit la personne, rien n’est redessiné.' },
-  { nom: 'Ajouter le son', texte: 'Ouvre un clip sans son : une ambiance calée sur les images.' },
-  { nom: 'Fluidité 48 i/s', texte: 'Ouvre un clip : RIFE double les images.' },
-  { nom: 'Étendre', texte: 'Ouvre un clip : la suite ou le début du plan.' },
+/* Outils sur un clip : la même vignette qu'à l'accueil (vrais rendus), un clic ouvre la page de l'outil. */
+const OUTILS_CLIP: { label: string; texte: string; dedie?: IdOutil }[] = [
+  { label: 'Remove Objects', texte: 'Retire une personne ou un objet du clip : le décor derrière est reconstitué.', dedie: 'remove-objects' },
+  { label: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', dedie: 'change-bg' },
+  { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', dedie: 'green-screen' },
+  { label: 'Add Sound', texte: 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).', dedie: 'add-sound' },
+  { label: 'Smooth Motion', texte: 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.', dedie: 'smooth' },
+  { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', dedie: 'upscale' },
+  { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.' },
 ]
 
 export function PresetsView({ goVideo }: { goVideo: () => void }) {
+  const ouvrirOutilClip = (o: { dedie?: IdOutil }) => {
+    if (!o.dedie) { useAppStore.getState().updateVideo({ task: 'extend' }); goVideo(); return }
+    useAppStore.setState(st => ({ outilDedie: o.dedie!, navRequest: { section: 'outil', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
+  }
   const [presets, setPresets] = useState<Preset[]>([])
   const [ouvert, setOuvert] = useState<Preset | null>(null)
   const [famille, setFamille] = useState<'camera' | 'effet' | 'clip'>(() => useAppStore.getState().famillePresets ?? 'camera')
@@ -69,9 +77,12 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
         {famille === 'clip' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
             {OUTILS_CLIP.map(o => (
-              <button key={o.nom} onClick={goVideo} style={{ borderRadius: 14, border: 0, padding: 16, cursor: 'pointer', textAlign: 'left', color: 'var(--text)', background: 'var(--lv2)', display: 'grid', gap: 5 }}>
-                <b style={{ fontSize: 14 }}>{t(o.nom)}</b>
-                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{t(o.texte)}</span>
+              <button key={o.label} onClick={() => ouvrirOutilClip(o)} style={{ borderRadius: 14, border: 0, padding: 0, overflow: 'hidden', cursor: 'pointer', textAlign: 'left', color: 'var(--text)', background: 'var(--lv2)', display: 'grid' }}>
+                <span style={{ aspectRatio: '4 / 3', display: 'block', overflow: 'hidden', position: 'relative', pointerEvents: 'none' }}><ApercuOutil apercu={APERCUS[o.label]} /></span>
+                <span style={{ display: 'grid', gap: 5, padding: '12px 14px 14px' }}>
+                  <b style={{ fontSize: 14 }}>{o.label}</b>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{t(o.texte)}</span>
+                </span>
               </button>
             ))}
           </div>

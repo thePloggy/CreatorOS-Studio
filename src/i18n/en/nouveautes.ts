@@ -1010,6 +1010,7 @@ export const nouveautes: Record<string, string> = {
   'Panier repeint': 'Basket repainted',
   'Bord de mer': 'Seaside',
   'Place vidée': 'Square emptied',
+  '480p flou': 'Blurry 480p',
   'Glisse la barre pour comparer avant et après.': 'Drag the bar to compare before and after.',
   'La retouche': 'The retouch',
   'Rayures, poussière, taches et zones passées sont réparées, sans changer les visages ni le cadrage. La couleur est en option.': 'Scratches, dust, stains and faded areas are repaired without changing faces or framing. Colour is optional.',

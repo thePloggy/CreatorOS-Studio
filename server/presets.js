@@ -101,7 +101,8 @@ export const PRESETS = [
 export function listerPresets() {
   return PRESETS.map(p => ({
     id: p.id, famille: p.famille, nom: p.nom, nomEn: p.nomEn, icone: p.icone, lora: p.lora?.name ?? null, moteur: p.moteur, deuxRendus: !!p.suite,
-    apercu: fs.existsSync(path.join(APERCUS_DIR, `${p.id}.mp4`)) ? `/api/presets/${p.id}/apercu` : null,
+    // la date du fichier dans l'adresse : un aperçu remplacé n'est pas resservi depuis le cache du navigateur
+    apercu: fs.existsSync(path.join(APERCUS_DIR, `${p.id}.mp4`)) ? `/api/presets/${p.id}/apercu?v=${Math.round(fs.statSync(path.join(APERCUS_DIR, `${p.id}.mp4`)).mtimeMs)}` : null,
   }))
 }
 export const cheminApercu = id => {

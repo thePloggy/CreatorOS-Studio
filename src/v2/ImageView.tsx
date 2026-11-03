@@ -163,7 +163,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
         <SelectionBar ids={[...picked]} assets={s.assets} onClear={() => setPicked(new Set())} />
       ) : (() => { const bar = (<>
         <div className="flex-1 min-w-0 fmain">
-          <div className="flex gap-1.5 items-center mb-2">
+          <div className="flex gap-1.5 items-center mb-2 ligne-taches">
             <span className="text-[12px]" style={{ color: 'var(--faint)' }}>{t('Tâche')}</span>
             <button className={`spill ${task === 'generate' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'generate' })}>✎ {t('Générer')}</button>
             <button className={`spill ${task === 'edit' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'edit' })}>✦ {t('Retouche')}</button>
@@ -183,13 +183,13 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                     title={refs ? bloque : t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
                   <button className={`spill ${moteur === 'flux3' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('flux3')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
                     title={refs ? bloque : t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>FLUX 3 Klein</button>
-                  {refs && s.photoEngine !== 'klein' && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
-                  {!refs && moteur === 'krea' && !s.personaKrea && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein', { nom: s.personaName })}</span>}
-                  {!refs && (moteur === 'moss' || moteur === 'flux3') && (s.personaKrea || s.personaKlein) && <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{moteur} ne tient pas le visage de {nom}', { moteur: moteur === 'moss' ? 'MOSS' : 'FLUX 3', nom: s.personaName })}</span>}
+                  {refs && s.photoEngine !== 'klein' && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
+                  {!refs && moteur === 'krea' && !s.personaKrea && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein', { nom: s.personaName })}</span>}
+                  {!refs && (moteur === 'moss' || moteur === 'flux3') && (s.personaKrea || s.personaKlein) && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{moteur} ne tient pas le visage de {nom}', { moteur: moteur === 'moss' ? 'MOSS' : 'FLUX 3', nom: s.personaName })}</span>}
                 </>)
               })()}
               {s.photoEngine === 'klein' && !kleinOk && (
-                <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Klein : son visage vient de sa photo de profil', { nom: s.personaName })}</span>
+                <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Klein : son visage vient de sa photo de profil', { nom: s.personaName })}</span>
               )}
             </>)}
           </div>
