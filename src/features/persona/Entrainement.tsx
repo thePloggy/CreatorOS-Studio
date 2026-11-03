@@ -91,7 +91,21 @@ export function Entrainement() {
   return (
     <div className="border border-border rounded-card bg-surface2 p-4" style={{ display: 'grid', gap: 12, fontSize: 13 }}>
       <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {t('une LoRA par moteur coché')} · ai-toolkit</span></b>
-      {!edition ? <span className="texte-doux">{t('Réservé au propriétaire du studio.')}</span>
+      {!edition ? (
+        // visiteur : l'entraînement occupe le GPU longtemps, il reste au propriétaire ; on montre comment il se passe
+        <div className="entrainement-visiteur">
+          <img src="/vitrine/v2-personnage.webp" alt={t('Planche de référence d’un personnage : face, trois-quarts, profil, dos')} loading="lazy" />
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span>{t('Comment un personnage naît ici :')}</span>
+            <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>
+              <li>{t('on décrit une adulte et on choisit un visage parmi quatre ;')}</li>
+              <li>{t('le studio dessine sa planche de référence (face, profil, dos) ;')}</li>
+              <li>{t('puis douze photos d’elle, dans des lieux et des lumières différents ;')}</li>
+              <li>{t('une LoRA d’identité est entraînée sur FLUX.2 Klein et/ou Krea 2, environ une demi-heure par moteur.')}</li>
+            </ol>
+            <span className="texte-doux">{t('L’entraînement occupe la carte graphique du studio longtemps : il est réservé au propriétaire. Chez toi, c’est un clic. Les personnages ci-dessus sont prêts : choisis-en un, puis va dans Image ou Video.')}</span>
+          </div>
+        </div>)
         : pret === false ? <span className="texte-doux">{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
         <SuiviEntrainements travaux={miens} moteurs={moteurs} onAnnuler={id => void annuler(id)} />
         {aConfirmer && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{t('Clique encore sur Annuler pour arrêter cet entraînement (le travail fait est perdu).')}</span>}

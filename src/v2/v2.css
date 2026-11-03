@@ -834,3 +834,9 @@
 /* îlot photo : la ligne tâche / recette passe à la ligne au lieu de se chevaucher ; les avertissements prennent leur propre ligne */
 .v2 .fbar .ligne-taches { flex-wrap: wrap; row-gap: 6px; }
 .v2 .fbar .ligne-taches .avis { flex-basis: 100%; }
+
+/* page Personnages, visiteur : planche à gauche, explication à droite */
+.entrainement-visiteur { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.entrainement-visiteur img { width: 100%; border-radius: 10px; display: block; }
+.entrainement-visiteur ol { list-style: decimal; }
+@media (max-width: 760px) { .entrainement-visiteur { grid-template-columns: 1fr; } }
