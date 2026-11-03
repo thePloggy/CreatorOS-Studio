@@ -339,6 +339,8 @@
 }
 .v2 .vside:hover, .v2 .vside:has(textarea:focus, input[type="text"]:focus) { width: max(340px, 35vw); z-index: 20; }
 @media (prefers-reduced-motion: reduce) { .v2 .vside { transition: none; } }
+/* les blocs du volet gardent leur hauteur : quand il y en a trop (menu des moteurs ouvert), le volet défile au lieu de les écraser les uns sur les autres */
+.v2 .vside > *, .v2 .vside .engine { flex-shrink: 0; }
 
 /* ---------- mobile (<821px) : parité — mêmes composants, layout adapté ---------- */
 @media (max-width: 820px) {
@@ -798,3 +800,6 @@
 .audio-carte:hover .audio-suppr, .audio-suppr:focus-visible { opacity: 1; }
 .audio-suppr:hover { color: var(--danger); }
 .audio-confirme { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--danger); }
+
+/* carte d'attente d'un son : la carte des rendus en cours, à la hauteur d'une carte audio */
+.v2 .audio-attente .jobcard { aspect-ratio: auto !important; height: 100%; min-height: 112px; }

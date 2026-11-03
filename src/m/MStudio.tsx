@@ -26,8 +26,8 @@ import { t } from '../i18n'
 import { lienMobile } from './lien'
 
 type Vue = 'reel' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
-const VUES: [Vue, string][] = [['reel', 'Reel'], ['cinema', 'Ciné'], ['presets', 'Caméra & effets'], ['reshoot', 'Re-shoot'], ['croquis', 'Croquis vers vidéo'], ['parole', 'Avatar parlant'], ['sons', 'Musique et voix'], ['montage', 'Montage'],
-  ['restaurer', 'Restaurer'], ['pub', 'Pub'], ['recadrer', 'Recadrer'], ['doublage', 'Doublage'], ['analyse', 'Analyse']]
+const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Cinema Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Music & Voice'], ['montage', 'Editor'],
+  ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check']]
 
 export function MStudio({ goVideo }: { goVideo: () => void }) {
   const [vue, setVue] = useState<Vue>(() => { const v = lienMobile()?.vue; return (VUES.some(([x]) => x === v) ? v : 'reel') as Vue })

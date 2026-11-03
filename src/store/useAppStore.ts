@@ -186,6 +186,8 @@ interface AppState {
   h3: { demo: boolean; installe: boolean; disponible: boolean } | null
   /** onglet de la configuration demandé par un autre écran */
   ongletConfig: 'cloud' | 'vocab' | 'workbench' | 'modeles' | null
+  /** famille ouverte dans la galerie (Camera Moves ou Effects), demandée par le menu */
+  famillePresets: 'camera' | 'effet' | null
   stageRepris: StageScene | null
   ouvrirStage: (scene?: StageScene | null) => void
   /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
@@ -458,6 +460,8 @@ function jobFromApi(j: Record<string, unknown>): Job {
 export const useAppStore = create<AppState>()(persist((set, get) => {
   // Abonnement unique aux updates du worker (mock ou réel).
   worker.onUpdate((job, asset) => {
+    // un envoi refusé par le serveur (garde-fou, fichier absent…) : la raison s'affiche sous le prompt
+    if ((job as Job & { refusEnvoi?: boolean }).refusEnvoi && job.error) set({ t0Error: tServeur(job.error) ?? job.error })
     set(s => ({
       jobs: s.jobs.map(j => (j.id === job.id ? job : j)),
       // le rendu d'un autre personnage (lancé avant un changement) n'entre pas dans la grille
@@ -595,6 +599,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     ongletMusiques: false,
     h3: null,
     ongletConfig: null,
+    famillePresets: null,
     stageRepris: null,
     ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
@@ -1051,6 +1056,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       // startFrameUri vidé : sinon l'aperçu direct (clone/upload) resterait
       // peint par-dessus la nouvelle sélection (priorité d'affichage).
       updateVideo({ startAssetId: assetId, startFrameFile: '', startFrameUri: '', startFrameError: '' })
+      // le personnage suit la photo de départ : une photo de Jessica s'anime avec Jessica
+      const photoPerso = get().assets.find(a => a.id === assetId)?.personaId
+      if (photoPerso && photoPerso !== get().personaId) void get().choisirPersonnage(photoPerso)
       try {
         const res = await fetch(`/api/assets/${encodeURIComponent(assetId)}/to-input`, { method: 'POST' })
         const body = await res.json().catch(() => ({}))

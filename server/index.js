@@ -117,8 +117,12 @@ app.addHook('onSend', async (req, reply, payload) => {
    les négatifs (qui nomment justement ce qu'on exclut) et les réglages du
    propriétaire (recettes, textes, personnages). */
 const sansFiltreContenu = new Set([...ROUTES_PROPRIETAIRE, 'POST /api/proprietaire'])
+// identifiants générés par le studio (rendu, lot, clé d'envoi) : jamais lus comme du texte,
+// « 455 » se lisait « ass » une fois les chiffres déchiffrés. Ils n'entrent dans aucun prompt.
+const CLES_IDENTIFIANTS = new Set(['id', 'jobId', 'requestId', 'batchId', 'batchIds', 'parentAssetId', 'assetId', 'assetIds'])
 function texteInterdit(v, cle = '') {
   if (/negati/i.test(cle)) return null
+  if (CLES_IDENTIFIANTS.has(cle) && (typeof v === 'string' ? /^[\w-]{1,80}$/.test(v) : Array.isArray(v) && v.every(x => typeof x === 'string' && /^[\w-]{1,80}$/.test(x)))) return null
   // une image PNG encodée n'est pas du texte (elle est décodée puis réduite à ses traits) :
   // des lettres tirées au hasard y formaient parfois un terme interdit (« nus » dans un croquis).
   // Seule une chaîne ENTIÈREMENT en base64 strict est sautée ; tout autre texte est lu.
@@ -938,6 +942,9 @@ app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
   if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
+  // une vidéo qui part d'une photo de la bibliothèque joue le personnage de cette photo, quel que soit le choix courant
+  const depart = req.body?.mode === 'video' && req.body?.selections?.task !== 't2v' && req.body?.selections?.startAssetId ? store.getAsset(String(req.body.selections.startAssetId)) : null
+  if (depart?.persona_id) req.body.personaId = depart.persona_id
   if (personnageInterdit(req, req.body?.personaId)) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   try {
     const r = await deposerAvecCle(cleComfy(req), () => enqueueParPlans(req.body || {}))   // une vidéo de mouvement montée part en un job par plan

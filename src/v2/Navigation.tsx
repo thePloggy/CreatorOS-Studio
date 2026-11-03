@@ -17,7 +17,7 @@ export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | '
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
-  { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
+  { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'camera' | 'effets' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 /** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
 export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][] }
@@ -25,54 +25,55 @@ export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }
 export const MENUS: Menu[] = [
   { titre: 'Image', colonnes: [
       { titre: 'Créer une image', outils: [
-      { label: 'Photo', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
-      { label: 'Studio ciné', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
-      { label: 'Créer un personnage', texte: 'Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.', section: 'nouveau-personnage', pastille: 'new' },
-      { label: 'Pack publicitaire', texte: 'Ton produit en photo ou en mots, ton personnage, une scène : affiche, visuels et clip.', section: 'pub', pastille: 'new' },
+      { label: 'Text to Image', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
+      { label: 'Cinema Studio', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
+      { label: 'Character', texte: 'Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.', section: 'nouveau-personnage', pastille: 'new' },
+      { label: 'Product Shot', texte: 'Ton produit en photo ou en mots, ton personnage, une scène : affiche, visuels et clip.', section: 'pub', pastille: 'new' },
       ] },
       { titre: 'Modifier une image', outils: [
-      { label: 'Angles, looks, lumière', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
-      { label: 'Restaurer', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
-      { label: 'Objet 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
+      { label: 'Multi-Angle, Styles & Relight', texte: 'Une photo sous un autre jour, en un clic.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
+      { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
+      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
       ] },
     ], modeles: [['Krea 2', 'Photo du personnage, LoRA d’identité'], ['FLUX.2 Klein 9B', 'Images de référence, croquis'], ['Qwen-Image-Edit 2511', 'Angles, looks, retouche'], ['SeedVR2', 'Restauration et HD'], ['TRELLIS.2', 'Photo vers modèle 3D']] },
   { titre: 'Vidéo', colonnes: [
       { titre: 'Créer une vidéo', outils: [
-      { label: 'Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
-      { label: 'Vidéo', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
-      { label: 'Depuis un texte', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
-      { label: 'Croquis vers vidéo', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },
-      { label: 'Avatar parlant', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
+      { label: 'One-click Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
+      { label: 'Image to Video', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
+      { label: 'Text to Video', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
+      { label: 'Sketch to Video', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },
+      { label: 'Talking Avatar', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
       ] },
       { titre: 'Réaliser', outils: [
       { label: 'Stage', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
-      { label: 'Caméra & effets', texte: 'Mouvements et effets en un clic sur une photo.', section: 'presets' },
+      { label: 'Camera Moves', texte: 'Dolly, orbite, crash zoom, drone, bullet time : un mouvement de cinéma sur n’importe quelle photo.', section: 'presets', tache: 'camera' },
+      { label: 'Effects', texte: 'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.', section: 'presets', tache: 'effets' },
       { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },
-      { label: 'Move', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
+      { label: 'Motion Control', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
       ] },
       { titre: 'Modifier une vidéo', outils: [
-      { label: 'Mix', texte: 'Tes personnages prennent la place de 1 à 3 personnes.', section: 'video', tache: 'mix', pastille: 'new' },
-      { label: 'Retouche et objet', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
-      { label: 'Recadrer', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
-      { label: 'Restaurer', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
-      { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
-      { label: 'Fond vert ou transparent', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },
+      { label: 'Swap', texte: 'Tes personnages prennent la place de 1 à 3 personnes.', section: 'video', tache: 'mix', pastille: 'new' },
+      { label: 'Retouch', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', depuis: 'video', titre: 'Clip à retoucher', action: 'retouche', pastille: 'new' },
+      { label: 'Extend', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
+      { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
+      { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
+      { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', depuis: 'video', titre: 'Clip à détourer', action: 'detour' },
       ] },
       { titre: 'Finir', outils: [
-      { label: 'Montage', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
-      { label: 'Doublage', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
-      { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
-      { label: 'Analyse pour les réseaux', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
+      { label: 'Editor', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
+      { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
+      { label: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
+      { label: 'Social Check', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
       ] },
     ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['MiniMax H3', 'Clip avec son, le plus fluide · prébranché, à installer', 'h3'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
   { titre: 'Audio', colonnes: [
       { titre: 'Créer du son', outils: [
-      { label: 'Musique et bruitages', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
-      { label: 'Voix off', texte: 'Tape une phrase, choisis une voix : le fichier rejoint la bibliothèque audio.', section: 'assets', tache: 'musiques' },
+      { label: 'Music & Sound Effects', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
+      { label: 'Voice-over', texte: 'Tape une phrase, choisis une voix : le fichier rejoint la bibliothèque audio.', section: 'assets', tache: 'musiques' },
       ] },
       { titre: 'Sur un clip', outils: [
-      { label: 'Doublage', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
-      { label: 'Avatar parlant', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
+      { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
+      { label: 'Talking Avatar', texte: 'Une photo, une voix ou un texte : les lèvres suivent.', section: 'parole' },
       ] },
     ], modeles: [['ACE-Step 1.5', 'Musique et bruitages'], ['Kokoro-82M', 'Voix off'], ['Chatterbox', 'Clonage et changement de voix (propriétaire)']] },
   { titre: 'Extensions', colonnes: [
@@ -98,6 +99,7 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
     useAppStore.setState({ ongletMusiques: o.tache === 'musiques' })
+    if (o.tache === 'camera' || o.tache === 'effets') useAppStore.setState({ famillePresets: o.tache === 'camera' ? 'camera' : 'effet' })
     if (o.tache === 'creer') updateVideo({ task: 'i2v' })
     if (o.tache === 'texte') updateVideo({ task: 't2v' })
     if (o.tache === 'move' || o.tache === 'mix') updateVideo({ task: 'motion_pure', motionMode: o.tache === 'mix' ? 'replace' : 'animate' })

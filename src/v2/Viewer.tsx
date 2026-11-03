@@ -428,7 +428,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {parent && compare
           ? <AvantApres avant={parent} apres={asset} className="max-h-[92vh] max-w-full rounded-[10px]" style={{ maxWidth: '86%', boxShadow: 'var(--sh-md)' }} />
           : asset.mediaType === 'video'
-          ? <video ref={videoArretee} src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
+          ? <video ref={videoArretee} data-lecture-active src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
               onLoadedMetadata={e => { const el = e.target as HTMLVideoElement; setClip({ w: el.videoWidth, h: el.videoHeight, dur: el.duration }) }} />
           : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: 'var(--sh-media)' }} />}
         <AssetNavArrows {...nav} />

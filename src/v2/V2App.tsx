@@ -18,6 +18,7 @@ import { Ic } from './bits'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
 import { MenusOutils, type ActionOutil, type Section } from './Navigation'
+import { arreterEcoute } from './Ecouter'
 import { installerDansEcran } from '../lib/dansEcran'
 installerDansEcran()
 
@@ -108,6 +109,15 @@ export default function V2App() {
      La liste de navigation est CELLE de la grille filtrée au moment du clic
      (les flèches restent dans le filtre). */
   const focusFresh = focus ? s.assets.find(a => a.id === focus.a.id) ?? null : null
+  /* Changement de page ou de média : tout son resté en lecture s'arrête (un clip détaché, une écoute),
+     sauf la vidéo de la visionneuse ouverte. */
+  useEffect(() => {
+    const h = window.setTimeout(() => {
+      document.querySelectorAll<HTMLMediaElement>('video, audio').forEach(m => { if (!m.muted && !m.paused && !m.hasAttribute('data-lecture-active')) m.pause() })
+      if (!focus) arreterEcoute()
+    }, 0)
+    return () => window.clearTimeout(h)
+  }, [section, focus?.a.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const navList = useMemo(
     () => (focus ? focus.list.map(x => s.assets.find(a => a.id === x.id) ?? x) : []),
     [s.assets, focus])

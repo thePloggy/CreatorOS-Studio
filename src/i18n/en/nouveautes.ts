@@ -825,6 +825,8 @@ export const nouveautes: Record<string, string> = {
   'Supprimer ce son': 'Delete this sound',
   'son employé par un montage ou un reel': 'sound used by an edit or a reel',
   'son inconnu': 'unknown sound',
+  'Dolly, orbite, crash zoom, drone, bullet time : un mouvement de cinéma sur n’importe quelle photo.': 'Dolly, orbit, crash zoom, drone, bullet time: a cinema camera move on any photo.',
+  'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.': 'Explode, inflate, electrify, figurine: a viral effect on any photo, in one click.',
   'Glisse la barre pour comparer avant et après.': 'Drag the bar to compare before and after.',
   'La retouche': 'The retouch',
   'Rayures, poussière, taches et zones passées sont réparées, sans changer les visages ni le cadrage. La couleur est en option.': 'Scratches, dust, stains and faded areas are repaired without changing faces or framing. Colour is optional.',

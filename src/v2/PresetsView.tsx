@@ -39,7 +39,10 @@ const OUTILS_CLIP = [
 export function PresetsView({ goVideo }: { goVideo: () => void }) {
   const [presets, setPresets] = useState<Preset[]>([])
   const [ouvert, setOuvert] = useState<Preset | null>(null)
-  const [famille, setFamille] = useState<'camera' | 'effet' | 'clip'>('camera')
+  const [famille, setFamille] = useState<'camera' | 'effet' | 'clip'>(() => useAppStore.getState().famillePresets ?? 'camera')
+  // le menu ouvre Camera Moves ou Effects : la galerie suit, à l'ouverture comme déjà ouverte
+  const demandee = useAppStore(st => st.famillePresets)
+  useEffect(() => { if (demandee) { setFamille(demandee); useAppStore.setState({ famillePresets: null }) } }, [demandee])
   // « Utiliser dans… » depuis la visionneuse : la photo est déjà choisie, il reste le mouvement
   const [photoVenue, setPhotoVenue] = useState<Asset | null>(null)
   useEffect(() => { setPhotoVenue(useAppStore.getState().prendrePasserelle('presets')) }, [])
@@ -51,7 +54,7 @@ export function PresetsView({ goVideo }: { goVideo: () => void }) {
       <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div className="flex items-end gap-4 flex-wrap">
           <div>
-            <h2 className="titre-outil">{t('Caméra & effets')}</h2>
+            <h2 className="titre-outil">{famille === 'effet' ? 'Effects' : famille === 'clip' ? t('Sur un clip') : 'Camera Moves'}</h2>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{photoVenue
               ? t('Photo choisie : il reste à choisir un mouvement.')
               : t('Choisis un mouvement, choisis une photo : le clip arrive dans ta bibliothèque.')}</div>

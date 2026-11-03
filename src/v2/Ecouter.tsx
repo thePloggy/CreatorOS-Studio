@@ -3,6 +3,8 @@ import { t } from '../i18n'
 
 /** Lecture rapide d'un son (échantillon de voix, musique) : un clic lit, un second arrête. Un seul son à la fois. */
 let courant: HTMLAudioElement | null = null
+/** Coupe l'écoute en cours (changement de page, visionneuse fermée). */
+export const arreterEcoute = () => { courant?.pause(); courant = null }
 
 export function Ecouter({ src, titre }: { src: string | null; titre?: string }) {
   const [etat, setEtat] = useState<'arret' | 'charge' | 'lecture'>('arret')

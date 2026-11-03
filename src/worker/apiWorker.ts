@@ -166,7 +166,7 @@ class ApiWorker implements GenerationWorker {
     } catch (e) {
       // Refus immédiat (prompt vide, backend absent) : le job est bloqué,
       // on le dit au front plutôt que de le laisser « queued » pour toujours.
-      this.emit({ ...job, status: 'blocked' })
+      this.emit({ ...job, status: 'blocked', error: String((e as Error)?.message ?? e), refusEnvoi: true } as Job)
       console.error('[worker] refus du backend :', e)
       return
     }
