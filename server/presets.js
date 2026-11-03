@@ -70,7 +70,8 @@ export const PRESETS = [
   { id: 'crash-zoom-out', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crash_zoom_out'), nom: 'Crash zoom arrière', nomEn: 'Crash zoom out', icone: '⊖',
     prompt: 'The video begins with a close-up shot of a woman\'s face. The cr34sh crash zoom out effect then begins, quickly pulling back to reveal the whole place around her, the woman small in the frame. {sujet}' },
   { id: 'bullet-time', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'matrix_shot'), nom: 'Bullet time', nomEn: 'Bullet time', icone: '⧗',
-    prompt: 'b4ll3t t1m3 bullet time shot. The woman leaps joyfully in the air, her hair and clothes flying. Time freezes at the top of her jump, her hair and clothes frozen in mid-air, while the camera sweeps in a smooth arc around the frozen scene. {sujet}' },
+    // même structure que les exemples de la LoRA : le déclencheur en tête, l'instant figé, des éléments suspendus, puis la caméra qui tourne
+    prompt: 'b4ll3t t1m3 bullet time shot A woman is captured mid-leap, her hair, her clothes and the dust around her suspended in mid-air. The scene utilizes a b4ll3t t1m3 bullet time shot effect, where the action is dramatically slowed down, freezing her in her dynamic pose. The background stays the same place, slightly blurred by the effect. The camera smoothly rotates around her, offering varying views of the frozen moment from all angles. {sujet}' },
   { id: 'grue-haute', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crane_overhead'), nom: 'Grue au-dessus', nomEn: 'Overhead crane', icone: '⊙',
     prompt: 'cr4n3 crane over the head movement, the camera passes high above her. {sujet}' },
   { id: 'dolly-zoom', famille: 'camera', moteur: 'wan21_hq', lora: { name: 'wan_camera/wan_21_i2v_dolly_zoom.safetensors', strength: 1 }, nom: 'Dolly zoom', nomEn: 'Dolly zoom', icone: '◎',
