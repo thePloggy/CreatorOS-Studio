@@ -26,7 +26,7 @@ export const BANDEAU_CAMERA = anime('camera-w', { puces: ['Orbite', 'Dolly zoom'
 
 /** Clé : le libellé de l'outil dans GROUPES. */
 export const APERCUS: Record<string, Apercu> = {
-  'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Cheveux violets, collier' },
+  'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Punk violet, collier' },
   'Inpaint': compare('retouche', 'Avant', 'Zone repeinte'),
   'Depth Map': { type: 'compare', a: v('v2-depth-a.webp'), b: v('v2-depth-b.webp'), legA: 'Photo', legB: 'Profondeur' },
   'Remove Background': { type: 'compare', a: v('v2-transp-a.webp'), b: v('v2-transp-b.webp'), legA: 'Photo', legB: 'PNG transparent' },
