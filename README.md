@@ -2,7 +2,7 @@
 
 **An open-source Higgsfield you run at home: one recurring character, from a one-line brief to a finished, edited reel.** Train the character, shoot photos, animate them with sound, move the camera, re-shoot an angle, restore old footage and cut it all together, on your own GPU, with open-weights models only, on top of a local [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
 
-![Real renders from the studio: one-click reel, camera moves, sketch to video, re-shoot, 3D Stage, talking avatar, text to video, restore](docs/screenshots/renders.gif)
+![Real renders from the studio: one-click reel, camera moves, sketch to video, re-shoot, 3D Scene, talking avatar, text to video, restore](docs/screenshots/renders.gif)
 
 - **Try it now**: https://forge.taila06702.ts.net:8443 — the public demo runs on the author's RTX 5090, one render at a time, 12 images or clips per hour per visitor.
 - **Demo video**: https://youtu.be/0muDKpkbcWw
@@ -14,7 +14,7 @@ Built for the Comfy **#OpenSourceHiggsfield** challenge. Every model is open wei
 
 - **Your character, trained in the UI.** Describe an adult, pick one of four faces, and the studio builds a reference sheet, twelve images and an identity LoRA. Or train from your own library images. Tick one or several engines (FLUX.2 Klein, Krea 2), see the estimated time before you start, follow the steps live and cancel at any point. The same face then carries every photo, clip and reel.
 - **A brief becomes a finished reel.** A local LLM plans the shots of one session, each shot is photographed, animated with sound and edited with music, a hook, transitions and an optional voice-over cut on the beat. Redo one shot and only that one is re-rendered. The edit stays open in a real timeline editor.
-- **Direct, don't prompt.** Block a shot in a 3D Stage, film the same moment from a second camera (Re-shoot), draw a sketch and pick one of three interpretations, or fill a shot card (camera, lens, light, film stock) instead of writing a prompt.
+- **Direct, don't prompt.** Block a shot in 3D Scene, film the same moment from a second camera (Re-shoot), draw a sketch and pick one of three interpretations, or fill a shot card (camera, lens, light, film stock) instead of writing a prompt.
 - **Restore.** An old photo or a damaged clip comes back clean and in HD: scratches and noise removed, optional colour, detail rebuilt by SeedVR2, with a before / after slider against the original.
 - **A public demo on a real GPU, with locks.** Anyone can try it live. The demo refuses anything involving a minor and any nudity, takes no photo uploads from visitors (so no deepfake of a real person), keeps the owner's uploads private, and every clip is checked automatically (black, frozen or jumping clips are re-shot once).
 - **Nothing is a black box.** Every render downloads as the exact ComfyUI workflow it ran, with its models and their licences, so you can keep going in ComfyUI.
@@ -30,7 +30,7 @@ Every number below was measured on the author's machine on 3 November 2026: one 
 | Image to video, with sound | LTX-2.5 22B | 1600×896, 5 s | 135 s | 112 s (203) | 31.8 GB |
 | Image to video | Wan 2.2 I2V A14B | 720×1280, 3 s | 147 s | 298 s (23, up to 8 s clips) | 26.5 GB |
 | Re-shoot from a new angle | LTX-2.5 + CrossView-Warp IC-LoRA, MoGe-2 | 704×1280, 4 s | 161 s | 160 s (10) | 31.8 GB |
-| 3D Stage to finished shot | LTX-2.5 + Layout-to-Render IC-LoRA, Qwen-Image-Edit | 1280×704, 5 s | 224 s | 175 s (8) | 31.8 GB |
+| 3D Scene to finished shot | LTX-2.5 + Layout-to-Render IC-LoRA, Qwen-Image-Edit | 1280×704, 5 s | 224 s | 175 s (8) | 31.8 GB |
 | Remove people from a clip | LTX-2.5 + Clean-Plate IC-LoRA | 704×1280, 4 s | 132 s | 135 s (3) | 31.8 GB |
 | Green screen / alpha | SAM3 | 704×1280, 4 s, WebM alpha | 15 s | 15 s (3) | 4.4 GB |
 | Photo to 3D object | TRELLIS.2 + SAM3 | GLB + turntable | 25 s | 30 s (4) | 11.5 GB |
@@ -51,8 +51,8 @@ On this machine the local LLM (Ollama) that rewrites prompts and plans reels run
 - **Camera & effects gallery**: 25 one-click presets on any photo: dolly in and out, jib up and down, side tracking, orbit, arc, crash zoom in and out, bullet time, dolly zoom… and viral effects (squish, inflate, cakeify, explode, robot reveal…). Camera moves use the LTX-2 camera LoRAs on LTX-2.5; the others use Remade-AI and ostris LoRAs on Wan 2.1. Jib down is chained in two renders: a jib up from the photo, then a Wan 2.2 first-and-last-frame move from its last frame back down to the photo.
 - **Movie Studio**: a shot card instead of a prompt. Pick the camera body, lens, focal length and aperture, the framing, the light, the film stock, the look and the grade, add a colour palette (or pull one from a photo), start from a starter shot. Takes ×1 to ×4, or the same shot under four lights on the same seed. Your character plays the scene on Krea 2 or FLUX.2 Klein; any take animates in one click.
 - **Sketch to video**: draw the scene in a few lines in the browser, say what it is and what moves. The drawing is reduced to its outlines (a real photo sent instead loses every face and texture), FLUX.2 Klein offers three interpretations that keep your composition, you pick one (larger preview on hover, then confirm), and LTX-2.5 animates it with sound. A scene with nobody in it stays empty: the character is only added when the sketch describes a person, and people keep two arms and two legs unless you ask otherwise.
-- **Stage**: block a shot in real 3D. Place people, boxes and GLB objects in a top view, see the scene through the camera side by side with the set, set its height, aim and field of view at the start and end. The owner can import any `.glb`; every visitor can use the objects the studio generated. The server draws a grey layout from those numbers, Qwen Edit paints the first frame, and LTX-2.5 with Lightricks' Layout-to-Render IC-LoRA turns it into a finished shot that follows the blocking.
-- **3D object**: a photo becomes a GLB in about a minute with TRELLIS.2 (MIT) on ComfyUI's core nodes. SAM3 isolates the object you name. View it in the browser, download it, or use it in Stage.
+- **3D Scene**: block a shot in real 3D. Place people, boxes and GLB objects in a top view, see the scene through the camera side by side with the set, set its height, aim and field of view at the start and end. The owner can import any `.glb`; every visitor can use the objects the studio generated. The server draws a grey layout from those numbers, Qwen Edit paints the first frame, and LTX-2.5 with Lightricks' Layout-to-Render IC-LoRA turns it into a finished shot that follows the blocking.
+- **3D object**: a photo becomes a GLB in about a minute with TRELLIS.2 (MIT) on ComfyUI's core nodes. SAM3 isolates the object you name. View it in the browser, download it, or use it in 3D Scene.
 - **Seamless loop**: one photo as first and last frame on Wan 2.2. Each loop gets a measured seam score.
 - **Transparent background**: SAM3 keeps the person, a photo comes out as a PNG with alpha and a clip as a WebM with alpha, nothing is redrawn. The clip can then be exported as ProRes 4444 with alpha.
 - **Masters**: any clip exports as HLG HEVC (10-bit Rec.2020), HLG ProRes 422 HQ or a zip of linear ACEScg half-float EXR frames, on the CPU with ffmpeg. These put an SDR clip in an HDR container: no highlight detail is invented.
@@ -104,8 +104,8 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 | **Product Shot**: packshot, scene, poster, your character with the product, a clip | **A page per tool**: source on the left, how it works and every past render on the right |
 | ![Camera moves](docs/screenshots/camera-effects.jpg) | ![Library](docs/screenshots/library.jpg) |
 | **Camera Moves & Effects**: pick a move, pick a photo | **Library**: folders, characters, images, videos and audio |
-| ![Stage](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
-| **Stage**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow |
+| ![3D Scene](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
+| **3D Scene**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow |
 | ![Re-shoot](docs/screenshots/reshoot.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |
 | **Re-shoot**: the same moment from a new camera angle, previewed in 3D | **Talking avatar**: one photo, one voice |
 

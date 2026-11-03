@@ -145,7 +145,7 @@ export function StagePanel() {
   )
   return (<>
     {cible ? createPortal(vues, cible) : vues}
-    <h2 className="titre-outil">Stage</h2>
+    <h2 className="titre-outil">3D Scene</h2>
     <div className="etiquette">{t('Le plan')}</div>
     <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4} maxLength={1200} style={{ width: '100%' }}
       placeholder={t('Décris ce que chaque forme devient : le lieu, la personne, la lumière…')} />

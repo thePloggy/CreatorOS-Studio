@@ -62,7 +62,7 @@ export const MENUS: Menu[] = [
       { label: 'Seamless Loop', texte: 'Un clip qui revient à son image de départ : il tourne en boucle sans raccord.', section: 'outil', dedie: 'loop', pastille: 'new' },
       ] },
       { titre: 'Réaliser', outils: [
-      { label: 'Stage', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
+      { label: '3D Scene', texte: 'Bloque la scène en 3D, objets GLB compris, pose la caméra.', stage: true, pastille: 'new' },
       { label: 'Camera Moves', texte: 'Dolly, orbite, crash zoom, drone, bullet time : un mouvement de cinéma sur n’importe quelle photo.', section: 'presets', tache: 'camera' },
       { label: 'Effects', texte: 'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.', section: 'presets', tache: 'effets' },
       { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },

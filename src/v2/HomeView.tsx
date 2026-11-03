@@ -17,7 +17,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
   const [cherche, setCherche] = useState('')
   const BANDEAUX: { cible: Cible; titre: string; texte: string; apercu: Apercu }[] = [
     { cible: 'cinema', titre: 'Movie Studio', texte: t('Boîtier, objectif, lumière, pellicule : une fiche de plan, et la scène se joue comme au cinéma.'), apercu: BANDEAU_CINEMA },
-    { cible: 'stage', titre: 'Stage', texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), apercu: BANDEAU_STAGE },
+    { cible: 'stage', titre: '3D Scene', texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), apercu: BANDEAU_STAGE },
     { cible: 'reel', titre: t('Un brief. Un reel.'), texte: t('Plans, clips, son, fondus et accroche : le reel se monte tout seul.'), apercu: BANDEAU_REEL },
     { cible: 'restaurer', titre: 'Restore', texte: t('Vieille photo ou clip abîmé : réparé, colorisé, en HD, avec le comparateur avant / après.'), apercu: BANDEAU_RESTORE },
   ]
