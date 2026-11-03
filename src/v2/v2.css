@@ -791,3 +791,10 @@
 .mega-lien { border: 0; background: none; text-align: left; padding: 6px 8px; margin: -6px -8px; border-radius: 10px; cursor: pointer; font: inherit; }
 .mega-lien:hover { background: var(--lv3); }
 .mega-lien em { font-style: normal; font-weight: 500; font-size: 11px; color: var(--accent); margin-left: 6px; }
+
+/* suppression d'un son de la bibliothèque audio */
+.audio-carte { position: relative; }
+.audio-suppr { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--lv3); color: var(--muted); cursor: pointer; font-size: 11px; opacity: .55; }
+.audio-carte:hover .audio-suppr, .audio-suppr:focus-visible { opacity: 1; }
+.audio-suppr:hover { color: var(--danger); }
+.audio-confirme { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--danger); }

@@ -141,6 +141,14 @@ export function deposerMusique(type, nomOrigine, buf) {
   if (!dureeDe(path.join(MUSIQUES_DIR, nom))) { fs.rmSync(path.join(MUSIQUES_DIR, nom), { force: true }); throw Object.assign(new Error('fichier audio illisible'), { statusCode: 422 }) }
   return { nom, duree: dureeDe(path.join(MUSIQUES_DIR, nom)) }
 }
+/** Retire un son de la bibliothèque audio : il part dans .corbeille du dossier, rien n'est effacé. */
+export function retirerMusique(nom) {
+  if (!nomMusiqueValide(nom)) throw Object.assign(new Error('son inconnu'), { statusCode: 404 })
+  const corbeille = path.join(MUSIQUES_DIR, '.corbeille')
+  fs.mkdirSync(corbeille, { recursive: true })
+  fs.renameSync(path.join(MUSIQUES_DIR, nom), path.join(corbeille, `${Date.now().toString(36)}_${nom}`))
+  return { ok: true }
+}
 export const cheminMusique = nom => nomMusiqueValide(nom) ? path.join(MUSIQUES_DIR, nom) : null
 
 /* ---------- export ---------- */

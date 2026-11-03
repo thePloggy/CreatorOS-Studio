@@ -81,7 +81,18 @@ function VoixOff({ surPret }: { surPret: () => void }) {
 }
 
 export function Musiques() {
+  const edition = useEdition()
   const [liste, setListe] = useState<{ nom: string; duree: number }[] | null>(null)
+  const [aConfirmer, setAConfirmer] = useState<{ nom: string; usages: string[] } | null>(null)
+  const [erreur, setErreur] = useState<string | null>(null)
+  const supprimer = async (nom: string, confirme = false) => {
+    setErreur(null)
+    const r = await fetch(`/api/montage/musiques/${encodeURIComponent(nom)}${confirme ? '?confirme=1' : ''}`, { method: 'DELETE' })
+    const d = await r.json().catch(() => ({}))
+    if (r.status === 409) { setAConfirmer({ nom, usages: d.usages ?? [] }); return }
+    if (!r.ok) { setErreur(tServeur(d.error) ?? `HTTP ${r.status}`); return }
+    setAConfirmer(null); charger()
+  }
   const [outil, setOutil] = useState<'voix' | 'musique'>('voix')
   const charger = () => void fetch('/api/montage/musiques').then(r => r.json()).then((d: { musiques?: { nom: string; duree: number }[] }) => setListe(d.musiques ?? [])).catch(() => setListe([]))
   useEffect(charger, [])
@@ -95,8 +106,16 @@ export function Musiques() {
               <b>{nomCourt(m.nom)}</b>
               <span className="texte-faible">{m.nom.startsWith('voix') ? t('voix') : t('musique ou son')}{m.duree ? ` · ${Math.round(m.duree)} s` : ''}</span>
               <audio controls preload="none" src={`/api/montage/musiques/${encodeURIComponent(m.nom)}`} />
+              {edition && (aConfirmer?.nom === m.nom
+                ? <span className="audio-confirme">
+                    <span>{t('Employé par : {l}. Le retirer quand même ?', { l: aConfirmer.usages.join(', ') })}</span>
+                    <button className="pill" onClick={() => void supprimer(m.nom, true)}>{t('Supprimer')}</button>
+                    <button className="pill" onClick={() => setAConfirmer(null)}>{t('Annuler')}</button>
+                  </span>
+                : <button className="audio-suppr" aria-label={t('supprimer {nom}', { nom: nomCourt(m.nom) })} title={t('Supprimer ce son')} onClick={() => void supprimer(m.nom)}>✕</button>)}
             </div>
           ))}
+          {erreur && <span className="texte-erreur">{erreur}</span>}
         </div>) : undefined}>
       <div className="segmente">
         <button className={outil === 'voix' ? 'on' : ''} onClick={() => setOutil('voix')}>{t('Voix')}</button>

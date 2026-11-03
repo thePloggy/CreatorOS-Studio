@@ -56,6 +56,7 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLi
    ce qui est verrouillé, c'est la description du studio et ses réglages.
    Choisir le personnage actif reste libre. */
 const ROUTES_PROPRIETAIRE = new Set([
+  'DELETE /api/montage/musiques/:nom',
   'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id',
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
@@ -2627,6 +2628,15 @@ app.get('/api/montage/musiques', async () => ({ musiques: montage.listerMusiques
 app.post('/api/montage/musiques', async (req, reply) => {
   if (Buffer.isBuffer(req.body) && req.body.length > 40 * 1024 * 1024) { reply.code(413); return { error: 'fichier > 40 Mio' } }
   try { return montage.deposerMusique(req.headers['content-type'], req.query.name, req.body) }
+  catch (e) { reply.code(e.statusCode ?? 400); return { error: String(e.message || e) } }
+})
+/* Supprimer un son (voix, musique, bruitage) : propriétaire seul. Un son employé par un montage
+   ou un reel n'est retiré qu'après confirmation (?confirme=1) : leur export le perdrait. */
+app.delete('/api/montage/musiques/:nom', async (req, reply) => {
+  const nom = path.basename(String(req.params.nom || ''))
+  const usages = store.usagesSon(nom)
+  if (usages.length && req.query.confirme !== '1') { reply.code(409); return { error: 'son employé par un montage ou un reel', usages } }
+  try { return montage.retirerMusique(nom) }
   catch (e) { reply.code(e.statusCode ?? 400); return { error: String(e.message || e) } }
 })
 app.get('/api/montage/musiques/:nom', async (req, reply) => {

@@ -559,3 +559,10 @@ export function estInputGenere(nom) { return origineInput(nom) === 'genere' }
 const origineRestaureeStmt = db.prepare("SELECT 1 FROM jobs WHERE json_extract(payload, '$.origineUri') = ? LIMIT 1")
 /** L'envoi est la source d'une restauration : son avant / après se montre avec le rendu. */
 export function estOrigineRestauree(nom) { return !!origineRestaureeStmt.get(`/api/uploads/${encodeURIComponent(String(nom))}`) }
+
+/** Montages et reels qui emploient ce son (musique ou voix off), par leur nom. */
+const sonDansMontagesStmt = db.prepare("SELECT nom FROM montages WHERE instr(data, ?) > 0")
+const sonDansReelsStmt = db.prepare("SELECT brief AS nom FROM reels WHERE instr(data, ?) > 0")
+export function usagesSon(nom) {
+  return [...sonDansMontagesStmt.all(String(nom)), ...sonDansReelsStmt.all(String(nom))].map(r => String(r.nom ?? '').slice(0, 60))
+}
