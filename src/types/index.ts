@@ -471,6 +471,8 @@ export interface Asset {
   /** Personnage du job qui a rendu l'asset — la bibliothèque n'affiche que l'actif. */
   personaId?: string | null
   parentAssetId?: string
+  /** restauration : la source d'origine, pour l'avant / après */
+  origineUri?: string
   mediaType: MediaMode
   /** URL du média (placeholder en mock). */
   uri: string

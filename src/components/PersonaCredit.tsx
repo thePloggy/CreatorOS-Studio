@@ -70,7 +70,7 @@ export function CreditPersonnage() {
         {credit?.auteur || credit?.url ? (<>
           <div>{t('LoRA par')} <b>{credit.auteur || '—'}</b>
             {credit.url && <> · <a href={credit.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>{t('page du modèle ↗')}</a></>}</div>
-          {credit.licence && <div style={{ opacity: 0.7 }}>{t('Licence')} : {credit.licence}</div>}
+          {credit.licence && <div style={{ opacity: 0.7 }}>{t('Licence')} : {t(credit.licence)}</div>}
         </>) : <div style={{ opacity: 0.6 }}>{t('Aucun crédit renseigné pour ce personnage.')}</div>}
       </div>
       {credit

@@ -45,6 +45,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Fond vert ou transparent': compareVideo('detour', 'Clip', 'Fond vert'),
   'Doublage': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
   'Recadrer': compareVideo('recadrer', '9:16', '16:9'),
+  'Restaurer': compare('restaurer', 'Photo d’origine', 'Restaurée et colorisée'),
   'Croquis vers vidéo': { type: 'media', image: v('croquis.webp'), video: v('croquis.mp4'), auto: true },
   'Extensions': compare('extensions', 'Photo', 'Extension Illustration'),
   'Créer un personnage': { type: 'media', image: v('personnage.webp'), puces: ['4 visages', 'Planche', '12 images', 'LoRA'] },

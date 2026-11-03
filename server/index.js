@@ -181,6 +181,7 @@ const assetOut = r => r && ({
   batchId: r.batch_id ?? undefined,
   // agrandissement (Photo HD, upscale) : l'asset d'origine, pour le curseur avant / après
   parentAssetId: r.parent_asset_id ?? undefined,
+  origineUri: r.origine_uri ?? undefined,
   // appartenances multiples (origines de carrousels) — fusionnées côté front
   batchIds: r.batch_ids ? (() => { try { return JSON.parse(r.batch_ids) } catch { return undefined } })() : undefined,
   batchLocks: r.carousel_locks ? (() => { try { return JSON.parse(r.carousel_locks) } catch { return undefined } })() : undefined,
@@ -1087,7 +1088,10 @@ app.get('/api/uploads/:name', async (req, reply) => {
   }
   const file = pathx.join(CONFIG.comfyInput, name)
   if (!store.estInputStudio(name) || !fsx.existsSync(file)) { reply.code(404); return { error: 'introuvable' } }
-  reply.type(name.match(/\.png$/i) ? 'image/png' : 'image/jpeg')
+  // un envoi du propriétaire reste privé ; un visiteur ne lit que les copies du studio, les croquis et la source d'une restauration
+  if (!estProprietaire(req) && !['genere', 'croquis'].includes(store.origineInput(name)) && !store.estOrigineRestauree(name)) { reply.code(403); return { error: 'réservé au propriétaire' } }
+  const ext = (name.match(/\.(\w+)$/)?.[1] ?? '').toLowerCase()
+  reply.type({ png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' }[ext] ?? 'image/jpeg')
   reply.header('Cache-Control', 'public, max-age=86400')
   return fsx.createReadStream(file)
 })
@@ -2245,7 +2249,7 @@ app.post('/api/croquis', async (req, reply) => {
   try { return deposerAvecCle(cleComfy(req), () => lancerCroquis({ image: b.image, scene: b.scene, mouvement: b.mouvement, format: b.format, secondes: b.secondes, personaId: personaDe(req) })) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-/** Restaurer (cf. restauration.js) : une photo de la bibliothèque ou envoyée par le propriétaire, ou un clip de la bibliothèque. */
+/** Restaurer (cf. restauration.js) : une photo ou un clip, de la bibliothèque ou envoyé par le propriétaire. */
 app.post('/api/restauration', async (req, reply) => {
   const b = req.body ?? {}
   try {
@@ -2259,10 +2263,11 @@ app.post('/api/restauration', async (req, reply) => {
         fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(asset.filename ?? asset.uri)), path.join(CONFIG.comfyInput, fichier))
         store.noterInput(fichier)
       }
-    } else if (b.fichier && media === 'photo') {
-      // un fichier envoyé : seuls ceux du studio ou, pour le propriétaire, ses envois
+    } else if (b.fichier) {
+      // un fichier envoyé : seuls ceux du studio ou, pour le propriétaire, ses envois ; un clip envoyé, propriétaire seul
       const nom = path.basename(String(b.fichier))
-      if (!estProprietaire(req) && !store.estInputGenere(nom)) { reply.code(403); return { error: 'sur la démo publique, on part d’une image de la bibliothèque' } }
+      if (media === 'video' ? !/\.(mp4|mov|webm)$/i.test(nom) : !/\.(png|jpe?g|webp)$/i.test(nom)) { reply.code(400); return { error: 'type de fichier inattendu' } }
+      if (!estProprietaire(req) && (media === 'video' || !store.estInputGenere(nom))) { reply.code(403); return { error: 'sur la démo publique, on part d’un média de la bibliothèque' } }
       if (!fs.existsSync(path.join(CONFIG.comfyInput, nom))) { reply.code(404); return { error: 'fichier introuvable' } }
       fichier = nom
     } else { reply.code(400); return { error: media === 'video' ? 'choisis un clip de la bibliothèque' : 'choisis une photo' } }

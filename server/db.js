@@ -311,6 +311,7 @@ SELECT a.*, p.recipe_id, p.seed, p.composed_positive, p.composed_negative,
        json_extract(j.payload, '$.videoDraft') AS video_draft,
        json_extract(j.payload, '$.batchId') AS batch_id,
        json_extract(j.payload, '$.parentAssetId') AS parent_asset_id,
+       json_extract(j.payload, '$.origineUri') AS origine_uri,
        json_extract(j.payload, '$.batchIds') AS batch_ids,
        json_extract(j.payload, '$.carouselLocks') AS carousel_locks,
        json_extract(j.payload, '$.initialBrief') AS initial_brief,
@@ -555,3 +556,6 @@ const estInputStmt = db.prepare('SELECT origine FROM inputs_studio WHERE nom = ?
 export function estInputStudio(nom) { return !!estInputStmt.get(String(nom)) }
 export function origineInput(nom) { return estInputStmt.get(String(nom))?.origine ?? null }
 export function estInputGenere(nom) { return origineInput(nom) === 'genere' }
+const origineRestaureeStmt = db.prepare("SELECT 1 FROM jobs WHERE json_extract(payload, '$.origineUri') = ? LIMIT 1")
+/** L'envoi est la source d'une restauration : son avant / après se montre avec le rendu. */
+export function estOrigineRestauree(nom) { return !!origineRestaureeStmt.get(`/api/uploads/${encodeURIComponent(String(nom))}`) }

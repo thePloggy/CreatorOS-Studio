@@ -3,7 +3,7 @@
                 et la couleur si on la demande — sans toucher aux visages ni au cadrage ;
              2. agrandissement SeedVR2 (modèle de restauration) qui reconstruit le détail fin.
      clip  : SeedVR2 vidéo, image par image avec cohérence temporelle.
-   La source vient de la bibliothèque, ou d'un fichier envoyé (réservé au propriétaire sur la démo). */
+   La source vient de la bibliothèque, ou d'un fichier envoyé, photo ou clip (réservé au propriétaire sur la démo). */
 import fs from 'node:fs'
 import path from 'node:path'
 import { CONFIG } from './config.js'
@@ -25,10 +25,13 @@ export function consigneRestauration({ nettoyer, couleur }) {
 /** Lance une restauration. `fichier` est un nom du dossier d'entrée de ComfyUI (photo déposée ou copiée). */
 export function lancerRestauration({ media, fichier, asset, nettoyer = true, couleur = false, hd = true }) {
   const id = `rest-${Date.now().toString(36)}`
-  const base = { id, media, nettoyer: !!nettoyer, couleur: !!couleur, hd: !!hd, edition: null, hdJob: null, debut: Date.now(), parentAssetId: asset?.id ?? null }
+  // l'image d'origine, pour le comparateur avant / après
+  const avant = fichier ? `/api/uploads/${encodeURIComponent(fichier)}` : asset?.uri ?? null
+  const base = { id, media, avant, nettoyer: !!nettoyer, couleur: !!couleur, hd: !!hd, edition: null, hdJob: null, debut: Date.now(), parentAssetId: asset?.id ?? null }
   if (media === 'video') {
-    if (!asset) throw new Error('choisis un clip de la bibliothèque')
-    const j = enqueueSeedvr({ source: path.basename(asset.filename ?? asset.uri), parentAssetId: asset.id, personaId: asset.persona_id ?? SANS_PERSONNAGE })
+    if (!asset && !fichier) throw new Error('choisis un clip')
+    const source = asset ? path.basename(asset.filename ?? asset.uri) : `input:${fichier}`
+    const j = enqueueSeedvr({ source, parentAssetId: asset?.id ?? null, personaId: asset?.persona_id ?? SANS_PERSONNAGE, origineUri: avant })
     suivis.set(id, { ...base, hdJob: j.id })
     return etatRestauration(id)
   }
@@ -37,10 +40,10 @@ export function lancerRestauration({ media, fichier, asset, nettoyer = true, cou
   if (nettoyer || couleur) {
     const consigne = consigneRestauration({ nettoyer, couleur })
     const j = enqueue({ mode: 'photo', op: 'edit', register: 'sfw', personaId: SANS_PERSONNAGE, purpose: 'creative', sourceImage: fichier,
-      composedPositive: consigne, userPrompt: couleur ? 'restauration et colorisation' : 'restauration', composedNegative: '', parentAssetId: asset?.id ?? null })
+      composedPositive: consigne, userPrompt: couleur ? 'restauration et colorisation' : 'restauration', composedNegative: '', parentAssetId: asset?.id ?? null, origineUri: avant })
     suivis.set(id, { ...base, edition: j.id })
   } else {
-    const j = enqueueRestaurationHd({ source: fichier, parentAssetId: asset?.id ?? null, personaId: SANS_PERSONNAGE })
+    const j = enqueueRestaurationHd({ source: fichier, parentAssetId: asset?.id ?? null, personaId: SANS_PERSONNAGE, origineUri: avant })
     suivis.set(id, { ...base, hdJob: j.id })
   }
   return etatRestauration(id)
@@ -58,7 +61,7 @@ export function etatRestauration(id) {
     ...(r.hd || r.media === 'video' ? [{ etape: 'HD', job: r.hdJob, statut: statut(r.hdJob) ?? 'en attente', uri: premierAsset(r.hdJob)?.uri ?? null }] : []),
   ]
   const echec = etapes.some(e => e.statut === 'blocked' || e.statut === 'failed')
-  return { id, media: r.media, etapes, fini: !!fin, uri: fin?.uri ?? null, assetId: fin?.id ?? null, echec }
+  return { id, media: r.media, avant: r.avant, etapes, fini: !!fin, uri: fin?.uri ?? null, assetId: fin?.id ?? null, echec }
 }
 
 // la retouche finie, l'agrandissement repart de son résultat
@@ -72,7 +75,7 @@ setInterval(() => {
       const nom = `crs_still_${path.basename(a.filename)}`
       fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
       store.noterInput(nom)
-      r.hdJob = enqueueRestaurationHd({ source: nom, parentAssetId: a.id, personaId: SANS_PERSONNAGE }).id
+      r.hdJob = enqueueRestaurationHd({ source: nom, parentAssetId: a.id, personaId: SANS_PERSONNAGE, origineUri: r.avant }).id
     } catch (e) { console.warn(`[restauration ${r.id}] ${e.message || e}`); r.hd = false }
   }
 }, 3000).unref()

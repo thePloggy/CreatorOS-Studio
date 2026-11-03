@@ -43,7 +43,7 @@ export function Parcours({ onClose, aller }: { onClose: () => void; aller: (s: '
     { titre: t('Bienvenue dans CreatorOS'), corps: (<>
       <p>{t('Un studio pour créer les photos et vidéos d’une influenceuse virtuelle — toujours le même visage, d’un post à l’autre.')}</p>
       <p>{t('Les personnages sont fictifs, chacun porté par une LoRA d’identité. Le personnage actif est {nom}', { nom })}
-        {credit?.auteur ? t(' (LoRA par {a})', { a: credit.auteur }) : ''}. {t('Change-le avec le menu en haut, à côté du logo.')}</p>
+        {credit?.auteur ? <>{' '}{t('(LoRA par {a})', { a: credit.auteur })}</> : ''}. {t('Change-le avec le menu en haut, à côté du logo.')}</p>
     </>) },
     { titre: t('1 · Une image'), corps: (<>
       <p>{t('Décris une scène : le personnage la joue. Essaie un de ces exemples (le prompt se remplit, tu lances le rendu toi-même) :')}</p>

@@ -268,10 +268,12 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   const nav = useAssetNav(list, asset, a => (a ? onGo(a) : onClose()))
   const [prov, setProv] = useState<string | null>(null)
   /* Agrandissement : l'image d'origine, si elle est encore en bibliothèque. */
-  const parent = asset.parentAssetId ? s.assets.find(a => a.id === asset.parentAssetId && a.mediaType === asset.mediaType) ?? null : null
+  /* Restauration : on compare toujours à la source d'origine, pas à l'étape intermédiaire. */
+  const parent = asset.origineUri ? { id: `${asset.id}-origine`, uri: asset.origineUri, mediaType: asset.mediaType }
+    : asset.parentAssetId ? s.assets.find(a => a.id === asset.parentAssetId && a.mediaType === asset.mediaType) ?? null : null
   const [compare, setCompare] = useState(false)
-  // un clip affiné s'ouvre sur son avant / après : c'est ce qu'on vient voir
-  useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2') }, [asset.id, asset.videoEngine])
+  // un clip affiné ou une restauration s'ouvre sur son avant / après : c'est ce qu'on vient voir
+  useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2' || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
   const [pinceau, setPinceau] = useState(false)
   const [editer, setEditer] = useState(action === 'retouche' || action === 'detour')
   const [plusOuvert, setPlusOuvert] = useState(action === 'looks')
@@ -287,7 +289,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     const e = await lancerFinition(asset, op, prompt)
     setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: op === 'foley' ? t('son en cours : un nouveau clip arrive dans la bibliothèque') : t('fluidité en cours : un nouveau clip arrive dans la bibliothèque') })
   }
-  useEffect(() => { setCompare(false) }, [asset.id])
+
   /* Voisins préchargés : ← → affiche tout de suite (image, ou vignette d'une vidéo). */
   useEffect(() => {
     if (nav.index < 0) return

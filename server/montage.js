@@ -117,10 +117,17 @@ export function boucleSonore(fichier, depart, longueur) {
     + `aloop=loop=-1:size=${Math.round(fin * 48000)},atrim=${depart}:${(depart + longueur).toFixed(3)},asetpts=PTS-STARTPTS`
 }
 
+// durée par fichier et date de modification : la liste ne relance pas ffprobe à chaque ouverture
+const durees = new Map()
+function dureeEnCache(f, mtime) {
+  const cle = `${f}:${mtime}`
+  if (!durees.has(cle)) durees.set(cle, dureeDe(f))
+  return durees.get(cle)
+}
 export function listerMusiques() {
   try {
     return fs.readdirSync(MUSIQUES_DIR).filter(f => !f.startsWith('.'))
-      .map(f => ({ nom: f, bytes: fs.statSync(path.join(MUSIQUES_DIR, f)).size, duree: dureeDe(path.join(MUSIQUES_DIR, f)) }))
+      .map(f => { const st = fs.statSync(path.join(MUSIQUES_DIR, f)); return { nom: f, bytes: st.size, duree: dureeEnCache(path.join(MUSIQUES_DIR, f), st.mtimeMs) } })
   } catch { return [] }
 }
 export function deposerMusique(type, nomOrigine, buf) {

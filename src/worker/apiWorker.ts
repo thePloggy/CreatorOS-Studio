@@ -36,6 +36,7 @@ export interface ApiAsset {
   modele3d?: string
   batchId?: string
   parentAssetId?: string
+  origineUri?: string
   batchIds?: string[]
   batchLocks?: Record<string, boolean>
   renderMs?: number | null
@@ -131,6 +132,7 @@ export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
     modele3d: a.modele3d || undefined,
     batchId: a.batchId || undefined,
     parentAssetId: a.parentAssetId || undefined,
+    origineUri: a.origineUri || undefined,
     batchIds: a.batchIds || undefined,
     batchLocks: a.batchLocks || undefined,
     renderMs: a.renderMs ?? undefined,

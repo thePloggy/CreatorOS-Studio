@@ -52,7 +52,7 @@ export function t(fr: string, vars?: Record<string, string | number>): string {
 
 /** Les libellés n'ont pas d'emoji : une icône est un SVG, pas un caractère de police. */
 const EMOJI = /(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2728}\u{2B50}]\uFE0F?)\s?/gu
-export const sansEmoji = (s: string) => s.replace(EMOJI, '').replace(/^\s+/, '').replace(/ [—–] /g, ' : ').replace(/[—–]/g, '-')
+export const sansEmoji = (s: string) => s.replace(EMOJI, '').replace(/^\s+/, '').replace(/ [—–] /g, langue === 'en' ? ': ' : ' : ').replace(/[—–]/g, '-')
 
 /** Même texte français, sens différent selon l'endroit (« Annuler » = Cancel
  *  sur un bouton de formulaire, Undo après une suppression). La traduction est

@@ -7,10 +7,11 @@ import { t, tServeur } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
 import { useEdition } from '../lib/proprietaire'
 import { OutilPage, ZoneSource, useSuiviOutil } from './OutilPage'
+import { AvantApres } from '../components/AvantApres'
 
 type Source = { asset?: Asset; fichier?: string; apercu?: string } | null
 type Etape = { etape: string; job: string | null; statut: string | null; uri: string | null }
-type Etat = { id: string; media: 'photo' | 'video'; etapes: Etape[]; fini: boolean; uri: string | null; assetId: string | null; echec: boolean }
+type Etat = { id: string; media: 'photo' | 'video'; avant?: string | null; etapes: Etape[]; fini: boolean; uri: string | null; assetId: string | null; echec: boolean }
 
 export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) => void }) {
   const s = useAppStore()
@@ -24,7 +25,15 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
   const [etat, setEtat] = useState<Etat | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
-  const avant = source?.asset?.uri ?? source?.apercu ?? null
+  const avant = etat?.avant ?? source?.asset?.uri ?? source?.apercu ?? null
+
+  // la dernière restauration reste affichée au retour sur la page
+  useEffect(() => {
+    let id: string | null = null
+    try { id = localStorage.getItem('restaurer:dernier') } catch { /* stockage indisponible */ }
+    if (id) void fetch(`/api/restauration/${id}`).then(r => (r.ok ? r.json() : null)).then((d: Etat | null) => { if (d) { setEtat(e => e ?? d); setMedia(d.media) } }).catch(() => {})
+  }, [])
+  useEffect(() => { if (etat) try { localStorage.setItem('restaurer:dernier', etat.id) } catch { /* stockage indisponible */ } }, [etat?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!etat || etat.fini || etat.echec) return
@@ -57,17 +66,18 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
       <div className="flex gap-2 flex-wrap" style={{ fontSize: 12 }}>
         {etat.etapes.map((e, k) => <span key={k} className="pill">{t(e.etape)} {libelle(e)}</span>)}
       </div>
-      {etat.media === 'photo' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-          <figure style={{ margin: 0, display: 'grid', gap: 4 }}>{avant && <img src={avant} alt="" style={{ width: '100%', borderRadius: 10 }} />}<figcaption className="texte-doux" style={{ fontSize: 12 }}>{t('Avant')}</figcaption></figure>
-          <figure style={{ margin: 0, display: 'grid', gap: 4 }}>
-            {(etat.uri ?? etat.etapes.findLast(e => e.uri)?.uri)
-              ? <img src={(etat.uri ?? etat.etapes.findLast(e => e.uri)?.uri)!} alt="" style={{ width: '100%', borderRadius: 10 }} />
-              : <div className="texte-faible" style={{ aspectRatio: '1', display: 'grid', placeItems: 'center', borderRadius: 10, background: 'var(--lv2)' }}>…</div>}
-            <figcaption className="texte-doux" style={{ fontSize: 12 }}>{etat.fini ? t('Après') : t('en cours…')}</figcaption>
-          </figure>
+      {(() => {
+        const apres = etat.uri ?? etat.etapes.findLast(e => e.uri)?.uri ?? null
+        const type = etat.media === 'video' ? 'video' as const : 'photo' as const
+        if (apres && avant) return <AvantApres avant={{ id: `${etat.id}-avant`, uri: avant, mediaType: type }} apres={{ id: `${etat.id}-apres`, uri: apres, mediaType: type }}
+          style={{ justifySelf: 'center', maxWidth: '100%', borderRadius: 10, overflow: 'hidden' }} className="comparateur-restau" />
+        if (apres) return type === 'video' ? <video src={apres} controls playsInline style={{ width: '100%', borderRadius: 10 }} /> : <img src={apres} alt="" style={{ width: '100%', borderRadius: 10 }} />
+        return <div style={{ position: 'relative' }}>
+          {avant && (type === 'video' ? <video src={avant} muted playsInline preload="metadata" style={{ width: '100%', borderRadius: 10, opacity: .45 }} /> : <img src={avant} alt="" style={{ width: '100%', borderRadius: 10, opacity: .45 }} />)}
+          <span className="texte-doux" style={{ position: avant ? 'absolute' : 'static', inset: 0, display: 'grid', placeItems: 'center', fontSize: 13 }}>{type === 'video' ? t('Le clip se restaure (quelques minutes)…') : t('en cours…')}</span>
         </div>
-      ) : etat.uri ? <video src={etat.uri} controls playsInline style={{ width: '100%', borderRadius: 10 }} /> : <span className="texte-doux">{t('Le clip se restaure (quelques minutes)…')}</span>}
+      })()}
+      {etat.fini && <span className="texte-faible" style={{ fontSize: 12 }}>{t('Glisse la barre pour comparer avant et après.')}</span>}
       {etat.echec && <span className="texte-erreur">{t('Une étape a échoué : réessaie.')}</span>}
     </div>
   ) : undefined
@@ -76,7 +86,7 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
     <OutilPage titre={t('Restaurer')} texte={t('Une vieille photo ou un clip abîmé ressort propre et en HD : rayures et bruit effacés, couleurs rendues si tu veux, détail reconstruit.')}
       jobs={j => suivi.ids.has(j.id)} assets={a => suivi.ids.has(a.jobId)} onOpen={onOpen} resultat={resultat}
       etapes={[
-        { titre: 'La source', texte: 'Une photo ou un clip de la bibliothèque ; sur ton studio, aussi un fichier à toi (scan, vieille vidéo).' },
+        { titre: 'La source', texte: 'Une photo ou un clip de la bibliothèque ; sur ton studio, aussi un fichier à toi (scan, vieille vidéo, 12 s au plus).' },
         { titre: 'La retouche', texte: 'Rayures, poussière, taches et zones passées sont réparées, sans changer les visages ni le cadrage. La couleur est en option.' },
         { titre: 'La HD', texte: 'SeedVR2, un modèle de restauration, reconstruit le détail fin et agrandit l’image (le clip jusqu’en 1080p).' },
       ]}
@@ -89,14 +99,14 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
         <button className={media === 'photo' ? 'on' : ''} onClick={() => { setMedia('photo'); setSource(null) }}>{t('Photo')}</button>
         <button className={media === 'video' ? 'on' : ''} onClick={() => { setMedia('video'); setSource(null) }}>{t('Clip')}</button>
       </div>
-      <ZoneSource media={media} valeur={source} onChoix={setSource} depot={edition && media === 'photo'} label={media === 'photo' ? t('Photo à restaurer') : t('Clip à restaurer')} />
+      <ZoneSource media={media} valeur={source} onChoix={setSource} depot={edition} label={media === 'photo' ? t('Photo à restaurer') : t('Clip à restaurer')} />
       {media === 'photo' ? (
         <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={nettoyer} onChange={e => setNettoyer(e.target.checked)} /> {t('Réparer : rayures, poussière, bruit, zones passées')}</label>
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={couleur} onChange={e => setCouleur(e.target.checked)} /> {t('Coloriser une photo en noir et blanc')}</label>
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={hd} onChange={e => setHd(e.target.checked)} /> {t('HD : agrandir et reconstruire le détail')}</label>
         </div>
-      ) : <span className="texte-doux" style={{ fontSize: 12.5 }}>{t('Clip de 12 s au plus, en dessous de 1080p : SeedVR2 le nettoie et le monte en 1080p, son conservé.')}</span>}
+      ) : <span className="texte-doux" style={{ fontSize: 12.5 }}>{t('Clip de 12 s au plus, en dessous de 1080p : SeedVR2 le nettoie et le monte en 1080p, bandes noires retirées, son conservé. Une source minuscule ou très floue gagne en netteté, mais un détail effacé ne revient pas.')}</span>}
     </OutilPage>
   )
 }

@@ -100,13 +100,13 @@ export function ZoneSource({ media, valeur, onChoix, depot, label }: {
       <span className="etiquette">{label}</span>
       <button className={`zone-source ${apercu ? 'pleine' : ''}`} onClick={() => setOuvert(true)}>
         {apercu
-          ? (media === 'video' && !valeur?.apercu ? <video src={apercu} muted playsInline preload="metadata" /> : <img src={apercu} alt="" />)
+          ? (media === 'video' ? <video src={apercu} muted playsInline preload="metadata" /> : <img src={apercu} alt="" />)
           : <span>{media === 'video' ? t('Choisir un clip') : t('Choisir une photo')}<small>{depot ? t('bibliothèque ou fichier') : t('dans la bibliothèque')}</small></span>}
       </button>
       {apercu && <button className="pill" style={{ justifySelf: 'start' }} onClick={() => onChoix(null)}>{t('Retirer')}</button>}
       {msg && <span className="texte-erreur">{msg}</span>}
       <FramePicker open={ouvert} onClose={() => setOuvert(false)} title={label} media={media} assets={assets.filter(a => a.mediaType === media && !a.modele3d)}
-        onPickAsset={a => { onChoix({ asset: a }); setOuvert(false) }} onPickUpload={() => setOuvert(false)}
+        onPickAsset={a => { onChoix({ asset: a }); setOuvert(false) }} onPickUpload={n => { onChoix({ fichier: n, apercu: `/api/uploads/${encodeURIComponent(n)}` }); setOuvert(false) }}
         onUploadFile={depot ? f => void deposer(f) : undefined} accept={media === 'video' ? 'video/*' : 'image/*'} />
     </div>
   )

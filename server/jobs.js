@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile, execFileSync, spawnSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
 import { demoPublique, etatH3 } from './h3.js'
@@ -577,6 +577,8 @@ export async function recoverQueue() {
 
 /** Enregistre le job et le met en file. Retourne immédiatement :
  *  le front suit l'avancement par /api/jobs/:id. */
+/** Source d'une restauration, pour l'avant / après : seulement un chemin du studio. */
+const origineValide = u => (typeof u === 'string' && /^\/(api\/uploads|media)\/[\w.%-]+$/.test(u) ? u : undefined)
 export function enqueue(job) {
   if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: 'klein', workflowFile: undefined }   // seule la recette Klein prend des références
   /* Idempotence d'envoi : si la clé du client a DÉJÀ produit un job, on rend
@@ -713,6 +715,7 @@ export function enqueue(job) {
     videoEngine: isMotion ? 'motion' : engineKey, withAudio,
     t2v: mode === 'video' && !isMotion && job.t2v === true ? true : undefined,
     t2vPersonnage: mode === 'video' && !isMotion && job.t2v === true && job.t2vPersonnage === true ? true : undefined,
+    origineUri: origineValide(job.origineUri),
     // Keyframe d'arrivée (nom de fichier dans input/). Portée par MiniMax
     // seulement ; les autres moteurs la signalent « non injectée ».
     endImage: (mode === 'video' && !isMotion && typeof job.endImage === 'string' && job.endImage.trim())
@@ -1629,9 +1632,11 @@ export function enqueueDetour({ source, cible, alpha, parentAssetId, personaId }
 /* Netteté : SeedVR2 3B agrandit n'importe quel clip à 1080 de petit côté, sans changer
    le mouvement. Apache-2.0. Le refine Wan reste la voie des brouillons. */
 const SEEDVR_COTE = 1080
-export function enqueueSeedvr({ source, parentAssetId, personaId }) {
-  if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
-  const src = path.join(CONFIG.mediaDir, source), duree = videoDurationOf(src), d = videoSize(src)
+/** Chemin d'une source SeedVR2 : un média du studio, ou « input:<nom> » pour un clip envoyé par le propriétaire. */
+const sourceSeedvr = source => source.startsWith('input:') ? path.join(CONFIG.comfyInput, source.slice(6)) : path.join(CONFIG.mediaDir, source)
+export function enqueueSeedvr({ source, parentAssetId, personaId, origineUri }) {
+  if (!source || /[\\/]/.test(source) || source.replace(/^input:/, '').startsWith('.')) throw new Error('fichier invalide')
+  const src = sourceSeedvr(source), duree = videoDurationOf(src), d = videoSize(src)
   if (!duree) throw new Error('vidéo illisible')
   if (Math.min(d.width, d.height) >= SEEDVR_COTE) throw new Error('ce clip est déjà en 1080p ou plus')
   if (duree > 12) throw new Error('12 s au plus')
@@ -1639,26 +1644,51 @@ export function enqueueSeedvr({ source, parentAssetId, personaId }) {
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'video', purpose: 'creative', recipeId: 'seedvr@v1', workflowFile: null,
-    seed: 42, op: 'seedvr', videoEngine: 'seedvr2', reshootSource: source,
+    seed: 42, op: 'seedvr', videoEngine: 'seedvr2', reshootSource: source, origineUri: origineValide(origineUri),
     parentAssetId: parentAssetId ?? null, userPrompt: null, userDirectives: null, composedPositive: `SeedVR2 ${SEEDVR_COTE}p de ${source}`, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(20_000 + duree * 25_000),
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(Math.min(d.width, d.height) < 360 ? 60_000 + duree * 60_000 : 20_000 + duree * 25_000),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
+/** Cadre utile d'une vidéo à bandes noires (détection sur les 2 premières secondes), ou null. */
+function bandesNoires(src) {
+  try {
+    const sortie = spawnSync('ffmpeg', ['-hide_banner', '-t', '2', '-i', src, '-vf', 'cropdetect=24:2:0', '-f', 'null', '-'], { encoding: 'utf8', timeout: 30_000 }).stderr ?? ''
+    const comptes = new Map()
+    for (const m of sortie.matchAll(/crop=(\d+):(\d+):(\d+):(\d+)/g)) comptes.set(m[0], (comptes.get(m[0]) ?? 0) + 1)
+    const meilleur = [...comptes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (!meilleur) return null
+    const [w, h, x, y] = meilleur.slice(5).split(':').map(Number), d = videoSize(src)
+    const aire = (w * h) / (d.width * d.height)
+    if (aire > 0.97 || aire < 0.6) return null
+    return { width: w - (w % 2), height: h - (h % 2), x, y }
+  } catch { return null }
+}
 async function runSeedvr(job, t0) {
-  const src = path.join(CONFIG.mediaDir, job.reshootSource)
+  const src = sourceSeedvr(job.reshootSource)
   let son = false, fps = 24
   try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* muet */ }
   try {
     const [n, d] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().split('/').map(Number)
     if (n && d) fps = n / d
   } catch { /* 24 par défaut */ }
+  // bandes noires retirées avant l'agrandissement : sinon elles sont agrandies avec le reste
+  const cadre = bandesNoires(src)
+  // petite source (moins de 360p) : deux passes du modèle 7B ; un saut x6 d'un coup ne reconstruit presque rien
+  const d = videoSize(src), petite = Math.min(d.width, d.height) < 360
+  const modele = petite ? 'seedvr2_ema_7b_fp16.safetensors' : 'seedvr2_ema_3b_fp16.safetensors'
+  const reglages = { dit: ['dit', 0], vae: ['vae', 0], seed: 42, batch_size: 33, uniform_batch_size: true, color_correction: 'lab', temporal_overlap: 3, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false }
+  const entree = cadre ? ['cadre', 0] : ['src', 0]
   const g = {
     src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 0, custom_width: 0, custom_height: 0, frame_load_cap: 0, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
-    dit: { class_type: 'SeedVR2LoadDiTModel', inputs: { model: 'seedvr2_ema_3b_fp16.safetensors', device: 'cuda:0', offload_device: 'cpu' } },
+    ...(cadre ? { cadre: { class_type: 'ImageCrop', inputs: { image: ['src', 0], ...cadre } } } : {}),
+    dit: { class_type: 'SeedVR2LoadDiTModel', inputs: { model: modele, device: 'cuda:0', offload_device: 'cpu' } },
     vae: { class_type: 'SeedVR2LoadVAEModel', inputs: { model: 'ema_vae_fp16.safetensors', device: 'cuda:0', decode_tiled: true, decode_tile_size: 1024, decode_tile_overlap: 128, offload_device: 'cpu' } },
-    up: { class_type: 'SeedVR2VideoUpscaler', inputs: { image: ['src', 0], dit: ['dit', 0], vae: ['vae', 0], seed: 42, resolution: SEEDVR_COTE, max_resolution: 1920, batch_size: 33, uniform_batch_size: true, color_correction: 'lab', temporal_overlap: 3, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false } },
+    ...(petite
+      ? { mi: { class_type: 'SeedVR2VideoUpscaler', inputs: { ...reglages, image: entree, resolution: 540, max_resolution: 960 } },
+          up: { class_type: 'SeedVR2VideoUpscaler', inputs: { ...reglages, image: ['mi', 0], resolution: SEEDVR_COTE, max_resolution: 1920 } } }
+      : { up: { class_type: 'SeedVR2VideoUpscaler', inputs: { ...reglages, image: entree, resolution: SEEDVR_COTE, max_resolution: 1920 } } }),
     vid: { class_type: 'CreateVideo', inputs: { images: ['up', 0], ...(son ? { audio: ['src', 2] } : {}), fps } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/seedvr`, format: 'auto', codec: 'auto' } },
   }
@@ -1667,20 +1697,20 @@ async function runSeedvr(job, t0) {
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
-  const n = await harvestJob(job, promptId, history, { applied: [`SeedVR2 3B : ${SEEDVR_COTE} de petit côté, mouvement conservé`], skipped: [], finalWorkflow: g })
+  const n = await harvestJob(job, promptId, history, { applied: [petite ? `SeedVR2 7B en deux passes (540 puis ${SEEDVR_COTE})` : `SeedVR2 3B : ${SEEDVR_COTE} de petit côté`, ...(cadre ? ['bandes noires retirées'] : []), 'mouvement conservé'], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
 
 /* Restauration HD d'une photo : SeedVR2 (modèle de restauration) l'agrandit en reconstruisant le
    détail fin ; la retouche (rayures, couleur) se fait avant, par une passe d'édition ordinaire. */
-export function enqueueRestaurationHd({ source, parentAssetId, personaId, cote }) {
+export function enqueueRestaurationHd({ source, parentAssetId, personaId, cote, origineUri }) {
   if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('image source invalide')
   const id = `rst-${Date.now().toString(36)}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'photo', purpose: 'creative', recipeId: 'restauration_hd@v1', workflowFile: null,
-    seed: 42, op: 'restauration_hd', sourceImage: source, restaurationCote: Math.min(2560, Math.max(1024, Number(cote) || 2048)),
+    seed: 42, op: 'restauration_hd', origineUri: origineValide(origineUri), sourceImage: source, restaurationCote: Math.min(2560, Math.max(1024, Number(cote) || 2048)),
     parentAssetId: parentAssetId ?? null, userPrompt: 'restauration HD', userDirectives: null, composedPositive: `SeedVR2 restauration de ${source}`, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: 45_000,
   }
@@ -1970,7 +2000,7 @@ async function runDoublage(job, t0) {
 
 /* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
    si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
-export const OPS_RELANCABLES = new Set(['inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'extension'])
+export const OPS_RELANCABLES = new Set(['restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'extension'])
 export function relancerSpecial(p) {
   if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
   const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque].filter(Boolean)

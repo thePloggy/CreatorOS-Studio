@@ -316,8 +316,12 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
         <div className="pkgrid">
           {tab === 'gen' && !photos.length && <p style={{ gridColumn: '1 / -1', margin: 0, padding: '24px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>{t(media === 'video' ? 'Aucun clip pour ce personnage : génère-en un d’abord.' : 'Aucune photo pour ce personnage : génères-en une d’abord.')}</p>}
           {tab === 'gen' && photos.map(a => (
-            <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { onPickAsset(a); onClose() }}>
-              <img src={vignetteOf(a)} alt="" loading="lazy" />
+            <button key={a.id} className={`pk ${media === 'video' ? 'pk-clip' : ''}`} aria-label={nomMedia(a)} onClick={() => { onPickAsset(a); onClose() }}
+              onMouseEnter={e => void e.currentTarget.querySelector('video')?.play().catch(() => {})}
+              onMouseLeave={e => { const v = e.currentTarget.querySelector('video'); if (v) { v.pause(); v.currentTime = 0 } }}>
+              {media === 'video'
+                ? <><video src={a.uri} poster={vignetteOf(a)} muted loop playsInline preload="none" /><span className="pk-lecture">▶</span></>
+                : <img src={vignetteOf(a)} alt="" loading="lazy" />}
             </button>
           ))}
           {tab === 'up' && onUploadFile && (
@@ -328,12 +332,12 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
                 onChange={e => { const f = e.target.files?.[0]; if (f) { onUploadFile(f); onClose() } }} />
             </label>
           )}
-          {tab === 'up' && uploads.map(u => (
+          {tab === 'up' && media === 'photo' && uploads.map(u => (
             <button key={u.name} className="pk" onClick={() => { onPickUpload(u.name); onClose() }}>
               <img src={`/api/uploads/${encodeURIComponent(u.name)}`} alt="" loading="lazy" />
             </button>
           ))}
-          {tab === 'up' && uploads.length === 0 && (
+          {tab === 'up' && media === 'photo' && uploads.length === 0 && (
             <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('aucun upload')}</div>
           )}
         </div>

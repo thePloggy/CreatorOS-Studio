@@ -50,6 +50,7 @@ export const serveur: Record<string, string> = {
   'terme interdit': 'forbidden term',
   'réservé au propriétaire du studio': 'reserved for the studio owner',
   'terme interdit dans « name »': 'forbidden term in “name”',
+  'réservé au propriétaire': 'owner only',
   'type non accepté (png, jpeg, webp, mp4, mov, webm)': 'type not accepted (png, jpeg, webp, mp4, mov, webm)',
   'une vidéo ne peut pas servir d’image de départ — utiliser ?frame=last|sharp pour prolonger le clip depuis sa dernière frame (first : sa 1re frame, pour un prequel)': 'a video cannot be used as a start image — use ?frame=last|sharp to extend the clip from its last frame (first: its first frame, for a prequel)',
   'upscale : vidéos seulement': 'upscale: videos only',
