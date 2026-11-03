@@ -38,13 +38,27 @@ export function ModelesOptionnels() {
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 4px' }}>MiniMax H3 {etat.disponible && <span style={{ color: 'var(--positif)', fontSize: 12 }}>· {t('prêt')}</span>}</h3>
         <p style={{ color: 'var(--muted)', margin: 0 }}>{t('Moteur vidéo avec son, le plus fluide. Le studio est déjà câblé : il ne manque que ses poids, que nous ne pouvons pas fournir.')}</p>
       </div>
-      {etat.demo ? (
+      {etat.demo ? (<>
         <p style={{ padding: 12, borderRadius: 12, background: 'var(--lv2)', margin: 0 }}>
           {t('Indisponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour en profiter.')}
         </p>
-      ) : (<>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <b style={{ fontWeight: 600 }}>{t('Pour l’avoir chez toi')}</b>
+          <ol style={{ margin: 0, paddingLeft: 20, color: 'var(--muted)', display: 'grid', gap: 4, listStyle: 'decimal' }}>
+            <li>{t('Installe CreatorOS Studio depuis GitHub, sur ta machine.')} <a href="https://github.com/thePloggy/CreatorOS-Studio#install" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{t('Installation')}</a></li>
+            <li>{t('Lis la licence MiniMax H3 et vérifie que ta région n’en est pas exclue ({l}).', { l: etat.territoiresExclus.map(x => t(x)).join(', ') })} <a href={etat.licence} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{t('Lire la licence')}</a></li>
+            <li>{t('Télécharge ses poids depuis la page du modèle, puis envoie-les ici (Paramètres > Modèles optionnels) ou copie-les dans les dossiers de ComfyUI ci-dessous.')}</li>
+            <li>{t('Rien d’autre à faire : le studio est déjà branché, MiniMax H3 apparaît dans le choix du moteur vidéo (image vers vidéo, image de fin, son natif).')}</li>
+          </ol>
+          {etat.fichiers.map(f => (
+            <div key={f.nom} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px', borderRadius: 10, background: 'var(--lv1)' }}>
+              <span style={{ flex: 1, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{t(f.role)}</b><br /><code style={{ fontSize: 12, color: 'var(--muted)' }}>{f.dossier}/{f.nom}</code></span>
+            </div>
+          ))}
+        </div>
+      </>) : (<>
         <p style={{ padding: 12, borderRadius: 12, background: 'var(--lv2)', margin: 0 }}>
-          {t('La licence MiniMax H3 n’accorde aucun droit dans ces territoires : {l}. Vérifie qu’elle te permet de l’utiliser avant d’envoyer les poids.', { l: etat.territoiresExclus.join(', ') })}{' '}
+          {t('La licence MiniMax H3 n’accorde aucun droit dans ces territoires : {l}. Vérifie qu’elle te permet de l’utiliser avant d’envoyer les poids.', { l: etat.territoiresExclus.map(x => t(x)).join(', ') })}{' '}
           <a href={etat.licence} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{t('Lire la licence')}</a>
         </p>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>

@@ -20,7 +20,7 @@ export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } &
   { section: Section; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 /** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
-export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string][] }
+export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][] }
 
 export const MENUS: Menu[] = [
   { titre: 'Image', colonnes: [
@@ -64,7 +64,7 @@ export const MENUS: Menu[] = [
       { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },
       { label: 'Analyse pour les réseaux', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
       ] },
-    ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
+    ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['MiniMax H3', 'Clip avec son, le plus fluide · prébranché, à installer', 'h3'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
   { titre: 'Audio', colonnes: [
       { titre: 'Créer du son', outils: [
       { label: 'Musique et bruitages', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
@@ -168,9 +168,10 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
                 </div>
                 <div className="mega-modeles">
                   <div className="mega-entete">{t('Modèles')}</div>
-                  {m.modeles.map(([nom, role]) => (
-                    <div key={nom} className="mega-modele"><b>{nom}</b><span>{t(role)}</span></div>
-                  ))}
+                  {m.modeles.map(([nom, role, lien]) => lien
+                    ? <button key={nom} className="mega-modele mega-lien" onClick={() => { setOuvert(null); useAppStore.setState({ ongletConfig: 'modeles' }); aller('config') }}>
+                        <b>{nom} <em>{t('à installer')} ›</em></b><span>{t(role)}</span></button>
+                    : <div key={nom} className="mega-modele"><b>{nom}</b><span>{t(role)}</span></div>)}
                   <div className="mega-pied">{t('Poids ouverts, sur ta carte graphique.')}</div>
                 </div>
               </div>

@@ -193,9 +193,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
                 const ferme = e.optionnel === 'h3' && !s.h3?.disponible
                 return (
                   <button key={e.key} className="engine" style={v.engine === e.key ? { boxShadow: 'inset 0 0 0 1px rgba(242,77,138,.35)' } : ferme ? { opacity: .55 } : undefined}
-                    onClick={() => { if (ferme) { if (!s.h3?.demo) useAppStore.setState({ ongletConfig: 'modeles', navRequest: { section: 'config', nonce: Date.now() } }); return } s.updateVideo({ engine: e.key }); setEngOpen(false) }}>
+                    onClick={() => { if (ferme) { useAppStore.setState({ ongletConfig: 'modeles', navRequest: { section: 'config', nonce: Date.now() } }); return } s.updateVideo({ engine: e.key }); setEngOpen(false) }}>
                     <span className="nm">{e.label}<span className="ml-auto text-[12px]" style={{ color: 'var(--faint)' }}>{ferme ? (s.h3?.demo ? t('indisponible sur la démo') : t('à installer')) : `~${e.minutes} min`}</span></span>
-                    {ferme && <span className="fo">{s.h3?.demo ? t('Démo hébergée dans l’UE, exclue par la licence MiniMax H3 : installe la version GitHub chez toi, si ta région est autorisée.') : t('Ajoute ses poids dans Paramètres > Modèles optionnels.')}</span>}
+                    {ferme && <span className="fo">{s.h3?.demo ? t('Démo hébergée dans l’UE, exclue par la licence MiniMax H3 : installe la version GitHub chez toi, si ta région est autorisée.') : t('Ajoute ses poids dans Paramètres > Modèles optionnels.')} <u>{t('Comment l’installer ›')}</u></span>}
                   </button>
                 )
               })}

@@ -788,3 +788,6 @@
 .entrainement-images button.choisie { border-color: var(--accent); }
 .entrainement-images img { display: block; width: 100%; height: auto; }
 .entrainement-images i { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; color: #fff; background: var(--accent); }
+.mega-lien { border: 0; background: none; text-align: left; padding: 6px 8px; margin: -6px -8px; border-radius: 10px; cursor: pointer; font: inherit; }
+.mega-lien:hover { background: var(--lv3); }
+.mega-lien em { font-style: normal; font-weight: 500; font-size: 11px; color: var(--accent); margin-left: 6px; }

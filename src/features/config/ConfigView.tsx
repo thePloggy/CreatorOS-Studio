@@ -3,7 +3,7 @@
    vocabulaires (catalogues + ajouts), recettes et textes de façonnage
    (Workbench). Regroupés sous ⚙ config.
    ============================================================ */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { VocabView } from '../vocab/VocabView'
 import { WorkbenchView } from '../workbench/WorkbenchView'
@@ -17,7 +17,10 @@ import { t } from '../../i18n'
 export type ConfigTab = 'vocab' | 'workbench' | 'cloud' | 'modeles'
 
 export function ConfigView({ initial = 'vocab' }: { initial?: ConfigTab }) {
-  const [tab, setTab] = useState<ConfigTab>(() => { const o = useAppStore.getState().ongletConfig; if (o) useAppStore.setState({ ongletConfig: null }); return o ?? initial })
+  const [tab, setTab] = useState<ConfigTab>(() => useAppStore.getState().ongletConfig ?? initial)
+  // un lien vers un onglet précis (MiniMax H3 → Modèles optionnels), à l'ouverture comme page déjà ouverte
+  const demande = useAppStore(st => st.ongletConfig)
+  useEffect(() => { if (demande) { setTab(demande); useAppStore.setState({ ongletConfig: null }) } }, [demande])
   const edition = useEdition()
   return (
     <div className="flex-1 flex flex-col min-h-0">
