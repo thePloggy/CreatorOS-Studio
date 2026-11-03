@@ -5,7 +5,7 @@
 ![Real renders from the studio: reel, camera moves, sketch to video, re-shoot, 3D Stage, talking avatar, text to video, restore](docs/screenshots/renders.gif)
 
 - **Try it now**: https://forge.taila06702.ts.net:8443 — the public demo runs on the author's RTX 5090, one render at a time, 12 images or clips per hour per visitor.
-- **Demo video**: https://youtu.be/axHdAXHv3Kk
+- **Demo video**: https://youtu.be/0muDKpkbcWw
 - **Run it yourself**: see [Install](#install).
 
 Built for the Comfy **#OpenSourceHiggsfield** challenge. Every model is open weights and runs locally: no API call, no credits, nothing leaves the machine.
@@ -94,18 +94,22 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 
 | | |
 |---|---|
+| ![Home](docs/screenshots/home.jpg) | ![Menus](docs/screenshots/menus.jpg) |
+| **Home**: every tool shows a real render; Cinema Studio featured | **Menus**: Image, Video, Audio and Extensions, with the names you know and the models behind them |
+| ![Styles](docs/screenshots/styles.jpg) | ![Character](docs/screenshots/character.jpg) |
+| **Styles**: 36 one-click looks, plus Relight and Expand mosaics | **Characters**: train a LoRA in the UI, profile, identity and voice |
+| ![One-click reel](docs/screenshots/reel.jpg) | ![Cinematic Studio](docs/screenshots/cinematic.jpg) |
+| **One-click reel**: brief, shots, clips, edit | **Cinematic Studio**: a shot card instead of a prompt |
+| ![Product Shot](docs/screenshots/product.jpg) | ![A page per tool](docs/screenshots/tool-page.jpg) |
+| **Product Shot**: packshot, scene, poster, your character with the product, a clip | **A page per tool**: source on the left, how it works and every past render on the right |
+| ![Camera moves](docs/screenshots/camera-effects.jpg) | ![Library](docs/screenshots/library.jpg) |
+| **Camera Moves & Effects**: pick a move, pick a photo | **Library**: folders, characters, images, videos and audio |
 | ![Stage](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
-| **Stage**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow, reopen in Stage |
-| ![Camera & effects gallery](docs/screenshots/camera-effects.jpg) | ![One-click reel](docs/screenshots/reel.jpg) |
-| **Camera & effects**: pick a move, pick a photo | **One-click reel**: brief, shots, clips, edit |
-| ![Editor](docs/screenshots/editor.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |
-| **Editor**: timeline, trims, crossfades, text, music | **Talking avatar**: one photo, one voice |
-| ![Cinematic Studio](docs/screenshots/cinematic.jpg) | ![Re-shoot](docs/screenshots/reshoot.jpg) |
-| **Cinematic Studio**: a shot card instead of a prompt, same shot in four lights | **Re-shoot**: the same moment from a new camera angle, previewed in 3D |
-| ![Mix](docs/screenshots/mix.jpg) | |
-| **Mix**: drop in a video, your character takes the person's place | |
+| **Stage**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow |
+| ![Re-shoot](docs/screenshots/reshoot.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |
+| **Re-shoot**: the same moment from a new camera angle, previewed in 3D | **Talking avatar**: one photo, one voice |
 
-![Mobile: library, camera & effects, one-click reel](docs/screenshots/mobile.jpg)
+![Mobile: library and one-click reel](docs/screenshots/mobile.jpg)
 
 ## Architecture
 
