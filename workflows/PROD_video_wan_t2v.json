@@ -1,208 +1,209 @@
 {
-  "110": {
-    "class_type": "UNETLoader",
-    "inputs": {
-      "unet_name": "wan/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
-      "weight_dtype": "default"
-    }
-  },
-  "111": {
-    "class_type": "UnetLoaderGGUF",
-    "inputs": {
-      "unet_name": "Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf"
-    }
-  },
-  "101": {
-    "class_type": "LoraLoaderModelOnly",
-    "inputs": {
-      "model": [
-        "110",
-        0
-      ],
-      "lora_name": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
-      "strength_model": 1.0
-    }
-  },
-  "102": {
-    "class_type": "LoraLoaderModelOnly",
-    "inputs": {
-      "model": [
-        "111",
-        0
-      ],
-      "lora_name": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
-      "strength_model": 1.0
-    }
-  },
-  "104": {
-    "class_type": "ModelSamplingSD3",
-    "inputs": {
-      "model": [
-        "101",
-        0
-      ],
-      "shift": 5.0
-    }
-  },
-  "103": {
-    "class_type": "ModelSamplingSD3",
-    "inputs": {
-      "model": [
-        "102",
-        0
-      ],
-      "shift": 5.0
-    }
-  },
-  "84": {
-    "class_type": "CLIPLoader",
-    "inputs": {
-      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-      "type": "wan",
-      "device": "default"
-    }
-  },
-  "93": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": "",
-      "clip": [
-        "84",
-        0
-      ]
-    }
-  },
-  "89": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
-      "clip": [
-        "84",
-        0
-      ]
-    }
-  },
-  "90": {
-    "class_type": "VAELoader",
-    "inputs": {
-      "vae_name": "wan_2.1_vae.safetensors"
-    }
-  },
-  "98": {
-    "class_type": "WanImageToVideo",
-    "inputs": {
-      "positive": [
-        "93",
-        0
-      ],
-      "negative": [
-        "89",
-        0
-      ],
-      "vae": [
-        "90",
-        0
-      ],
-      "width": 544,
-      "height": 960,
-      "length": 81,
-      "batch_size": 1
-    }
-  },
-  "86": {
-    "class_type": "KSamplerAdvanced",
-    "inputs": {
-      "model": [
-        "104",
-        0
-      ],
-      "add_noise": "enable",
-      "noise_seed": 630011,
-      "steps": 8,
-      "cfg": 1,
-      "sampler_name": "euler",
-      "scheduler": "simple",
-      "positive": [
-        "98",
-        0
-      ],
-      "negative": [
-        "98",
-        1
-      ],
-      "latent_image": [
-        "98",
-        2
-      ],
-      "start_at_step": 0,
-      "end_at_step": 4,
-      "return_with_leftover_noise": "enable"
-    }
-  },
-  "85": {
-    "class_type": "KSamplerAdvanced",
-    "inputs": {
-      "model": [
-        "103",
-        0
-      ],
-      "add_noise": "disable",
-      "noise_seed": 0,
-      "steps": 8,
-      "cfg": 1,
-      "sampler_name": "euler",
-      "scheduler": "simple",
-      "positive": [
-        "98",
-        0
-      ],
-      "negative": [
-        "98",
-        1
-      ],
-      "latent_image": [
-        "86",
-        0
-      ],
-      "start_at_step": 4,
-      "end_at_step": 10000,
-      "return_with_leftover_noise": "disable"
-    }
-  },
-  "87": {
-    "class_type": "VAEDecode",
-    "inputs": {
-      "samples": [
-        "85",
-        0
-      ],
-      "vae": [
-        "90",
-        0
-      ]
-    }
-  },
-  "94": {
-    "class_type": "CreateVideo",
-    "inputs": {
-      "images": [
-        "87",
-        0
-      ],
-      "fps": 16,
-      "bit_depth": 8
-    }
-  },
-  "108": {
-    "class_type": "SaveVideo",
-    "inputs": {
-      "video": [
-        "94",
-        0
-      ],
-      "filename_prefix": "creatoros/video_wan_t2v",
-      "format": "auto",
-      "codec": "auto"
-    }
+ "110": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
   }
+ },
+ "111": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "101": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "110",
+    0
+   ],
+   "lora_name": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
+   "strength_model": 1.0
+  }
+ },
+ "102": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "111",
+    0
+   ],
+   "lora_name": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
+   "strength_model": 1.0
+  }
+ },
+ "104": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "model": [
+    "101",
+    0
+   ],
+   "shift": 5.0
+  }
+ },
+ "103": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "model": [
+    "102",
+    0
+   ],
+   "shift": 5.0
+  }
+ },
+ "84": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  }
+ },
+ "93": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "",
+   "clip": [
+    "84",
+    0
+   ]
+  }
+ },
+ "89": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "\u8272\u8c03\u8273\u4e3d\uff0c\u8fc7\u66dd\uff0c\u9759\u6001\uff0c\u7ec6\u8282\u6a21\u7cca\u4e0d\u6e05\uff0c\u5b57\u5e55\uff0c\u98ce\u683c\uff0c\u4f5c\u54c1\uff0c\u753b\u4f5c\uff0c\u753b\u9762\uff0c\u9759\u6b62\uff0c\u6574\u4f53\u53d1\u7070\uff0c\u6700\u5dee\u8d28\u91cf\uff0c\u4f4e\u8d28\u91cf\uff0cJPEG\u538b\u7f29\u6b8b\u7559\uff0c\u4e11\u964b\u7684\uff0c\u6b8b\u7f3a\u7684\uff0c\u591a\u4f59\u7684\u624b\u6307\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u624b\u90e8\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u8138\u90e8\uff0c\u7578\u5f62\u7684\uff0c\u6bc1\u5bb9\u7684\uff0c\u5f62\u6001\u7578\u5f62\u7684\u80a2\u4f53\uff0c\u624b\u6307\u878d\u5408\uff0c\u9759\u6b62\u4e0d\u52a8\u7684\u753b\u9762\uff0c\u6742\u4e71\u7684\u80cc\u666f\uff0c\u4e09\u6761\u817f\uff0c\u80cc\u666f\u4eba\u5f88\u591a\uff0c\u5012\u7740\u8d70",
+   "clip": [
+    "84",
+    0
+   ]
+  }
+ },
+ "90": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "wan_2.1_vae.safetensors"
+  }
+ },
+ "98": {
+  "class_type": "WanImageToVideo",
+  "inputs": {
+   "positive": [
+    "93",
+    0
+   ],
+   "negative": [
+    "89",
+    0
+   ],
+   "vae": [
+    "90",
+    0
+   ],
+   "width": 544,
+   "height": 960,
+   "length": 81,
+   "batch_size": 1
+  }
+ },
+ "86": {
+  "class_type": "KSamplerAdvanced",
+  "inputs": {
+   "model": [
+    "104",
+    0
+   ],
+   "add_noise": "enable",
+   "noise_seed": 630011,
+   "steps": 8,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "positive": [
+    "98",
+    0
+   ],
+   "negative": [
+    "98",
+    1
+   ],
+   "latent_image": [
+    "98",
+    2
+   ],
+   "start_at_step": 0,
+   "end_at_step": 4,
+   "return_with_leftover_noise": "enable"
+  }
+ },
+ "85": {
+  "class_type": "KSamplerAdvanced",
+  "inputs": {
+   "model": [
+    "103",
+    0
+   ],
+   "add_noise": "disable",
+   "noise_seed": 0,
+   "steps": 8,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "positive": [
+    "98",
+    0
+   ],
+   "negative": [
+    "98",
+    1
+   ],
+   "latent_image": [
+    "86",
+    0
+   ],
+   "start_at_step": 4,
+   "end_at_step": 10000,
+   "return_with_leftover_noise": "disable"
+  }
+ },
+ "87": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "85",
+    0
+   ],
+   "vae": [
+    "90",
+    0
+   ]
+  }
+ },
+ "94": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "87",
+    0
+   ],
+   "fps": 16,
+   "bit_depth": 8
+  }
+ },
+ "108": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "94",
+    0
+   ],
+   "filename_prefix": "creatoros/video_wan_t2v",
+   "format": "auto",
+   "codec": "auto"
+  }
+ }
 }

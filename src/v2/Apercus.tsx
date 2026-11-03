@@ -27,18 +27,18 @@ export const BANDEAU_CAMERA = anime('camera-w', { puces: ['Orbite', 'Dolly zoom'
 /** Clé : le libellé de l'outil dans GROUPES. */
 export const APERCUS: Record<string, Apercu> = {
   'Edit Image': { type: 'compare', a: v('v2-edit-a.webp'), b: v('v2-edit-b.webp'), legA: 'Photo', legB: 'Punk violet, collier' },
-  'Inpaint': compare('retouche', 'Avant', 'Zone repeinte'),
+  'Inpaint': { type: 'compare', a: v('v2-inpaint-a.webp'), b: v('v2-inpaint-b.webp'), legA: 'Photo', legB: 'Panier repeint' },
   'Depth Map': { type: 'compare', a: v('v2-depth-a.webp'), b: v('v2-depth-b.webp'), legA: 'Photo', legB: 'Profondeur' },
   'Remove Background': { type: 'compare', a: v('v2-transp-a.webp'), b: v('v2-transp-b.webp'), legA: 'Photo', legB: 'PNG transparent' },
-  'Upscale Image': compare('nette', 'Avant', 'SeedVR2'),
+  'Upscale Image': { type: 'compare', a: v('v2-upimg-a.webp'), b: v('v2-upimg-b.webp'), legA: '400 px', legB: 'SeedVR2 · 2048 px' },
   'Coverage': { type: 'media', image: v('v2-coverage.webp'), puces: ['Large', '¾', 'Serré'] },
   'Next Shot': { type: 'media', image: v('v2-suivant.webp'), puces: ['Plan 1', 'Plan 2'] },
   'Seamless Loop': { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w.mp4'), auto: true },
   'Extend Video': { type: 'media', image: v('v2-video-b.webp'), video: v('v2-video-b.mp4'), auto: true },
-  'Remove Objects': compareVideo('retouche', 'Avant', 'Nettoyé'),
-  'Change Background': compareVideo('detour', 'Clip', 'Nouveau décor'),
+  'Remove Objects': { type: 'compare', a: v('v2-retirer-a.webp'), b: v('v2-retirer-b.webp'), videoA: v('v2-retirer-a.mp4'), videoB: v('v2-retirer-b.mp4'), legA: 'Clip', legB: 'Place vidée' },
+  'Change Background': { type: 'compare', a: v('v2-fond-a.webp'), b: v('v2-fond-b.webp'), videoA: v('v2-fond-a.mp4'), videoB: v('v2-fond-b.mp4'), legA: 'Clip', legB: 'Bord de mer' },
   'Add Sound': { type: 'media', image: v('onde.webp'), onde: true, texte: 'waves, gulls, distant tram' },
-  'Smooth Motion': compare('nette', '24 i/s', '48 i/s'),
+  'Smooth Motion': { type: 'media', image: v('v2-smooth.webp'), video: v('v2-smooth.mp4'), puces: ['24 → 48 i/s', 'RIFE'] },
   'Voice Clone': { type: 'media', image: v('onde.webp'), onde: true, texte: 'your voice, from a short sample' },
   'Voice Changer': { type: 'media', image: v('onde.webp'), onde: true, texte: 'same line, another voice' },
   'One-click Reel': anime('reel', { texte: 'Golden hour in Alfama', auto: true }),
@@ -53,7 +53,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Camera Moves': anime('camera', { auto: true }),
   'Effects': anime('effets', { auto: true }),
   'Re-shoot': { type: 'compare', a: v('v2-reshoot-a.webp'), b: v('v2-reshoot-b.webp'), videoA: v('v2-reshoot-a.mp4'), videoB: v('v2-reshoot-b.mp4'), legA: 'Plan d’origine', legB: 'Caméra qui tourne', auto: true },
-  'Swap': compareVideo('mix', 'Original', 'Personnages échangés'),
+  'Swap': { type: 'compare', a: v('v2-swap-a.webp'), b: v('v2-swap-b.webp'), videoA: v('v2-swap-a.mp4'), videoB: v('v2-swap-b.mp4'), legA: 'Vidéo d’origine', legB: 'Mila' },
   'Motion Control': compareVideo('move', 'Vidéo d’origine', 'Geste repris'),
   'Image to 3D': { ...compare('objet', 'Photo', 'Modèle 3D'), videoB: v('objet-b.mp4') } as Apercu,
   'Retouch': compareVideo('retouche', 'Avant', 'Objet posé'),
@@ -62,7 +62,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Expand': { type: 'compare', a: v('v2-expand-a.webp'), b: v('v2-expand-b.webp'), legA: '9:16', legB: '16:9' },
   'Multi-Angle': { type: 'compare', a: v('v2-vespa-a.webp'), b: v('v2-vespa-b.webp'), legA: 'Photo', legB: 'Contre-plongée' },
   'Editor': { type: 'media', image: v('montage.webp') },
-  'Upscale 1080p': compare('nette', 'Clip d’origine', 'SeedVR2'),
+  'Upscale 1080p': { type: 'compare', a: v('v2-up1080-a.webp'), b: v('v2-up1080-b.webp'), videoA: v('v2-up1080-a.mp4'), videoB: v('v2-up1080-b.mp4'), legA: '1951 · 480p', legB: 'SeedVR2 7B · 1080p' },
   'HDR Masters': { type: 'media', image: v('stage-b.webp'), puces: ['HLG', 'ProRes 4444', 'EXR ACEScg'] },
   'Green Screen': compareVideo('detour', 'Clip', 'Fond vert'),
   'Lip Sync': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
@@ -81,7 +81,8 @@ export const pucesDe = (a?: Apercu) => (a && a.type === 'media' ? a.puces ?? [] 
 
 export function ApercuOutil({ apercu }: { apercu?: Apercu }) {
   const racine = useRef<HTMLSpanElement>(null)
-  const auto = !!apercu?.auto
+  // toute vidéo d'aperçu joue en boucle dès qu'elle est à l'écran, sans attendre le survol
+  const auto = !!apercu && (apercu.type === 'compare' ? !!(apercu.videoA || apercu.videoB) : !!apercu.video)
   useEffect(() => {
     const el = racine.current
     if (!auto || !el || matchMedia('(prefers-reduced-motion: reduce)').matches) return

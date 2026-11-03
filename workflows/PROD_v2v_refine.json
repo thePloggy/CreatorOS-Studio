@@ -1,8 +1,9 @@
 {
  "1": {
-  "class_type": "UnetLoaderGGUF",
+  "class_type": "UNETLoader",
   "inputs": {
-   "unet_name": "Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf"
+   "unet_name": "wan/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
   }
  },
  "3": {

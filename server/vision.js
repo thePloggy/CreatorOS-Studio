@@ -277,6 +277,17 @@ export async function analyserClip(absPath, langue = 'fr') {
     const o = execFileSync('ffmpeg', ['-hide_banner', '-i', absPath, '-vf', "select='gt(scene,0.35)',showinfo", '-an', '-f', 'null', '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     coupes = (o.match(/pts_time/g) ?? []).length
   } catch (e) { coupes = (String(e.stderr ?? '').match(/pts_time/g) ?? []).length }
+  // mesures objectives : netteté (blurdetect, plus haut = plus flou), mouvement moyen entre images, luminosité et contraste
+  const objectif = { flou: null, mouvement: null, lumiere: null, contraste: null }
+  try {
+    const o = execFileSync('ffmpeg', ['-hide_banner', '-v', 'error', '-i', absPath, '-vf', "fps=4,scale=640:-2,blurdetect,signalstats,metadata=print:file=-", '-an', '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 64 << 20 })
+    const moy = re => { const v = [...o.matchAll(re)].map(m => Number(m[1])).filter(Number.isFinite); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null }
+    objectif.flou = moy(/lavfi\.blur=([0-9.]+)/g)
+    objectif.lumiere = moy(/lavfi\.signalstats\.YAVG=([0-9.]+)/g)
+    const hi = moy(/lavfi\.signalstats\.YHIGH=([0-9.]+)/g), lo = moy(/lavfi\.signalstats\.YLOW=([0-9.]+)/g)
+    objectif.contraste = hi != null && lo != null ? hi - lo : null
+    objectif.mouvement = moy(/lavfi\.signalstats\.YDIF=([0-9.]+)/g)
+  } catch { /* mesures indisponibles : l'avis du modèle seul */ }
   const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'analyse-'))
   const instants = [0.3, 1.2, duree * 0.5, Math.max(0.3, duree - 0.4)]
   const images = instants.map((t, i) => { const f = path.join(dossier, `${i}.jpg`); execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', absPath, '-frames:v', '1', '-vf', 'scale=512:-2', f]); return fs.readFileSync(f).toString('base64') })
@@ -284,16 +295,19 @@ export async function analyserClip(absPath, langue = 'fr') {
   const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(240000),
     body: JSON.stringify({ model: DESC_MODEL(), stream: false, images, options: DESC_OPTS({ num_predict: 500 }),
-      prompt: `These are 4 frames of a short social video, in order: at 0.3 s, 1.2 s, the middle and the end. Judge it as a social media editor. Score from 1 to 10: "hook" (do the first two frames make you stop scrolling?), "subject" (is the main subject instantly clear?), "visual" (light, sharpness, composition), "story" (does something change between the first and last frame?). Then give exactly 3 short, concrete tips to improve it, written in ${langue === 'en' ? 'English' : 'French'}. Answer in JSON only: {"hook":n,"subject":n,"visual":n,"story":n,"tips":["...","...","..."]}`,
-      format: 'json' }),
+      prompt: `These are 4 frames of a short social video, in order: at 0.3 s, 1.2 s, the middle and the end. You are a demanding social media editor who rejects most posts. First describe in one sentence what you actually see in "seen". Then score from 1 to 10 with this scale: 3 = a random snapshot nobody would stop for, 5 = an ordinary amateur post, 7 = a good post above most of the feed, 9 = top 1 % professional work, 10 = almost never. Most clips score between 3 and 6; give 8 or more only with a concrete reason. "hook": would the first two frames make a stranger stop scrolling? "subject": is the main subject instantly clear? "visual": light, sharpness, composition, colour. "story": does something visibly change or happen between the first and the last frame? Identical frames score 1 or 2 for story. Then give exactly 3 short, concrete tips to improve it, written in ${langue === 'en' ? 'English' : 'French'}. Answer in JSON only: {"seen":"...","hook":n,"subject":n,"visual":n,"story":n,"tips":["...","...","..."]}`,
+      format: { type: 'object', required: ['seen', 'hook', 'subject', 'visual', 'story', 'tips'], properties: { seen: { type: 'string' }, hook: { type: 'integer' }, subject: { type: 'integer' }, visual: { type: 'integer' }, story: { type: 'integer' }, tips: { type: 'array', items: { type: 'string' } } } } }),
   })
   if (!res.ok) throw new Error(`modèle de vision : HTTP ${res.status}`)
-  const lu = JSON.parse(String((await res.json()).response || '{}'))
+  const brut = String((await res.json()).response || '{}')
+  if (process.env.CREATOROS_DEBUG_ANALYSE) console.error('[analyse]', brut.slice(0, 600))
+  const lu = JSON.parse(brut)
   const note = k => Math.min(10, Math.max(1, Math.round(Number(lu[k]) || 5)))
   const ratio = v.width && v.height ? v.width / v.height : 1
   const mesures = {
     duree: Math.round(duree * 10) / 10, format: ratio < 0.7 ? '9:16' : ratio > 1.4 ? '16:9' : 'carré', son: !!son, coupes,
     rythme: duree ? Math.round((coupes / duree) * 60) : 0,
+    flou: objectif.flou != null ? Math.round(objectif.flou * 10) / 10 : null, mouvement: objectif.mouvement != null ? Math.round(objectif.mouvement * 10) / 10 : null,
   }
   const conseilsMesures = [
     ...(mesures.format !== '9:16' ? ['Pour TikTok, Reels et Shorts, passe-le en 9:16 (outil Recadrer).'] : []),
@@ -301,6 +315,13 @@ export async function analyserClip(absPath, langue = 'fr') {
     ...(duree > 4 && coupes === 0 ? ['Un seul plan de plus de 4 s : une coupe ou un mouvement de caméra relance l’attention.'] : []),
   ]
   const notes = { accroche: note('hook'), sujet: note('subject'), image: note('visual'), histoire: note('story') }
+  // les mesures plafonnent l'avis du modèle : un clip flou, sombre, terne ou figé ne peut pas être bien noté
+  const plafond = (k, max) => { notes[k] = Math.max(1, Math.min(notes[k], max)) }
+  if (objectif.flou != null && objectif.flou > 8) plafond('image', objectif.flou > 11 ? 4 : 6)
+  if (objectif.lumiere != null && (objectif.lumiere < 35 || objectif.lumiere > 215)) plafond('image', 5)
+  if (objectif.contraste != null && objectif.contraste < 60) plafond('image', 5)
+  if (objectif.mouvement != null && objectif.mouvement < 2) { plafond('histoire', 3); plafond('accroche', 5) }
+  if (!son) plafond('accroche', 7)
   return { notes, global: Math.round((notes.accroche * 2 + notes.sujet + notes.image + notes.histoire) / 5 * 10) / 10, mesures,
     conseils: [...conseilsMesures, ...(Array.isArray(lu.tips) ? lu.tips.slice(0, 3).map(x => String(x).slice(0, 200)) : [])] }
 }
