@@ -26,7 +26,8 @@ function forme(o: ObjetVu, cache: Map<string, THREE.Object3D>, choisi: boolean) 
       const c = m.clone(), b = new THREE.Box3().setFromObject(c), t = b.getSize(new THREE.Vector3()), e = o.h / Math.max(t.y, 1e-3)
       c.scale.setScalar(e)
       c.position.set(-(b.min.x + b.max.x) / 2 * e, -b.min.y * e, -(b.min.z + b.max.z) / 2 * e)
-      c.traverse(n => { const m = n as THREE.Mesh; if (m.isMesh) { m.material = mat; m.geometry.computeVertexNormals() } })
+      // l'objet garde ses vraies textures à l'écran pour le placer ; la maquette grise envoyée au modèle est faite par le serveur
+      c.traverse(n => { const m = n as THREE.Mesh; if (m.isMesh && !m.material) m.material = mat })
       g.add(c)
     }
   } else if (o.type === 'personne') {
