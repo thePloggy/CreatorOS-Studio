@@ -1381,6 +1381,9 @@ async function runInpaintVideo(job, t0) {
   }
   }
   g.mg.inputs.mask = zone; g.mg.inputs.expand = 12
+  // nouveau fond : la zone refaite ne mord presque pas sur la personne, et le collage final se fond
+  // sur une bande large et douce, sans liseré de l'ancien décor ni contour redessiné
+  if (job.inpaintInverser) g.mg.inputs.expand = 4
   if (job.inpaintRetirer) {
     /* Pré-remplissage : l'image réduite à 24 px puis agrandie et floutée ne garde que les
        couleurs du décor ; collée dans la zone (élargie), elle efface l'objet avant l'encodage.
@@ -1394,8 +1397,8 @@ async function runInpaintVideo(job, t0) {
     g['21'].inputs.pixels = ['inp_efface', 0]
     if (g['9']?.inputs) g['9'].inputs.text = `${job.inpaintCible}, ${g['9'].inputs.text ?? ''}`.replace(/, $/, '')
   }
-  g.inp_bord = { class_type: 'GrowMaskWithBlur', inputs: { mask: zone, expand: job.inpaintRetirer ? 40 : 14, incremental_expandrate: 0, tapered_corners: true,
-    flip_input: false, blur_radius: 6, lerp_alpha: 1, decay_factor: 1, fill_holes: false } }
+  g.inp_bord = { class_type: 'GrowMaskWithBlur', inputs: { mask: zone, expand: job.inpaintRetirer ? 40 : job.inpaintInverser ? 2 : 14, incremental_expandrate: 0, tapered_corners: true,
+    flip_input: false, blur_radius: job.inpaintInverser ? 12 : 6, lerp_alpha: 1, decay_factor: 1, fill_holes: false } }
   g.inp_colle = { class_type: 'ImageCompositeMasked', inputs: { destination: ['20', 0], source: ['14', 0], x: 0, y: 0, resize_source: false, mask: ['inp_bord', 0] } }
   g['15'].inputs.images = ['inp_colle', 0]
   g['16'].inputs.filename_prefix = `creatoros/${job.id}/pinceau`

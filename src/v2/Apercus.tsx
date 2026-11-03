@@ -53,7 +53,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Camera Moves': anime('camera', { auto: true }),
   'Effects': anime('effets', { auto: true }),
   'Re-shoot': { type: 'compare', a: v('v2-reshoot-a.webp'), b: v('v2-reshoot-b.webp'), videoA: v('v2-reshoot-a.mp4'), videoB: v('v2-reshoot-b.mp4'), legA: 'Plan d’origine', legB: 'Caméra qui tourne', auto: true },
-  'Swap': { type: 'compare', a: v('v2-swap-a.webp'), b: v('v2-swap-b.webp'), videoA: v('v2-swap-a.mp4'), videoB: v('v2-swap-b.mp4'), legA: 'Vidéo d’origine', legB: 'Mila' },
+  'Swap': compareVideo('mix', 'Original', 'Personnages échangés'),
   'Motion Control': compareVideo('move', 'Vidéo d’origine', 'Geste repris'),
   'Image to 3D': { ...compare('objet', 'Photo', 'Modèle 3D'), videoB: v('objet-b.mp4') } as Apercu,
   'Retouch': compareVideo('retouche', 'Avant', 'Objet posé'),

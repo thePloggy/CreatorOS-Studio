@@ -2,7 +2,7 @@
 
 **An open-source Higgsfield you run at home: one recurring character, from a one-line brief to a finished, edited reel.** Train the character, shoot photos, animate them with sound, move the camera, re-shoot an angle, restore old footage and cut it all together, on your own GPU, with open-weights models only, on top of a local [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
 
-![Real renders from the studio: reel, camera moves, sketch to video, re-shoot, 3D Stage, talking avatar, text to video, restore](docs/screenshots/renders.gif)
+![Real renders from the studio: one-click reel, camera moves, sketch to video, re-shoot, 3D Stage, talking avatar, text to video, a 1951 newsreel restored in colour](docs/screenshots/renders.gif)
 
 - **Try it now**: https://forge.taila06702.ts.net:8443 — the public demo runs on the author's RTX 5090, one render at a time, 12 images or clips per hour per visitor.
 - **Demo video**: https://youtu.be/0muDKpkbcWw
