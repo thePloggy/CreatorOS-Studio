@@ -37,7 +37,7 @@ export function MCarousel({ asset, onClose, onSent }: {
      on verrouille sans savoir ce que chaque dimension contient. */
   const [dims, setDims] = useState<Record<string, string> | null>(null)
   const [dimsErr, setDimsErr] = useState(false)
-  /* Préparation du carrousel v2, renvoyée telle quelle à la rédaction. */
+  /* Préparation du carrousel, renvoyée telle quelle à la rédaction. */
   const [prep, setPrep] = useState<{ racine: string | null; vlm: string | null; fiche: unknown } | null>(null)
   const [corr, setCorr] = useState<Corrections>({})
   const [edite, setEdite] = useState<string | null>(null)

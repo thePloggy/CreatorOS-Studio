@@ -35,7 +35,7 @@ const FILE_MAX_PUBLIC = 8      // au-delà, un visiteur Internet attend que la f
 /** Les routes qui lancent un rendu sur le GPU. */
 const ROUTES_RENDU = new Set([
   'POST /api/jobs', 'POST /api/jobs/:id/retry', 'POST /api/carrousel', 'POST /api/reels',
-  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/recadrer', 'POST /api/croquis', 'POST /api/croquis/:id/choisir', 'POST /api/extensions/:id/lancer', 'POST /api/assets/:id/analyse', 'POST /api/assets/:id/pack-pub', 'POST /api/pack-pub', 'POST /api/voix', 'POST /api/assets/:id/doubler', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
+  'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/recadrer', 'POST /api/croquis', 'POST /api/restauration', 'POST /api/croquis/:id/choisir', 'POST /api/extensions/:id/lancer', 'POST /api/assets/:id/analyse', 'POST /api/assets/:id/pack-pub', 'POST /api/pack-pub', 'POST /api/voix', 'POST /api/assets/:id/doubler', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
   'POST /api/assets/:id/upscale', 'POST /api/montages/:id/export', 'POST /api/presets/:id/lancer',
   'POST /api/parole', 'POST /api/reshoot', 'POST /api/assets/:id/objet3d', 'POST /api/musique', 'POST /api/assets/:id/master', 'POST /api/reels/:id/plans/:k/refaire',
 ])
@@ -72,9 +72,11 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     const j = jourDe()
     if (sel.jour !== j) { sel = { jour: j, valeur: crypto.randomBytes(16).toString('hex') }; vus = new Set(); rendus = new Map(); pagesDe = new Map(); proprietaires = new Set(); bannis = new Set() }
     const ip = String(req.headers['x-forwarded-for'] ?? req.ip ?? '').split(',')[0].trim()
-    return crypto.createHash('sha256').update(`${sel.valeur}|${ip}|${req.headers['user-agent'] ?? ''}`).digest('hex').slice(0, 16)
+    // l'adresse seule : avec le navigateur en plus, changer de navigateur suffisait à repartir à zéro (quota, blocage du jour)
+    return crypto.createHash('sha256').update(`${sel.valeur}|${ip}`).digest('hex').slice(0, 16)
   }
-  const duTailnet = req => !!req.headers['tailscale-user-login']
+  // identité posée par Tailscale pour un appareil du tailnet ; une requête venue d'Internet par Funnel ne l'est jamais
+  const duTailnet = req => !!req.headers['tailscale-user-login'] && !req.headers['tailscale-funnel-request']
 
   /* ---------- journal des rendus visiteurs ---------- */
   const fichierJournal = path.join(dataDir, 'journal-visiteurs.json')

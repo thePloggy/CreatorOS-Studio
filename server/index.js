@@ -7,7 +7,7 @@ import { etatAllegement } from './allege.js'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import path from 'node:path'
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
@@ -41,6 +41,7 @@ import * as presets from './presets.js'
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
+import { lancerRestauration, etatRestauration } from './restauration.js'
 import { VOIX, changerVoix, cloner, cloneDisponible, echantillon, synthetiser, voixDisponible } from './voix.js'
 import { aiToolkitPret, moteurEntrainementPret, MOTEURS_ENTRAINEMENT } from './entrainement.js'
 import { creerPersonnage, etatCreation, propositions } from './createurPersonnage.js'
@@ -61,6 +62,12 @@ const ROUTES_PROPRIETAIRE = new Set([
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
   // Démo publique : la bibliothèque est partagée ; un visiteur n'efface pas les rendus et ne fouille pas la corbeille.
   'DELETE /api/assets/:id', 'POST /api/assets/restore', 'GET /api/corbeille', 'GET /api/corbeille/vue/:file',
+  // La file et la bibliothèque sont communes : un visiteur n'annule, ne double, ne réordonne ni ne
+  // modifie le travail des autres (jobs, reels, montages, dossiers, validation, livraison).
+  'DELETE /api/jobs/:id', 'POST /api/jobs/:id/promote', 'POST /api/jobs/reorder', 'POST /api/jobs/:id/batch-id',
+  'DELETE /api/reels/:id', 'POST /api/reels/:id/annuler', 'POST /api/reels/livrer', 'POST /api/captions',
+  'DELETE /api/montages/:id', 'DELETE /api/folders/:id', 'PATCH /api/folders/:id', 'POST /api/folders/:id/assets',
+  'PATCH /api/assets/:id', 'POST /api/briefs/star',
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/montage/musiques',
@@ -82,6 +89,14 @@ app.addHook('onRequest', async (req, reply) => {
 app.post('/api/proprietaire', async req => ({ verrou: !!CONFIG.cleProprietaire, proprietaire: estProprietaire(req) }))
 // visiteurs par jour, limite de rendus des visiteurs Internet (cf. visites.js)
 const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id) })
+
+/* Aucune réponse JSON ne montre le dossier personnel du serveur (chemins des
+   recettes, de la base, messages d'erreur de ffmpeg ou de ComfyUI) : il est
+   remplacé par « ~ ». */
+const MAISON = os.homedir()
+app.addHook('onSend', async (req, reply, payload) =>
+  typeof payload === 'string' && MAISON.length > 1 && payload.includes(MAISON) ? payload.split(MAISON).join('~') : payload)
+// (déclaré AVANT la compression : il doit lire le texte clair)
 
 /* JSON de l'API compressé : la bibliothèque pèse des centaines de Ko à chaque visite.
    Déclaré après installerVisites : son onSend doit lire le texte clair. */
@@ -121,12 +136,6 @@ app.addHook('preHandler', async (req, reply) => {
   return reply.code(400).send({ error: 'demande refusée : ce studio ne produit aucun contenu impliquant un mineur, ni de contenu sexuel' })
 })
 
-/* Aucune réponse JSON ne montre le dossier personnel du serveur (chemins des
-   recettes, de la base, messages d'erreur de ffmpeg ou de ComfyUI) : il est
-   remplacé par « ~ ». */
-const MAISON = os.homedir()
-app.addHook('onSend', async (req, reply, payload) =>
-  typeof payload === 'string' && MAISON.length > 1 && payload.includes(MAISON) ? payload.split(MAISON).join('~') : payload)
 
 /* ---------- projections SQL → contrat front ---------- */
 
@@ -320,11 +329,21 @@ function cpuUtil() {
   return Math.round((1 - (idle - prev.idle) / (total - prev.total)) * 100)
 }
 
+/* Une seule mesure partagée par tous les clients, rafraîchie au plus toutes les 4 s, et lue sans
+   bloquer le serveur : sinon chaque onglet ouvert relançait nvidia-smi toutes les 5 s, et le delta
+   CPU, commun à tous, devenait faux. */
+let telemetrie = { quand: 0, valeur: null, enCours: null }
+const execFileAsync = promisify(execFile)
 app.get('/api/telemetry', async () => {
+  if (telemetrie.valeur && Date.now() - telemetrie.quand < 4000) return telemetrie.valeur
+  telemetrie.enCours ??= mesurerTelemetrie().then(v => { telemetrie = { quand: Date.now(), valeur: v, enCours: null }; return v }, e => { telemetrie.enCours = null; throw e })
+  return telemetrie.enCours
+})
+async function mesurerTelemetrie() {
   let gpu = null
   try {
-    const out = execFileSync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
-      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 }).trim().split(',').map(x => x.trim())
+    const out = (await execFileAsync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
+      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 })).stdout.trim().split(',').map(x => x.trim())
     gpu = { util: Number(out[0]), temp: Number(out[1]), vramUsedMb: Number(out[2]), vramTotalMb: Number(out[3]), nom: String(out[4] ?? '').replace(/^NVIDIA\s+(GeForce\s+)?/, '') }
   } catch { /* driver occupé : la topbar garde la dernière valeur */ }
   let cpuTemp = null
@@ -348,7 +367,7 @@ app.get('/api/telemetry', async () => {
     if (mi.MemTotal) ram = { usedMb: Math.round((mi.MemTotal - mi.MemAvailable) / 1024), totalMb: Math.round(mi.MemTotal / 1024) }
   } catch { /* /proc absent : — */ }
   return { gpu, cpu: { util: cpuUtil(), temp: cpuTemp }, ram }
-})
+}
 
 app.get('/api/loras', async () => comfy.listLoras())
 
@@ -1038,7 +1057,7 @@ app.get('/api/jobs/:id', async (req, reply) => {
   return { job: out, assets: store.assetsOfJob(job.id).map(assetOut) }
 })
 
-/* ---------- v2 : listes read-only pour la nouvelle coquille ----------
+/* ---------- listes en lecture seule pour l'interface ----------
    /api/uploads : fichiers image du dossier input de ComfyUI (historique des
    uploads, picker « frame de départ »). /api/wildcards : fichiers *.txt
    et leurs lignes (popup Éléments). Aucune écriture — le tirage 🎲 reste
@@ -1073,12 +1092,12 @@ app.get('/api/uploads/:name', async (req, reply) => {
   return fsx.createReadStream(file)
 })
 
-/* ---------- v2 : réécriture carrousel ----------
+/* ---------- réécriture carrousel ----------
    Garde le prompt EXACT sauf les éléments listés dans `vary`, que le LLM
    réécrit librement en conservant la cohérence. 1 variante par appel — le
    front boucle (progression naturelle + jobs soumis au fil de l'eau).
    CPU (num_gpu 0) : jamais en concurrence avec ComfyUI. */
-/* v2 : rattacher un job EXISTANT à un lot (carrousel : l'original n'est pas
+/* Rattacher un job EXISTANT à un lot (carrousel : l'original n'est pas
    re-généré, son rendu rejoint la vignette-mosaïque du lot). */
 app.post('/api/jobs/:id/batch-id', async (req, reply) => {
   const { batchId } = req.body || {}
@@ -2226,6 +2245,31 @@ app.post('/api/croquis', async (req, reply) => {
   try { return deposerAvecCle(cleComfy(req), () => lancerCroquis({ image: b.image, scene: b.scene, mouvement: b.mouvement, format: b.format, secondes: b.secondes, personaId: personaDe(req) })) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
+/** Restaurer (cf. restauration.js) : une photo de la bibliothèque ou envoyée par le propriétaire, ou un clip de la bibliothèque. */
+app.post('/api/restauration', async (req, reply) => {
+  const b = req.body ?? {}
+  try {
+    const media = b.media === 'video' ? 'video' : 'photo'
+    let asset = null, fichier = null
+    if (b.assetId) {
+      asset = store.getAsset(String(b.assetId))
+      if (!asset || (media === 'video') !== (asset.media_type === 'video')) { reply.code(404); return { error: media === 'video' ? 'clip inconnu' : 'photo inconnue' } }
+      if (media === 'photo') {
+        fichier = `crs_still_${path.basename(asset.filename ?? asset.uri)}`
+        fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(asset.filename ?? asset.uri)), path.join(CONFIG.comfyInput, fichier))
+        store.noterInput(fichier)
+      }
+    } else if (b.fichier && media === 'photo') {
+      // un fichier envoyé : seuls ceux du studio ou, pour le propriétaire, ses envois
+      const nom = path.basename(String(b.fichier))
+      if (!estProprietaire(req) && !store.estInputGenere(nom)) { reply.code(403); return { error: 'sur la démo publique, on part d’une image de la bibliothèque' } }
+      if (!fs.existsSync(path.join(CONFIG.comfyInput, nom))) { reply.code(404); return { error: 'fichier introuvable' } }
+      fichier = nom
+    } else { reply.code(400); return { error: media === 'video' ? 'choisis un clip de la bibliothèque' : 'choisis une photo' } }
+    return deposerAvecCle(cleComfy(req), () => lancerRestauration({ media, fichier, asset, nettoyer: b.nettoyer !== false, couleur: b.couleur === true, hd: b.hd !== false }))
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/restauration/:id', async (req, reply) => etatRestauration(req.params.id) ?? (reply.code(404), { error: 'restauration inconnue' }))
 app.get('/api/croquis/:id', async (req, reply) => etatCroquis(req.params.id) ?? (reply.code(404), { error: 'croquis inconnu' }))
 app.post('/api/croquis/:id/choisir', async (req, reply) => {
   try { return choisirCroquis(req.params.id, req.body?.assetId) } catch (e) { reply.code(400); return { error: String(e.message || e) } }

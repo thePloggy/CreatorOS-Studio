@@ -256,9 +256,9 @@ interface AppState {
   setGalleryColumns: (n: number) => void
   setLibraryColumns: (n: number) => void
   toggleSeedMode: () => void
-  /** Saisie directe d'une seed en mode lock (v2). */
+  /** Saisie directe d'une seed en mode lock. */
   setSeedValue: (v: number) => void
-  /** batchId imposé au prochain submitJob (carrousel v2) — consommé puis remis à null. */
+  /** batchId imposé au prochain submitJob (carrousel) — consommé puis remis à null. */
   carouselBatchId: string | null
   setCarouselBatchId: (v: string | null) => void
   carouselLocks: Record<string, boolean> | null
@@ -353,8 +353,8 @@ const defaultVideo: VideoSelections = {
   motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, mixPersonnes: [], motionRefStrength: 1, motionMode: 'animate',
   multiShot: false, draft: false, videoLoras: [],
   motionOutFps: 'origine', motionOutRes: 'origine',
-  motionText: 'respiration douce, léger mouvement des cheveux, sourire vers l’objectif',
-  cameraText: 'push-in lent',
+  motionText: 'gentle breathing, hair moving slightly, a soft smile toward the camera',
+  cameraText: 'slow push-in',
   motionStrength: 0.3,
   durationS: 5, fps: 24, aspect: 'origine',
 }
@@ -1546,7 +1546,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
          lumière et grain. La pose et le style courants ouvrent le lot, les
          autres sont tirés sans remise dans le vocabulaire.
          Décoché, le lot est N tirages du MÊME prompt (seeds différentes). */
-      /* Carrousel v5 : les VERROUS OUVERTS (locks[k] === false) désignent les
+      /* Carrousel : les VERROUS OUVERTS (locks[k] === false) désignent les
          dimensions qui varient par image. Photo/génération, lot > 1, ≥1 ouvert.
          Chaque dimension ouverte est tirée sans remise dans le vocabulaire ;
          les fermées restent fixes. */

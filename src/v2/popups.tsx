@@ -473,7 +473,7 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
      donc le VLM ne tourne qu'une fois. */
   const [dims, setDims] = useState<Record<string, string> | null>(null)
   const [dimsErr, setDimsErr] = useState(false)
-  /* Préparation du carrousel v2 : prompt racine (lignée), description VLM et
+  /* Préparation du carrousel : prompt racine (lignée), description VLM et
      fiche — renvoyés tels quels à la rédaction pour ne pas les recalculer. */
   const [prep, setPrep] = useState<{ racine: string | null; vlm: string | null; fiche: unknown } | null>(null)
   /* Corrections de l'opérateur sur la lecture du VLM (lib/ficheCorrigee). */

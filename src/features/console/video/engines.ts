@@ -25,7 +25,7 @@ export interface EngineInfo {
   force: string
   /** A un étage audio. Faux → la case « son » est grisée. */
   audio: boolean
-  /** Ordre de grandeur du rendu, en minutes, pour un plan de ~5 s sur 5090. */
+  /** Ordre de grandeur du rendu, en minutes, pour un plan de ~5 s sur une carte de 32 Go. */
   minutes: number
   /** Mode brouillon disponible : même recette à surface réduite. `minutes`
    *  est l'ordre de grandeur en brouillon. Absent → pas de case à cocher. */

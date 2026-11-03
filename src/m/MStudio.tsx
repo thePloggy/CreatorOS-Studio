@@ -17,12 +17,13 @@ import { Musiques } from '../v2/Musiques'
 const CroquisView = lazy(() => import('../v2/CroquisView').then(m => ({ default: m.CroquisView })))
 import type { Asset } from '../types'
 import { t } from '../i18n'
+import { lienMobile } from './lien'
 
 type Vue = 'reel' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage'
 const VUES: [Vue, string][] = [['reel', 'Reel'], ['cinema', 'Ciné'], ['presets', 'Caméra & effets'], ['reshoot', 'Re-shoot'], ['croquis', 'Croquis vers vidéo'], ['parole', 'Avatar parlant'], ['sons', 'Musique et voix'], ['montage', 'Montage']]
 
 export function MStudio({ goVideo }: { goVideo: () => void }) {
-  const [vue, setVue] = useState<Vue>('reel')
+  const [vue, setVue] = useState<Vue>(() => { const v = lienMobile()?.vue; return (VUES.some(([x]) => x === v) ? v : 'reel') as Vue })
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const [vu, setVu] = useState<{ a: Asset; list: Asset[] } | null>(null)
   return (

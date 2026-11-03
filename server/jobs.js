@@ -464,7 +464,7 @@ export function promoteJob(id) {
  *  Les jobs absents de la liste restent derrière, dans leur ordre actuel. */
 export function reorderQueue(ids) {
   const byId = new Map(queue.map(j => [j.id, j]))
-  const picked = ids.map(id => byId.get(id)).filter(Boolean)
+  const picked = [...new Set(ids)].map(id => byId.get(id)).filter(Boolean)
   const rest = queue.filter(j => !picked.includes(j))
   queue.length = 0
   queue.push(...picked, ...rest)
@@ -838,7 +838,7 @@ export function enqueue(job) {
     // Non persistées en colonne — la valeur réelle est dans workflowJson.
     width: Number(job.width) || (job.framing === 'closeup' ? CLOSEUP_SIZE.width : DEFAULT_SIZE.width),
     height: Number(job.height) || (job.framing === 'closeup' ? CLOSEUP_SIZE.height : DEFAULT_SIZE.height),
-    /* Lot (v2) : identifiant partagé par les jobs d'un même envoi — c'est lui
+    /* Lot : identifiant partagé par les jobs d'un même envoi — c'est lui
        qui regroupe les rendus en une vignette-mosaïque. Perdu ici = perdu
        partout (le row EST le payload persisté). */
     batchId: typeof job.batchId === 'string' && job.batchId ? job.batchId : null,
@@ -1672,6 +1672,39 @@ async function runSeedvr(job, t0) {
   return n
 }
 
+/* Restauration HD d'une photo : SeedVR2 (modèle de restauration) l'agrandit en reconstruisant le
+   détail fin ; la retouche (rayures, couleur) se fait avant, par une passe d'édition ordinaire. */
+export function enqueueRestaurationHd({ source, parentAssetId, personaId, cote }) {
+  if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('image source invalide')
+  const id = `rst-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'restauration_hd@v1', workflowFile: null,
+    seed: 42, op: 'restauration_hd', sourceImage: source, restaurationCote: Math.min(2560, Math.max(1024, Number(cote) || 2048)),
+    parentAssetId: parentAssetId ?? null, userPrompt: 'restauration HD', userDirectives: null, composedPositive: `SeedVR2 restauration de ${source}`, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 45_000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runRestaurationHd(job, t0) {
+  const g = {
+    src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+    dit: { class_type: 'SeedVR2LoadDiTModel', inputs: { model: 'seedvr2_ema_3b_fp16.safetensors', device: 'cuda:0', offload_device: 'cpu' } },
+    vae: { class_type: 'SeedVR2LoadVAEModel', inputs: { model: 'ema_vae_fp16.safetensors', device: 'cuda:0', decode_tiled: true, decode_tile_size: 1024, decode_tile_overlap: 128, offload_device: 'cpu' } },
+    up: { class_type: 'SeedVR2VideoUpscaler', inputs: { image: ['src', 0], dit: ['dit', 0], vae: ['vae', 0], seed: 42, resolution: job.restaurationCote, max_resolution: 4096, batch_size: 1, uniform_batch_size: false, color_correction: 'lab', temporal_overlap: 0, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false } },
+    save: { class_type: 'SaveImage', inputs: { images: ['up', 0], filename_prefix: `creatoros/${job.id}/restauration` } },
+  }
+  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [`SeedVR2 3B : restauration à ${job.restaurationCote} px de petit côté`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 /* Stage : une scène décrite par des nombres devient une maquette grise côté serveur
    (scripts/stage_clay.py), puis un plan fini : IC-LoRA LTX-2.5 Layout-to-Render (Lightricks), même
    graphe que Clean-Plate. Aucun fichier n'entre, le verrou d'envoi des visiteurs reste fermé. */
@@ -1738,7 +1771,7 @@ export function cheminModele(nom) {
 }
 
 /* Objet 3D : une photo devient un GLB avec TRELLIS.2 (Microsoft, MIT), nœuds du cœur de
-   ComfyUI. SAM3 isole l'objet nommé, BiRefNet plantant sur la 5090. Le GLB reste à côté du média ;
+   ComfyUI. SAM3 isole l'objet nommé (BiRefNet n'a pas de noyau pour les cartes récentes). Le GLB reste à côté du média ;
    la bibliothèque reçoit un tour complet en maquette grise. */
 export function enqueueObjet3d({ sourceFile, cible, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'main object'
@@ -1840,7 +1873,7 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId, register: 'sfw', mode: 'photo', purpose: 'creative', recipeId: 'entrainement@v1', workflowFile: null,
     seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai, entrainementMoteur: moteur,
-    parentAssetId: null, userPrompt: `entraînement ${MOTEURS_ENTRAINEMENT[moteur].nom} ${d} (${n} pas, ${Math.min(30, images.length)} images)`, userDirectives: null, composedPositive: null, composedNegative: null,
+    parentAssetId: null, userPrompt: `LoRA ${MOTEURS_ENTRAINEMENT[moteur].nom} · ${d} · ${n} steps · ${Math.min(30, images.length)} images`, userDirectives: null, composedPositive: null, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: dureeEstimeeMs(moteur, n),
   }
   store.createJob(row); queue.push(row); pump()
@@ -2079,7 +2112,7 @@ async function preparerObjet(job) {
 }
 
 /* Fond transparent : SAM3 donne le masque de la personne, la photo sort en PNG avec alpha,
-   rien n'est redessiné. BiRefNet plante sur la 5090 (« no kernel image »). */
+   rien n'est redessiné. BiRefNet n'a pas de noyau pour les cartes récentes (« no kernel image »). */
 export function enqueueTransparent({ sourceFile, parentAssetId, personaId }) {
   const id = `transp-${Date.now().toString(36)}`
   const row = {
@@ -2943,7 +2976,7 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
 }
 
 /** Mix : la recette de remplacement, injectée par ids (cf. MIX_RECIPE). */
-function grapheMix(job, motion, applied, skipped) {
+async function grapheMix(job, motion, applied, skipped) {
   const mg = comfy.loadWorkflow(MIX_RECIPE)
   mg['63'].inputs.video = job.motionDriver
   mg['57'].inputs.image = motion.refName
@@ -2991,8 +3024,9 @@ function grapheMix(job, motion, applied, skipped) {
   mg['150'].inputs.value = mw; mg['151'].inputs.value = mh
   // masque automatique : GroundingDINO trouve le sujet → points SAM2
   try {
-    const raw = execFileSync(COMFY_PY, [GDINO_POINTS, path.join(CONFIG.comfyInput, job.motionDriver), String(mw), String(mh), job.mixTotal ? 'person' : 'woman', ...(job.mixTotal ? [String(job.mixRang ?? 0), String(job.mixTotal)] : [])],
-      { encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, COMFY_DIR: CONFIG.comfyDir } })
+    // lancé sans bloquer le serveur : la détection peut durer jusqu'à 3 minutes
+    const raw = (await executer(COMFY_PY, [GDINO_POINTS, path.join(CONFIG.comfyInput, job.motionDriver), String(mw), String(mh), job.mixTotal ? 'person' : 'woman', ...(job.mixTotal ? [String(job.mixRang ?? 0), String(job.mixTotal)] : [])],
+      { encoding: 'utf8', timeout: 180000, env: { ...process.env, COMFY_DIR: CONFIG.comfyDir } })).stdout
     const pts = JSON.parse(raw.trim().split('\n').pop())
     Object.assign(mg['107'].inputs, { width: mw, height: mh, normalize: false,
       points_store: JSON.stringify({ positive: pts.positive, negative: [] }), coordinates: JSON.stringify(pts.positive) })
@@ -3068,6 +3102,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'recadrage') return controler(await runRecadrage(job, t0))
     if (job.op === 'extension') return await runExtension(job, t0)
     if (job.op === 'entrainement') return await runEntrainement(job, t0)
+    if (job.op === 'restauration_hd') return await runRestaurationHd(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
@@ -3251,7 +3286,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
        on écrit les nœuds NOMMÉS (cf. MOTION_NODES). */
     let finalWorkflow = workflow
     if (job.videoEngine === 'motion' && job.motionMode === 'replace') {
-      finalWorkflow = grapheMix(job, await buildMotionRef(job), applied, skipped)
+      finalWorkflow = await grapheMix(job, await buildMotionRef(job), applied, skipped)
       /* Carte vidée avant Wan-Animate : derrière le rendu Krea
          de la référence, ou un rendu interrompu, les modèles restés chargés ne
          laissent que des miettes au WanVideoWrapper — 104 s par pas puis panne

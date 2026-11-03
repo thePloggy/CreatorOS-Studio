@@ -420,9 +420,9 @@ export interface Job {
   requestId?: string
   /** Cases du carrousel au moment de l'envoi (gardé=true / varie=false). */
   carouselLocks?: Record<string, boolean>
-  /** Prompt de l'opérateur à l'origine de la lignée (carrousel v2). */
+  /** Prompt de l'opérateur à l'origine de la lignée (carrousel). */
   promptRacine?: string
-  /** Dimensions photo par job (v2) — surchargent DEFAULT_SIZE côté serveur. */
+  /** Dimensions photo par job — surchargent DEFAULT_SIZE côté serveur. */
   width?: number
   height?: number
   /** Brouillon : surface réduite. Refusé par le serveur sur un moteur qui

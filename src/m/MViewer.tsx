@@ -109,6 +109,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
       </div>
 
       <div className="vbot">
+        {edition && <>
         <button className={`act ok ${fresh.reviewStatus === 'approved' ? 'on' : ''}`}
           onClick={() => s.reviewAsset(fresh.id, fresh.reviewStatus === 'approved' ? 'pending' : 'approved')}>
           <Ic n="heart" s={20} />{t('Valider')}
@@ -117,6 +118,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           onClick={() => s.reviewAsset(fresh.id, fresh.reviewStatus === 'rejected' ? 'pending' : 'rejected')}>
           <Ic n="x" s={20} />{t('Refuser')}
         </button>
+        </>}
         <button className="act" onClick={() => void act('clone', () => { s.cloneFrom(fresh); onClose() })}>
           <Ic n="clone" s={20} />{t('Cloner')}
         </button>

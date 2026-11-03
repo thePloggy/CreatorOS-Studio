@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
 import { ChoixPersonnage } from './ChoixPersonnage'
+import { useEdition } from '../lib/proprietaire'
 import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 
 interface PlanReel { still: string; motion: string; avertissements?: string[]; clipJob?: string | null; photoUri: string | null; clipUri: string | null; photoEtat: string | null; clipEtat: string | null; supprime?: boolean }
@@ -125,6 +126,7 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
   // refaire un seul plan : sa photo reste, son clip est rendu à nouveau, le reel est remonté
   const [planRefait, setPlanRefait] = useState<number | null>(null)
   const [confirme, setConfirme] = useState<'annuler' | 'supprimer' | null>(null)
+  const edition = useEdition()
   const enCours = r.etat !== 'fini' && r.etat !== 'echec'
   const [geste, setGeste] = useState('')
   const [errPlan, setErrPlan] = useState<string | null>(null)
@@ -184,8 +186,8 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
         )}
         <div className="flex gap-2">
           {r.montageId && <button className="pill tool" onClick={() => goMontage(r.montageId!)}>{t('Ouvrir dans le Montage')}</button>}
-          {(r.etat === 'fini' || r.etat === 'echec') && <button className="pill tool" title={t('Les photos et clips restent dans la bibliothèque')} onClick={onRetirer}>✕ {t('Retirer de la liste')}</button>}
-          {enCours && (confirme
+          {edition && (r.etat === 'fini' || r.etat === 'echec') && <button className="pill tool" title={t('Les photos et clips restent dans la bibliothèque')} onClick={onRetirer}>✕ {t('Retirer de la liste')}</button>}
+          {edition && enCours && (confirme
             ? <>
                 <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>{t('Arrêter ce reel ?')}</span>
                 <button className="pill tool" onClick={() => { setConfirme(null); confirme === 'annuler' ? onAnnuler() : onRetirer() }}>{t('Oui')}</button>

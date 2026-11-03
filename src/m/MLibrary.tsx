@@ -26,6 +26,7 @@ interface FolderInfo { id: string; name: string; createdAt: number; count: numbe
 const ORPHANS = '__sans_dossier__'
 
 export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: () => void }) {
+  const edition = useEdition()
   const s = useAppStore()
   const [menu, setMenu] = useState<Asset | null>(null)
   const [type, setType] = useState<TypeFilter>('all')
@@ -207,7 +208,7 @@ export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: (
 
       {open && (
         <MViewer asset={open} list={shown} onGo={setOpen} onClose={() => setOpen(null)}
-          folders={folders} onFoldersChanged={loadFolders} onTriage={() => { setOpen(null); setTriage(true) }} />
+          folders={folders} onFoldersChanged={loadFolders} onTriage={edition ? () => { setOpen(null); setTriage(true) } : undefined} />
       )}
       {menu && <TileMenu a={menu} onClose={() => setMenu(null)} onPick={() => { setPicking(true); toggle(menu.id) }} />}
       {triage && <MTriage assets={s.assets.filter(a => a.reviewStatus === 'pending')} onClose={() => setTriage(false)} />}
@@ -243,10 +244,12 @@ function TileMenu({ a, onClose, onPick }: { a: Asset; onClose: () => void; onPic
   return (
     <Sheet title={a.mediaType === 'video' ? t('Vidéo') : t('Image')} onClose={onClose}>
       <Opt label={t('Partager')} hint={msg ?? t('feuille de partage du téléphone')} onClick={async () => { const e = await partager(frais); if (e) setMsg(e); else onClose() }} />
+      {edition && <>
       <Opt label={frais.reviewStatus === 'approved' ? t('Retirer la validation') : t('Valider')} on={frais.reviewStatus === 'approved'}
         onClick={() => { vibrer(); s.reviewAsset(frais.id, frais.reviewStatus === 'approved' ? 'pending' : 'approved'); onClose() }} />
       <Opt label={frais.reviewStatus === 'rejected' ? t('Annuler le refus') : t('Refuser')} on={frais.reviewStatus === 'rejected'}
         onClick={() => { vibrer(); s.reviewAsset(frais.id, frais.reviewStatus === 'rejected' ? 'pending' : 'rejected'); onClose() }} />
+      </>}
       <Opt label={t('Reprendre les réglages')} hint={t('prompt et graine dans Créer')} onClick={() => { s.cloneFrom(frais); onClose() }} />
       <Opt label={t('Sélectionner')} hint={t('pour ranger ou trier plusieurs médias')} onClick={() => { onPick(); onClose() }} />
       {edition && <Opt label={arme ? t('Confirmer la suppression') : t('Supprimer')} hint={t('en corbeille 30 jours')}
@@ -326,10 +329,12 @@ function SelBar({ ids, assets, folders, onClear, onFoldersChanged }: {
   return (
     <>
       <div className="selbar">
+        {edition && <>
         <button onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'approved')); onClear() }}
           style={{ color: 'var(--ok)' }}><Ic n="heart" s={18} /><br />{t('Valider')}</button>
         <button onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'rejected')); onClear() }}
           style={{ color: 'var(--ko)' }}><Ic n="x" s={18} /><br />{t('Refuser')}</button>
+        </>}
         <button onClick={() => setSheet('folders')}><Ic n="folder" s={18} /><br />{t('Ranger')}</button>
         <button onClick={() => setSheet('more')}><Ic n="more" s={18} /><br />{tp(ids.length, '{n} choisi', '{n} choisis')}</button>
       </div>

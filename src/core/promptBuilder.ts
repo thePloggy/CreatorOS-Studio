@@ -70,7 +70,7 @@ export function buildVideoPrompt(sel: VideoSelections): string {
      Le brief audio rejoint le même texte : LTX-2.5 comme MiniMax H3 n'ont
      qu'une seule entrée de prompt, commune à l'image et au son. */
   if (sel.motionText.trim()) parts.push(sel.motionText.trim())
-  if (sel.cameraText.trim()) parts.push(`caméra : ${sel.cameraText.trim()}`)
+  if (sel.cameraText.trim()) parts.push(`camera: ${sel.cameraText.trim()}`)
   if (sel.withAudio && sel.audioText.trim()) parts.push(`son : ${sel.audioText.trim()}`)
   return parts.join('. ')
 }

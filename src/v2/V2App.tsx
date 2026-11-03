@@ -36,6 +36,7 @@ const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
 const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.CroquisView })))
 const OutilsClip = () => import('./OutilsClipViews')
 const RecadrerView = lazy(() => OutilsClip().then(m => ({ default: m.RecadrerView })))
+const RestaurerView = lazy(() => import('./RestaurerView').then(m => ({ default: m.RestaurerView })))
 const DoublageView = lazy(() => OutilsClip().then(m => ({ default: m.DoublageView })))
 const AnalyseView = lazy(() => OutilsClip().then(m => ({ default: m.AnalyseView })))
 const CreerPersonnageView = lazy(() => import('../features/persona/CreerPersonnageView').then(m => ({ default: m.CreerPersonnageView })))
@@ -88,7 +89,7 @@ export default function V2App() {
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
-  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage'].includes(initial) ? initial : 'accueil')
+  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer'].includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
@@ -179,6 +180,7 @@ export default function V2App() {
         {section === 'extensions' && <ExtensionsView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'pub' && <PubView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'recadrer' && <RecadrerView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'restaurer' && <RestaurerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'analyse' && <AnalyseView />}
         {section === 'nouveau-personnage' && <CreerPersonnageView />}

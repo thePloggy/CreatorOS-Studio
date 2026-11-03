@@ -1,11 +1,11 @@
 @import "tailwindcss";
-/* Polices v5 : Outfit (UI) + JetBrains Mono (technique). Chargées depuis
+/* Polices : Outfit (UI) + JetBrains Mono (technique). Chargées depuis
    Google Fonts avec repli système — si la machine est hors-ligne, on tombe
    proprement sur la pile système (à bundler via @fontsource en dur plus tard). */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
-   CreatorOS — Design tokens v5 (source de vérité du design system)
+   CreatorOS — Design tokens (source de vérité du design system)
    Règle v5 : le texte est blanc, la COULEUR est une pastille. La couleur
    ne peint jamais un fond de bouton ni un texte — sauf le CTA orange
    (unique), les liens machine cyan, les warnings ambre inline. Le refactor

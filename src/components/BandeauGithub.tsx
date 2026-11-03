@@ -22,7 +22,7 @@ export function BandeauGithub() {
     <div role="region" aria-label={t('Soutenir le projet')} style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap',
       padding: '7px 44px 7px 16px', position: 'relative', fontSize: 13, color: '#e8e7e3',
       background: 'linear-gradient(90deg, rgba(255,171,94,.16), rgba(242,77,138,.16) 50%, rgba(180,75,216,.16))', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
-      <span>{t('CreatorOS Studio est open source et tourne sur ComfyUI. Une étoile sur GitHub nous aide beaucoup pour le concours Comfy.')}</span>
+      <span>{t('CreatorOS Studio est open source et tourne sur ComfyUI. Une étoile sur GitHub aide vraiment le projet.')}</span>
       <a href={DEPOT} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999,
         background: 'linear-gradient(135deg, #ffab5e 0%, #ff655b 38%, #f24d8a 68%, #b44bd8 100%)', color: '#fff', fontWeight: 700, textDecoration: 'none', minHeight: 28 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" /></svg>

@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS provenance (
 
 CREATE INDEX IF NOT EXISTS idx_jobs_created  ON jobs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assets_job ON assets(job_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_persona ON jobs(persona_id, created_at DESC);
 `)
 
 db.exec(`
@@ -501,7 +504,7 @@ export const assetsOfFolder = folderId => db.prepare(`${ASSET_SELECT}
 export const getFolder = id => db.prepare('SELECT * FROM folders WHERE id = ?').get(id)
 
 
-/* v2 : pose un batchId dans le payload d'un job existant (carrousel —
+/* Pose un batchId dans le payload d'un job existant (carrousel —
    l'original rejoint le lot sans re-génération). */
 /* Un job peut appartenir à PLUSIEURS lots (une still qui sert d'origine à
    plusieurs carrousels) : on APPEND dans payload.batchIds au lieu d'écraser

@@ -11,7 +11,7 @@ import { t } from '../i18n'
 import { Pastille } from './bits'
 import { FramePicker } from './popups'
 
-export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage'
+export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
@@ -47,6 +47,7 @@ export const GROUPES: { titre: string; outils: Outil[] }[] = [
   { titre: 'Finir', outils: [
     { label: 'Montage', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
     { label: 'Recadrer', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
+    { label: 'Restaurer', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
     { label: 'Analyse pour les réseaux', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
     { label: 'Netteté 1080p', texte: 'SeedVR2 monte le clip en 1080p.', depuis: 'video', titre: 'Clip à affiner', action: 'nette' },
     { label: 'Masters HDR', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', depuis: 'video', titre: 'Clip à exporter', action: 'master', pastille: 'new' },

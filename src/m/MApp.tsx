@@ -29,9 +29,11 @@ import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { useDraftPersistence } from './useDraft'
 import { t } from '../i18n'
 import { installerDansEcran } from '../lib/dansEcran'
+import { lienMobile } from './lien'
 installerDansEcran()
 
 export type Space = 'library' | 'create' | 'studio' | 'jobs' | 'atelier'
+
 const SPACES: [Space, string, 'library' | 'create' | 'studio' | 'jobs'][] = [
   ['library', 'Bibliothèque', 'library'],
   ['create', 'Créer', 'create'],
@@ -45,6 +47,9 @@ export default function MApp() {
      espace visité. L'atelier n'est jamais restauré — on n'ouvre
      pas l'application sur ses réglages. */
   const [space, setSpace] = useState<Space>(() => {
+    // un lien partagé (?s=reel, ?s=image…) ouvre l'espace correspondant, avant le dernier visité
+    const lien = lienMobile()
+    if (lien) return lien.space
     try {
       const s = localStorage.getItem(LAST_SPACE) as Space | null
       return s && ['library', 'create', 'studio', 'jobs'].includes(s) ? s : 'library'
@@ -56,7 +61,7 @@ export default function MApp() {
 
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
-  useEffect(() => { void s.hydrate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void s.hydrate(); const m = lienMobile()?.mode; if (m) s.setMode(m) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   /* L'OS décharge l'application dès que l'écran s'éteint : sans ça, un
      prompt en cours de rédaction disparaît entre deux consultations. */
   useDraftPersistence()

@@ -263,6 +263,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   goImage: () => void
 }) {
   const videoArretee = useVideoArretee()
+  const proprio = useEdition()
   const s = useAppStore()
   const nav = useAssetNav(list, asset, a => (a ? onGo(a) : onClose()))
   const [prov, setProv] = useState<string | null>(null)
@@ -523,10 +524,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         </div>
         <PileLoras loras={loras} charge />
         <div className="flex gap-1.5">
-          <button className="b2 flex-1" style={{ color: 'var(--positif)', background: asset.reviewStatus === 'approved' ? 'var(--positif-doux)' : undefined }}
-            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'approved' ? 'pending' : 'approved')}>{t('♥ Valider')}</button>
-          <button className="b2 flex-1" style={{ color: 'var(--danger)', background: asset.reviewStatus === 'rejected' ? 'var(--danger-doux)' : undefined }}
-            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'rejected' ? 'pending' : 'rejected')}>{t('✕ Refuser')}</button>
+          {proprio && <button className="b2 flex-1" style={{ color: 'var(--positif)', background: asset.reviewStatus === 'approved' ? 'var(--positif-doux)' : undefined }}
+            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'approved' ? 'pending' : 'approved')}>{t('♥ Valider')}</button>}
+          {proprio && <button className="b2 flex-1" style={{ color: 'var(--danger)', background: asset.reviewStatus === 'rejected' ? 'var(--danger-doux)' : undefined }}
+            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'rejected' ? 'pending' : 'rejected')}>{t('✕ Refuser')}</button>}
           <button className="b2 flex-1" disabled={asset.reviewStatus !== 'approved'}
             style={{ opacity: asset.reviewStatus === 'approved' ? 1 : .4 }}
             onClick={() => s.toggleExportReady(asset.id)}>⇪ Export{asset.exportReady ? ' ✓' : ''}</button>

@@ -473,6 +473,8 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
 
 /* ---------- placeholder de job en file / rendu ---------- */
 export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
+  // la file est commune : annuler et réordonner sont réservés au propriétaire
+  const proprio = useEdition()
   const cancel = useAppStore(st => st.cancelJob)
   const reorder = useAppStore(st => st.reorderJobs)
   const [over, setOver] = useState(false)
@@ -492,7 +494,7 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
     const a = st.assets.find(x => x.mediaType === j.mode && x.width && x.height)
     return a?.width && a?.height ? a.width / a.height : null
   })
-  const draggable = j.status === 'queued' && !!queueIds && queueIds.length > 1
+  const draggable = proprio && j.status === 'queued' && !!queueIds && queueIds.length > 1
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setOver(false)
     const from = e.dataTransfer.getData('text/job-id')
@@ -571,9 +573,9 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
         </div>
         <div className="jprompt">{j.composedPositive || j.userPrompt || '—'}</div>
         <div className="jmeta">#{j.id}</div>
-        <button className="hact ko" title={t('annuler le job')}
+        {proprio && <button className="hact ko" title={t('annuler le job')}
           style={{ position: 'absolute', top: 8, right: 8 }}
-          onClick={e => { e.stopPropagation(); void cancel(j.id) }}><Ic n="x" /></button>
+          onClick={e => { e.stopPropagation(); void cancel(j.id) }}><Ic n="x" /></button>}
         {lent && <div className="jlent" title={t('Bien plus long que les derniers rendus de cette recette. Cause fréquente : mémoire vidéo saturée (un autre programme sur la carte, ou un modèle resté chargé).')}>{t('anormalement lent — mémoire vidéo saturée ?')}</div>}
         <div className="eta">{finition ? `${t('finition')} · ${eta}` : active ? `${t(j.phase ?? 'rendu')} · ${eta}` : attente(j) ?? `${t('en file')} · ${eta}`}</div>
         <div className="pbar"><i style={{ width: `${finition ? 97 : active ? Math.max(pct, 4) : 0}%` }} /></div>
@@ -1080,7 +1082,7 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
         title={sel.length < 2 || sel.length > 4 ? t('sélectionne 2 à 4 rendus') : t('côte à côte, vidéos lues ensemble')}
         style={sel.length < 2 || sel.length > 4 ? { opacity: .4, cursor: 'not-allowed' } : undefined}
         onClick={() => setComparer(true)}><Ic n="columns" /> {t('Comparer')}</button>
-      {videos.length > 0 && (<>
+      {edition && videos.length > 0 && (<>
         <button className="pill tool" disabled={!!tache && !tache.fini} onClick={captionner}
           title={toutesCaptionnees ? t('réécrire toutes les captions') : t('écrire les captions manquantes')}>
           <Ic n="tag" /> {toutesCaptionnees ? t('Réécrire les captions') : t('Captions')} ({videos.length})</button>
@@ -1100,8 +1102,8 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
       <button className="pill tool" title={allDrafts ? t('upscaler tous les brouillons sélectionnés') : t('sélection mixte : brouillons vidéo uniquement')}
         disabled={!allDrafts} style={!allDrafts ? { opacity: .4, cursor: 'not-allowed' } : undefined}
         onClick={() => void upscaleAll()}><Ic n="upscale" /> Upscale ({sel.length})</button>
-      <button className="pill" style={{ color: 'var(--positif)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'approved')); onClear() }}><Ic n="heart" /> {t('Valider')}</button>
-      <button className="pill" style={{ color: 'var(--danger)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'rejected')); onClear() }}><Ic n="x" /> {t('Refuser')}</button>
+      {edition && <button className="pill" style={{ color: 'var(--positif)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'approved')); onClear() }}><Ic n="heart" /> {t('Valider')}</button>}
+      {edition && <button className="pill" style={{ color: 'var(--danger)' }} onClick={() => { sel.forEach(a => s.reviewAsset(a.id, 'rejected')); onClear() }}><Ic n="x" /> {t('Refuser')}</button>}
       {edition && <button className="pill" style={{ color: armed ? 'var(--danger)' : undefined }}
         onClick={() => { if (arm()) { void s.removeAssets(ids); onClear() } }}>
         <Ic n="trash" /> {armed ? t('Confirmer') : t('Supprimer')}
