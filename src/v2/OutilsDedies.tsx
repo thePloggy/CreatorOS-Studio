@@ -9,11 +9,12 @@ import { OutilPage, ZoneSource, useSuiviOutil, type Etape } from './OutilPage'
 import { lancerFinition } from './bits'
 import { Pinceau } from '../components/Pinceau'
 import { Masters } from './Masters'
+import { ANGLES, LORA_ANGLES } from './Viewer'
 
 export type IdOutil = 'inpaint' | 'remove-bg' | 'depth' | 'loop' | 'retouch' | 'remove-objects' | 'change-bg'
-  | 'upscale' | 'green-screen' | 'add-sound' | 'smooth' | 'hdr'
+  | 'upscale' | 'green-screen' | 'add-sound' | 'smooth' | 'hdr' | 'multi-angle' | 'coverage' | 'next-shot' | 'image-3d'
 
-type Valeurs = { texte: string; texte2: string; alpha: boolean }
+type Valeurs = { texte: string; texte2: string; alpha: boolean; choix: string }
 type Conf = {
   titre: string; texte: string; media: 'photo' | 'video' | 'choix'
   /** préfixes d'id de job propres à l'outil : tout son historique, même lancé ailleurs */
@@ -22,6 +23,7 @@ type Conf = {
   champ?: { label: string; placeholder: string; requis?: boolean }
   champ2?: { label: string; placeholder: string }
   alpha?: boolean
+  choix?: { label: string; options: { id: string; label: string }[] }
   bouton: string
   /** lance le rendu et rend l'id du job (ou rien quand l'outil ouvre un éditeur) */
   lancer?: (a: Asset, v: Valeurs) => Promise<string | null>
@@ -38,6 +40,21 @@ const finition = async (a: Asset, op: 'foley' | 'interpolate', prompt?: string) 
   const e = await lancerFinition(a, op, prompt)
   if (e) throw new Error(e)
   return useAppStore.getState().jobs[0]?.id ?? null
+}
+
+/* Retouche Qwen-Image-Edit d'une photo, sans quitter la page ; avec la LoRA d'angles si demandé. */
+async function retouche(a: Asset, consigne: string, angles = false): Promise<string | null> {
+  const st = useAppStore.getState()
+  const avant = st.loraPicks
+  if (angles) useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
+  try {
+    st.setMode('photo'); st.updatePhoto({ task: 'edit' })
+    await useAppStore.getState().pickEditSource(a.id)
+    useAppStore.getState().setUserPrompt(consigne)
+    useAppStore.setState({ promptTouched: true, composedPositive: '' })
+    await useAppStore.getState().submitJob()
+    return useAppStore.getState().jobs[0]?.id ?? null
+  } finally { if (angles) useAppStore.setState({ loraPicks: avant }) }
 }
 
 const CONFS: Record<IdOutil, Conf> = {
@@ -94,6 +111,25 @@ const CONFS: Record<IdOutil, Conf> = {
   'smooth': { titre: 'Smooth Motion', texte: 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.', media: 'video', prefixes: ['rife-'], bouton: 'Fluidifier',
     etapes: [{ titre: 'Choisis le clip', texte: 'Un clip à 24 i/s ou moins.' }, { titre: 'Lance', texte: 'RIFE invente l’image entre deux images.' }, { titre: 'Récupère le clip', texte: 'Même durée, deux fois plus d’images.' }],
     lancer: a => finition(a, 'interpolate') },
+  'multi-angle': { titre: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', media: 'photo', bouton: 'Changer d’angle',
+    choix: { label: 'Angle', options: ANGLES.map(x => ({ id: x.id, label: x.label })) },
+    etapes: [{ titre: 'Choisis la photo', texte: 'Une personne ou un objet bien visible.' }, { titre: 'Choisis l’angle', texte: '¾, profil, de dos, plongée, contre-plongée, large, serré.' }, { titre: 'Récupère la photo', texte: 'Qwen-Image-Edit avec la LoRA Multiple-Angles : même scène, autre caméra.' }],
+    lancer: (a, v) => retouche(a, `<sks> ${(ANGLES.find(x => x.id === v.choix) ?? ANGLES[0]).vue}`, true) },
+  'coverage': { titre: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', media: 'photo', bouton: 'Lancer les trois plans',
+    etapes: [{ titre: 'Choisis la photo', texte: 'Le plan de départ de ta scène.' }, { titre: 'Lance', texte: 'Trois retouches : plan large, ¾ et gros plan.' }, { titre: 'Monte', texte: 'Trois angles cohérents pour couvrir la scène.' }],
+    lancer: async a => { let id: string | null = null; for (const k of ['large', 'd34', 'serre']) id = await retouche(a, `<sks> ${ANGLES.find(x => x.id === k)!.vue}`, true); return id } },
+  'next-shot': { titre: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', media: 'photo', bouton: 'Imaginer le plan suivant',
+    etapes: [{ titre: 'Choisis la photo', texte: 'Le plan où en est ton histoire.' }, { titre: 'Lance', texte: 'Le VLM lit la photo et écrit ce qui se passe juste après.' }, { titre: 'Récupère le plan', texte: 'Même personne, même lieu, même lumière, quelques secondes plus tard.' }],
+    lancer: async a => {
+      const r = await fetch(`/api/assets/${encodeURIComponent(a.id)}/moment-suivant`, { method: 'POST' })
+      const d = await r.json().catch(() => ({})) as { texte?: string; error?: string }
+      if (!r.ok || !d.texte) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
+      return retouche(a, `The same person, same outfit, same place and same light, a few seconds later: ${d.texte} Keep the same face and photo style.`)
+    } },
+  'image-3d': { titre: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', media: 'photo', prefixes: ['objet3d-'], bouton: 'Créer le modèle 3D',
+    champ: { label: 'Objet à garder (en anglais)', placeholder: 'toy robot · red armchair · perfume bottle', requis: true },
+    etapes: [{ titre: 'Choisis la photo', texte: 'Un objet bien détaché, entier dans le cadre.' }, { titre: 'Nomme l’objet', texte: 'En anglais : SAM3 le découpe.' }, { titre: 'Récupère le GLB', texte: 'TRELLIS.2 en une minute : à faire tourner, télécharger ou poser dans Stage.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/objet3d`, { cible: v.texte.trim() }) },
   'hdr': { titre: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', media: 'video', bouton: '',
     etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu fini.' }, { titre: 'Choisis le master', texte: 'HLG pour les écrans HDR, ProRes ou EXR pour l’étalonnage.' }, { titre: 'Télécharge', texte: 'Le fichier se prépare puis se télécharge.' }] },
 }
@@ -104,7 +140,7 @@ export function OutilDedie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, lis
   const suivi = useSuiviOutil(`dedie-${id}`)
   const [media, setMedia] = useState<'photo' | 'video'>(c.media === 'video' ? 'video' : 'photo')
   const [source, setSource] = useState<{ asset?: Asset } | null>(null)
-  const [v, setV] = useState<Valeurs>({ texte: '', texte2: '', alpha: false })
+  const [v, setV] = useState<Valeurs>({ texte: '', texte2: '', alpha: false, choix: c.choix?.options[0]?.id ?? '' })
   const [msg, setMsg] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
   const [peindre, setPeindre] = useState(false)
@@ -140,6 +176,8 @@ export function OutilDedie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, lis
           <button className={`wtab ${!v.alpha ? 'on' : ''}`} onClick={() => setV({ ...v, alpha: false })}>{t('Fond vert')}</button>
           <button className={`wtab ${v.alpha ? 'on' : ''}`} onClick={() => setV({ ...v, alpha: true })}>{t('Transparent (WebM)')}</button>
         </div>}
+        {c.choix && <div style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t(c.choix.label)}</span>
+          <div className="flex gap-1.5 flex-wrap">{c.choix.options.map(o => <button key={o.id} className={`pill ${v.choix === o.id ? 'on' : ''}`} onClick={() => setV({ ...v, choix: o.id })}>{t(o.label)}</button>)}</div></div>}
         {id === 'hdr' && a && <Masters asset={a} />}
         {msg && <span className="texte-erreur">{msg}</span>}
       </OutilPage>

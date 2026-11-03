@@ -145,8 +145,8 @@ function CaptionCard({ asset }: { asset: Asset }) {
 
 /** Angles : la même photo vue d'une autre position de caméra — Qwen-Image-Edit 2511 avec la LoRA
  *  Multiple-Angles de fal (Apache-2.0, 96 poses apprises sur des rendus Gaussian Splatting). */
-const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
-const ANGLES = [
+export const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
+export const ANGLES = [
   { id: 'g34', label: '¾ gauche', vue: 'front-left quarter view eye-level shot medium shot' },
   { id: 'd34', label: '¾ droite', vue: 'front-right quarter view eye-level shot medium shot' },
   { id: 'profil', label: 'Profil', vue: 'right side view eye-level shot medium shot' },

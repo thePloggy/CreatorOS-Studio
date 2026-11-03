@@ -46,10 +46,10 @@ export const MENUS: Menu[] = [
       { label: 'Expand', texte: 'La photo élargie en 16:9, 9:16, 4:5 ou 1:1 : les bords sont inventés dans la continuité.', section: 'expand', pastille: 'new' },
       ] },
       { titre: 'Réaliser', outils: [
-      { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', depuis: 'photo', titre: 'Photo à transformer', action: 'looks' },
-      { label: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', depuis: 'photo', titre: 'Photo de départ', action: 'coverage', pastille: 'new' },
-      { label: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', depuis: 'photo', titre: 'Photo de départ', action: 'suivant', pastille: 'new' },
-      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', depuis: 'photo', titre: 'Photo à passer en 3D', action: 'objet3d', pastille: 'new' },
+      { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', section: 'outil', dedie: 'multi-angle' },
+      { label: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', section: 'outil', dedie: 'coverage', pastille: 'new' },
+      { label: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', section: 'outil', dedie: 'next-shot', pastille: 'new' },
+      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', section: 'outil', dedie: 'image-3d', pastille: 'new' },
       ] },
     ], modeles: [['Krea 2', 'Photo du personnage, LoRA d’identité'], ['FLUX.2 Klein 9B', 'Images de référence, croquis'], ['Qwen-Image-Edit 2511', 'Angles, looks, retouche'], ['SeedVR2', 'Restauration et HD'], ['TRELLIS.2', 'Photo vers modèle 3D']] },
   { titre: 'Vidéo', defaut: 'Image to Video', colonnes: [
