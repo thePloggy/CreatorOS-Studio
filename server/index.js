@@ -1070,7 +1070,7 @@ app.get('/api/uploads', async req => {
   let files = []
   try {
     files = fsx.readdirSync(dir)
-      .filter(f => /\.(png|jpe?g|webp)$/i.test(f) && !f.startsWith('.') && store.estInputStudio(f))   // dossier partagé : seulement nos dépôts
+      .filter(f => (req.query.type === 'video' ? /\.(mp4|mov|webm)$/i : /\.(png|jpe?g|webp)$/i).test(f) && !f.startsWith('.') && store.estInputStudio(f))   // dossier partagé : seulement nos dépôts
       .map(f => { const st = fsx.statSync(pathx.join(dir, f)); return { name: f, mtime: st.mtimeMs, bytes: st.size } })
       .sort((a, b) => b.mtime - a.mtime)
       .slice(0, Number(req.query.limit) || 120)
@@ -2686,10 +2686,12 @@ if (hasDist) {
   await app.register(fastifyStatic, { root: CONFIG.distDir, prefix: '/', decorateReply: true, preCompressed: true })
   // SPA : toute route inconnue hors /api rend l'index (routage côté client).
   app.setNotFoundHandler((req, reply) => {
-    if (req.raw.url.startsWith('/api/') || req.raw.url.startsWith('/media/')) {
+    // un fichier du build absent (onglet ouvert avant une mise à jour) : 404, le client recharge la page
+    if (req.raw.url.startsWith('/api/') || req.raw.url.startsWith('/media/') || req.raw.url.startsWith('/assets/')) {
       reply.code(404).send({ error: 'introuvable' }); return
     }
-    reply.sendFile('index.html')
+    // l'index n'est jamais gardé en cache : il désigne les fichiers du build en cours
+    reply.header('Cache-Control', 'no-cache').sendFile('index.html')
   })
 } else {
   app.log.warn(`front non compilé (${CONFIG.distDir} absent) — lancer « npm run build »`)

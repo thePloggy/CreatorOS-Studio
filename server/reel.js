@@ -138,10 +138,12 @@ const ARCS = {
   6: ['wide establishing shot', 'medium-wide shot', 'medium shot', 'close-up detail', 'medium shot', 'wide closing shot'],
 }
 const SERRE = /close-up/i
-const ANGLES = ['camera at her eye level', 'slightly low angle', 'from slightly above', 'three-quarter view from her side', 'side profile', 'from behind her, over her shoulder']
+// toujours le visage dans le champ : l'identité du clip vient du visage de la photo de départ
+const ANGLES = ['camera at her eye level', 'slightly low angle', 'from slightly above', 'three-quarter front view', 'three-quarter view from her side, her face toward the camera']
+const DOS = /\b(from behind|her back (is )?(to|toward)|back to the camera|facing away|seen from behind|over her shoulder|turn(s|ing|ed)? away|walk(s|ing)? away|looks? away from the camera|her face (is )?(hidden|out of frame|not visible)|only her hands|hands only|silhouette)\b/i
 const CAMERA = [['slow push-in', /push(es|ing)?[- ]in|dolly in|moves? (in|closer)/i], ['gentle pan', /\bpan/i], ['handheld follow', /handheld|follows?/i],
   ['slow orbit around her', /orbit|arc(s|ing)? around|circles?/i], ['slow tilt up', /tilt/i], ['slow pull back', /pull(s|ing)? back|dolly out|moves? back/i]]
-const GESTES = ['walking a few steps toward the camera', 'turning her head toward the view', 'a soft laugh', 'tucking her hair behind her ear',
+const GESTES = ['walking a few steps toward the camera', 'a glance toward the view, then back to the camera', 'a soft laugh', 'tucking her hair behind her ear',
   'leaning on something from the setting', 'a deep breath, her shoulders relax', 'running her hand along a surface of the setting',
   'looking around, taking the place in', 'settling into a seat of the setting', 'the wind moving her hair and clothes']
 const PIEDS = /\b(boots?|booties|heels?|heeled|stilettos?|pumps|shoes?|sneakers?|trainers|sandals?|espadrilles?|wedges?|flats|loafers?|mules|socks?|stockings?|tights)\b/i
@@ -153,7 +155,7 @@ export function affectations(n) {
     const detail = /detail/.test(cadrage)
     return {
       cadrage, angle: k === 0 ? 'camera at her eye level' : angles[k % angles.length],
-      geste: detail ? 'her hands with the object' : `${gestes[(2 * k) % gestes.length]} — or ${gestes[(2 * k + 1) % gestes.length]}`,
+      geste: detail ? 'her hands with the object, close to her face' : `${gestes[(2 * k) % gestes.length]} — or ${gestes[(2 * k + 1) % gestes.length]}`,
       camera: cams[k % cams.length][0], cameraRe: cams[k % cams.length][1],
       objet: detail ? 'objet' : Math.random() < 0.5 ? 'aucun' : 'lieu',
     }
@@ -190,6 +192,7 @@ Each shot has an assignment line. Follow it, and fill, in this order:
 - still: the photograph that opens the shot, 30 to 55 words, English. Start with the assigned framing and camera angle, then her action (the same as in "action" — the still SHOWS it), her hands, her support, the object named exactly as in "object" and what she does WITH it. Only what is visible. Never two things her hands do at once.
 - motion: the next few seconds at natural speed, 12 to 25 words: ONE gesture that continues the pose of the still, plus the assigned camera move, named as given.
 DESCRIBE ONLY WHAT IS INSIDE THE FRAME: in a close-up, her face, her hands and what they touch — never her legs, her feet, her shoes or how she stands. In a medium shot, nothing below the waist. Naming a body part that is out of frame pulls the camera back.
+HER FACE IS IN EVERY SHOT: in every still and every motion her face is visible, turned toward the camera or three-quarters at most — never from behind, never her back to the camera, never a profile that hides her eyes, never a shot of her hands alone (a detail shot frames her face AND her hands with the object). In motion she never turns or walks away from the camera. Without her face, the clip loses who she is.
 Never describe her face, her eye colour or her body shape: the system adds her identity.
 She is ALONE: no other person acts in the reel, nobody else's face.
 In motion, never: putting on, taking off or adjusting glasses, hats, jewellery or clothing; getting in or out of a vehicle, driving off, opening doors; picking up, holding up or handing over objects. If she sits in the still, she stays seated; if she stands, she stays on her feet.
@@ -239,6 +242,9 @@ export function fautesPlan(s, a, autres = [], duBrief = []) {
   if (/\b(toys?|bucket|spade|shovel|sandcastle|kite|beach ball)\b/i.test(`${s?.object ?? ''} ${still}`) && tetesBrief.length) f.push('no children\'s toys or games: keep the adult mood of the brief')
   if (SERRE.test(a.cadrage) && /\b(legs?|knees?|feet|foot|shoes?|boots?|sandals?|heels?|standing|stands|sits|sitting|seated)\b/i.test(still))
     f.push('close-up: describe only her face, her hands and what they touch — no legs, feet, shoes or posture')
+  if (DOS.test(still)) f.push('her face must be visible in the still, turned toward the camera or three-quarters: never from behind, facing away or hands only')
+  if (DOS.test(motion)) f.push('in motion she never turns or walks away from the camera: her face stays visible')
+  if (/\bdetail\b/i.test(a.cadrage) && !/\b(face|smil|eyes|lips|gaze|looks?)\w*/i.test(still)) f.push('detail shot: frame her face AND her hands with the object')
   if (/\b(I|me|my|we|our)\b/.test(`${still} ${motion}`)) f.push('first person used: write she, her')
   if (!a.cameraRe.test(motion)) f.push(`the motion must use the assigned camera move: ${a.camera}`)
   for (const c of controlerPlan({ still, motion })) f.push(c.dit)

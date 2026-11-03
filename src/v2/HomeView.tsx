@@ -21,8 +21,10 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
     { cible: 'presets', titre: t('Caméra & effets'), texte: t('Un mouvement de caméra de cinéma sur n’importe quelle photo, en un clic.'), apercu: BANDEAU_CAMERA },
   ]
   const mot = cherche.trim().toLowerCase()
+  // un outil rangé dans deux familles (Restaurer : photo et clip) ne s'affiche qu'une fois dans « Tout »
+  const vus = new Set<string>()
   const groupes = GROUPES.filter(g => !groupe || g.titre === groupe)
-    .map(g => ({ ...g, outils: g.outils.filter(o => !mot || `${t(o.label)} ${t(o.texte)}`.toLowerCase().includes(mot)) })).filter(g => g.outils.length)
+    .map(g => ({ ...g, outils: g.outils.filter(o => (!mot || `${t(o.label)} ${t(o.texte)}`.toLowerCase().includes(mot)) && (groupe || !vus.has(o.label)) && (vus.add(o.label), true)) })).filter(g => g.outils.length)
   return (
     <div className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '22px 28px 40px' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 28 }}>

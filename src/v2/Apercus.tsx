@@ -29,6 +29,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Vidéo': { type: 'media', image: v('video-a.webp'), video: v('video-b.mp4'), puces: ['Photo → clip'] },
   'Depuis un texte': anime('texte', { texte: 'Rain on a quiet Lisbon street at dusk, slow push-in' }),
   'Avatar parlant': anime('avatar', { texte: 'Are you ready to run!' }),
+  'Voix off': { type: 'media', image: v('onde.webp'), onde: true, texte: 'Welcome to the studio' },
   'Musique et bruitages': { type: 'media', image: v('onde.webp'), onde: true, texte: 'warm lo-fi hip hop, soft piano' },
   'Stage': { ...compare('stage', 'Maquette 3D', 'Rendu final') },
   'Studio ciné': { type: 'media', image: v('cine.webp'), puces: ['50 mm', 'f/2.8', 'Heure dorée'] },

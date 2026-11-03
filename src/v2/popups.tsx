@@ -301,8 +301,8 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
   const [uploads, setUploads] = useState<UploadRow[]>([])
   const edition = useEdition()
   useEffect(() => {
-    if (open && tab === 'up') void fetch('/api/uploads').then(r => r.json()).then(d => setUploads(d.uploads ?? []))
-  }, [open, tab])
+    if (open && tab === 'up') void fetch(`/api/uploads${media === 'video' ? '?type=video' : ''}`).then(r => r.json()).then(d => setUploads(d.uploads ?? []))
+  }, [open, tab, media])
   if (!open) return null
   const photos = assets.filter(a => a.mediaType === media && a.reviewStatus !== 'rejected')
   return (
@@ -332,12 +332,14 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
                 onChange={e => { const f = e.target.files?.[0]; if (f) { onUploadFile(f); onClose() } }} />
             </label>
           )}
-          {tab === 'up' && media === 'photo' && uploads.map(u => (
+          {tab === 'up' && uploads.map(u => (
             <button key={u.name} className="pk" onClick={() => { onPickUpload(u.name); onClose() }}>
-              <img src={`/api/uploads/${encodeURIComponent(u.name)}`} alt="" loading="lazy" />
+              {media === 'video'
+                ? <video src={`/api/uploads/${encodeURIComponent(u.name)}#t=0.5`} muted playsInline preload="metadata" />
+                : <img src={`/api/uploads/${encodeURIComponent(u.name)}`} alt="" loading="lazy" />}
             </button>
           ))}
-          {tab === 'up' && media === 'photo' && uploads.length === 0 && (
+          {tab === 'up' && uploads.length === 0 && (
             <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('aucun upload')}</div>
           )}
         </div>

@@ -753,3 +753,28 @@
 @media (prefers-reduced-motion: reduce) { .reel-loader { animation-duration: 2.4s; } }
 
 .v2 img.comparateur-restau, .v2 video.comparateur-restau { max-height: 70vh; max-width: 100%; width: auto; height: auto; }
+
+/* barre du haut : l'état de la carte et le compteur de rendus cèdent la place aux menus sur un écran étroit */
+@media (max-width: 2200px) { .masquer-etroit { display: none !important; } }
+@media (max-width: 1400px) { .masquer-tres-etroit { display: none !important; } header nav button { padding-left: 6px !important; padding-right: 6px !important; } }
+
+/* grand menu d'une famille d'outils : colonnes de sous-menus, vignette par outil, modèles à droite */
+.mega-boite { display: flex; gap: 0; max-width: calc(100vw - 32px); max-height: calc(100vh - 90px); overflow: auto; border-radius: 16px; background: var(--lv2); border: 1px solid var(--lv3); box-shadow: 0 22px 60px rgba(0,0,0,.6); }
+.mega-outils { padding: 16px 18px; min-width: 0; }
+.mega-entete { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+.mega-entete span { color: var(--faint); font-weight: 400; margin-left: 6px; }
+.mega-colonnes { display: grid; gap: 4px 22px; }
+.mega-colonne { display: grid; align-content: start; gap: 2px; }
+.mega-titre { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 4px 0 6px 8px; }
+.mega-outil { display: flex; gap: 11px; align-items: center; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.mega-outil:hover, .mega-outil:focus-visible { background: var(--lv3); }
+.mega-vignette { flex: none; width: 38px; height: 38px; border-radius: 9px; overflow: hidden; background: var(--lv3); }
+.mega-vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mega-texte { display: grid; gap: 1px; min-width: 0; }
+.mega-texte b { font-size: 13px; font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.mega-texte span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mega-modeles { flex: none; width: 260px; padding: 16px 18px; border-left: 1px solid var(--lv3); display: grid; align-content: start; gap: 10px; }
+.mega-modele { display: grid; gap: 1px; }
+.mega-modele b { font-size: 13px; font-weight: 600; color: var(--text); }
+.mega-modele span { font-size: 12px; color: var(--muted); }
+.mega-pied { font-size: 11.5px; color: var(--faint); margin-top: 6px; }

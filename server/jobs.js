@@ -1646,7 +1646,7 @@ export function enqueueSeedvr({ source, parentAssetId, personaId, origineUri }) 
     mode: 'video', purpose: 'creative', recipeId: 'seedvr@v1', workflowFile: null,
     seed: 42, op: 'seedvr', videoEngine: 'seedvr2', reshootSource: source, origineUri: origineValide(origineUri),
     parentAssetId: parentAssetId ?? null, userPrompt: null, userDirectives: null, composedPositive: `SeedVR2 ${SEEDVR_COTE}p de ${source}`, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(Math.min(d.width, d.height) < 360 ? 60_000 + duree * 60_000 : 20_000 + duree * 25_000),
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(Math.min(d.width, d.height) < 360 ? 60_000 + duree * 60_000 : 60_000 + duree * 30_000),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
@@ -1675,9 +1675,10 @@ async function runSeedvr(job, t0) {
   } catch { /* 24 par défaut */ }
   // bandes noires retirées avant l'agrandissement : sinon elles sont agrandies avec le reste
   const cadre = bandesNoires(src)
-  // petite source (moins de 360p) : deux passes du modèle 7B ; un saut x6 d'un coup ne reconstruit presque rien
+  // modèle 7B : visages naturels là où le 3B les rend cireux ; petite source (moins de 360p) en deux passes,
+  // un saut x6 d'un coup ne reconstruit presque rien
   const d = videoSize(src), petite = Math.min(d.width, d.height) < 360
-  const modele = petite ? 'seedvr2_ema_7b_fp16.safetensors' : 'seedvr2_ema_3b_fp16.safetensors'
+  const modele = 'seedvr2_ema_7b_fp16.safetensors'
   const reglages = { dit: ['dit', 0], vae: ['vae', 0], seed: 42, batch_size: 33, uniform_batch_size: true, color_correction: 'lab', temporal_overlap: 3, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false }
   const entree = cadre ? ['cadre', 0] : ['src', 0]
   const g = {
@@ -1697,7 +1698,7 @@ async function runSeedvr(job, t0) {
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
-  const n = await harvestJob(job, promptId, history, { applied: [petite ? `SeedVR2 7B en deux passes (540 puis ${SEEDVR_COTE})` : `SeedVR2 3B : ${SEEDVR_COTE} de petit côté`, ...(cadre ? ['bandes noires retirées'] : []), 'mouvement conservé'], skipped: [], finalWorkflow: g })
+  const n = await harvestJob(job, promptId, history, { applied: [petite ? `SeedVR2 7B en deux passes (540 puis ${SEEDVR_COTE})` : `SeedVR2 7B : ${SEEDVR_COTE} de petit côté`, ...(cadre ? ['bandes noires retirées'] : []), 'mouvement conservé'], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }

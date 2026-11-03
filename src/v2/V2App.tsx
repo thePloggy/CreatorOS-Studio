@@ -143,18 +143,18 @@ export default function V2App() {
           <MenusOutils section={section} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 10px' }} />
           <button
-            className="px-3.5 py-1.5 rounded-[9px] text-[12.5px]"
+            className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
             style={{ background: section === 'config' ? 'var(--lv3)' : 'transparent', color: section === 'config' ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
             onClick={() => setSection('config')}>{t('Paramètres')}</button>
           <button
-            className="px-3.5 py-1.5 rounded-[9px] text-[12.5px]"
+            className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
             style={{ background: section === 'createur' ? 'var(--lv3)' : 'transparent', color: section === 'createur' ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
-        <div className="ml-auto flex items-center gap-3 text-[12px]" style={{ color: 'var(--faint)' }}>
-          <Telemetry />
-          {activeJobs > 0 && <span style={{ color: 'var(--accent)' }}>{t('{n} en rendu', { n: activeJobs })}</span>}
-          <QuotaDemo />
+        <div className="ml-auto flex items-center gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>
+          <span className="masquer-etroit"><Telemetry /></span>
+          {activeJobs > 0 && <span className="masquer-etroit" style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{t('{n} en rendu', { n: activeJobs })}</span>}
+          <span className="masquer-tres-etroit"><QuotaDemo /></span>
           <VoyantMachine />
           <button title={t('parcours guidé')} aria-label={t('parcours guidé')} onClick={() => setParcours(true)}
             style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--muted)', display: 'flex' }}><Ic n="help" s={15} /></button>
