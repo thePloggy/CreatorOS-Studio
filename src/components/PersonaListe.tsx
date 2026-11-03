@@ -12,6 +12,7 @@ import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import type { PersonaCredit } from '../types'
 import { CreditLigne } from './PersonaCredit'
+import { personnageChoisi, SANS_PERSONNAGE } from '../lib/personnage'
 
 export interface PersonaResume {
   id: string; name: string | null; trigger: string; avatar: string | null
@@ -45,12 +46,21 @@ export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: st
   const charger = async () => {
     try {
       const d = await appel('/api/personas') as { active: string | null; personas: PersonaResume[] }
-      setListe(d.personas); onChange(d.active)
+      // le personnage de ce navigateur prime sur l'actif du serveur : la fiche montre celui qu'on voit en haut
+      const c = personnageChoisi()
+      const actif = c && c !== SANS_PERSONNAGE && d.personas.some(p => p.id === c) ? c : d.active
+      setListe(d.personas.map(p => ({ ...p, active: p.id === actif }))); onChange(actif)
     } catch (e) { setMsg(t('lecture impossible : {e}', { e: (e as Error).message })) }
   }
   // relu aussi quand le nom ou la photo de l'actif change (éditeur, dépôt de photo)
   const nomActif = useAppStore(s => s.personaName), photoActif = useAppStore(s => s.personaAvatar)
   useEffect(() => { void charger() }, [nomActif, photoActif])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // actif du serveur ET choix de ce navigateur : les prochains rendus et la fiche suivent le même
+  const activer = async (id: string) => {
+    await appel(`/api/personas/${id}/activer`, { method: 'POST' })
+    await useAppStore.getState().choisirPersonnage(id)
+  }
 
   async function agir(f: () => Promise<unknown>) {
     setMsg(null)
@@ -70,8 +80,8 @@ export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: st
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
         {liste.map(p => (
           <div key={p.id} role="button" tabIndex={0} aria-pressed={p.active}
-            onClick={() => { if (!p.active) void agir(() => appel(`/api/personas/${p.id}/activer`, { method: 'POST' })) }}
-            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !p.active) void agir(() => appel(`/api/personas/${p.id}/activer`, { method: 'POST' })) }}
+            onClick={() => { if (!p.active) void agir(() => activer(p.id)) }}
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !p.active) void agir(() => activer(p.id)) }}
             style={{
               padding: '10px 12px', borderRadius: 12, cursor: p.active ? 'default' : 'pointer',
               border: p.active ? '2px solid rgba(234,78,137,0.9)' : '1px solid rgba(127,127,127,0.30)',

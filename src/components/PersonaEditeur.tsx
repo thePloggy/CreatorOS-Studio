@@ -12,10 +12,11 @@ import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { Verrouille } from '../features/config/CleProprietaire'
+import { personnageChoisi, SANS_PERSONNAGE } from '../lib/personnage'
 
 interface LoraRef { name: string; strength: number }
 interface Persona {
-  name: string | null; trigger: string; description: string; preamble?: string
+  id?: string; name: string | null; trigger: string; description: string; preamble?: string
   loras: LoraRef[]; lorasKlein?: LoraRef[]; videoLoras: LoraRef[]; figes?: string[]; voix?: string | null
 }
 interface LoraDispo { name: string; arch?: string; bytes?: number | null }
@@ -115,7 +116,10 @@ export function PersonaEditeur() {
   const edition = useEdition()
 
   const charger = () => {
-    void fetch('/api/persona').then(r => r.json()).then((d: Persona) => { setP(d); setModifie(false) }).catch(() => setEtat(t('lecture impossible')))
+    // le personnage choisi dans ce navigateur, sinon l'actif du serveur
+    const c = personnageChoisi()
+    void fetch(c && c !== SANS_PERSONNAGE ? `/api/persona?id=${encodeURIComponent(c)}` : '/api/persona')
+      .then(r => r.json()).then((d: Persona) => { setP(d); setModifie(false) }).catch(() => setEtat(t('lecture impossible')))
     void fetch('/api/loras').then(r => r.json()).then((d: { loras?: LoraDispo[] }) => setDispo(d.loras ?? [])).catch(() => {})
   }
   useEffect(charger, [])
@@ -126,7 +130,7 @@ export function PersonaEditeur() {
 
   async function enregistrer() {
     setEtat(t('enregistrement…'))
-    const r = await fetch('/api/persona', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
+    const r = await fetch(p?.id ? `/api/personas/${encodeURIComponent(p.id)}` : '/api/persona', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
     const d = await r.json().catch(() => ({}))
     if (!r.ok) { setEtat(t('refusé : {e}', { e: tServeur(d.error) ?? r.status })); return }
     setP(d); setModifie(false); setEtat(t('enregistré — appliqué aux prochains rendus'))
