@@ -28,7 +28,7 @@ export const MENUS: Menu[] = [
   { titre: 'Image', defaut: 'Text to Image', colonnes: [
       { titre: 'Créer une image', outils: [
       { label: 'Text to Image', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
-      { label: 'Cinema Studio', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
+      { label: 'Movie Studio', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
       { label: 'Character', texte: 'Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.', section: 'nouveau-personnage', pastille: 'new' },
       { label: 'Product Shot', texte: 'Ton produit en photo ou en mots, ton personnage, une scène : affiche, visuels et clip.', section: 'pub', pastille: 'new' },
       ] },

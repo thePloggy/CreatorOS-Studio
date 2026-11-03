@@ -7,7 +7,7 @@ import { BandeauGithub } from '../components/BandeauGithub'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
 import { RenderIsland, useTabTitle } from '../components/RenderWatch'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './v2.css'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -90,25 +90,52 @@ function Telemetry() {
   </>)
 }
 
+const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil']
+// l'outil d'une page dédiée et la famille de Camera Moves / Effects viennent aussi de l'adresse
+{
+  const q = new URLSearchParams(window.location.search)
+  if (q.get('o')) useAppStore.setState({ outilDedie: q.get('o') as never })
+  if (q.get('f') === 'camera' || q.get('f') === 'effet') useAppStore.setState({ famillePresets: q.get('f') as 'camera' | 'effet' })
+}
+
 export default function V2App() {
   /* deep-link : ?s=video|persona|config (défaut image). */
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
   const outilDedie = useAppStore(st => st.outilDedie)
-  const [section, setSection] = useState<Section>(['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil'].includes(initial) ? initial : 'accueil')
+  const [section, setSection] = useState<Section>(SECTIONS.includes(initial) ? initial : 'accueil')
   const [focus, setFocus] = useState<{ a: Asset; list: Asset[]; action?: ActionOutil } | null>(null)
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
 
   useEffect(() => { void s.hydrate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* L'URL suit la section (?s=…) : un ⌘R recharge LÀ où on était au lieu
-     de retomber sur Image. replaceState — pas d'entrées d'historique. */
+  /* Chaque page a sa vraie adresse (?s=section, &o=outil pour une page d'outil) : ⌘R recharge la même page, et le bouton Retour du navigateur revient
+     à la page d'avant. */
+  const depuisHistorique = useRef(false)
   useEffect(() => {
-    const url = section === 'accueil' ? window.location.pathname : `${window.location.pathname}?s=${section}`
-    window.history.replaceState(null, '', url)
-  }, [section])
+    const q = new URLSearchParams()
+    if (section !== 'accueil') q.set('s', section)
+    if (section === 'outil') q.set('o', outilDedie)
+    const url = `${window.location.pathname}${q.toString() ? `?${q}` : ''}`
+    if (url === `${window.location.pathname}${window.location.search}`) { depuisHistorique.current = false; return }
+    if (depuisHistorique.current) { depuisHistorique.current = false; window.history.replaceState(null, '', url) }
+    else window.history.pushState(null, '', url)
+  }, [section, outilDedie])
+  useEffect(() => {
+    const lire = () => {
+      const q = new URLSearchParams(window.location.search)
+      const sec = (q.get('s') as Section) || 'accueil'
+      depuisHistorique.current = true
+      if (q.get('o')) useAppStore.setState({ outilDedie: q.get('o') as typeof outilDedie })
+      if (q.get('f') === 'camera' || q.get('f') === 'effet') useAppStore.setState({ famillePresets: q.get('f') as 'camera' | 'effet' })
+      setFocus(null)
+      setSection(SECTIONS.includes(sec) ? sec : 'accueil')
+    }
+    window.addEventListener('popstate', lire)
+    return () => window.removeEventListener('popstate', lire)
+  }, [])
 
   /* asset re-résolu à chaque render : la revue change reviewStatus, la
      visionneuse doit voir la version fraîche (sinon les boutons mentent).

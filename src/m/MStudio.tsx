@@ -26,7 +26,7 @@ import { t } from '../i18n'
 import { lienMobile } from './lien'
 
 type Vue = 'reel' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
-const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Cinema Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Music & Voice'], ['montage', 'Editor'],
+const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Music & Voice'], ['montage', 'Editor'],
   ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check']]
 
 export function MStudio({ goVideo }: { goVideo: () => void }) {

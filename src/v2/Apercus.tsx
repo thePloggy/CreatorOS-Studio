@@ -49,7 +49,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Voice-over': { type: 'media', image: v('onde.webp'), onde: true, texte: 'Welcome to the studio' },
   'Music & Sound Effects': { type: 'media', image: v('onde.webp'), onde: true, texte: 'warm lo-fi hip hop, soft piano' },
   'Stage': { ...compare('stage', 'Maquette 3D', 'Rendu final') },
-  'Cinema Studio': { type: 'media', image: v('v2-cine.webp'), video: v('v2-cine-v.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', '500T'] },
+  'Movie Studio': { type: 'media', image: v('v2-cine.webp'), video: v('v2-cine-v.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', '500T'] },
   'Camera Moves': anime('camera-z', { auto: true }),
   'Effects': anime('effets-z', { auto: true }),
   'Re-shoot': { type: 'compare', a: v('v2-reshoot-a.webp'), b: v('v2-reshoot-b.webp'), videoA: v('v2-reshoot-a.mp4'), videoB: v('v2-reshoot-b.mp4'), legA: 'Plan d’origine', legB: 'Caméra qui tourne', auto: true },

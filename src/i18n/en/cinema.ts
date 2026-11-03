@@ -1,7 +1,7 @@
 /* Studio ciné. */
 export const cinema: Record<string, string> = {
   '🎬 Ciné': '🎬 Cinematic',
-  'Studio ciné': 'Cinematic Studio',
+  'Studio ciné': 'Movie Studio',
   'Règle le plan comme sur un tournage — caméra, optique, lumière, pellicule, étalonnage. {nom} joue la scène.': 'Set up the shot like on a film set: camera, lens, light, film stock, grade. {nom} plays the scene.',
   'Décris la scène : où elle est, ce qu’elle fait.': 'Describe the scene: where she is, what she’s doing.',
   'Plans de départ': 'Starter shots',

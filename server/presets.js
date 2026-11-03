@@ -68,7 +68,7 @@ export const PRESETS = [
   { id: 'crash-zoom', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crash_zoom_in'), nom: 'Crash zoom', nomEn: 'Crash zoom', icone: '⊕',
     prompt: "The video begins with a wide shot of a woman standing still. Suddenly the camera performs a cr34sh crash zoom in effect, zooming in extremely fast onto the woman's face in a split second, then holding on an extreme close-up of her face. Fast whip zoom, motion blur. {sujet}" },
   { id: 'crash-zoom-out', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crash_zoom_out'), nom: 'Crash zoom arrière', nomEn: 'Crash zoom out', icone: '⊖',
-    prompt: 'The video begins with a woman standing in the place. The camera performs a cr34sh crash zoom out effect, pulling back very fast to a wide shot of the same place with the woman small in the frame, then holds still. {sujet}' },
+    prompt: 'The video begins with a close-up shot of a woman\'s face. The cr34sh crash zoom out effect then begins, quickly pulling back to reveal the whole place around her, the woman small in the frame. {sujet}' },
   { id: 'bullet-time', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'matrix_shot'), nom: 'Bullet time', nomEn: 'Bullet time', icone: '⧗',
     prompt: 'b4ll3t t1m3 bullet time shot. The woman leaps joyfully in the air, her hair and clothes flying. Time freezes at the top of her jump, her hair and clothes frozen in mid-air, while the camera sweeps in a smooth arc around the frozen scene. {sujet}' },
   { id: 'grue-haute', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crane_overhead'), nom: 'Grue au-dessus', nomEn: 'Overhead crane', icone: '⊙',

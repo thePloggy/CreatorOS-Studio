@@ -399,7 +399,7 @@ export const nouveautes: Record<string, string> = {
   'Ouvre un clip, Éditer : SAM3 suit la personne, rien n’est redessiné.': 'Open a clip, Edit: SAM3 tracks the person, nothing is redrawn.',
   'Ouvre un clip sans son : une ambiance calée sur les images.': 'Open a silent clip: ambience timed to the picture.',
   'Ouvre un clip : RIFE double les images.': 'Open a clip: RIFE doubles the frames.', 'Ouvre un clip : la suite ou le début du plan.': 'Open a clip: what comes next, or before.',
-  'Studio ciné': 'Cinematic Studio',
+  'Studio ciné': 'Movie Studio',
   'Agrandir': 'Expand', 'élargit le cadre et invente la suite de la scène sur les bords': 'widens the frame and invents the rest of the scene at the edges',
   'photo inconnue': 'unknown photo', 'format inconnu': 'unknown format', 'la photo est déjà à ce format': 'the photo already has this format',
   'Personnage': 'Character', 'Téléphone': 'Phone', 'filme le geste au téléphone, il arrive ici': 'film the move on your phone, it lands here',
