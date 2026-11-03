@@ -48,6 +48,8 @@ export const RECIPES_PAR_MOTEUR = {
   krea: { sfw: 'PROD_gen_krea_sfw.json' },
   // MOSS Image : Apache-2.0, sans LoRA d'identité ; demande un ComfyUI récent (type de CLIP moss_image)
   moss: { sfw: 'PROD_gen_moss_sfw.json' },
+  // FLUX 3 Image Klein (distillé, int8) : FLUX Kommunity License, filtre de contenu actif ; sans LoRA d'identité
+  flux3: { sfw: 'PROD_gen_flux3_sfw.json' },
 }
 export const PHOTO_ENGINE = CONFIG.photoEngine
 export const RECIPES = RECIPES_PAR_MOTEUR[PHOTO_ENGINE] ?? RECIPES_PAR_MOTEUR.krea

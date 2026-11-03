@@ -1,0 +1,101 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "flux3-image-klein-int8-convrot.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "4": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+   "type": "flux3",
+   "device": "default"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "4",
+    0
+   ],
+   "text": ""
+  }
+ },
+ "7": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "4",
+    0
+   ],
+   "text": ""
+  }
+ },
+ "8": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  }
+ },
+ "9": {
+  "class_type": "EmptyFlux2LatentImage",
+  "inputs": {
+   "width": 768,
+   "height": 1344,
+   "batch_size": 1
+  }
+ },
+ "10": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "5",
+    0
+   ],
+   "negative": [
+    "7",
+    0
+   ],
+   "latent_image": [
+    "9",
+    0
+   ],
+   "seed": 0,
+   "steps": 16,
+   "cfg": 1,
+   "sampler_name": "er_sde",
+   "scheduler": "simple",
+   "denoise": 1
+  }
+ },
+ "11": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "10",
+    0
+   ],
+   "vae": [
+    "8",
+    0
+   ]
+  }
+ },
+ "12": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "11",
+    0
+   ],
+   "filename_prefix": "creatoros/gen_flux3"
+  }
+ }
+}

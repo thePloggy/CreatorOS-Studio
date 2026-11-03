@@ -223,7 +223,7 @@ export function ElementsPopup({ open, onClose, onInsert }: {
 /* ---------- LoRA picker photo (arch image : flux2/zimage/flux1) ----------
    Empile dans loraPicks (suivies par mkJob). Force 0-2, trigger résolu
    serveur si vide. */
-const ARCH_MOTEUR: Record<string, string> = { krea: 'krea2', klein: 'flux2', moss: 'moss' }
+const ARCH_MOTEUR: Record<string, string> = { krea: 'krea2', klein: 'flux2', moss: 'moss', flux3: 'flux3' }
 function LoraPickTab({ q }: { q: string }) {
   const catalog = useAppStore(st => st.loraCatalog)
   const loadLoras = useAppStore(st => st.loadLoras)

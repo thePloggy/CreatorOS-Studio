@@ -87,7 +87,7 @@ export async function pisteNarree(r, nbPlans, pasPlan) {
     morceaux.push({ f: path.join(montage.MUSIQUES_DIR, nom), t: k * pasPlan + 0.25 })
   }
   if (!morceaux.length) return null
-  const total = nbPlans * pasPlan + 1
+  const total = nbPlans * pasPlan + 2
   const nom = `reel_${r.id}_voix.wav`, sortie = path.join(montage.MUSIQUES_DIR, nom)
   const ins = morceaux.flatMap(m => ['-i', m.f])
   const voix = morceaux.map((m, i) => `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${Math.round(m.t * 1000)}|${Math.round(m.t * 1000)}[v${i}]`).join(';')
@@ -95,8 +95,8 @@ export async function pisteNarree(r, nbPlans, pasPlan) {
   const musique = r.musique ? montage.cheminMusique(r.musique) : null
   const depart = r.grille?.debut ?? 0
   const fc = musique
-    ? `${voix};${mix},asplit=2[vo][sc];[${morceaux.length}:a]${montage.boucleSonore(musique, depart, total)},volume=0.6[m];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];[md][vo]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5[a]`
-    : `${voix};${mix},loudnorm=I=-14:TP=-1.5[a]`
+    ? `${voix};${mix},asplit=2[vo][sc];[${morceaux.length}:a]${montage.boucleSonore(musique, depart, total)},volume=0.6[m];[m][sc]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400[md];[md][vo]amix=inputs=2:normalize=0:duration=longest,loudnorm=I=-14:TP=-1.5,apad=whole_dur=${total}[a]`
+    : `${voix};${mix},loudnorm=I=-14:TP=-1.5,apad=whole_dur=${total}[a]`
   await lancer('ffmpeg', ['-v', 'error', '-y', ...ins, ...(musique ? ['-i', musique] : []), '-filter_complex', fc, '-map', '[a]', '-t', String(total), sortie], { timeout: 120_000 })
   for (const m of morceaux) fs.rmSync(m.f, { force: true })
   return nom
@@ -484,7 +484,7 @@ function monter(r, prets, rates) {
   const clips = prets.map((p, i) => ({ assetId: p.clipAsset, debut: 0, fin: null, duree: g ? Math.round(g.pas * 100) / 100 : r.duree, texte: i === 0 ? r.accroche ?? '' : '',
     textePos: 'centre', transition: g || i === prets.length - 1 ? 'coupe' : 'fondu', transitionDuree: 0.35, crop: null }))
   const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: !(voixOff || r.musique), volumeClips: 1,
-    musique: r.musique ? { fichier: r.musique, volume: voixOff ? 1 : 0.85, fonduEntree: g ? 0 : 0.3, fonduSortie: 1.2, decalage: g && !voixOff ? g.debut : 0 } : null, clips } })
+    musique: r.musique ? { fichier: r.musique, boucle: !voixOff, volume: voixOff ? 1 : 0.85, fonduEntree: g ? 0 : 0.3, fonduSortie: 1.2, decalage: g && !voixOff ? g.debut : 0 } : null, clips } })
   try {
     const { jobId } = montage.exporter(p2)
     return ecrire(r.id, 'export', { plans: r.plans, montageId: proj.id, exportJob: jobId, ratés: rates })

@@ -63,6 +63,8 @@ function nettoyer(d) {
     fichier: d.musique.fichier, volume: n(d.musique.volume, 0, 1.5, 0.8),
     fonduEntree: n(d.musique.fonduEntree, 0, 5, 0.5), fonduSortie: n(d.musique.fonduSortie, 0, 8, 1.5),
     decalage: n(d.musique.decalage, 0, 3600, 0),
+    // une piste de voix off ne reboucle pas : la fin est du silence, pas le début de la piste
+    boucle: d.musique.boucle !== false,
   } : null
   return {
     format: un(d?.format, Object.keys(FORMATS), '9:16'),
@@ -110,7 +112,8 @@ export function finSonore(fichier) {
   return fin
 }
 /** Filtre qui fait boucler la partie sonore d'un morceau à partir de `depart`, sur `longueur` secondes. */
-export function boucleSonore(fichier, depart, longueur) {
+export function boucleSonore(fichier, depart, longueur, boucle = true) {
+  if (!boucle) return `aresample=48000,aformat=channel_layouts=stereo,atrim=${depart},asetpts=PTS-STARTPTS,apad=whole_dur=${longueur.toFixed(3)},atrim=0:${longueur.toFixed(3)}`
   const fin = finSonore(fichier)
   if (!fin || fin < 2) return `aresample=48000,aformat=channel_layouts=stereo,atrim=${depart}:${(depart + longueur).toFixed(3)},asetpts=PTS-STARTPTS`
   return `aresample=48000,aformat=channel_layouts=stereo,atrim=0:${fin.toFixed(3)},asetpts=N/SR/TB,afade=t=out:st=${Math.max(0, fin - 0.08).toFixed(3)}:d=0.08,`
@@ -268,7 +271,7 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
   let aOut = ac
   if (d.musique) {
     const m = d.musique
-    f.push(`[${iMusique}:a]${boucleSonore(path.join(MUSIQUES_DIR, m.fichier), Number(m.decalage) || 0, longueur)},volume=${m.volume}`
+    f.push(`[${iMusique}:a]${boucleSonore(path.join(MUSIQUES_DIR, m.fichier), Number(m.decalage) || 0, longueur, m.boucle !== false)},volume=${m.volume}`
       + (m.fonduEntree > 0 ? `,afade=t=in:d=${m.fonduEntree}` : '')
       + (m.fonduSortie > 0 ? `,afade=t=out:st=${Math.max(0, longueur - m.fonduSortie).toFixed(3)}:d=${m.fonduSortie}` : '') + '[mus]')
     // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air

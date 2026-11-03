@@ -139,7 +139,7 @@ function garderobeDe(g) {
 }
 
 /** LoRA d'identité photo d'un personnage pour un moteur photo donné. */
-export const lorasPhoto = (p, moteur) => (moteur === 'moss' ? [] : moteur === 'klein' ? p.lorasKlein : p.loras)
+export const lorasPhoto = (p, moteur) => (moteur === 'moss' || moteur === 'flux3' ? [] : moteur === 'klein' ? p.lorasKlein : p.loras)
 
 function idActif(d) {
   return d.personas.some(p => p.id === d.active) ? d.active : d.personas[0]?.id ?? null
@@ -184,7 +184,7 @@ export function personas() {
 const ADULTE = 'an adult woman in her mid-twenties'
 /* Le mot déclencheur n'a de sens que pour un moteur qui a une LoRA de ce personnage : ailleurs,
    c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
-const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'moss' ? false : moteur === 'krea' ? p.loras.length > 0 : true
+const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'moss' || moteur === 'flux3' ? false : moteur === 'krea' ? p.loras.length > 0 : true
 export function identityPreambleFor(id, moteur) {
   const p = persona(id)
   const age = /\b(adult|\d{2}[- ]?(years?|yo))\b/i.test(p.preamble ?? '') ? null : ADULTE
