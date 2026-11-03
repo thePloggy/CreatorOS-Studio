@@ -49,7 +49,7 @@ export const MENUS: Menu[] = [
       { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', section: 'outil', dedie: 'multi-angle' },
       { label: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', section: 'outil', dedie: 'coverage', pastille: 'new' },
       { label: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', section: 'outil', dedie: 'next-shot', pastille: 'new' },
-      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans Stage.', section: 'outil', dedie: 'image-3d', pastille: 'new' },
+      { label: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans 3D Scene.', section: 'outil', dedie: 'image-3d', pastille: 'new' },
       ] },
     ], modeles: [['Krea 2', 'Photo du personnage, LoRA d’identité'], ['FLUX.2 Klein 9B', 'Images de référence, croquis'], ['Qwen-Image-Edit 2511', 'Angles, looks, retouche'], ['SeedVR2', 'Restauration et HD'], ['TRELLIS.2', 'Photo vers modèle 3D']] },
   { titre: 'Vidéo', defaut: 'Image to Video', colonnes: [
