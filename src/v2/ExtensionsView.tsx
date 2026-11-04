@@ -10,7 +10,7 @@ import { AssetCard, JobCard } from './bits'
 import { useSuiviOutil } from './OutilPage'
 
 type Entree = { id: string; type: 'texte' | 'nombre' | 'choix' | 'image'; label: string; defaut: unknown; options?: string[]; min?: number; max?: number; aide?: string }
-type Extension = { id: string; nom: string; description: string; auteur: string; licence: string; version: string; sortie: 'image' | 'video' | 'audio'; source: 'livree' | 'installee'; apercu?: string | null; entrees: Entree[]; manque: { noeuds: string[]; modeles: string[] } }
+type Extension = { id: string; nom: string; description: string; auteur: string; licence: string; version: string; sortie: 'image' | 'video' | 'audio'; source: 'livree' | 'installee' | 'catalogue'; apercu?: string | null; entrees: Entree[]; manque: { noeuds: string[]; modeles: string[] }; urlLancer?: string }
 type Fiche = { id: string; nom: string; description: string; auteur: string; licence: string; sortie: string; installee: boolean; apercu?: string | null }
 
 const poster = async (url: string, corps?: object) => {
@@ -29,12 +29,12 @@ function AppExtension({ x, onRetour, onRetirer, onOpen }: { x: Extension; onReto
   const [choix, setChoix] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   const [occupe, setOccupe] = useState(false)
-  const bloquee = x.manque.noeuds.length + x.manque.modeles.length > 0 || (x.source === 'installee' && !edition)
+  const bloquee = x.manque.noeuds.length + x.manque.modeles.length > 0 || (x.source !== 'livree' && !edition)
   const maj = (k: string, v: unknown) => setValeurs(o => ({ ...o, [k]: v }))
   const lancer = async () => {
     setOccupe(true); setMsg(null)
     try {
-      const d = await poster(`/api/extensions/${x.id}/lancer`, { valeurs }) as { id: string }
+      const d = await poster(x.urlLancer ?? `/api/extensions/${x.id}/lancer`, { valeurs }) as { id: string }
       suivi.ajouter([d.id]); await s.adoptServerJob(d.id)
       setMsg({ ok: true, txt: x.sortie === 'audio' ? t('en cours : le son arrive dans Musique et voix') : t('en cours : le résultat arrive ci-contre') })
     } catch (e) { setMsg({ ok: false, txt: String((e as Error).message) }) }
@@ -45,12 +45,12 @@ function AppExtension({ x, onRetour, onRetirer, onOpen }: { x: Extension; onReto
   const livres = s.assets.filter(a => suivi.ids.has(a.jobId))
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="app-ariane"><button onClick={onRetour}>{t('Extensions')}</button> › <b>{x.nom}</b></div>
+      <div className="app-ariane"><button onClick={onRetour}>{x.source === 'catalogue' ? t('Workflows ComfyUI') : t('Extensions')}</button> › <b>{x.nom}</b></div>
       <div className="app-page" style={{ paddingTop: 8 }}>
         <div className="app-carte">
           <div className="flex gap-2 items-center flex-wrap">
             <h2 className="titre-outil" style={{ margin: 0 }}>{x.nom}</h2>
-            <span className="texte-faible">{x.source === 'livree' ? t('livrée avec le studio') : t('installée')} · v{x.version}</span>
+            <span className="texte-faible">{x.source === 'livree' ? t('livrée avec le studio') : x.source === 'catalogue' ? t('workflow officiel de ComfyUI, câblé dans le studio') : t('installée')}{x.version ? ` · v${x.version}` : ''}</span>
           </div>
           <span className="texte-doux" style={{ fontSize: 13 }}>{x.description}</span>
           {x.entrees.map(e => (
@@ -176,7 +176,7 @@ type WorkflowComfy = { id: string; titre: string; description: string; categorie
 const go = (o: number | null) => (o ? `${(o / 1e9).toFixed(o > 10e9 ? 0 : 1)} Go` : '')
 
 /* Les workflows officiels de ComfyUI : modèles présents ou à télécharger, nœuds absents. */
-function WorkflowsComfy() {
+function WorkflowsComfy({ onOuvrir }: { onOuvrir: (x: Extension) => void }) {
   const edition = useEdition()
   const [liste, setListe] = useState<WorkflowComfy[] | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -191,6 +191,18 @@ function WorkflowsComfy() {
     return () => clearInterval(h)
   }, [liste])
   const telecharger = async (id: string) => { try { await poster(`/api/workflows-comfy/${id}/telecharger`); charger() } catch (e) { setErreur(String((e as Error).message)) } }
+  // le workflow devient une page du studio : formulaire tiré du workflow, rendus à droite
+  const ouvrir = async (w: WorkflowComfy) => {
+    setErreur(null)
+    try {
+      const r = await fetch(`/api/workflows-comfy/${encodeURIComponent(w.id)}/formulaire`)
+      const f = await r.json() as { nom: string; description: string; sortie: 'image' | 'video' | 'audio'; entrees: Entree[]; error?: string }
+      if (!r.ok) throw new Error(tServeur(f.error) ?? `HTTP ${r.status}`)
+      onOuvrir({ id: `catalogue-${w.id}`, nom: f.nom, description: f.description, auteur: 'ComfyUI', licence: t('workflow officiel'), version: '', sortie: f.sortie,
+        source: 'catalogue', apercu: `/api/workflows-comfy/vignette/${encodeURIComponent(w.id)}-1.webp`, entrees: f.entrees,
+        manque: { noeuds: w.noeuds, modeles: w.manquants.map(m => m.nom) }, urlLancer: `/api/workflows-comfy/${encodeURIComponent(w.id)}/lancer` })
+    } catch (e) { setErreur(`${w.titre} : ${String((e as Error).message)}`) }
+  }
   const cats = [...new Set(liste?.map(w => w.categorie) ?? [])]
   const q = cherche.trim().toLowerCase()
   const vus = (liste ?? []).filter(w => (!cat || w.categorie === cat) && (!q || `${w.titre} ${w.description} ${w.tags.join(' ')}`.toLowerCase().includes(q)))
@@ -222,6 +234,7 @@ function WorkflowsComfy() {
                 {d && <span className={d.etat === 'échec' ? 'texte-erreur' : 'texte-doux'} style={{ fontSize: 12 }}>{d.etat === 'en cours' ? t('téléchargement {a}/{b} : {f}', { a: d.fait, b: d.total, f: d.fichier ?? '' }) : d.etat === 'fini' ? t('modèles téléchargés') : d.erreur}</span>}
                 <div className="flex gap-1.5 flex-wrap">
                   {edition && w.manquants.length > 0 && d?.etat !== 'en cours' && <button className="pill" onClick={() => void telecharger(w.id)}>{t('Télécharger les modèles')}</button>}
+                  {edition && pret && <button className="pill pill-on" onClick={() => void ouvrir(w)}>{t('Ouvrir dans le studio')}</button>}
                   {edition && <a className="pill" href={`${location.protocol}//${location.hostname}:8188/?template=${encodeURIComponent(w.id)}`} target="_blank" rel="noreferrer">{t('Ouvrir dans ComfyUI')}</a>}
                   {w.tutoriel && <a className="pill" href={w.tutoriel} target="_blank" rel="noreferrer">{t('Guide')}</a>}
                 </div>
@@ -248,8 +261,9 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
   const charger = () => void fetch('/api/extensions').then(r => r.json()).then((d: { extensions: Extension[]; catalogue: Fiche[] }) => { setListe(d.extensions); setCat(d.catalogue) }).catch(() => setListe([]))
   useEffect(charger, [])
   const agir = async (url: string) => { setMsg(null); try { await poster(url); charger() } catch (e) { setMsg(String((e as Error).message)) } }
-  const x = liste?.find(e => e.id === ouverte)
-  if (x) return <AppExtension x={x} onRetour={() => setOuverte(null)} onOpen={onOpen} onRetirer={() => { setOuverte(null); void agir(`/api/extensions/${x.id}/retirer`) }} />
+  const [comfyOuvert, setComfyOuvert] = useState<Extension | null>(null)
+  const x = comfyOuvert ?? liste?.find(e => e.id === ouverte)
+  if (x) return <AppExtension key={x.id} x={x} onRetour={() => { setOuverte(null); setComfyOuvert(null) }} onOpen={onOpen} onRetirer={() => { setOuverte(null); void agir(`/api/extensions/${x.id}/retirer`) }} />
   const q = cherche.trim().toLowerCase()
   const garde = (nom: string, desc: string, sortie: string) => (filtre === 'tout' || filtre === sortie) && (!q || `${nom} ${desc}`.toLowerCase().includes(q))
   const badge = (sortie: string) => ({ image: t('Image'), video: t('Vidéo'), audio: t('Audio') } as Record<string, string>)[sortie] ?? sortie
@@ -286,7 +300,7 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
           </div>
         </>}
         {msg && <span className="texte-erreur">{msg}</span>}
-        {(filtre === 'tout' || filtre === 'comfy') && <WorkflowsComfy />}
+        {(filtre === 'tout' || filtre === 'comfy') && <WorkflowsComfy onOuvrir={setComfyOuvert} />}
       </div>
     </div>
   )

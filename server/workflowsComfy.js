@@ -5,6 +5,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { CONFIG } from './config.js'
+import { versApi, entreesManquantes } from './comfyVersApi.js'
+import { remplirEtLancer } from './extensions.js'
 
 const SITE = () => {
   const lib = path.join(CONFIG.comfyDir, 'venv', 'lib')
@@ -125,4 +127,75 @@ export async function telecharger(id) {
     suivi.etat = 'fini'; suivi.fichier = null
   })()
   return suivi
+}
+
+/* ---------- ouvrir un workflow du catalogue dans le studio ----------
+   Le workflow (format éditeur) est converti au format API (comfyVersApi.js), puis ses réglages
+   utiles deviennent un formulaire : le prompt principal, une photo par LoadImage, la graine.
+   Le reste garde les valeurs du workflow officiel. */
+
+const SORTIE = [[/^Save(Image|AnimatedWEBP|AnimatedPNG)/, 'image'], [/^(SaveVideo|SaveWEBM|VHS_VideoCombine)/, 'video'], [/^SaveAudio/, 'audio']]
+const CHAMPS_TEXTE = /^(text|prompt|value|positive)$/
+const CLASSES_TEXTE = /^(CLIPTextEncode|TextEncode|PrimitiveString|PrimitiveStringMultiline)/
+
+async function objetInfo() {
+  const r = await fetch(`${CONFIG.comfyUrl}/object_info`, { signal: AbortSignal.timeout(20_000) })
+  if (!r.ok) throw new Error(`ComfyUI : HTTP ${r.status}`)
+  return r.json()
+}
+
+/** Le workflow du catalogue en « application » : nom, sortie, champs, graphe à emplacements. */
+export async function application(id) {
+  const t = index().liste.find(x => x.id === id)
+  if (!t) throw new Error('workflow inconnu')
+  const w = JSON.parse(fs.readFileSync(path.join(index().site, 'comfyui_workflow_templates_json', 'templates', `${id}.json`), 'utf8'))
+  const oi = await objetInfo()
+  const { graphe, ignores } = versApi(w, oi)
+  if (ignores.length) throw new Error(`nœuds absents de ComfyUI : ${ignores.join(', ')} — mets ComfyUI à jour`)
+  const manquantes = entreesManquantes(graphe, oi)
+  if (manquantes.length) throw new Error(`ce workflow ne se convertit pas encore (${manquantes.slice(0, 3).join(', ')}) : ouvre-le dans ComfyUI`)
+
+  let sortie = null
+  for (const n of Object.values(graphe)) for (const [re, s] of SORTIE) if (!sortie && re.test(n.class_type)) sortie = s
+  if (!sortie) throw new Error('ce workflow ne produit ni image, ni vidéo, ni son : ouvre-le dans ComfyUI')
+  if (Object.values(graphe).some(n => /^(LoadVideo|VHS_LoadVideo|LoadAudio)/.test(n.class_type)))
+    throw new Error('ce workflow part d’une vidéo ou d’un son : ouvre-le dans ComfyUI')
+
+  // nœuds qui alimentent un « negative » : leur texte n'est pas le prompt
+  const negatifs = new Set(Object.values(graphe).flatMap(n => Object.entries(n.inputs).filter(([k, v]) => /negative/.test(k) && Array.isArray(v)).map(([, v]) => v[0])))
+  const textes = []
+  for (const [nid, n] of Object.entries(graphe)) {
+    if (!CLASSES_TEXTE.test(n.class_type) || negatifs.has(nid)) continue
+    for (const [k, v] of Object.entries(n.inputs))
+      if (CHAMPS_TEXTE.test(k) && typeof v === 'string' && v.trim() && !/^you are\b/i.test(v.trim())) textes.push({ nid, k, v })
+  }
+  textes.sort((a, b) => b.v.length - a.v.length)
+  const entrees = []
+  if (textes[0]) {
+    const { nid, k, v } = textes[0]
+    graphe[nid].inputs[k] = '{{prompt}}'
+    entrees.push({ id: 'prompt', type: 'texte', label: 'Prompt', defaut: v.slice(0, 600) })
+  }
+  let ni = 0
+  for (const n of Object.values(graphe)) {
+    if (n.class_type !== 'LoadImage') continue
+    ni++
+    n.inputs.image = `{{image${ni}}}`
+    if ('upload' in n.inputs) delete n.inputs.upload
+    entrees.push({ id: `image${ni}`, type: 'image', label: ni === 1 ? 'Image' : `Image ${ni}` })
+  }
+  for (const n of Object.values(graphe))
+    for (const k of ['seed', 'noise_seed']) if (typeof n.inputs[k] === 'number') n.inputs[k] = '{{seed}}'
+  return { id: `catalogue-${id}`.slice(0, 40), nom: t.titre, description: t.description, sortie, entrees, graphe, modeleId: id }
+}
+
+/** Ce que la page affiche : le formulaire et ce qui manque, sans le graphe. */
+export async function formulaire(id) {
+  const a = await application(id)
+  return { id, nom: a.nom, description: a.description, sortie: a.sortie, entrees: a.entrees }
+}
+
+export async function lancer(id, { valeurs, personaId }) {
+  const a = await application(id)
+  return remplirEtLancer({ ...a, id: `catalogue:${id}` }, { valeurs, personaId })
 }

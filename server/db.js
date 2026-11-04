@@ -226,7 +226,14 @@ export const orphanedRunningRows = () =>
       payload: (() => { try { return JSON.parse(r.payload) } catch { return null } })() }))
 
 export const markStarted  = (id, promptId)      => patchStmt.started.run('rendering', Date.now(), promptId, id)
-export const markFinished = (id, ms)            => patchStmt.finished.run('done', Date.now(), ms, id)
+/* Abonnés à la fin d'un job (filtre des rendus) : appelés après l'écriture, sans attendre. */
+const finJob = []
+export const surFinJob = f => { finJob.push(f) }
+export const markFinished = (id, ms) => {
+  const r = patchStmt.finished.run('done', Date.now(), ms, id)
+  for (const f of finJob) { try { f(id) } catch (e) { console.warn(`[fin de job] ${e.message}`) } }
+  return r
+}
 export const markFailed   = (id, ms, err)       => patchStmt.failed.run('blocked', Date.now(), ms, String(err).slice(0, 4000), id)
 /** Remet un job en file depuis son payload : prompt ComfyUI oublié (il
  *  n'existe plus), erreur effacée. Utilisé par la reprise après un

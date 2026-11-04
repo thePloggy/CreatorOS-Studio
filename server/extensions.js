@@ -143,6 +143,12 @@ export async function lancer({ id, valeurs, proprietaire, personaId }) {
   const x = toutes().find(e => e.id === id)
   if (!x) throw new Error('extension inconnue')
   if (x.source === 'installee' && !proprietaire) throw new Error('réservé au propriétaire du studio')
+  return remplirEtLancer(x, { valeurs, personaId })
+}
+
+/** Remplit les emplacements {{champ}} d'un workflow avec les valeurs du formulaire, filtre les textes
+ *  et met en file. `x` : { id, nom, sortie, entrees, graphe } (extension ou workflow du catalogue). */
+export async function remplirEtLancer(x, { valeurs, personaId }) {
   const m = await manques(x.graphe)
   if (m.noeuds.length || m.modeles.length) throw new Error(`il manque à ComfyUI : ${[...m.noeuds, ...m.modeles].join(', ')}`)
   const v = valeurs && typeof valeurs === 'object' ? valeurs : {}

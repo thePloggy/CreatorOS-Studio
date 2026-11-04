@@ -1332,7 +1332,96 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
   return { id }
 }
 
+/* ---------- nouveau fond d'un clip (Wan 2.2 Fun VACE) ----------
+   1) Qwen-Image-Edit 2511 refait le décor de la 1re image en gardant la personne :
+      c'est l'image de référence du nouveau décor.
+   2) SAM3 suit la ou les personnes ; tout le reste devient gris dans la vidéo de
+      contrôle, et le masque (personne resserrée de 3 px, inversé) dit à VACE quoi
+      redessiner. VACE refait le décor sur tout le clip, guidé par la référence.
+   3) Les personnes de la source sont recollées par-dessus, sans flou : aucun
+      liseré de l'ancien décor, et leur visage reste celui de la source. */
+const FOND_VACE_MAX_IMAGES = 161
+function grapheFondVace(job) {
+  const src = path.join(CONFIG.comfyInput, path.basename(job.inpaintVideo))
+  const { width: sw, height: sh } = videoSize(src)
+  const ratio = sw && sh ? sw / sh : 16 / 9
+  const aire = 832 * 480
+  const W = Math.max(256, Math.round(Math.sqrt(aire * ratio) / 16) * 16)
+  const H = Math.max(256, Math.round(Math.sqrt(aire / ratio) / 16) * 16)
+  const m = driverMeta(job.inpaintVideo)
+  const N = Math.min(FOND_VACE_MAX_IMAGES, Math.floor(((m?.frames ?? 81) - 1) / 4) * 4 + 1)
+  const decor = String(job.composedPositive ?? '').trim()
+  const cible = job.inpaintCible || 'person'
+  const seed = Number(job.seed) || 42
+  const ks = (model, a, b, lat, bruit) => ({ class_type: 'KSamplerAdvanced', inputs: { model, add_noise: bruit ? 'enable' : 'disable', noise_seed: seed,
+    steps: 20, cfg: 3.5, sampler_name: 'uni_pc', scheduler: 'simple', positive: ['vace', 0], negative: ['vace', 1], latent_image: lat,
+    start_at_step: a, end_at_step: b, return_with_leftover_noise: bruit ? 'enable' : 'disable' } })
+  const g = {
+    v: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W, custom_height: H, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
+    // 1) référence : la 1re image, décor refait par Qwen-Image-Edit
+    qe_img: { class_type: 'ImageFromBatch', inputs: { image: ['v', 0], batch_index: 0, length: 1 } },
+    qe_px: { class_type: 'ImageScaleToTotalPixels', inputs: { upscale_method: 'lanczos', megapixels: 1, resolution_steps: 1, image: ['qe_img', 0] } },
+    qe_unet: { class_type: 'UNETLoader', inputs: { unet_name: 'qwen_image_edit_2511_fp8mixed.safetensors', weight_dtype: 'default' } },
+    qe_clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen_2.5_vl_7b_fp8_scaled.safetensors', type: 'qwen_image', device: 'default' } },
+    qe_vae: { class_type: 'VAELoader', inputs: { vae_name: 'qwen_image_vae.safetensors' } },
+    qe_att: { class_type: 'ModelAttentionBackend', inputs: { model: ['qe_unet', 0], attention: 'pytorch attention' } },
+    qe_ms: { class_type: 'ModelSamplingAuraFlow', inputs: { shift: 3, model: ['qe_att', 0] } },
+    qe_norm: { class_type: 'CFGNorm', inputs: { strength: 1, model: ['qe_ms', 0] } },
+    qe_pos: { class_type: 'TextEncodeQwenImageEditPlus', inputs: { prompt: `Replace the whole background with: ${decor}. Keep every person exactly identical: same face, hair, clothes, pose, size and position in the frame. Match the new light to the scene.`, clip: ['qe_clip', 0], vae: ['qe_vae', 0], image1: ['qe_px', 0] } },
+    qe_neg: { class_type: 'TextEncodeQwenImageEditPlus', inputs: { prompt: '', clip: ['qe_clip', 0], vae: ['qe_vae', 0], image1: ['qe_px', 0] } },
+    qe_lat: { class_type: 'VAEEncode', inputs: { pixels: ['qe_px', 0], vae: ['qe_vae', 0] } },
+    qe_ks: { class_type: 'KSampler', inputs: { seed, denoise: 1, model: ['qe_norm', 0], positive: ['qe_pos', 0], negative: ['qe_neg', 0], latent_image: ['qe_lat', 0], steps: 20, cfg: 2.5, sampler_name: 'euler', scheduler: 'simple' } },
+    qe_dec: { class_type: 'VAEDecode', inputs: { samples: ['qe_ks', 0], vae: ['qe_vae', 0] } },
+    refs: { class_type: 'ImageScale', inputs: { image: ['qe_dec', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
+    // 2) suivi des personnes, vidéo de contrôle au décor gris
+    sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: cible } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['v', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 4, detect_interval: 1, conditioning: ['txt', 0] } },
+    m: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '' } },
+    mg: { class_type: 'GrowMask', inputs: { mask: ['m', 0], expand: -3, tapered_corners: true } },
+    bg: { class_type: 'InvertMask', inputs: { mask: ['mg', 0] } },
+    gris: { class_type: 'EmptyImage', inputs: { width: W, height: H, batch_size: N, color: 8355711 } },
+    ctrl: { class_type: 'ImageCompositeMasked', inputs: { destination: ['v', 0], source: ['gris', 0], x: 0, y: 0, resize_source: false, mask: ['bg', 0] } },
+    uh: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    ul: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    mh: { class_type: 'ModelSamplingSD3', inputs: { model: ['uh', 0], shift: 8 } },
+    ml: { class_type: 'ModelSamplingSD3', inputs: { model: ['ul', 0], shift: 8 } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp16.safetensors', type: 'wan', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: `${decor}. The people keep moving naturally in the new place, realistic, cinematic, consistent light.` } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'blurry, distorted, deformed, flicker, halo, outline, glow around the person, cartoon, text, watermark' } },
+    vace: { class_type: 'WanVaceToVideo', inputs: { positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0], width: W, height: H, length: N, batch_size: 1, strength: 1,
+      control_video: ['ctrl', 0], control_masks: ['bg', 0], reference_image: ['refs', 0] } },
+    kh: ks(['mh', 0], 0, 10, ['vace', 2], true),
+    kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
+    trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
+    dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
+    // 3) les personnes de la source recollées, bord net
+    colle: { class_type: 'ImageCompositeMasked', inputs: { destination: ['dec', 0], source: ['v', 0], x: 0, y: 0, resize_source: false, mask: ['m', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['colle', 0], fps: 16 } },
+    out: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/fond`, format: 'mp4', codec: 'h264' } },
+  }
+  return { g, W, H, N }
+}
+
+async function runFondVace(job, t0) {
+  const { g, W, H, N } = grapheFondVace(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  console.log(`[job ${job.id}] NOUVEAU FOND (VACE) ${W}×${H}, ${N} images, SAM3 « ${job.inpaintCible} » sur ${job.inpaintVideo} prompt_id=${promptId}`)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, {
+    applied: [`nouveau fond : 1re image refaite par Qwen-Image-Edit 2511, décor du clip refait par Wan 2.2 Fun VACE (${W}×${H}, ${N} images à 16 i/s), `
+      + `personnes suivies par SAM3 (« ${job.inpaintCible} ») et recollées depuis la source`],
+    skipped: [], finalWorkflow: g,
+  })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 async function runInpaintVideo(job, t0) {
+  if (job.inpaintInverser && !job.inpaintObjet) return runFondVace(job, t0)
   if (job.inpaintObjet) await preparerObjet(job)
   const g = comfy.loadWorkflow(REFINE_MASKED_RECIPE)
   const req = (id, classe) => { if (g[id]?.class_type !== classe) throw new Error(`retouche vidéo : la recette « ${REFINE_MASKED_RECIPE} » a changé (nœud ${id} ≠ ${classe})`) }
@@ -2028,7 +2117,7 @@ export function relancerSpecial(p) {
 export function enqueueExtension({ graphe, sortie, nom, extensionId, personaId, parentAssetId, prompt }) {
   const id = `ext-${Date.now().toString(36)}`
   for (const n of Object.values(graphe)) {
-    if (/^Save(Image|Video|Audio|AudioMP3|AnimatedWEBP)$/.test(n.class_type) && 'filename_prefix' in (n.inputs ?? {})) n.inputs.filename_prefix = `creatoros/${id}/ext`
+    if (/^Save/.test(n.class_type) && 'filename_prefix' in (n.inputs ?? {})) n.inputs.filename_prefix = `creatoros/${id}/ext`
   }
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',

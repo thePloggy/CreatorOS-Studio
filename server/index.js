@@ -16,6 +16,7 @@ import { installerVisites } from './visites.js'
 import { CONFIG } from './config.js'
 import { fetchOllama, blocOllama, etat as etatGpu } from './gpu.js'
 import * as store from './db.js'
+import { demarrerFiltre, filtrerNouveaux } from './filtreImages.js'
 import { analyserClip, describeOutfit, describeScene, decomposeScene, momentSuivant } from './vision.js'
 import * as comfy from './comfy.js'
 import * as prompts from './prompts.js'
@@ -72,7 +73,7 @@ const ROUTES_PROPRIETAIRE = new Set([
   // Démo publique : un visiteur ne part que des images générées par le studio, jamais
   // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/parole/dire', 'POST /api/montage/musiques',
-  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/comfy/maj', 'POST /api/comfy/noeuds', 'POST /api/comfy/redemarrer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
+  'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/workflows-comfy/:id/lancer', 'POST /api/comfy/maj', 'POST /api/comfy/noeuds', 'POST /api/comfy/redemarrer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
 const estProprietaire = req => {
   if (!CONFIG.cleProprietaire) return true
@@ -2226,6 +2227,14 @@ app.get('/api/workflows-comfy/vignette/:nom', async (req, reply) => {
 app.post('/api/workflows-comfy/:id/telecharger', async (req, reply) => {
   try { return await workflowsComfy.telecharger(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
+/* Ouvrir un workflow du catalogue dans le studio : son formulaire (pour tous), son lancement (propriétaire). */
+app.get('/api/workflows-comfy/:id/formulaire', async (req, reply) => {
+  try { return await workflowsComfy.formulaire(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/workflows-comfy/:id/lancer', async (req, reply) => {
+  try { return await workflowsComfy.lancer(String(req.params.id), { valeurs: req.body?.valeurs, personaId: personaDe(req) }) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 
 app.get('/api/extensions', async () => ({ extensions: await extensions.lister(), catalogue: extensions.catalogue() }))
 app.post('/api/extensions/:id/installer', async (req, reply) => {
@@ -2768,6 +2777,9 @@ if (seeded.length) app.log.info(`textes de façonnage créés : ${seeded.join(',
    (ComfyUI redémarré). Attend ComfyUI avant de trancher. Non bloquant pour
    l'écoute HTTP : l'attente peut durer le temps d'un boot complet. */
 void recoverQueue().catch(e => console.error('[reprise]', e.message || e))
+// filtre de nudité : une ronde à chaque fin de job, et une ronde périodique de rattrapage
+demarrerFiltre()
+store.surFinJob(() => { void filtrerNouveaux() })
 reel.demarrerSuivi()
 presets.demarrerSuites()
 
