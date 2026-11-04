@@ -84,5 +84,7 @@ export const cinema: Record<string, string> = {
   'Terrasse à l’heure dorée': 'Golden-hour terrace',
   'Rue de néons': 'Neon street',
   'Plage en 16 mm': '16mm beach',
+  'Vol au-dessus de Manhattan': 'Flight over Manhattan',
+  'Film d’action': 'Action film',
   'Portrait à la fenêtre': 'Window portrait',
 }

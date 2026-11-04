@@ -78,6 +78,7 @@ export const LOOKS: Opt[] = [
   { id: 'clip', label: 'Clip musical', prompt: 'music video frame, bold styling' },
   { id: 'pub', label: 'Pub de mode', prompt: 'high-end fashion campaign' },
   { id: 'docu', label: 'Documentaire', prompt: 'candid documentary photograph' },
+  { id: 'action', label: 'Film d’action', prompt: 'blockbuster action film still, sense of speed and scale' },
 ]
 
 export const ETALONNAGES: Opt[] = [
@@ -108,6 +109,7 @@ export const DEPARTS: { id: string; label: string; fiche: Partial<Fiche> }[] = [
   { id: 'neon', label: 'Rue de néons', fiche: { scene: 'standing in a rainy city street at night, wet pavement reflecting the signs', boitier: 'cine-num', optique: 'anamorphique', focale: '35mm', ouverture: 'f1.4', plan: 'americain', lumiere: 'neon', pellicule: 'cine-500', look: 'sf', etalonnage: 'teal-orange' } },
   { id: 'noir', label: 'Film noir', fiche: { scene: 'leaning against a door frame in a dim hallway, looking off camera', boitier: 'pellicule35', optique: 'vintage', focale: '50mm', ouverture: 'f2.8', plan: 'americain', lumiere: 'clair-obscur', pellicule: 'nb', look: 'polar', etalonnage: 'naturel' } },
   { id: 'plage', label: 'Plage en 16 mm', fiche: { scene: 'walking barefoot along the shoreline, wind in her hair', boitier: 'pellicule16', optique: 'vintage', focale: '24mm', ouverture: 'f5.6', plan: 'pied', lumiere: 'contre-jour', pellicule: 'cine-500', look: 'clip', etalonnage: 'pastel' } },
+  { id: 'manhattan', label: 'Vol au-dessus de Manhattan', fiche: { scene: 'flying fast between the glass skyscrapers of Manhattan in a sleek plain teal superhero suit with no emblem, seen from behind and slightly above as the camera chases her, body stretched forward, hair streaming back, the towers rushing past with a light motion blur, the avenue and tiny yellow taxis far below', boitier: 'cine-num', optique: 'spherique', focale: '24mm', ouverture: 'f5.6', plan: 'plongee', lumiere: 'heure-doree', pellicule: 'aucune', look: 'action', etalonnage: 'teal-orange' } },
   { id: 'atelier', label: 'Portrait à la fenêtre', fiche: { scene: 'sitting by a tall window in an artist studio, a sketchbook on her knees', boitier: 'moyen-format', optique: 'spherique', focale: '85mm', ouverture: 'f2.8', plan: 'poitrine', lumiere: 'fenetre', pellicule: 'portra', look: 'drame', etalonnage: 'desature' } },
 ]
 
