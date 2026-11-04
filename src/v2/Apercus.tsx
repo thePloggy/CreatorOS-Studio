@@ -18,7 +18,7 @@ const anime = (nom: string, reste: Partial<Extract<Apercu, { type: 'media' }>> =
 
 export const BANDEAU_STAGE: Apercu = { ...compare('stage', 'Maquette 3D', 'Rendu final'), videoA: v('stage-a.mp4'), videoB: v('stage-b.mp4') } as Apercu
 export const BANDEAU_CINEMA: Apercu = { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w2.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', 'Pellicule 500T'], auto: true }
-export const BANDEAU_RESTORE: Apercu = { type: 'compare', a: v('restaurer-a.webp'), b: v('restaurer-b.webp'), legA: 'Photo d’origine', legB: 'Restaurée et colorisée' }
+export const BANDEAU_RESTORE: Apercu = { type: 'compare', a: v('restaurer-a2.webp'), b: v('restaurer-b2.webp'), legA: 'Archive de 1951', legB: 'Restaurée et colorisée' }
 export const BANDEAU_REEL = anime('reel-w', { texte: 'Golden hour in Alfama', auto: true })
 const compareVideo = (nom: string, legA: string, legB: string): Apercu => ({ ...compare(nom, legA, legB), videoA: v(`${nom}-a.mp4`), videoB: v(`${nom}-b.mp4`), auto: true } as Apercu)
 
@@ -67,7 +67,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Green Screen': compareVideo('detour', 'Clip', 'Fond vert'),
   'Lip Sync': compareVideo('doublage', 'Voix d’origine', 'Nouvelle voix'),
   'Reframe': compareVideo('recadrer', '9:16', '16:9'),
-  'Restore': compare('restaurer', 'Photo d’origine', 'Restaurée et colorisée'),
+  'Restore': { type: 'compare', a: v('restaurer-a2.webp'), b: v('restaurer-b2.webp'), legA: 'Archive de 1951', legB: 'Restaurée et colorisée' },
   'Sketch to Video': { type: 'media', image: v('croquis.webp'), video: v('croquis.mp4'), auto: true },
   'ComfyUI Official Workflows': { type: 'media', image: v('v2-comfy.webp'), puces: ['262 workflows', 'Modèles manquants', 'Ouvrir dans ComfyUI'] },
   'Extensions': compare('extensions', 'Photo', 'Extension Illustration'),
