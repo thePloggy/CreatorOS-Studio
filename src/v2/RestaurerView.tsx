@@ -1,6 +1,6 @@
 /* Restaurer : une photo ou un clip abîmé ressort propre et en HD (cf. server/restauration.js).
    Photo : retouche (rayures, poussière, zones passées), couleur au choix, puis agrandissement SeedVR2.
-   Clip : SeedVR2 vidéo. Au gabarit studio : réglages à gauche, avant / après puis historique à droite. */
+   Clip : SeedVR2 vidéo ; coloriser : 1re image colorisée, clip colorisé par VACE, puis SeedVR2. Au gabarit studio : réglages à gauche, avant / après puis historique à droite. */
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'
@@ -95,7 +95,7 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
       ]}
       action={<>
         <button className="cta" style={{ padding: '18px 15px', flexDirection: 'row' }} disabled={!(source?.asset || source?.fichier) || occupe || (media === 'photo' && !nettoyer && !couleur && !hd)}
-          onClick={() => void lancer()}>{occupe ? '…' : t('Restaurer')} <small>{media === 'photo' ? '~1 min' : '~3-5 min'}</small></button>
+          onClick={() => void lancer()}>{occupe ? '…' : t('Restaurer')} <small>{media === 'photo' ? '~1 min' : couleur ? '~10 min' : '~3-5 min'}</small></button>
         {msg && <span className="texte-erreur">{msg}</span>}
       </>}>
       <div className="segmente">
@@ -109,7 +109,12 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={couleur} onChange={e => setCouleur(e.target.checked)} /> {t('Coloriser une photo en noir et blanc')}</label>
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={hd} onChange={e => setHd(e.target.checked)} /> {t('HD : agrandir et reconstruire le détail')}</label>
         </div>
-      ) : <span className="texte-doux" style={{ fontSize: 12.5 }}>{t('Clip de 12 s au plus, en dessous de 1080p : SeedVR2 le nettoie et le monte en 1080p, bandes noires retirées, son conservé. Une source minuscule ou très floue gagne en netteté, mais un détail effacé ne revient pas.')}</span>}
+      ) : (
+        <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+          <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={couleur} onChange={e => setCouleur(e.target.checked)} /> {t('Coloriser un clip en noir et blanc (10 s au plus, ~10 min)')}</label>
+          <span className="texte-doux" style={{ fontSize: 12.5 }}>{t('Clip de 12 s au plus, en dessous de 1080p : SeedVR2 le nettoie et le monte en 1080p, bandes noires retirées, son conservé. Une source minuscule ou très floue gagne en netteté, mais un détail effacé ne revient pas.')}</span>
+        </div>
+      )}
     </OutilPage>
   )
 }

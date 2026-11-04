@@ -1449,6 +1449,85 @@ function grapheFondVace(job) {
   return { g, W, H, N }
 }
 
+/* ---------- colorisation d'un clip (Wan 2.2 Fun VACE) ----------
+   Le clip noir et blanc sert de guide (structure et mouvement), une image de référence
+   déjà colorisée (sa 1re image restaurée par Qwen-Image-Edit) donne les couleurs, et un
+   masque plein demande à VACE de repeindre toute l'image. Le mouvement et le cadrage
+   restent ceux du clip ; la HD vient ensuite (SeedVR2). */
+const COLORISER_MAX_IMAGES = 161
+export function enqueueColorisationVideo({ source, reference, parentAssetId, origineUri }) {
+  for (const n of [source, reference]) if (!n || /[\\/]/.test(n) || n.startsWith('.')) throw new Error('fichier invalide')
+  const src = path.join(CONFIG.comfyInput, source)
+  if (!fs.existsSync(src)) throw new Error('clip introuvable')
+  const duree = videoDurationOf(src)
+  if (!duree) throw new Error('vidéo illisible')
+  if (duree > 10) throw new Error('10 s au plus pour la colorisation')
+  const id = `couleur-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: SANS_PERSONNAGE, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'coloriser_video@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'coloriser_video', videoEngine: null,
+    colSource: source, colReference: reference, origineUri: origineValide(origineUri),
+    parentAssetId: parentAssetId ?? null, userPrompt: 'colorisation', userDirectives: null,
+    composedPositive: `colorisation de ${source} (référence ${reference})`, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(60_000 + duree * 75_000),
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+function grapheColoriser(job) {
+  const src = path.join(CONFIG.comfyInput, path.basename(job.colSource))
+  const { width: sw, height: sh } = videoSize(src)
+  const ratio = sw && sh ? sw / sh : 4 / 3
+  const aire = 832 * 624
+  const W = Math.max(256, Math.round(Math.sqrt(aire * ratio) / 16) * 16)
+  const H = Math.max(256, Math.round(Math.sqrt(aire / ratio) / 16) * 16)
+  const m = driverMeta(job.colSource)
+  const N = Math.min(COLORISER_MAX_IMAGES, Math.floor(((m?.frames ?? 81) - 1) / 4) * 4 + 1)
+  const seed = Number(job.seed) || 42
+  const ks = (model, a, b, lat, bruit) => ({ class_type: 'KSamplerAdvanced', inputs: { model, add_noise: bruit ? 'enable' : 'disable', noise_seed: seed,
+    steps: 20, cfg: 3.5, sampler_name: 'uni_pc', scheduler: 'simple', positive: ['vace', 0], negative: ['vace', 1], latent_image: lat,
+    start_at_step: a, end_at_step: b, return_with_leftover_noise: bruit ? 'enable' : 'disable' } })
+  const g = {
+    v: { class_type: 'VHS_LoadVideo', inputs: { video: job.colSource, force_rate: 16, custom_width: W, custom_height: H, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
+    blanc: { class_type: 'EmptyImage', inputs: { width: W, height: H, batch_size: N, color: 16777215 } },
+    tout: { class_type: 'ImageToMask', inputs: { image: ['blanc', 0], channel: 'red' } },
+    ref0: { class_type: 'LoadImage', inputs: { image: job.colReference } },
+    refs: { class_type: 'ImageScale', inputs: { image: ['ref0', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
+    uh: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    ul: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    mh: { class_type: 'ModelSamplingSD3', inputs: { model: ['uh', 0], shift: 8 } },
+    ml: { class_type: 'ModelSamplingSD3', inputs: { model: ['ul', 0], shift: 8 } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp16.safetensors', type: 'wan', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'Colorized archival film footage with natural, realistic, true-to-life period colors, matching the colors of the reference image. The same shot, the same framing, the same motion, clean and sharp.' } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'black and white, monochrome, sepia, grayscale, oversaturated, cartoon, flicker, color bleeding, blurry, distorted' } },
+    vace: { class_type: 'WanVaceToVideo', inputs: { positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0], width: W, height: H, length: N, batch_size: 1, strength: 1,
+      control_video: ['v', 0], control_masks: ['tout', 0], reference_image: ['refs', 0] } },
+    kh: ks(['mh', 0], 0, 10, ['vace', 2], true),
+    kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
+    trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
+    dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], fps: 16 } },
+    out: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/couleur`, format: 'mp4', codec: 'h264' } },
+  }
+  return { g, W, H, N }
+}
+async function runColoriserVideo(job, t0) {
+  const { g, W, H, N } = grapheColoriser(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  console.log(`[job ${job.id}] COLORISATION (VACE) ${W}×${H}, ${N} images, référence ${job.colReference} prompt_id=${promptId}`)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, {
+    applied: [`colorisation : Wan 2.2 Fun VACE (${W}×${H}, ${N} images à 16 i/s), couleurs de ${job.colReference}, mouvement du clip d'origine`],
+    skipped: [], finalWorkflow: g,
+  })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 async function runFondVace(job, t0) {
   const { g, W, H, N } = grapheFondVace(job)
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
@@ -3353,6 +3432,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'profondeur') return await runProfondeur(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
+    if (job.op === 'coloriser_video') return await runColoriserVideo(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)
       return await runUpscaleH3(job, t0)

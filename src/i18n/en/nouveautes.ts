@@ -782,6 +782,7 @@ export const nouveautes: Record<string, string> = {
   'Une photo ou un clip de la bibliothèque ; sur ton studio, aussi un fichier à toi (scan, vieille vidéo, 12 s au plus).': 'A photo or a clip from the library; on your own studio, a file of yours too (scan, old video, 12 s max).',
   'Photo d’origine': 'Original photo',
   'Archive de 1951': '1951 archive',
+  'Coloriser un clip en noir et blanc (10 s au plus, ~10 min)': 'Colorize a black and white clip (10 s max, ~10 min)',
   'Restaurée et colorisée': 'Restored and colorized',
   'Pub': 'Ads',
   'crédit de l’auteur requis · vente des images autorisée': 'author credit required · selling images allowed',

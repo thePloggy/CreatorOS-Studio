@@ -15,6 +15,8 @@ export const serveur: Record<string, string> = {
   'ce job n’est pas en attente': 'this job is not queued',
   'corps attendu : { text, baseMtimeMs }': 'expected body: { text, baseMtimeMs }',
   'corps vide': 'empty body',
+  '10 s au plus pour la colorisation': '10 s max for colorization',
+  'clip introuvable': 'clip not found',
   'sur la démo publique, seules les photos (png, jpeg, webp) se déposent': 'on the public demo, only photos (png, jpeg, webp) can be uploaded',
   'photo > 12 Mio': 'photo over 12 MiB',
   '6 photos par heure au plus sur la démo publique': 'at most 6 photos per hour on the public demo',
