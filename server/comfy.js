@@ -386,6 +386,12 @@ function setVideoExactDims(out, srcW, srcH, mp) {
         touched = true
       }
     }
+    // relais entier (PrimitiveInt) branché sur une sortie du sélecteur : 0 = largeur, 1 = hauteur
+    if (Array.isArray(ins.value) && selIds.has(String(ins.value[0]))) {
+      ins.value = ins.value[1] === 0 ? selBest.W : selBest.H
+      notes.push(`#${id} ${n.class_type} = ${ins.value} (${ins.value === selBest.W ? 'largeur' : 'hauteur'}, origine ${srcW}×${srcH})`)
+      continue
+    }
     if (touched) {
       notes.push(`#${id} ${n.class_type} = ${ins.width}×${ins.height} (origine ${srcW}×${srcH}`
         + `${Number.isFinite(mp) ? `, brouillon ${mp} MP` : ''})`)
