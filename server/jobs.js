@@ -1362,8 +1362,8 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
       contrôle, et le masque (personne resserrée de 3 px, inversé) dit à VACE quoi
       redessiner. VACE refait le décor sur tout le clip, guidé par la référence.
    3) Les personnes de la source sont recollées par-dessus, à la définition de la
-      source (petit côté jusqu'à 720), le masque SAM3 agrandi en douceur et son bord
-      adouci : plus d'escalier au contour, et le visage reste celui de la source. */
+      source (petit côté jusqu'à 720) : le détourage vient de BiRefNet (mèches de
+      cheveux, bords doux), limité à la zone que SAM3 suit pour ne garder que les personnes. */
 const FOND_VACE_MAX_IMAGES = 161
 function grapheFondVace(job) {
   const src = path.join(CONFIG.comfyInput, path.basename(job.inpaintVideo))
@@ -1423,10 +1423,13 @@ function grapheFondVace(job) {
     kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
     trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
     dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
-    // 3) les personnes de la source recollées à sa définition, bord adouci
+    // 3) les personnes de la source recollées à sa définition : détourage BiRefNet dans la zone suivie par SAM3
     vh: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W2, custom_height: H2, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
+    bir: { class_type: 'LoadBackgroundRemovalModel', inputs: { bg_removal_name: 'birefnet.safetensors' } },
+    det: { class_type: 'RemoveBackground', inputs: { bg_removal_model: ['bir', 0], image: ['vh', 0] } },
     mh2: { class_type: 'ResizeMask', inputs: { mask: ['m', 0], width: W2, height: H2, keep_proportions: false, upscale_method: 'bilinear', crop: 'disabled' } },
-    alpha: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: -1, incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 1.5, lerp_alpha: 1, decay_factor: 1 } },
+    zone: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: Math.round(W2 / 60), incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 4, lerp_alpha: 1, decay_factor: 1 } },
+    alpha: { class_type: 'MaskComposite', inputs: { destination: ['det', 0], source: ['zone', 0], x: 0, y: 0, operation: 'multiply' } },
     fond: { class_type: 'ImageScale', inputs: { image: ['dec', 0], upscale_method: 'lanczos', width: W2, height: H2, crop: 'disabled' } },
     colle: { class_type: 'ImageCompositeMasked', inputs: { destination: ['fond', 0], source: ['vh', 0], x: 0, y: 0, resize_source: false, mask: ['alpha', 0] } },
     vid: { class_type: 'CreateVideo', inputs: { images: ['colle', 0], fps: 16 } },

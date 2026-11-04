@@ -209,13 +209,15 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               <span className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
                 <b style={{ color: 'var(--text)' }}>{t('Image à retoucher')}</b><br />
                 <span className="inline-flex gap-1.5 mt-1">
-                  {edition && <label className="pill" style={{ fontSize: 12, padding: '4px 9px' }}>⇪ {t('Upload')}
+                  {<label className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={edition ? undefined : t('photo sans personne : objet, produit, décor, animal')}>⇪ {t('Upload')}
                     <input type="file" accept="image/*" className="hidden" onChange={e => {
                       const f = e.target.files?.[0]
                       if (f) void s.uploadEditSource(f)
                     }} />
                   </label>}
                   <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setSrcPick(true)}>▦ {t('Bibliothèque')}</button>
+                  {s.photo.editUploadState === 'uploading' && <span>{t('contrôle de la photo…')}</span>}
+                  {s.photo.editUploadState === 'error' && <span style={{ color: 'var(--danger)' }}>{s.photo.editUploadError}</span>}
                   {(() => { const src = s.assets.find(x => x.id === s.photo.editSourceAssetId); return src
                     ? <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setPinceauDe(src)}>🖌 {t('Pinceau')}</button> : null })()}
                 </span>
@@ -318,7 +320,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       <ElementsPopup open={elm} onClose={() => setElm(false)}
         onInsert={t => s.setUserPrompt((s.userPrompt ? `${s.userPrompt}, ${t}` : t).replace(/,\s*,+/g, ',').replace(/\s{2,}/g, ' '))} />
       <FramePicker open={refPick} onClose={() => setRefPick(false)} assets={s.assets.filter(a => a.mediaType === 'photo')} title={t('Image de référence')}
-        onPickAsset={a => { void s.ajouterReference(a); setRefPick(false) }} onPickUpload={() => setRefPick(false)} />
+        onPickAsset={a => { void s.ajouterReference(a); setRefPick(false) }} onPickUpload={() => setRefPick(false)}
+        onUploadFile={f => void s.deposerReference(f)} />
       <FramePicker open={srcPick} onClose={() => setSrcPick(false)} assets={s.assets}
         title={t('Image à retoucher')}
         onPickAsset={a => { void s.pickEditSource(a.id) }}

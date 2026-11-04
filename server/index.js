@@ -17,6 +17,7 @@ import { CONFIG } from './config.js'
 import { fetchOllama, blocOllama, etat as etatGpu } from './gpu.js'
 import * as store from './db.js'
 import { demarrerFiltre, filtrerNouveaux } from './filtreImages.js'
+import { depotVisiteur, TYPES_DEPOT } from './depots.js'
 import { analyserClip, describeOutfit, describeScene, decomposeScene, momentSuivant } from './vision.js'
 import * as comfy from './comfy.js'
 import * as prompts from './prompts.js'
@@ -83,6 +84,8 @@ const estProprietaire = req => {
 }
 app.addHook('onRequest', async (req, reply) => {
   if (!ROUTES_PROPRIETAIRE.has(`${req.method} ${req.routeOptions?.url}`) || estProprietaire(req)) return
+  // une photo déposée par un visiteur passe : la route la contrôle (aucune personne, cf. depots.js)
+  if (`${req.method} ${req.routeOptions?.url}` === 'POST /api/upload' && TYPES_DEPOT[String(req.headers['content-type'] ?? '').split(';')[0]]) return
   const envoi = /^POST \/api\/(upload|parole\/voix|montage\/musiques)$/.test(`${req.method} ${req.routeOptions?.url}`)
   reply.code(403).send({ error: envoi
     ? 'sur la démo publique, on part d’une image générée par le studio : l’envoi de fichiers est réservé au propriétaire'
@@ -419,7 +422,7 @@ app.post('/api/compose', async (req, reply) => {
     const pathz = await import('node:path')
     let abs = null
     if (typeof anchorFile === 'string' && anchorFile.trim()
-        && (estProprietaire(req) ? store.estInputStudio : store.estInputGenere)(pathz.basename(anchorFile)))
+        && (estProprietaire(req) ? store.estInputStudio : store.estInputVisiteur)(pathz.basename(anchorFile)))
       abs = pathz.join(CONFIG.comfyInput, pathz.basename(anchorFile))
     else if (typeof anchorUri === 'string' && anchorUri.startsWith('/media/'))
       abs = pathz.join(CONFIG.mediaDir, pathz.basename(anchorUri))
@@ -672,7 +675,7 @@ function imageSize(buf) {
   return { width: null, height: null }
 }
 
-app.post('/api/upload', async (req, reply) => enregistrerEnvoi(req, reply))
+app.post('/api/upload', async (req, reply) => estProprietaire(req) ? enregistrerEnvoi(req, reply) : depotVisiteur(req, reply))
 
 function enregistrerEnvoi(req, reply) {
   const ext = UPLOAD_TYPES[String(req.headers['content-type']).split(';')[0]]
@@ -932,11 +935,12 @@ app.post('/api/cloud/taches/:id', async req => tacheCloud(exigerCle(req), req.pa
    un job déposé par l'API ne nomme que des fichiers que ce studio y a mis
    lui-même (registre inputs_studio), sinon un visiteur pourrait animer ou
    faire décrire l'image d'un autre. */
-/* Visiteur (sans la clé) : seulement ce que le studio a généré lui-même — jamais
-   un upload, même ancien : jamais la photo d'une personne réelle. */
+/* Visiteur (sans la clé) : seulement ce que le studio a généré lui-même et les photos
+   qu'un visiteur a déposées après contrôle (aucune personne, cf. depots.js) — jamais un
+   envoi du propriétaire : jamais la photo d'une personne réelle. */
 function inputEtranger(b, proprietaire) {
   const noms = [b.sourceImage, b.endImage, b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null, ...(Array.isArray(b.references) ? b.references : [])]
-  const admis = n => proprietaire ? store.estInputStudio(n) : store.estInputGenere(n)
+  const admis = n => proprietaire ? store.estInputStudio(n) : store.estInputVisiteur(n)
   return noms.find(n => typeof n === 'string' && n.trim() && !admis(path.basename(n.trim()))) ?? null
 }
 app.post('/api/jobs', async (req, reply) => {
@@ -1098,7 +1102,7 @@ app.get('/api/uploads/:name', async (req, reply) => {
   const file = pathx.join(CONFIG.comfyInput, name)
   if (!store.estInputStudio(name) || !fsx.existsSync(file)) { reply.code(404); return { error: 'introuvable' } }
   // un envoi du propriétaire reste privé ; un visiteur ne lit que les copies du studio, les croquis et la source d'une restauration
-  if (!estProprietaire(req) && !['genere', 'croquis'].includes(store.origineInput(name)) && !store.estOrigineRestauree(name)) { reply.code(403); return { error: 'réservé au propriétaire' } }
+  if (!estProprietaire(req) && !['genere', 'croquis', 'depot-visiteur'].includes(store.origineInput(name)) && !store.estOrigineRestauree(name)) { reply.code(403); return { error: 'réservé au propriétaire' } }
   const ext = (name.match(/\.(\w+)$/)?.[1] ?? '').toLowerCase()
   reply.type({ png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' }[ext] ?? 'image/jpeg')
   reply.header('Cache-Control', 'public, max-age=86400')
@@ -1815,7 +1819,7 @@ app.post('/api/input/last-frame', async (req, reply) => {
   const f = String(req.body?.file || '').trim()
   if (!f || /[\\/]/.test(f) || f.startsWith('.')) { reply.code(400); return { error: 'nom de fichier nu attendu (dossier input/)' } }
   const full = path.join(CONFIG.comfyInput, f)
-  if (!(estProprietaire(req) ? store.estInputStudio : store.estInputGenere)(f) || !fs.existsSync(full)) { reply.code(404); return { error: `« ${f} » absent du dossier input/` } }
+  if (!(estProprietaire(req) ? store.estInputStudio : store.estInputVisiteur)(f) || !fs.existsSync(full)) { reply.code(404); return { error: `« ${f} » absent du dossier input/` } }
   try { return extractLastFrame(full, ['sharp', 'first'].includes(req.body?.pick) ? req.body.pick : 'last') }
   catch (e) { reply.code(422); return { error: String(e.message || e) } }
 })
@@ -2262,7 +2266,7 @@ app.post('/api/assets/:id/analyse', async (req, reply) => {
 const lancerPackDepuis = (req, reply, asset) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   const b = req.body ?? {}
-  const admis = n => (estProprietaire(req) ? store.estInputStudio(n) : store.estInputGenere(n))
+  const admis = n => (estProprietaire(req) ? store.estInputStudio(n) : store.estInputVisiteur(n))
   try {
     return deposerAvecCle(cleComfy(req), () => lancerPack({ asset, fichier: asset ? null : b.fichier, description: asset ? null : b.description, produit: b.produit,
       accroche: b.accroche, scene: b.scene, format: b.format, personaId: personaDe(req), admis }))
@@ -2306,7 +2310,7 @@ app.post('/api/restauration', async (req, reply) => {
       // un fichier envoyé : seuls ceux du studio ou, pour le propriétaire, ses envois ; un clip envoyé, propriétaire seul
       const nom = path.basename(String(b.fichier))
       if (media === 'video' ? !/\.(mp4|mov|webm)$/i.test(nom) : !/\.(png|jpe?g|webp)$/i.test(nom)) { reply.code(400); return { error: 'type de fichier inattendu' } }
-      if (!estProprietaire(req) && (media === 'video' || !store.estInputGenere(nom))) { reply.code(403); return { error: 'sur la démo publique, on part d’un média de la bibliothèque' } }
+      if (!estProprietaire(req) && (media === 'video' || !store.estInputVisiteur(nom))) { reply.code(403); return { error: 'sur la démo publique, on part d’un média de la bibliothèque' } }
       if (!fs.existsSync(path.join(CONFIG.comfyInput, nom))) { reply.code(404); return { error: 'fichier introuvable' } }
       fichier = nom
     } else { reply.code(400); return { error: media === 'video' ? 'choisis un clip de la bibliothèque' : 'choisis une photo' } }

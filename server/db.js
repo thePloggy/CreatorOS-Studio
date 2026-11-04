@@ -563,6 +563,8 @@ const estInputStmt = db.prepare('SELECT origine FROM inputs_studio WHERE nom = ?
 export function estInputStudio(nom) { return !!estInputStmt.get(String(nom)) }
 export function origineInput(nom) { return estInputStmt.get(String(nom))?.origine ?? null }
 export function estInputGenere(nom) { return origineInput(nom) === 'genere' }
+/** Ce qu'un visiteur peut prendre comme source : les rendus du studio et ses propres dépôts contrôlés (sans personne). */
+export function estInputVisiteur(nom) { return ['genere', 'depot-visiteur'].includes(origineInput(nom)) }
 const origineRestaureeStmt = db.prepare("SELECT 1 FROM jobs WHERE json_extract(payload, '$.origineUri') = ? LIMIT 1")
 /** L'envoi est la source d'une restauration : son avant / après se montre avec le rendu. */
 export function estOrigineRestauree(nom) { return !!origineRestaureeStmt.get(`/api/uploads/${encodeURIComponent(String(nom))}`) }

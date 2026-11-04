@@ -24,19 +24,19 @@ import { notifier } from './notif.js'
 
 const run = promisify(execFile)
 const SCRIPT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'filtre_images.py')
-const PYTHON = process.env.CREATOROS_FILTRE_PYTHON || path.join(os.homedir(), 'venvs', 'filtre-images', 'bin', 'python')
+export const PYTHON_FILTRE = process.env.CREATOROS_FILTRE_PYTHON || path.join(os.homedir(), 'venvs', 'filtre-images', 'bin', 'python')
 const PARENT_QUARANTAINE = process.env.CREATOROS_QUARANTAINE || os.homedir()
 const ETAT = path.join(CONFIG.dataDir, 'filtre-images.json')
 const JOURNAL = path.join(CONFIG.dataDir, 'filtre-images-journal.json')
 const RONDE_MS = 30_000
 const LOT = 12
 
-export const filtreDisponible = () => fs.existsSync(PYTHON)
+export const filtreDisponible = () => fs.existsSync(PYTHON_FILTRE)
 
 const lireEtat = () => { try { return JSON.parse(fs.readFileSync(ETAT, 'utf8')) } catch { return null } }
 const ecrireEtat = e => fs.writeFileSync(ETAT, JSON.stringify(e))
 
-function dossierQuarantaine() {
+export function dossierQuarantaine() {
   const d = new Date()
   const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const dir = path.join(PARENT_QUARANTAINE, `quarantaine-studio-${jour}`)
@@ -90,7 +90,7 @@ export async function filtrerNouveaux() {
       if (!lot.length) { ecrireEtat(etat); break }
       const fichiers = lot.map(a => path.join(CONFIG.mediaDir, path.basename(a.filename))).filter(f => fs.existsSync(f))
       if (fichiers.length) {
-        const { stdout } = await run(PYTHON, ['-I', SCRIPT, ...fichiers], { timeout: 600_000, maxBuffer: 8 << 20 })
+        const { stdout } = await run(PYTHON_FILTRE, ['-I', SCRIPT, ...fichiers], { timeout: 600_000, maxBuffer: 8 << 20 })
         const verdicts = new Map(stdout.trim().split('\n').filter(Boolean).map(l => { const v = JSON.parse(l); return [v.fichier, v] }))
         for (const a of lot) {
           const v = verdicts.get(path.join(CONFIG.mediaDir, path.basename(a.filename)))
@@ -107,7 +107,7 @@ export async function filtrerNouveaux() {
 
 /** Démarre la ronde périodique ; la première ronde ne reprend pas l'historique. */
 export function demarrerFiltre() {
-  if (!filtreDisponible()) { console.warn(`[filtre] indisponible : ${PYTHON} absent (CREATOROS_FILTRE_PYTHON)`); return }
+  if (!filtreDisponible()) { console.warn(`[filtre] indisponible : ${PYTHON_FILTRE} absent (CREATOROS_FILTRE_PYTHON)`); return }
   if (!lireEtat()) ecrireEtat({ depuis: Date.now() })
   console.log('[filtre] nudité des rendus : actif')
   setInterval(() => { void filtrerNouveaux() }, RONDE_MS).unref()

@@ -79,8 +79,8 @@ export function PubView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) => void
       </div>
       {mode === 'photo'
         ? <>
-            <ZoneSource media="photo" valeur={source} onChoix={setSource} depot={edition || !demo} label={t('Produit')} />
-            {demo && !edition && <span className="texte-faible">{t('Sur la démo publique, choisis une photo de la bibliothèque ou décris le produit : le dépôt de fichiers est réservé au propriétaire.')}</span>}
+            <ZoneSource media="photo" valeur={source} onChoix={setSource} depot label={t('Produit')} />
+            {demo && !edition && <span className="texte-faible">{t('Sur la démo publique, tu peux déposer une photo du produit seul : une photo où l’on voit une personne est refusée.')}</span>}
           </>
         : <label style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t('Produit')}</span>
             <textarea className="champ" rows={3} value={description} maxLength={200} onChange={e => setDescription(e.target.value)} placeholder={t('en anglais : a matte black insulated water bottle with a bamboo cap')} /></label>}

@@ -301,8 +301,9 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
   const [uploads, setUploads] = useState<UploadRow[]>([])
   const edition = useEdition()
   useEffect(() => {
-    if (open && tab === 'up') void fetch(`/api/uploads${media === 'video' ? '?type=video' : ''}`).then(r => r.json()).then(d => setUploads(d.uploads ?? []))
-  }, [open, tab, media])
+    // la liste des envois passés est au propriétaire ; un visiteur ne voit que le bouton de dépôt
+    if (open && tab === 'up' && edition) void fetch(`/api/uploads${media === 'video' ? '?type=video' : ''}`).then(r => r.json()).then(d => setUploads(d.uploads ?? []))
+  }, [open, tab, media, edition])
   if (!open) return null
   const photos = assets.filter(a => a.mediaType === media && a.reviewStatus !== 'rejected')
   return (
@@ -311,7 +312,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
         <h3>{title} <button className="x" onClick={onClose}>✕</button></h3>
         <div className="wtabs">
           <button className={`wtab ${tab === 'gen' ? 'on' : ''}`} onClick={() => setTab('gen')}>{t('Générations')}</button>
-          {edition && <button className={`wtab ${tab === 'up' ? 'on' : ''}`} onClick={() => setTab('up')}>{t('Uploads')}</button>}
+          {(edition || onUploadFile) && <button className={`wtab ${tab === 'up' ? 'on' : ''}`} onClick={() => setTab('up')}>{t('Uploads')}</button>}
         </div>
         <div className="pkgrid">
           {tab === 'gen' && !photos.length && <p style={{ gridColumn: '1 / -1', margin: 0, padding: '24px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>{t(media === 'video' ? 'Aucun clip pour ce personnage : génère-en un d’abord.' : 'Aucune photo pour ce personnage : génères-en une d’abord.')}</p>}
@@ -327,7 +328,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
           {tab === 'up' && onUploadFile && (
             <label className="pk" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', cursor: 'pointer',
               fontSize: 12, color: 'var(--muted)', border: '1px dashed var(--line, rgba(255,255,255,.2))', minHeight: 90 }}>
-              ＋<br />{t('Depuis l’ordinateur…')}
+              ＋<br />{t('Depuis l’ordinateur…')}{!edition && <><br /><small>{t('photo sans personne : objet, produit, décor, animal')}</small></>}
               <input type="file" accept={accept} className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) { onUploadFile(f); onClose() } }} />
             </label>

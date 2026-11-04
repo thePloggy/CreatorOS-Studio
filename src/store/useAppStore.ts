@@ -223,6 +223,8 @@ interface AppState {
   /** Images de référence de la prochaine photo (FLUX.2 Klein), 6 au plus. */
   references: { file: string; uri: string }[]
   ajouterReference: (asset: Asset) => Promise<void>
+  /** une photo de l'ordinateur en référence (sur la démo : contrôlée, sans personne) */
+  deposerReference: (f: File) => Promise<void>
   retirerReference: (file: string) => void
   prendrePasserelle: (cible: 'presets' | 'parole' | 'reshoot') => Asset | null
   setMode: (m: MediaMode) => void
@@ -587,6 +589,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/to-input`, { method: 'POST' })
       const d = await r.json().catch(() => ({})) as { filename?: string }
       if (d.filename && !get().references.some(x => x.file === d.filename)) set({ references: [...get().references, { file: d.filename, uri: asset.uri ?? '' }], mode: 'photo' })
+    },
+    deposerReference: async f => {
+      if (get().references.length >= 6) return
+      const r = await fetch(`/api/upload?name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
+      const d = await r.json().catch(() => ({})) as { filename?: string; error?: string }
+      if (!r.ok || !d.filename) { set({ t0Error: tServeur(d.error) ?? `HTTP ${r.status}` }); return }
+      if (!get().references.some(x => x.file === d.filename)) set({ references: [...get().references, { file: d.filename, uri: URL.createObjectURL(f) }], mode: 'photo' })
     },
     retirerReference: file => set({ references: get().references.filter(x => x.file !== file) }),
     utiliserDans: (cible, asset) =>

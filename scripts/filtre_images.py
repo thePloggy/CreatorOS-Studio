@@ -38,9 +38,16 @@ def images_de(fichier, dossier):
     return sorted(os.path.join(dossier, f) for f in os.listdir(dossier) if f.endswith('.jpg'))
 
 
+# --personne : toute partie du corps humain, découverte ou non (dépôt des visiteurs)
+SEUIL_PERSONNE = 0.4
+
+
 def main():
     det = NudeDetector()
-    for fichier in sys.argv[1:]:
+    args = sys.argv[1:]
+    personne = '--personne' in args
+    args = [a for a in args if a != '--personne']
+    for fichier in args:
         res = {'fichier': fichier, 'positif': False, 'score': 0.0, 'classe': None, 'images': 0}
         try:
             with tempfile.TemporaryDirectory() as d:
@@ -48,7 +55,7 @@ def main():
                 res['images'] = len(imgs)
                 for img in imgs:
                     for o in det.detect(img):
-                        seuil = SEUILS.get(o['class'])
+                        seuil = SEUIL_PERSONNE if personne else SEUILS.get(o['class'])
                         if seuil is None:
                             continue
                         if o['score'] > res['score']:

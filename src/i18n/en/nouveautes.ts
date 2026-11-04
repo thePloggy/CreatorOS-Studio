@@ -1052,4 +1052,7 @@ export const nouveautes: Record<string, string> = {
   'Anime 2000': 'Anime 2000',
   'Manga': 'Manga',
   'Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min': 'Wan 2.2 Fun Camera · camera path · silent · ~5 min',
+  'photo sans personne : objet, produit, décor, animal': 'photo with no person in it: object, product, place, animal',
+  'contrôle de la photo…': 'checking the photo…',
+  'Sur la démo publique, tu peux déposer une photo du produit seul : une photo où l’on voit une personne est refusée.': 'On the public demo you can upload a photo of the product alone: a photo showing a person is refused.',
 }
