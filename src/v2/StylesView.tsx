@@ -11,7 +11,7 @@ import { useAppStore } from '../store/useAppStore'
 import { FramePicker } from './popups'
 
 export type Mosaique = 'styles' | 'relight' | 'expand'
-type Carte = { id: string; nom: string; famille?: string; consigne?: string; format?: string }
+type Carte = { id: string; nom: string; famille?: string; consigne?: string; format?: string; style?: string }
 const FAMILLES = ['Dessin et 3D', 'Peinture', 'Cinéma et mise en scène', 'Portrait et produit', 'Retouche et couleur']
 // aperçus présents dans public/vitrine/<mosaïque>/<id>.webp (liste tenue à jour à la pose des vignettes)
 const APERCUS: Record<Mosaique, Set<string>> = {
@@ -34,8 +34,8 @@ export function StylesView({ mode = 'styles', goImage }: { mode?: Mosaique; goIm
     const tri = (l: Carte[]) => l.sort((a, b) => Number(ap.has(b.id)) - Number(ap.has(a.id)))
     if (mode === 'relight') return tri(LUMIERES.map(l => ({ id: l.id, nom: t(l.label), consigne: l.consigne })))
     if (mode === 'expand') return FORMATS.map(f => ({ id: f.replace(/[^0-9a-z]/gi, ''), nom: f, format: f }))
-    return tri((LOOKS as { id: string; label: string; en: string; consigne: string; famille: string }[])
-      .filter(l => l.famille === famille).map(l => ({ id: l.id, nom: en ? l.en : l.label, famille: l.famille, consigne: l.consigne })))
+    return tri((LOOKS as { id: string; label: string; en: string; consigne: string; famille: string; style?: string }[])
+      .filter(l => l.famille === famille).map(l => ({ id: l.id, nom: en ? l.en : l.label, famille: l.famille, consigne: l.consigne, style: l.style })))
   }, [mode, famille, en])
   const lancer = async (a: Asset) => {
     if (!choisi) return
@@ -48,8 +48,10 @@ export function StylesView({ mode = 'styles', goImage }: { mode?: Mosaique; goIm
       } else {
         await s.retouchFrom(a)
         s.setUserPrompt(choisi.consigne ?? '')
+        // un style à LoRA : le serveur la charge d'après cet id
+        s.updatePhoto({ editStyle: choisi.style ?? null })
         useAppStore.setState({ promptTouched: true, composedPositive: '' })
-        await s.submitJob()
+        try { await s.submitJob() } finally { s.updatePhoto({ editStyle: null }) }
       }
       setChoisi(null); goImage()
     } catch (e) { setMsg(String((e as Error).message || e)) }

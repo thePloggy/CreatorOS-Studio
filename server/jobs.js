@@ -169,6 +169,19 @@ VIDEO_ENGINES.wan21_hq = {
   minutes: 8,
 }
 
+/* Wan 2.2 Fun Camera : la caméra suit une trajectoire (WanCameraEmbedding) au lieu
+   d'une LoRA. Sert les presets de la galerie qui nomment une pose (`camera`). */
+VIDEO_ENGINES.wan_funcam = {
+  maxSeconds: 5,
+  file: 'PROD_video_funcam.json',
+  label: 'Wan 2.2 Fun Camera',
+  force: 'mouvements de caméra simples pilotés par trajectoire',
+  audio: false,
+  speed: 1,
+  minutes: 5,
+}
+export const POSES_CAMERA = ['Static', 'Pan Up', 'Pan Down', 'Pan Left', 'Pan Right', 'Zoom In', 'Zoom Out', 'Anti Clockwise (ACW)', 'ClockWise (CW)']
+
 export const DEFAULT_VIDEO_ENGINE = 'wan'
 
 /* ---------- estimation du temps de rendu ----------
@@ -429,6 +442,14 @@ export const DEPRECATED_RECIPES = {}
    LLM (« la robe devient rouge »). L'injection écrit la source dans l'unique
    LoadImage et l'instruction dans l'encodeur TextEncodeQwenImageEdit. */
 export const EDIT_WORKFLOW = 'PROD_edit.json'
+/** Styles de la retouche : une LoRA Qwen-Image-Edit chacun. Le job ne nomme que l'id,
+ *  jamais un fichier : la retouche n'accepte aucune autre LoRA. */
+export const STYLES_EDITION = {
+  action: 'qwen-styles/QWEN_EDIT_ACTION_V1.safetensors',
+  'noir-comic': 'qwen-styles/Noir-Comic-Book-Panel_20.safetensors',
+  'anime-2000': 'qwen-styles/Qwen-Image-Edit-2511-Anime-2000.safetensors',
+  manga: 'qwen-styles/tone001.safetensors',
+}
 
 /** Les recettes réellement SERVIES par cette instance (moteur photo courant,
  *  moteurs vidéo, chaînes annexes) — ce que le diagnostic doit contrôler. */
@@ -738,6 +759,7 @@ export function enqueue(job) {
     mixSuite: isMotion && Array.isArray(job.mixSuite) ? job.mixSuite.map(String).slice(0, 2) : undefined,
     // preset de caméra ou d'effet d'origine : le contrôle des clips y lit le mouvement attendu
     presetId: typeof job.presetId === 'string' ? job.presetId.slice(0, 40) : undefined,
+    cameraPose: POSES_CAMERA.includes(job.cameraPose) ? job.cameraPose : undefined,
     // basse VRAM : profil forcé pour CE job (le serveur ne le laisse passer qu'au propriétaire)
     profilVram: PROFILS.includes(Number(job.profilVram)) ? Number(job.profilVram) : undefined,
     motionDriver: isMotion ? job.motionDriver.trim() : null,
@@ -817,6 +839,7 @@ export function enqueue(job) {
     // LoRA additionnelles (style), empilées après celles de la persona. Normalisées ici
     // pour qu'un front qui envoie des chaînes marche comme un front qui envoie
     // des objets — le contrat reste { name, strength }.
+    editStyle: op === 'edit' && Object.hasOwn(STYLES_EDITION, job.editStyle) ? job.editStyle : undefined,
     loras: (Array.isArray(job.loras) ? job.loras : [])
       .map(l => (typeof l === 'string' ? { name: l, strength: 1 } : l))
       .filter(l => l && typeof l.name === 'string' && l.name)
@@ -1338,8 +1361,9 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
    2) SAM3 suit la ou les personnes ; tout le reste devient gris dans la vidéo de
       contrôle, et le masque (personne resserrée de 3 px, inversé) dit à VACE quoi
       redessiner. VACE refait le décor sur tout le clip, guidé par la référence.
-   3) Les personnes de la source sont recollées par-dessus, sans flou : aucun
-      liseré de l'ancien décor, et leur visage reste celui de la source. */
+   3) Les personnes de la source sont recollées par-dessus, à la définition de la
+      source (petit côté jusqu'à 720), le masque SAM3 agrandi en douceur et son bord
+      adouci : plus d'escalier au contour, et le visage reste celui de la source. */
 const FOND_VACE_MAX_IMAGES = 161
 function grapheFondVace(job) {
   const src = path.join(CONFIG.comfyInput, path.basename(job.inpaintVideo))
@@ -1350,6 +1374,9 @@ function grapheFondVace(job) {
   const H = Math.max(256, Math.round(Math.sqrt(aire / ratio) / 16) * 16)
   const m = driverMeta(job.inpaintVideo)
   const N = Math.min(FOND_VACE_MAX_IMAGES, Math.floor(((m?.frames ?? 81) - 1) / 4) * 4 + 1)
+  // définition du collage : celle de la source, petit côté plafonné à 720
+  const k = Math.min(1, 720 / Math.max(1, Math.min(sw || W, sh || H)))
+  const W2 = Math.round(((sw || W) * k) / 16) * 16, H2 = Math.round(((sh || H) * k) / 16) * 16
   const decor = String(job.composedPositive ?? '').trim()
   const cible = job.inpaintCible || 'person'
   const seed = Number(job.seed) || 42
@@ -1396,8 +1423,12 @@ function grapheFondVace(job) {
     kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
     trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
     dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
-    // 3) les personnes de la source recollées, bord net
-    colle: { class_type: 'ImageCompositeMasked', inputs: { destination: ['dec', 0], source: ['v', 0], x: 0, y: 0, resize_source: false, mask: ['m', 0] } },
+    // 3) les personnes de la source recollées à sa définition, bord adouci
+    vh: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W2, custom_height: H2, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
+    mh2: { class_type: 'ResizeMask', inputs: { mask: ['m', 0], width: W2, height: H2, keep_proportions: false, upscale_method: 'bilinear', crop: 'disabled' } },
+    alpha: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: -1, incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 1.5, lerp_alpha: 1, decay_factor: 1 } },
+    fond: { class_type: 'ImageScale', inputs: { image: ['dec', 0], upscale_method: 'lanczos', width: W2, height: H2, crop: 'disabled' } },
+    colle: { class_type: 'ImageCompositeMasked', inputs: { destination: ['fond', 0], source: ['vh', 0], x: 0, y: 0, resize_source: false, mask: ['alpha', 0] } },
     vid: { class_type: 'CreateVideo', inputs: { images: ['colle', 0], fps: 16 } },
     out: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/fond`, format: 'mp4', codec: 'h264' } },
   }
@@ -3416,6 +3447,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       ? { workflow: base, applied: [], skipped: [] }
       : comfy.injectJob(base, {
       opTag: isEdit ? 'edit' : 'generate',
+      cameraPose: job.cameraPose,
       positive,
       negative: job.composedNegative,
       seed: job.seed,
@@ -3427,7 +3459,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       height: (isEdit || isVideo) ? undefined : job.height,
       // Photo : persona + LoRA du job. Vidéo (hors motion) : persona vidéo +
       // LoRA du job, empilées sur la chaîne modèle de la recette. Édition : aucune.
-      loras: isEdit ? undefined : isVideo ? videoLorasEff : photoLoras,
+      loras: isEdit ? (STYLES_EDITION[job.editStyle] ? [{ name: STYLES_EDITION[job.editStyle], strength: 1 }] : undefined) : isVideo ? videoLorasEff : photoLoras,
       sourceImage: texteSeul ? (VIDEO_ENGINES[job.videoEngine]?.t2vNatif ? undefined : comfy.imageVideT2v()) : job.sourceImage ?? undefined,
       t2v: texteSeul && !VIDEO_ENGINES[job.videoEngine]?.t2vNatif,
       controlNet: job.controlNet ?? undefined,

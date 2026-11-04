@@ -17,6 +17,14 @@ import { ChoixPersonnage } from './ChoixPersonnage'
 import { useEdition } from '../lib/proprietaire'
 import { useMentions } from './Mentions'
 
+/** Styles de la retouche : le serveur charge la LoRA Qwen-Image-Edit qui correspond à l'id. */
+const STYLES_RETOUCHE = [
+  { id: 'action', label: 'Scène d’action', texte: 'Make this an action movie shot: she leaps forward, dynamic motion, dust explosion behind her. Keep the same woman and place.' },
+  { id: 'noir-comic', label: 'BD noire', texte: 'Turn this photo into a noir comic book panel, black ink, heavy shadows, halftone. Keep the same woman, pose and place.' },
+  { id: 'anime-2000', label: 'Anime 2000', texte: 'Convert this photo into a 2000s anime illustration, cel shading, clean line art. Keep the same woman, pose and place.' },
+  { id: 'manga', label: 'Manga', texte: 'Convert this photo into a black and white manga page drawing with screentone shading. Keep the same woman, pose and place.' },
+]
+
 /** Préréglages qui s'appuient sur les images de référence (FLUX.2 Klein). */
 const PRESETS_REF = [
   { id: 'essayage', label: 'Essayage', aide: 'la tenue de l’image de référence portée par le personnage', ajout: false,
@@ -212,6 +220,21 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                     ? <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setPinceauDe(src)}>🖌 {t('Pinceau')}</button> : null })()}
                 </span>
               </span>
+            </div>
+          )}
+          {task === 'edit' && (
+            <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
+              {t('Styles')}
+              {STYLES_RETOUCHE.map(st => {
+                const actif = s.photo.editStyle === st.id
+                return (
+                  <button key={st.id} className={`pill ${actif ? 'on' : ''}`} style={{ fontSize: 12, padding: '4px 9px' }}
+                    onClick={() => {
+                      if (actif) { s.updatePhoto({ editStyle: null }); return }
+                      s.updatePhoto({ editStyle: st.id }); s.setUserPrompt(st.texte)
+                    }}>{t(st.label)}{actif ? ' ✓' : ''}</button>
+                )
+              })}
             </div>
           )}
           {task !== 'edit' && s.references.length > 0 && (

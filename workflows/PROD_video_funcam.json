@@ -1,0 +1,214 @@
+{
+ "91": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "wan_2.1_vae.safetensors"
+  }
+ },
+ "92": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan2.2_fun_camera_high_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "95": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan2.2_fun_camera_low_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "96": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  }
+ },
+ "97": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "VIDBENCH_S1.png"
+  }
+ },
+ "98": {
+  "class_type": "WanCameraImageToVideo",
+  "inputs": {
+   "width": 480,
+   "height": 832,
+   "length": 81,
+   "batch_size": 1,
+   "positive": [
+    "107",
+    0
+   ],
+   "negative": [
+    "99",
+    0
+   ],
+   "vae": [
+    "91",
+    0
+   ],
+   "start_image": [
+    "97",
+    0
+   ],
+   "camera_conditions": [
+    "108",
+    0
+   ]
+  }
+ },
+ "99": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+   "clip": [
+    "96",
+    0
+   ]
+  }
+ },
+ "100": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "shift": 8.000000000000002,
+   "model": [
+    "92",
+    0
+   ]
+  }
+ },
+ "101": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "shift": 8,
+   "model": [
+    "95",
+    0
+   ]
+  }
+ },
+ "102": {
+  "class_type": "KSamplerAdvanced",
+  "inputs": {
+   "add_noise": "enable",
+   "noise_seed": 42,
+   "steps": 20,
+   "cfg": 3.5,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 0,
+   "end_at_step": 10,
+   "return_with_leftover_noise": "enable",
+   "model": [
+    "100",
+    0
+   ],
+   "positive": [
+    "98",
+    0
+   ],
+   "negative": [
+    "98",
+    1
+   ],
+   "latent_image": [
+    "98",
+    2
+   ]
+  }
+ },
+ "103": {
+  "class_type": "KSamplerAdvanced",
+  "inputs": {
+   "add_noise": "disable",
+   "noise_seed": 0,
+   "steps": 20,
+   "cfg": 3.5,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 10,
+   "end_at_step": 10000,
+   "return_with_leftover_noise": "disable",
+   "model": [
+    "101",
+    0
+   ],
+   "positive": [
+    "98",
+    0
+   ],
+   "negative": [
+    "98",
+    1
+   ],
+   "latent_image": [
+    "102",
+    0
+   ]
+  }
+ },
+ "104": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "103",
+    0
+   ],
+   "vae": [
+    "91",
+    0
+   ]
+  }
+ },
+ "105": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "fps": 16,
+   "images": [
+    "104",
+    0
+   ]
+  }
+ },
+ "106": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "filename_prefix": "creatoros/video_funcam",
+   "format": "auto",
+   "format.codec": "auto",
+   "video": [
+    "105",
+    0
+   ]
+  }
+ },
+ "107": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "",
+   "clip": [
+    "96",
+    0
+   ]
+  }
+ },
+ "108": {
+  "class_type": "WanCameraEmbedding",
+  "inputs": {
+   "camera_pose": "Static",
+   "width": 480,
+   "height": 832,
+   "length": 81,
+   "speed": 1,
+   "fx": 0.5,
+   "fy": 0.5,
+   "cx": 0.5,
+   "cy": 0.5
+  }
+ }
+}

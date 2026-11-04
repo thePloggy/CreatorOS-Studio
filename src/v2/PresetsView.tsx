@@ -13,7 +13,7 @@ import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
 import { vignetteOf } from '../components/AssetMedia'
 
-interface Preset { id: string; famille: 'camera' | 'effet'; nom: string; nomEn: string; icone: string; lora: string | null; apercu: string | null; moteur: 'ltx_hq' | 'wan21' | 'wan21_hq'; deuxRendus?: boolean }
+interface Preset { id: string; famille: 'camera' | 'effet'; nom: string; nomEn: string; icone: string; lora: string | null; apercu: string | null; moteur: 'ltx_hq' | 'wan21' | 'wan21_hq' | 'wan_funcam'; deuxRendus?: boolean }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
 /** Un aperçu ne se télécharge et ne joue que lorsqu'il est à l'écran. */
@@ -155,8 +155,8 @@ function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: s
               className="champ" style={{ fontSize: 12.5 }} />
             <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
               <span>{t('Durée')}</span>
-              {(p.moteur.startsWith('wan21') ? [3, 4, 5] : [4, 5, 6, 8]).map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}
-              <span style={{ marginLeft: 8, color: 'var(--faint)' }}>{p.moteur === 'wan21_hq' ? t('Wan 2.1 · LoRA dédiée · muet · ~8 min') : p.moteur === 'wan21' ? t('Wan 2.1 · LoRA dédiée · muet') : p.deuxRendus ? t('LTX-2.5 puis Wan 2.2 · deux rendus, le second finit sur ta photo') : `LTX-2.5 · ${t('avec le son')}${p.lora ? ' · LoRA' : ''}`}</span>
+              {(p.moteur.startsWith('wan21') || p.moteur === 'wan_funcam' ? [3, 4, 5] : [4, 5, 6, 8]).map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}
+              <span style={{ marginLeft: 8, color: 'var(--faint)' }}>{p.moteur === 'wan_funcam' ? t('Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min') : p.moteur === 'wan21_hq' ? t('Wan 2.1 · LoRA dédiée · muet · ~8 min') : p.moteur === 'wan21' ? t('Wan 2.1 · LoRA dédiée · muet') : p.deuxRendus ? t('LTX-2.5 puis Wan 2.2 · deux rendus, le second finit sur ta photo') : `LTX-2.5 · ${t('avec le son')}${p.lora ? ' · LoRA' : ''}`}</span>
               <span style={{ flex: 1 }} />
               <button className="cta" style={{ padding: '9px 16px', flexDirection: 'row' }} disabled={!photo || busy} onClick={() => void go()}>{busy ? '…' : `✨ ${t('Animer')}`}</button>
             </div>

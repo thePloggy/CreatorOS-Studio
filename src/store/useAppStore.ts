@@ -341,6 +341,7 @@ const defaultPhoto: PhotoSelections = {
   editSourceUri: '',
   editSourceName: '',
   editSourceFile: '',
+  editStyle: null,
   editSourceAssetId: null,
   editUploadState: 'idle',
   editUploadError: '',
@@ -1326,7 +1327,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         status: 'queued',
         seed: { mode: 'random' },
         progress: undefined,
-        ...(isEdit ? { op: 'edit' as const, sourceImage: sel.editSourceFile } : {}),
+        ...(isEdit ? { op: 'edit' as const, sourceImage: sel.editSourceFile, editStyle: sel.editStyle ?? undefined } : {}),
         ...(video && !isMotion ? {
           videoEngine: sel.engine,
           videoLoras: sel.videoLoras ?? [],
@@ -1567,6 +1568,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         ...(isEdit ? {
           op: 'edit' as const,
           sourceImage: s.photo.editSourceFile,
+          editStyle: s.photo.editStyle ?? undefined,
           // La retouche GARDE le composé de la colonne 3 : c'est lui
           // l'instruction d'édition (composée par le LLM), pas un descriptif
           // de scène. On ne l'écrase donc pas.

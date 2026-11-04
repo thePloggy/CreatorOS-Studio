@@ -91,6 +91,30 @@
   "famille": "Dessin et 3D"
  },
  {
+  "id": "bd-noire",
+  "label": "BD noire",
+  "en": "Noir comic",
+  "consigne": "Turn this photo into a noir comic book panel: black ink, heavy shadows, halftone. Keep the same subject, pose and framing.",
+  "famille": "Dessin et 3D",
+  "style": "noir-comic"
+ },
+ {
+  "id": "anime-2000",
+  "label": "Anime 2000",
+  "en": "2000s anime",
+  "consigne": "Convert this photo into a 2000s anime illustration, cel shading, clean line art. Keep the same subject, pose and framing.",
+  "famille": "Dessin et 3D",
+  "style": "anime-2000"
+ },
+ {
+  "id": "action",
+  "label": "Scène d’action",
+  "en": "Action scene",
+  "consigne": "Make this an action movie shot: dynamic motion, dust explosion behind the subject, cinematic. Keep the same subject and place.",
+  "famille": "Cinéma et mise en scène",
+  "style": "action"
+ },
+ {
   "id": "argile",
   "label": "Pâte à modeler",
   "en": "Clay",

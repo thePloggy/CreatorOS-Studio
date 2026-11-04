@@ -132,6 +132,8 @@ export interface PhotoSelections {
   /** Nom du fichier déposé dans input/ (upload) ou copié depuis la galerie
    *  via /api/assets/:id/to-input. C'est lui que le graphe lit. */
   editSourceFile: string
+  /** style de la retouche (LoRA Qwen-Image-Edit choisie par le serveur) */
+  editStyle?: string | null
   /** Id de l'asset galerie choisi comme source (null si upload). */
   editSourceAssetId: string | null
   editUploadState: 'idle' | 'uploading' | 'ready' | 'error'
@@ -390,6 +392,7 @@ export interface Job {
   op?: 'generate' | 'edit'
   /** Nom de fichier nu dans le dossier input/ de ComfyUI. */
   sourceImage?: string
+  editStyle?: string
   /** ControlNet Z-Image inséré dans la recette de génération. */
   controlNet?: { file: string; type: 'depth' | 'openpose' | 'canny'; strength: number }
   /* ---- Vidéo ---- */

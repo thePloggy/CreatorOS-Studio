@@ -192,6 +192,7 @@ const POSITIVE_IN = {
   LTXVDualCFGGuider: ['positive'],
   WanImageToVideo: ['positive'],
   WanFirstLastFrameToVideo: ['positive'],
+  WanCameraImageToVideo: ['positive'],
   FluxGuidance: ['conditioning'],
   ConditioningCombine: ['conditioning_1', 'conditioning_2'],
   ConditioningConcat: ['conditioning_to'],
@@ -629,7 +630,7 @@ function empilerSur(out, anchor, loras, applied, skipped) {
   }
 }
 
-export function injectJob(wf, { positive, negative, seed, jobId, identityPreamble, width, height, loras, sourceImage, t2v, controlNet, withAudio, videoSeconds, videoAspect, videoSrcDims, videoMegapixels, endImage, videoSteps, opTag }) {
+export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, identityPreamble, width, height, loras, sourceImage, t2v, controlNet, withAudio, videoSeconds, videoAspect, videoSrcDims, videoMegapixels, endImage, videoSteps, opTag }) {
   const out = structuredClone(wf)
   const applied = []
   const skipped = []
@@ -757,8 +758,8 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
     if (width || height)
       skipped.push(`dimensions ${width}×${height} ignorées : le cadrage d’une `
         + 'recette d’édition vient de l’image source')
-    if (Array.isArray(loras) && loras.length)
-      skipped.push(`${loras.length} LoRA additionnelle(s) ignorée(s) : recette à instruction`)
+    // LoRA de style d'édition (choisies côté serveur dans une liste fermée)
+    if (Array.isArray(loras) && loras.length) empilerLoras(out, loras, applied, skipped)
 
     // Seed et destination : le chemin générique est en aval du retour, il faut
     // donc les écrire ici. Sans ça le job enregistrerait sa seed tirée au sort
@@ -1061,6 +1062,14 @@ export function injectJob(wf, { positive, negative, seed, jobId, identityPreambl
       out[id].inputs.keep_alive = 0
       applied.push(`#${id} OllamaConnectivityV2.keep_alive = 0 (décharge immédiate, anti-OOM)`)
     }
+  }
+
+  /* -- trajectoire de caméra (Wan Fun Camera) : mêmes dimensions et durée que la vidéo -- */
+  for (const id of findByClass(out, 'WanCameraEmbedding')) {
+    const v = Object.values(out).find(n => n.class_type === 'WanCameraImageToVideo')
+    for (const k of ['width', 'height', 'length']) if (typeof v?.inputs?.[k] === 'number') out[id].inputs[k] = v.inputs[k]
+    if (cameraPose) out[id].inputs.camera_pose = cameraPose
+    applied.push(`#${id} WanCameraEmbedding = ${out[id].inputs.camera_pose} ${out[id].inputs.width}×${out[id].inputs.height}, ${out[id].inputs.length} images`)
   }
 
   return { workflow: out, applied, skipped }

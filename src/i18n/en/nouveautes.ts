@@ -1047,4 +1047,9 @@ export const nouveautes: Record<string, string> = {
   'choisis un clip': 'pick a clip',
   'restauration inconnue': 'unknown restoration',
   'choisis au moins une réparation': 'pick at least one repair',
+  'Scène d’action': 'Action scene',
+  'BD noire': 'Noir comic',
+  'Anime 2000': 'Anime 2000',
+  'Manga': 'Manga',
+  'Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min': 'Wan 2.2 Fun Camera · camera path · silent · ~5 min',
 }

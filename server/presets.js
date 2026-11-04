@@ -40,8 +40,9 @@ export const PRESETS = [
   // ---- caméra, LTX-2.5 (avec le son) ----
   { id: 'push-in', famille: 'camera', moteur: 'ltx_hq', lora: LTX('dolly-in'), nom: 'Travelling avant', nomEn: 'Push in', icone: '⇥',
     prompt: 'The camera slowly and smoothly dollies forward toward her, steady cinematic push-in, ending closer on her face. {sujet}' },
-  { id: 'pull-out', famille: 'camera', moteur: 'ltx_hq', lora: LTX('dolly-out'), nom: 'Travelling arrière', nomEn: 'Pull out reveal', icone: '⇤',
-    prompt: 'The camera smoothly dollies backward away from her, revealing the whole place around her by the end of the shot. {sujet}' },
+  // ---- caméra, Wan 2.2 Fun Camera (trajectoire, muet) ----
+  { id: 'pull-out', famille: 'camera', moteur: 'wan_funcam', camera: 'Zoom Out', nom: 'Travelling arrière', nomEn: 'Pull out reveal', icone: '⇤',
+    prompt: 'She stays in place facing the camera, only her hair and clothes move in the wind. The camera smoothly pulls back away from her, revealing the whole place around her by the end of the shot, cinematic. {sujet}' },
   { id: 'travelling-lateral', famille: 'camera', moteur: 'ltx_hq', lora: LTX('dolly-left'), nom: 'Travelling latéral', nomEn: 'Side tracking', icone: '⇆',
     prompt: 'The camera trucks sideways to the left on a rail, moving parallel to the scene, the background sliding past behind her, she stays centered in the frame, a clear unobstructed view. {sujet}' },
   { id: 'drone', famille: 'camera', moteur: 'ltx_hq', lora: LTX('jib-up'), nom: 'Grue ascendante', nomEn: 'Jib up', icone: '⤒',
@@ -74,8 +75,9 @@ export const PRESETS = [
     prompt: 'b4ll3t t1m3 bullet time shot A woman is captured mid-leap, her hair, her clothes and the dust around her suspended in mid-air. The scene utilizes a b4ll3t t1m3 bullet time shot effect, where the action is dramatically slowed down, freezing her in her dynamic pose. The background stays the same place, slightly blurred by the effect. The camera smoothly rotates around her, offering varying views of the frozen moment from all angles. {sujet}' },
   { id: 'grue-haute', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crane_overhead'), nom: 'Grue au-dessus', nomEn: 'Overhead crane', icone: '⊙',
     prompt: 'cr4n3 crane over the head movement, the camera passes high above her. {sujet}' },
-  { id: 'dolly-zoom', famille: 'camera', moteur: 'wan21_hq', lora: { name: 'wan_camera/wan_21_i2v_dolly_zoom.safetensors', strength: 1 }, nom: 'Dolly zoom', nomEn: 'Dolly zoom', icone: '◎',
-    prompt: 'dolly zoom. She stays the same size in frame while the background stretches dramatically behind her. {sujet}' },
+  { id: 'dolly-zoom', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'dolly_25_epochs'), nom: 'Dolly zoom', nomEn: 'Dolly zoom', icone: '◎',
+    // l'effet ne se lit qu'avec du décor autour d'elle : plan américain ou plus large
+    prompt: 'd011Ye33ect dolly effect. The video shows a woman standing in a wide place, seen from mid-thigh up. The camera slowly zooms out while moving forward, keeping her face centered and the same size, while the place behind her stretches and distorts dramatically. {sujet}' },
   // ---- effets, Wan 2.1 + LoRA Remade, réglage Remade (28 pas) ----
   { id: 'squish', famille: 'effet', moteur: 'wan21_hq', lora: REMADE('wan_effects', 'squish_18'), nom: 'Écrasé', nomEn: 'Squish', icone: '🫳',
     prompt: "In the video, a woman is presented. The woman is held in a person's hands. The person then presses on the woman, causing a sq41sh squish effect. The person keeps pressing down on the woman, further showing the sq41sh squish effect. {sujet}" },
@@ -123,6 +125,8 @@ export function lancer({ presetId, assetId, detail, duree }) {
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
   store.noterInput(nom)
   const texte = p.prompt.replace('{sujet}', d).trim()
+  // Wan 2.1 480p et Fun Camera : 16 i/s, 5 s au plus, un format standard à leur surface d'entraînement
+  const wan480 = /^(wan21|wan_funcam)/.test(p.moteur)
   const job = enqueue({
     // le personnage de la PHOTO (sa LoRA vidéo, son mot déclencheur), pas l'actif
     mode: 'video', register: 'sfw', personaId: a.persona_id ?? persona().id, purpose: 'creative',
@@ -130,10 +134,10 @@ export function lancer({ presetId, assetId, detail, duree }) {
     sourceImage: nom, composedPositive: `${texte}. single continuous shot, no cuts`, userPrompt: texte, composedNegative: '',
     /* LTX : le format exact de la photo. Wan 2.1 480p : un format standard à sa
        surface d'entraînement (480×832) — « origine » le pousserait en 1080p. */
-    videoSeconds: Math.min(/^wan21/.test(p.moteur) ? 5 : 8, Math.max(3, Number(duree) || 5)), videoFps: /^wan21/.test(p.moteur) ? 16 : 24,
-    videoAspect: /^wan21/.test(p.moteur) ? ((a.width ?? 9) > (a.height ?? 16) * 1.15 ? '16:9' : (a.width ?? 9) * 1.15 < (a.height ?? 16) ? '9:16' : '1:1') : 'origine',
+    videoSeconds: Math.min(wan480 ? 5 : 8, Math.max(3, Number(duree) || 5)), videoFps: wan480 ? 16 : 24,
+    videoAspect: wan480 ? ((a.width ?? 9) > (a.height ?? 16) * 1.15 ? '16:9' : (a.width ?? 9) * 1.15 < (a.height ?? 16) ? '9:16' : '1:1') : 'origine',
     videoSrcW: a.width ?? undefined, videoSrcH: a.height ?? undefined,
-    videoLoras: p.lora ? [p.lora] : [], presetId: p.id, parentAssetId: a.id,
+    videoLoras: p.lora ? [p.lora] : [], presetId: p.id, parentAssetId: a.id, cameraPose: p.camera,
   })
   if (p.suite) {
     store.db.prepare('INSERT INTO presets_suites (job1, preset_id, photo, asset_id, detail, duree, etat, created_at) VALUES (?,?,?,?,?,?,?,?)')
