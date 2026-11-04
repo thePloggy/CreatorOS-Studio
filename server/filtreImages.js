@@ -55,7 +55,8 @@ function journaliser(entree) {
 /** Met un asset (et sa version pleine taille) en quarantaine. */
 function quarantaine(asset, verdict) {
   const dir = dossierQuarantaine()
-  const ids = [asset.id, `${asset.id}-full`]
+  // tous les fichiers du même rendu : la version montée d'un prequel ou d'une suite contient le passage positif
+  const ids = [...new Set([asset.id, `${asset.id}-full`, ...store.db.prepare('SELECT id FROM assets WHERE job_id = ?').all(asset.job_id).map(r => r.id)])]
   const deplaces = []
   for (const id of ids) {
     const row = store.trashAsset(id)
