@@ -17,7 +17,7 @@ const compare = (nom: string, legA: string, legB: string): Apercu => ({ type: 'c
 const anime = (nom: string, reste: Partial<Extract<Apercu, { type: 'media' }>> = {}): Apercu => ({ type: 'media', image: v(`${nom}.webp`), video: v(`${nom}.mp4`), ...reste })
 
 export const BANDEAU_STAGE: Apercu = { ...compare('stage', 'Maquette 3D', 'Rendu final'), videoA: v('stage-a.mp4'), videoB: v('stage-b.mp4') } as Apercu
-export const BANDEAU_CINEMA: Apercu = { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', 'Pellicule 500T'], auto: true }
+export const BANDEAU_CINEMA: Apercu = { type: 'media', image: v('v2-cine-w.webp'), video: v('v2-cine-w2.mp4'), puces: ['35 mm', 'f/2.8', 'Clair-obscur', 'Pellicule 500T'], auto: true }
 export const BANDEAU_RESTORE: Apercu = { type: 'compare', a: v('restaurer-a.webp'), b: v('restaurer-b.webp'), legA: 'Photo d’origine', legB: 'Restaurée et colorisée' }
 export const BANDEAU_REEL = anime('reel-w', { texte: 'Golden hour in Alfama', auto: true })
 const compareVideo = (nom: string, legA: string, legB: string): Apercu => ({ ...compare(nom, legA, legB), videoA: v(`${nom}-a.mp4`), videoB: v(`${nom}-b.mp4`), auto: true } as Apercu)
