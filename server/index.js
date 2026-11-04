@@ -2314,7 +2314,7 @@ app.post('/api/restauration', async (req, reply) => {
       if (!fs.existsSync(path.join(CONFIG.comfyInput, nom))) { reply.code(404); return { error: 'fichier introuvable' } }
       fichier = nom
     } else { reply.code(400); return { error: media === 'video' ? 'choisis un clip de la bibliothèque' : 'choisis une photo' } }
-    return deposerAvecCle(cleComfy(req), () => lancerRestauration({ media, fichier, asset, nettoyer: b.nettoyer !== false, couleur: b.couleur === true, hd: b.hd !== false }))
+    return deposerAvecCle(cleComfy(req), () => lancerRestauration({ media, fichier, asset, nettoyer: b.nettoyer !== false, couleur: b.couleur === true, hd: b.hd !== false, stabilite: b.stabilite === true }))
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/restauration/:id', async (req, reply) => etatRestauration(req.params.id) ?? (reply.code(404), { error: 'restauration inconnue' }))

@@ -783,6 +783,7 @@ export const nouveautes: Record<string, string> = {
   'Photo d’origine': 'Original photo',
   'Archive de 1951': '1951 archive',
   'Coloriser un clip en noir et blanc (10 s au plus, ~10 min)': 'Colorize a black and white clip (10 s max, ~10 min)',
+  'Stabiliser : retirer les tremblements de la caméra': 'Stabilize: remove camera shake',
   'Restaurée et colorisée': 'Restored and colorized',
   'Pub': 'Ads',
   'crédit de l’auteur requis · vente des images autorisée': 'author credit required · selling images allowed',

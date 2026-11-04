@@ -25,14 +25,42 @@ export function consigneRestauration({ nettoyer, couleur }) {
   return parts.join(' ')
 }
 
+/** Clip stabilisé sans zoom (vid.stab en deux passes) : les bords laissés vides restent noirs, et une
+ *  vidéo-masque (blanc = image d'origine) dit à VACE où les reconstruire. Les deux dans input/ ; null si échec. */
+function stabiliser(src, origine) {
+  const base = path.basename(src).replace(/^crs_(stab|restv)_/, '').replace(/\.[^.]+$/, '')
+  const nom = `crs_stab_${base}.mp4`, masque = `crs_stabmasque_${base}.mp4`
+  const trf = path.join(CONFIG.comfyInput, `.${base}.trf`)
+  const ff = args => spawnSync('ffmpeg', ['-nostdin', '-loglevel', 'error', '-y', ...args], { timeout: 300_000 }).status === 0
+  const d = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=width,height,r_frame_rate,nb_read_frames', '-of', 'csv=p=0', src], { encoding: 'utf8', timeout: 120_000 }).stdout.trim().split(',')
+  const [w, h, fps, n] = [d[0], d[1], d[2], d[3]]
+  const transforme = `vidstabtransform=input=${trf}:smoothing=20:optzoom=0:crop=black:interpol=bicubic`
+  const ok = ff(['-i', src, '-vf', `vidstabdetect=shakiness=6:accuracy=15:result=${trf}`, '-f', 'null', '-'])
+    && ff(['-i', src, '-vf', transforme, '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', '-c:a', 'copy', path.join(CONFIG.comfyInput, nom)])
+    && ff(['-f', 'lavfi', '-i', `color=white:s=${w}x${h}:r=${fps}`, '-frames:v', String(n), '-vf', transforme, '-c:v', 'libx264', '-crf', '10', '-pix_fmt', 'yuv420p', path.join(CONFIG.comfyInput, masque)])
+  fs.rmSync(trf, { force: true })
+  if (!ok) return null
+  store.noterInput(nom, origine)
+  store.noterInput(masque, origine)
+  return { nom, masque }
+}
+
 /** Lance une restauration. `fichier` est un nom du dossier d'entrée de ComfyUI (photo déposée ou copiée). */
-export function lancerRestauration({ media, fichier, asset, nettoyer = true, couleur = false, hd = true }) {
+export function lancerRestauration({ media, fichier, asset, nettoyer = true, couleur = false, hd = true, stabilite = false }) {
   const id = `rest-${Date.now().toString(36)}`
   // l'image d'origine, pour le comparateur avant / après
   const avant = fichier ? `/api/uploads/${encodeURIComponent(fichier)}` : asset?.uri ?? null
   const base = { id, media, avant, nettoyer: !!nettoyer, couleur: !!couleur, hd: !!hd, edition: null, hdJob: null, debut: Date.now(), parentAssetId: asset?.id ?? null }
   if (media === 'video') {
     if (!asset && !fichier) throw new Error('choisis un clip')
+    let masque = null
+    // stabilisation d'abord : la couleur et la HD travaillent ensuite sur une image calme
+    if (stabilite) {
+      const src = asset ? path.join(CONFIG.mediaDir, path.basename(asset.filename ?? asset.uri)) : path.join(CONFIG.comfyInput, fichier)
+      const st = stabiliser(src, asset ? 'genere' : (store.origineInput(fichier) ?? 'upload'))
+      if (!st) throw new Error('stabilisation impossible')
+      fichier = st.nom; masque = st.masque; asset = null
+    }
     if (couleur) {
       // le clip dans input/, puis sa 1re image restaurée et colorisée : elle donnera les couleurs du clip
       let clip = fichier
@@ -47,7 +75,13 @@ export function lancerRestauration({ media, fichier, asset, nettoyer = true, cou
       store.noterInput(image)
       const j = enqueue({ mode: 'photo', op: 'edit', register: 'sfw', personaId: SANS_PERSONNAGE, purpose: 'creative', sourceImage: image,
         composedPositive: consigneRestauration({ nettoyer: true, couleur: true }), userPrompt: 'restauration et colorisation (1re image du clip)', composedNegative: '', parentAssetId: asset?.id ?? null, origineUri: avant })
-      suivis.set(id, { ...base, couleur: true, clip, edition: j.id, couleurJob: null })
+      suivis.set(id, { ...base, couleur: true, clip, masque, edition: j.id, couleurJob: null })
+      return etatRestauration(id)
+    }
+    if (masque) {
+      // stabilisé sans couleur : VACE reconstruit les bords vides, puis la HD
+      const j = enqueueColorisationVideo({ source: fichier, masque, bordsSeuls: true, parentAssetId: base.parentAssetId, origineUri: avant })
+      suivis.set(id, { ...base, bords: true, couleurJob: j.id })
       return etatRestauration(id)
     }
     const source = asset ? path.basename(asset.filename ?? asset.uri) : `input:${fichier}`
@@ -78,7 +112,7 @@ export function etatRestauration(id) {
   const fin = r.hd || r.media === 'video' ? premierAsset(r.hdJob) : premierAsset(r.edition)
   const etapes = [
     ...(r.edition ? [{ etape: r.couleur ? (r.media === 'video' ? 'couleur de la 1re image' : 'retouche et couleur') : 'retouche', job: r.edition, statut: statut(r.edition), uri: premierAsset(r.edition)?.uri ?? null }] : []),
-    ...(r.media === 'video' && r.couleur ? [{ etape: 'couleur du clip', job: r.couleurJob, statut: statut(r.couleurJob) ?? 'en attente', uri: premierAsset(r.couleurJob)?.uri ?? null }] : []),
+    ...(r.media === 'video' && (r.couleur || r.bords) ? [{ etape: r.couleur ? 'couleur du clip' : 'bords reconstruits', job: r.couleurJob, statut: statut(r.couleurJob) ?? 'en attente', uri: premierAsset(r.couleurJob)?.uri ?? null }] : []),
     ...(r.hd || r.media === 'video' ? [{ etape: 'HD', job: r.hdJob, statut: statut(r.hdJob) ?? 'en attente', uri: premierAsset(r.hdJob)?.uri ?? null }] : []),
   ]
   const echec = etapes.some(e => e.statut === 'blocked' || e.statut === 'failed')
@@ -89,7 +123,7 @@ export function etatRestauration(id) {
 setInterval(() => {
   for (const r of suivis.values()) {
     if (Date.now() - r.debut > 86400_000) { suivis.delete(r.id); continue }
-    if (r.media === 'video' && r.couleur) {
+    if (r.media === 'video' && (r.couleur || r.bords)) {
       try {
         // 1re image colorisée → colorisation du clip
         if (!r.couleurJob && statut(r.edition) === 'done') {
@@ -98,7 +132,7 @@ setInterval(() => {
           const ref = `crs_still_${path.basename(a.filename)}`
           fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, ref))
           store.noterInput(ref)
-          r.couleurJob = enqueueColorisationVideo({ source: r.clip, reference: ref, parentAssetId: r.parentAssetId, origineUri: r.avant }).id
+          r.couleurJob = enqueueColorisationVideo({ source: r.clip, reference: ref, masque: r.masque, parentAssetId: r.parentAssetId, origineUri: r.avant }).id
         }
         // clip colorisé → HD
         if (r.couleurJob && !r.hdJob && statut(r.couleurJob) === 'done') {

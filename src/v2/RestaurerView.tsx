@@ -21,6 +21,7 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
   const [source, setSource] = useState<Source>(null)
   const [nettoyer, setNettoyer] = useState(true)
   const [couleur, setCouleur] = useState(false)
+  const [stabilite, setStabilite] = useState(true)
   const [hd, setHd] = useState(true)
   const [etat, setEtat] = useState<Etat | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -53,7 +54,7 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
     setOccupe(true); setMsg(null)
     try {
       const r = await fetch('/api/restauration', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media, assetId: source?.asset?.id, fichier: source?.fichier, nettoyer, couleur, hd }) })
+        body: JSON.stringify({ media, assetId: source?.asset?.id, fichier: source?.fichier, nettoyer, couleur, hd, stabilite: media === 'video' && stabilite }) })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
       setEtat(d)
@@ -111,6 +112,7 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+          <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={stabilite} onChange={e => setStabilite(e.target.checked)} /> {t('Stabiliser : retirer les tremblements de la caméra')}</label>
           <label className="flex gap-2 items-center" style={{ cursor: 'pointer' }}><input type="checkbox" checked={couleur} onChange={e => setCouleur(e.target.checked)} /> {t('Coloriser un clip en noir et blanc (10 s au plus, ~10 min)')}</label>
           <span className="texte-doux" style={{ fontSize: 12.5 }}>{t('Clip de 12 s au plus, en dessous de 1080p : SeedVR2 le nettoie et le monte en 1080p, bandes noires retirées, son conservé. Une source minuscule ou très floue gagne en netteté, mais un détail effacé ne revient pas.')}</span>
         </div>
