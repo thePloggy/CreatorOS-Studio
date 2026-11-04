@@ -1354,7 +1354,8 @@ export function outputsOf(history) {
   const images = []
   for (const out of Object.values(history.outputs || {}))
     for (const img of out.images || [])
-      if (img.type !== 'temp') images.push(img)
+      // « temp » : aperçus ; « input » : le fichier d'entrée montré par un nœud de chargement, pas un rendu
+      if (img.type !== 'temp' && img.type !== 'input') images.push(img)
 
   if (!status.completed) {
     const msgs = (status.messages || [])

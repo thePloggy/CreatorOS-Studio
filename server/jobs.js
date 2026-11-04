@@ -435,7 +435,7 @@ export const EDIT_WORKFLOW = 'PROD_edit.json'
 export function recettesServies() {
   const video = Object.values(VIDEO_ENGINES).flatMap(e => [e.file, e.fileCtx]).filter(Boolean)
   return [...new Set([...Object.values(RECIPES), ...video, ...Object.values(MOTION_RECIPES),
-    REFINE_RECIPE, REFINE_MASKED_RECIPE, PHOTO_HD_WORKFLOW, EDIT_WORKFLOW, MIX_RECIPE])]
+    REFINE_RECIPE, REFINE_MASKED_RECIPE, PHOTO_HD_WORKFLOW, EDIT_WORKFLOW, MIX_RECIPE, SWAP_SCAIL_RECIPE])]
 }
 
 /* Dimensions par défaut, surchargées par job. Le cadrage rapproché
@@ -3085,9 +3085,9 @@ async function probeDriver(job) {
  *  quelle, et l'inventaire du driver. */
 async function buildMotionRef(job) {
   const { driverPath, frames, fps } = await probeDriver(job)
-  if (!job.motionRef && job.motionMode === 'replace') return { refName: await refDuPersonnage(job, driverPath, frames, fps), frames, fps }
+  if (!job.motionRef && job.motionMode === 'replace') return { refName: await refDuPersonnage(job, driverPath, frames, fps), frames, fps, driverPath }
   if (!job.motionRef) throw new Error('still de référence manquante')
-  return { refName: job.motionRef, frames, fps }
+  return { refName: job.motionRef, frames, fps, driverPath }
 }
 
 /* Mix depuis la vidéo seule : la référence d'apparence est fabriquée ici.
@@ -3131,6 +3131,47 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
   fs.writeFileSync(path.join(CONFIG.comfyInput, ref), await comfy.readImage(imgs[0]))
   console.log(`[job ${job.id}] Mix : référence de ${p.name || job.personaId} en pied (image ${idx} du driver, tenue : ${tenue ?? 'non lue'})`)
   return ref
+}
+
+/* Swap d'une personne : SCAIL-2 (Wan 2.1 14B, MIT), recette officielle de ComfyUI
+   (remplacement de personnage, 6 pas, lightx2v, LoRA DPO). SAM3 suit la personne du clip
+   et celle de la référence ; le clip est rendu par blocs de 81 images (deux au plus),
+   le second recoloré sur la fin du premier. Au-delà, WanAnimate garde la main. */
+export const SWAP_SCAIL_RECIPE = 'PROD_swap_scail2.json'
+const SCAIL_MAX_IMAGES = 157
+// le modèle SCAIL-2 est-il vu par ComfyUI (où qu'il soit rangé) ? lu une fois par minute
+let scailVu = { quand: 0, ok: false }
+async function scailDisponible() {
+  if (Date.now() - scailVu.quand < 60_000) return scailVu.ok
+  try {
+    const d = await (await fetch(`${CONFIG.comfyUrl}/object_info/UNETLoader`, { signal: AbortSignal.timeout(10_000) })).json()
+    const noms = d?.UNETLoader?.input?.required?.unet_name?.[0] ?? []
+    scailVu = { quand: Date.now(), ok: noms.includes('wan2.1_14B_SCAIL_2_int8_convrot.safetensors') }
+  } catch { scailVu = { quand: Date.now(), ok: false } }
+  return scailVu.ok
+}
+function grapheSwapScail(job, motion, applied) {
+  const g = comfy.loadWorkflow(SWAP_SCAIL_RECIPE)
+  const req = (id, classe) => { if (g[id]?.class_type !== classe) throw new Error(`Swap : la recette « ${SWAP_SCAIL_RECIPE} » a changé (nœud ${id} ≠ ${classe})`) }
+  req('30', 'LoadImage'); req('155', 'LoadVideo'); req('271', 'SaveVideo'); req('213:3', 'CLIPTextEncode'); req('262:258', 'CLIPTextEncode')
+  g['30'].inputs.image = motion.refName
+  g['155'].inputs.file = path.basename(motion.driverPath)
+  const scene = `${(job.motionSceneText || job.composedPositive || '').trim()}, an adult woman, fully clothed, natural light`.replace(/^, /, '')
+  for (const k of ['213:3', '262:258']) g[k].inputs.text = scene
+  for (const k of ['213:191', '262:242']) g[k].inputs.text = 'person'
+  for (const k of ['213:19', '262:227']) g[k].inputs.noise_seed = Number(job.seed) || 42
+  // cadre : le côté long à 896, l'autre à l'échelle, multiples de 32
+  const { width: w, height: h } = videoSize(motion.driverPath)
+  const paysage = !(h > w)
+  const long = 896, court = Math.round((long * (paysage ? (h || 9) / (w || 16) : (w || 9) / (h || 16))) / 32) * 32
+  for (const [lw, lh] of [['213:178', '213:179'], ['262:236', '262:237']]) {
+    g[lw].inputs.value = paysage ? long : court
+    g[lh].inputs.value = paysage ? court : long
+  }
+  g['271'].inputs.filename_prefix = `creatoros/${job.id}/out`
+  applied.push(`Swap : SCAIL-2 (remplacement de personnage, recette officielle ComfyUI), référence ${motion.refName}, `
+    + `${paysage ? long : court}×${paysage ? court : long}, SAM3 « person »`)
+  return g
 }
 
 /** Mix : la recette de remplacement, injectée par ids (cf. MIX_RECIPE). */
@@ -3447,7 +3488,10 @@ async function runJob(job, isRetry = false, connRetried = false) {
        on écrit les nœuds NOMMÉS (cf. MOTION_NODES). */
     let finalWorkflow = workflow
     if (job.videoEngine === 'motion' && job.motionMode === 'replace') {
-      finalWorkflow = await grapheMix(job, await buildMotionRef(job), applied, skipped)
+      const ref = await buildMotionRef(job)
+      // une personne et un clip court : SCAIL-2 ; à plusieurs ou plus long : WanAnimate
+      const scail = !job.mixTotal && !job.mixWanAnimate && ref.frames <= SCAIL_MAX_IMAGES && await scailDisponible()
+      finalWorkflow = scail ? grapheSwapScail(job, ref, applied) : await grapheMix(job, ref, applied, skipped)
       /* Carte vidée avant Wan-Animate : derrière le rendu Krea
          de la référence, ou un rendu interrompu, les modèles restés chargés ne
          laissent que des miettes au WanVideoWrapper — 104 s par pas puis panne

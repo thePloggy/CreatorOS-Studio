@@ -1,0 +1,1107 @@
+{
+ "30": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "REF.png"
+  }
+ },
+ "155": {
+  "class_type": "LoadVideo",
+  "inputs": {
+   "file": "DRIVER.mp4"
+  }
+ },
+ "215": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "155",
+    0
+   ]
+  }
+ },
+ "263": {
+  "class_type": "GetImageSize",
+  "inputs": {
+   "image": [
+    "215",
+    0
+   ]
+  }
+ },
+ "269": {
+  "class_type": "BatchImagesNode",
+  "inputs": {
+   "images.image0": [
+    "213:6",
+    0
+   ],
+   "images.image1": [
+    "262:252",
+    0
+   ]
+  }
+ },
+ "270": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "fps": [
+    "215",
+    2
+   ],
+   "bit_depth": 8,
+   "images": [
+    "269",
+    0
+   ],
+   "audio": [
+    "215",
+    1
+   ]
+  }
+ },
+ "271": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "filename_prefix": "creatoros/swap",
+   "format": "auto",
+   "format.codec": "auto",
+   "video": [
+    "270",
+    0
+   ]
+  }
+ },
+ "213:11": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "lora_name": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "strength_model": 0.8,
+   "model": [
+    "213:318",
+    0
+   ]
+  }
+ },
+ "213:7": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "Wan2_1_VAE_bf16.safetensors"
+  }
+ },
+ "213:156": {
+  "class_type": "ResizeImageMaskNode",
+  "inputs": {
+   "resize_type": "scale dimensions",
+   "resize_type.width": [
+    "213:180",
+    1
+   ],
+   "resize_type.height": [
+    "213:182",
+    1
+   ],
+   "resize_type.crop": "center",
+   "scale_method": "area",
+   "input": [
+    "213:177",
+    0
+   ]
+  }
+ },
+ "213:157": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "155",
+    0
+   ]
+  }
+ },
+ "213:163": {
+  "class_type": "GetImageSize",
+  "inputs": {
+   "image": [
+    "213:156",
+    0
+   ]
+  }
+ },
+ "213:9": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  }
+ },
+ "213:75": {
+  "class_type": "CLIPVisionLoader",
+  "inputs": {
+   "clip_name": "clip_vision_h.safetensors"
+  }
+ },
+ "213:154": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan2.1_14B_SCAIL_2_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "213:95": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "shift": 5,
+   "model": [
+    "213:169",
+    0
+   ]
+  }
+ },
+ "213:27": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "euler"
+  }
+ },
+ "213:18": {
+  "class_type": "BasicScheduler",
+  "inputs": {
+   "scheduler": "simple",
+   "steps": [
+    "213:170",
+    0
+   ],
+   "denoise": 1,
+   "model": [
+    "213:11",
+    0
+   ]
+  }
+ },
+ "213:19": {
+  "class_type": "SamplerCustom",
+  "inputs": {
+   "add_noise": true,
+   "noise_seed": 1,
+   "cfg": [
+    "213:171",
+    0
+   ],
+   "model": [
+    "213:95",
+    0
+   ],
+   "positive": [
+    "213:114",
+    0
+   ],
+   "negative": [
+    "213:114",
+    1
+   ],
+   "sampler": [
+    "213:27",
+    0
+   ],
+   "sigmas": [
+    "213:18",
+    0
+   ],
+   "latent_image": [
+    "213:114",
+    2
+   ]
+  }
+ },
+ "213:168": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 6
+  }
+ },
+ "213:167": {
+  "class_type": "PrimitiveFloat",
+  "inputs": {
+   "value": 1
+  }
+ },
+ "213:165": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 40
+  }
+ },
+ "213:166": {
+  "class_type": "PrimitiveFloat",
+  "inputs": {
+   "value": 5
+  }
+ },
+ "213:169": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "213:172",
+    0
+   ],
+   "on_false": [
+    "213:318",
+    0
+   ],
+   "on_true": [
+    "213:11",
+    0
+   ]
+  }
+ },
+ "213:170": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "213:172",
+    0
+   ],
+   "on_false": [
+    "213:165",
+    0
+   ],
+   "on_true": [
+    "213:168",
+    0
+   ]
+  }
+ },
+ "213:171": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "213:172",
+    0
+   ],
+   "on_false": [
+    "213:166",
+    0
+   ],
+   "on_true": [
+    "213:167",
+    0
+   ]
+  }
+ },
+ "213:177": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "batch_index": [
+    "213:184",
+    1
+   ],
+   "length": 81,
+   "image": [
+    "213:157",
+    0
+   ]
+  }
+ },
+ "213:178": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 896
+  }
+ },
+ "213:179": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 512
+  }
+ },
+ "213:180": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(a // 32) * 32",
+   "values.a": [
+    "213:178",
+    0
+   ]
+  }
+ },
+ "213:182": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(a // 32) * 32",
+   "values.a": [
+    "213:179",
+    0
+   ]
+  }
+ },
+ "213:183": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 1
+  }
+ },
+ "213:184": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(b - c) * (a - 1)",
+   "values.a": [
+    "213:183",
+    0
+   ],
+   "values.b": 81,
+   "values.c": 5
+  }
+ },
+ "213:191": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "girl, handkerchief",
+   "clip": [
+    "213:193",
+    1
+   ]
+  }
+ },
+ "213:193": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+  }
+ },
+ "213:196": {
+  "class_type": "SAM3_VideoTrack",
+  "inputs": {
+   "detection_threshold": 0.5,
+   "max_objects": 4,
+   "detect_interval": 1,
+   "images": [
+    "213:156",
+    0
+   ],
+   "model": [
+    "213:193",
+    0
+   ],
+   "conditioning": [
+    "213:191",
+    0
+   ]
+  }
+ },
+ "213:197": {
+  "class_type": "SCAIL2ColoredMask",
+  "inputs": {
+   "object_indices": "",
+   "sort_by": "left_to_right",
+   "replacement_mode": [
+    "213:203",
+    0
+   ],
+   "driving_track_data": [
+    "213:196",
+    0
+   ],
+   "ref_track_data": [
+    "213:198",
+    0
+   ]
+  }
+ },
+ "213:198": {
+  "class_type": "SAM3_VideoTrack",
+  "inputs": {
+   "detection_threshold": 0.5,
+   "max_objects": 4,
+   "detect_interval": 1,
+   "images": [
+    "30",
+    0
+   ],
+   "model": [
+    "213:193",
+    0
+   ],
+   "conditioning": [
+    "213:212",
+    0
+   ]
+  }
+ },
+ "213:203": {
+  "class_type": "PrimitiveBoolean",
+  "inputs": {
+   "value": true
+  }
+ },
+ "213:6": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "213:19",
+    1
+   ],
+   "vae": [
+    "213:7",
+    0
+   ]
+  }
+ },
+ "213:172": {
+  "class_type": "PrimitiveBoolean",
+  "inputs": {
+   "value": true
+  }
+ },
+ "213:76": {
+  "class_type": "CLIPVisionEncode",
+  "inputs": {
+   "crop": "none",
+   "clip_vision": [
+    "213:75",
+    0
+   ],
+   "image": [
+    "30",
+    0
+   ]
+  }
+ },
+ "213:4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "",
+   "clip": [
+    "213:9",
+    0
+   ]
+  }
+ },
+ "213:3": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "A young East Asian woman with dark hair neatly pulled back, wearing a white sleeveless ribbed mock-neck top, is standing in a lush apple orchard. She holds a large glossy red apple with both hands, using a white paper handkerchief to wipe and clean the apple before smelling and eating it with her eyes closed and a blissful expression. Ripe red and yellow apples hang from leafy branches in the foreground, with rows of green apple trees softly blurred in the background under natural daylight.",
+   "clip": [
+    "213:9",
+    0
+   ]
+  }
+ },
+ "213:114": {
+  "class_type": "WanSCAILToVideo",
+  "inputs": {
+   "width": [
+    "213:163",
+    0
+   ],
+   "height": [
+    "213:163",
+    1
+   ],
+   "length": [
+    "213:163",
+    2
+   ],
+   "batch_size": 1,
+   "pose_strength": 1,
+   "pose_start": 0,
+   "pose_end": 1,
+   "video_frame_offset": 0,
+   "previous_frame_count": 5,
+   "replacement_mode": [
+    "213:203",
+    0
+   ],
+   "positive": [
+    "213:3",
+    0
+   ],
+   "negative": [
+    "213:4",
+    0
+   ],
+   "vae": [
+    "213:7",
+    0
+   ],
+   "pose_video": [
+    "213:156",
+    0
+   ],
+   "pose_video_mask": [
+    "213:197",
+    0
+   ],
+   "reference_image": [
+    "30",
+    0
+   ],
+   "reference_image_mask": [
+    "213:197",
+    1
+   ],
+   "clip_vision_output": [
+    "213:76",
+    0
+   ]
+  }
+ },
+ "213:212": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "human",
+   "clip": [
+    "213:193",
+    1
+   ]
+  }
+ },
+ "213:318": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "lora_name": "wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+   "strength_model": 1,
+   "model": [
+    "213:154",
+    0
+   ]
+  }
+ },
+ "262:216": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "lora_name": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "strength_model": 0.8,
+   "model": [
+    "262:319",
+    0
+   ]
+  }
+ },
+ "262:217": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "Wan2_1_VAE_bf16.safetensors"
+  }
+ },
+ "262:218": {
+  "class_type": "ResizeImageMaskNode",
+  "inputs": {
+   "resize_type": "scale dimensions",
+   "resize_type.width": [
+    "262:238",
+    1
+   ],
+   "resize_type.height": [
+    "262:239",
+    1
+   ],
+   "resize_type.crop": "center",
+   "scale_method": "area",
+   "input": [
+    "262:235",
+    0
+   ]
+  }
+ },
+ "262:219": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "155",
+    0
+   ]
+  }
+ },
+ "262:220": {
+  "class_type": "GetImageSize",
+  "inputs": {
+   "image": [
+    "262:218",
+    0
+   ]
+  }
+ },
+ "262:221": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  }
+ },
+ "262:222": {
+  "class_type": "CLIPVisionLoader",
+  "inputs": {
+   "clip_name": "clip_vision_h.safetensors"
+  }
+ },
+ "262:223": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan2.1_14B_SCAIL_2_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "262:224": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "shift": 5,
+   "model": [
+    "262:232",
+    0
+   ]
+  }
+ },
+ "262:225": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "euler"
+  }
+ },
+ "262:226": {
+  "class_type": "BasicScheduler",
+  "inputs": {
+   "scheduler": "simple",
+   "steps": [
+    "262:233",
+    0
+   ],
+   "denoise": 1,
+   "model": [
+    "262:216",
+    0
+   ]
+  }
+ },
+ "262:227": {
+  "class_type": "SamplerCustom",
+  "inputs": {
+   "add_noise": true,
+   "noise_seed": 1,
+   "cfg": [
+    "262:234",
+    0
+   ],
+   "model": [
+    "262:224",
+    0
+   ],
+   "positive": [
+    "262:259",
+    0
+   ],
+   "negative": [
+    "262:259",
+    1
+   ],
+   "sampler": [
+    "262:225",
+    0
+   ],
+   "sigmas": [
+    "262:226",
+    0
+   ],
+   "latent_image": [
+    "262:259",
+    2
+   ]
+  }
+ },
+ "262:228": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 6
+  }
+ },
+ "262:229": {
+  "class_type": "PrimitiveFloat",
+  "inputs": {
+   "value": 1
+  }
+ },
+ "262:230": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 40
+  }
+ },
+ "262:231": {
+  "class_type": "PrimitiveFloat",
+  "inputs": {
+   "value": 5
+  }
+ },
+ "262:232": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "262:255",
+    0
+   ],
+   "on_false": [
+    "262:319",
+    0
+   ],
+   "on_true": [
+    "262:216",
+    0
+   ]
+  }
+ },
+ "262:233": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "262:255",
+    0
+   ],
+   "on_false": [
+    "262:230",
+    0
+   ],
+   "on_true": [
+    "262:228",
+    0
+   ]
+  }
+ },
+ "262:234": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "262:255",
+    0
+   ],
+   "on_false": [
+    "262:231",
+    0
+   ],
+   "on_true": [
+    "262:229",
+    0
+   ]
+  }
+ },
+ "262:235": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "batch_index": [
+    "262:241",
+    1
+   ],
+   "length": 81,
+   "image": [
+    "262:219",
+    0
+   ]
+  }
+ },
+ "262:236": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 896
+  }
+ },
+ "262:237": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 512
+  }
+ },
+ "262:238": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(a // 32) * 32",
+   "values.a": [
+    "262:236",
+    0
+   ]
+  }
+ },
+ "262:239": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(a // 32) * 32",
+   "values.a": [
+    "262:237",
+    0
+   ]
+  }
+ },
+ "262:240": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 2
+  }
+ },
+ "262:241": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "(b - c) * (a - 1)",
+   "values.a": [
+    "262:240",
+    0
+   ],
+   "values.b": 81,
+   "values.c": 5
+  }
+ },
+ "262:242": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "girl, handkerchief",
+   "clip": [
+    "262:243",
+    1
+   ]
+  }
+ },
+ "262:243": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+  }
+ },
+ "262:244": {
+  "class_type": "SAM3_VideoTrack",
+  "inputs": {
+   "detection_threshold": 0.5,
+   "max_objects": 4,
+   "detect_interval": 1,
+   "images": [
+    "262:218",
+    0
+   ],
+   "model": [
+    "262:243",
+    0
+   ],
+   "conditioning": [
+    "262:242",
+    0
+   ]
+  }
+ },
+ "262:245": {
+  "class_type": "SCAIL2ColoredMask",
+  "inputs": {
+   "object_indices": "",
+   "sort_by": "left_to_right",
+   "replacement_mode": [
+    "262:247",
+    0
+   ],
+   "driving_track_data": [
+    "262:244",
+    0
+   ],
+   "ref_track_data": [
+    "262:246",
+    0
+   ]
+  }
+ },
+ "262:246": {
+  "class_type": "SAM3_VideoTrack",
+  "inputs": {
+   "detection_threshold": 0.5,
+   "max_objects": 4,
+   "detect_interval": 1,
+   "images": [
+    "30",
+    0
+   ],
+   "model": [
+    "262:243",
+    0
+   ],
+   "conditioning": [
+    "262:261",
+    0
+   ]
+  }
+ },
+ "262:247": {
+  "class_type": "PrimitiveBoolean",
+  "inputs": {
+   "value": true
+  }
+ },
+ "262:250": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "262:227",
+    1
+   ],
+   "vae": [
+    "262:217",
+    0
+   ]
+  }
+ },
+ "262:251": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "batch_index": 5,
+   "length": 4096,
+   "image": [
+    "262:250",
+    0
+   ]
+  }
+ },
+ "262:252": {
+  "class_type": "ColorTransfer",
+  "inputs": {
+   "method": "reinhard_lab",
+   "source_stats": "per_frame",
+   "strength": 1,
+   "image_target": [
+    "262:251",
+    0
+   ],
+   "image_ref": [
+    "262:253",
+    0
+   ]
+  }
+ },
+ "262:253": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "batch_index": -1,
+   "length": 1,
+   "image": [
+    "213:6",
+    0
+   ]
+  }
+ },
+ "262:255": {
+  "class_type": "PrimitiveBoolean",
+  "inputs": {
+   "value": true
+  }
+ },
+ "262:256": {
+  "class_type": "CLIPVisionEncode",
+  "inputs": {
+   "crop": "none",
+   "clip_vision": [
+    "262:222",
+    0
+   ],
+   "image": [
+    "30",
+    0
+   ]
+  }
+ },
+ "262:257": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "",
+   "clip": [
+    "262:221",
+    0
+   ]
+  }
+ },
+ "262:258": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "A young East Asian woman with dark hair neatly pulled back, wearing a white sleeveless ribbed mock-neck top, is standing in a lush apple orchard. She holds a large glossy red apple with both hands, using a white paper handkerchief to wipe and clean the apple before smelling and eating it with her eyes closed and a blissful expression. Ripe red and yellow apples hang from leafy branches in the foreground, with rows of green apple trees softly blurred in the background under natural daylight.",
+   "clip": [
+    "262:221",
+    0
+   ]
+  }
+ },
+ "262:259": {
+  "class_type": "WanSCAILToVideo",
+  "inputs": {
+   "width": [
+    "262:220",
+    0
+   ],
+   "height": [
+    "262:220",
+    1
+   ],
+   "length": [
+    "262:220",
+    2
+   ],
+   "batch_size": 1,
+   "pose_strength": 1,
+   "pose_start": 0,
+   "pose_end": 1,
+   "video_frame_offset": 0,
+   "previous_frame_count": 5,
+   "replacement_mode": [
+    "262:247",
+    0
+   ],
+   "positive": [
+    "262:258",
+    0
+   ],
+   "negative": [
+    "262:257",
+    0
+   ],
+   "vae": [
+    "262:217",
+    0
+   ],
+   "pose_video": [
+    "262:218",
+    0
+   ],
+   "pose_video_mask": [
+    "262:245",
+    0
+   ],
+   "reference_image": [
+    "30",
+    0
+   ],
+   "reference_image_mask": [
+    "262:245",
+    1
+   ],
+   "clip_vision_output": [
+    "262:256",
+    0
+   ],
+   "previous_frames": [
+    "213:6",
+    0
+   ]
+  }
+ },
+ "262:261": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "text": "human",
+   "clip": [
+    "262:243",
+    1
+   ]
+  }
+ },
+ "262:319": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "lora_name": "wan2.1_SCAIL_2_DPO_lora_bf16.safetensors",
+   "strength_model": 1,
+   "model": [
+    "262:223",
+    0
+   ]
+  }
+ }
+}
