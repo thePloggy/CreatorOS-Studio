@@ -459,8 +459,10 @@ export function TriagePopup({ open, onClose, assets }: { open: boolean; onClose:
    Les éléments FERMÉS sont gardés, les OUVERTS varient (seed constante si
    demandée). Les sélections restaurées viennent de la provenance de l'asset
    — sur un asset au prompt libre (sans selections), seule la seed est reprise. */
-export function CarouselPopup({ asset, onClose, onLaunched }: {
-  asset: Asset; onClose: () => void; onLaunched: () => void
+export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
+  asset: Asset; onClose: () => void; onLaunched: (lot?: string) => void
+  /** posé dans la page Carousel au lieu d'une fenêtre par-dessus */
+  integre?: boolean
 }) {
   const s = useAppStore()
   const basePrompt = asset.provenance.composedPositive || asset.provenance.userPrompt || ''
@@ -603,14 +605,10 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
        pour que sa vignette rejoigne le lot sans attendre un reload. */
     await s.hydrate()
     setBusy(false)
-    if (done > 0) onLaunched()
+    if (done > 0) onLaunched(bid)
   }
 
-  return (
-    <div className="pop" onClick={busy ? undefined : onClose}>
-      <div className="pbox" style={phase === 'review' ? { width: 'min(680px,94%)' } : undefined} onClick={e => e.stopPropagation()}>
-        <h3><Ic n="grid" s={14} /> {t('Carrousel — 9 variations')} <button className="x" onClick={onClose}>✕</button></h3>
-
+  const corps = (<>
         {(phase === 'config' || phase === 'rewriting') && (<>
           <p className="hint">{t('Cadenas fermé = la dimension reste constante dans tout le shooting ; ouvert = le rédacteur en fait ce qu\'il veut. Tu relis les plans avant l\'envoi.')}</p>
           <p className="hint" style={{ marginTop: 0 }}>
@@ -709,6 +707,13 @@ export function CarouselPopup({ asset, onClose, onLaunched }: {
             <div className="pbar" style={{ marginTop: 6 }}><i style={{ width: `${(progress / Math.max(1, variants.slice(1).filter(v => v.trim()).length)) * 100}%` }} /></div>
           </div>
         )}
+  </>)
+  if (integre) return <div className="carrousel-integre">{corps}</div>
+  return (
+    <div className="pop" onClick={busy ? undefined : onClose}>
+      <div className="pbox" style={phase === 'review' ? { width: 'min(680px,94%)' } : undefined} onClick={e => e.stopPropagation()}>
+        <h3><Ic n="grid" s={14} /> {t('Carrousel — 9 variations')} <button className="x" onClick={onClose}>✕</button></h3>
+        {corps}
       </div>
     </div>
   )

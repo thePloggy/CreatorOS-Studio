@@ -40,6 +40,7 @@ const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.C
 const OutilsClip = () => import('./OutilsClipViews')
 const RecadrerView = lazy(() => OutilsClip().then(m => ({ default: m.RecadrerView })))
 const RestaurerView = lazy(() => import('./RestaurerView').then(m => ({ default: m.RestaurerView })))
+const CarrouselView = lazy(() => import('./CarrouselView').then(m => ({ default: m.CarrouselView })))
 const StylesView = lazy(() => import('./StylesView').then(m => ({ default: m.StylesView })))
 const DoublageView = lazy(() => OutilsClip().then(m => ({ default: m.DoublageView })))
 const AnalyseView = lazy(() => OutilsClip().then(m => ({ default: m.AnalyseView })))
@@ -90,7 +91,7 @@ function Telemetry() {
   </>)
 }
 
-const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil']
+const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel']
 // l'outil d'une page dédiée et la famille de Camera Moves / Effects viennent aussi de l'adresse
 {
   const q = new URLSearchParams(window.location.search)
@@ -225,6 +226,7 @@ export default function V2App() {
         {section === 'pub' && <PubView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'recadrer' && <RecadrerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'restaurer' && <RestaurerView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'carrousel' && <CarrouselView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'outil' && <OutilDedie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />}
         {(section === 'styles' || section === 'relight' || section === 'expand') && <StylesView key={section} mode={section} goImage={() => setSection('image')} />}
         {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}

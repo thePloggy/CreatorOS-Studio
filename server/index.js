@@ -2552,11 +2552,14 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
 const personaDe = req => String(req.query?.persona ?? '') || decodeURIComponent(String(req.headers['x-personnage'] ?? '')) || personas().active || null
 /** Un rendu sans personnage échappe au préambule d'adulte : le propriétaire seul y a droit. */
 const personnageInterdit = (req, id) => id === SANS_PERSONNAGE && !estProprietaire(req)
-app.get('/api/folders', async req => ({ folders: store.listFolders(personaDe(req)).map(f => ({ id: f.id, name: f.name, createdAt: f.created_at, count: f.count })) }))
+// le propriétaire voit tous les dossiers, communs à tous les personnages ; un visiteur, ceux de son personnage
+app.get('/api/folders', async req => ({ folders: store.listFolders(estProprietaire(req) ? undefined : personaDe(req))
+  .map(f => ({ id: f.id, name: f.name, createdAt: f.created_at, count: f.count, personaId: f.persona_id ?? null })) }))
 app.post('/api/folders', async (req, reply) => {
   const name = String(req.body?.name ?? '').trim()
   if (!name) { reply.code(400); return { error: 'nom requis' } }
-  const f = store.createFolder(name, personaDe(req))
+  // les dossiers du propriétaire sont communs à tous les personnages
+  const f = store.createFolder(name, estProprietaire(req) ? null : personaDe(req))
   return { id: f.id, name: f.name }
 })
 app.patch('/api/folders/:id', async (req, reply) => {

@@ -267,7 +267,7 @@ export function JustifiedGrid({ cols, items: recus, progressif = true }: {
    doublons suffixés côté serveur) ; liste scrollable dans l'ordre choisi par
    l'opérateur (store.folderSort), une checkbox par dossier — cochée si TOUS
    les assets visés y sont. */
-export interface FolderInfo { id: string; name: string; createdAt: number; count: number }
+export interface FolderInfo { id: string; name: string; createdAt: number; count: number; personaId?: string | null }
 
 /* ---------- sélecteur d'ordre des dossiers ----------
    Le réglage vit dans le store (persisté) et vaut pour TOUTES les listes de

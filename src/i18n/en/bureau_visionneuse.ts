@@ -217,4 +217,6 @@ export const bureau_visionneuse: Record<string, string> = {
   '0,4 MP (480×848 en 9:16)': '0.4 MP (480×848 at 9:16)',
   '0,7 MP au lieu de 1,4': '0.7 MP instead of 1.4',
   'Voix correcte en anglais, brouillonne en français · ambiance quasi muette': 'Voice is fine in English, sloppy in French · ambient sound nearly silent',
+  'Image de départ du carrousel': 'Carousel start image',
+  'Une image de départ, et une série de photos de la même séance : même tenue, même lieu, poses et cadrages variés': 'One start image, then a series of photos from the same shoot: same outfit, same place, varied poses and framings',
 }

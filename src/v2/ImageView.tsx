@@ -296,7 +296,6 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
         onStart={() => { void s.pickStartFrame(animMenu.a.id); goVideo() }}
         onEnd={() => { void s.pickEndFrame(animMenu.a.id); goVideo() }} />}
 
-      {carousel && <CarouselPopup asset={carousel} onClose={() => setCarousel(null)} onLaunched={() => setCarousel(null)} />}
       {batchOpen && (() => {
         const items = shown.filter(a => a.batchId === batchOpen || (a.batchIds ?? []).includes(batchOpen))
         return items.length
@@ -304,6 +303,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               onOpenAsset={a => { setBatchOpen(null); onOpen(a, items) }} extraFor={imgExtra} />
           : null
       })()}
+      {/* après la visionneuse de lot : ouvert depuis une vignette du lot, le carrousel passe au-dessus */}
+      {carousel && <CarouselPopup asset={carousel} onClose={() => setCarousel(null)} onLaunched={() => setCarousel(null)} />}
       <TriagePopup open={triage} onClose={() => setTriage(false)} assets={s.assets.filter(a => a.mediaType === 'photo')} />
       <EnhancerPopup open={enh} onClose={() => setEnh(false)}
         mode="photo" engine={task === 'edit' ? 'edit' : null} userPrompt={s.userPrompt}

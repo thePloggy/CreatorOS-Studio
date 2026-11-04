@@ -44,8 +44,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
   const qRef = useRef<HTMLInputElement>(null)
 
   const loadFolders = () => void fetch('/api/folders').then(r => r.json()).then(d => setFolders(d.folders ?? []))
-  // dossiers cloisonnés par personnage : on recharge et on sort du dossier ouvert au changement
-  useEffect(() => { loadFolders(); setFolderId(null) }, [s.personaId])
+  useEffect(() => { loadFolders() }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); qRef.current?.focus() }
@@ -56,6 +55,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
 
   /* L'ordre d'affichage est une préférence de l'opérateur (store, persistée),
      pas celui du serveur — les mêmes dossiers, dans le même ordre, partout. */
+  // les dossiers sont communs à tous les personnages : le filtre personnage trie les assets, pas les dossiers
   const tries = useMemo(() => trierDossiers(folders, s.folderSort), [folders, s.folderSort])
 
   const toggleSet = <T,>(set: Set<T>, v: T, setter: (s: Set<T>) => void) => {

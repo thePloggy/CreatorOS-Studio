@@ -357,7 +357,6 @@ db.exec(`UPDATE folders SET persona_id = (
 
 /** `personaId` absent : tous les dossiers (outils internes). */
 export function listFolders(personaId) {
-  if (personaId) db.prepare('UPDATE folders SET persona_id = ? WHERE persona_id IS NULL').run(personaId)
   const filtre = personaId ? 'WHERE f.persona_id = ?' : ''
   return db.prepare(`SELECT f.id, f.name, f.created_at, f.persona_id,
     (SELECT COUNT(*) FROM folder_assets fa JOIN assets a ON a.id = fa.asset_id
