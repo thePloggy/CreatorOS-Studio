@@ -1358,9 +1358,11 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
 /* ---------- nouveau fond d'un clip (Wan 2.2 Fun VACE) ----------
    1) Qwen-Image-Edit 2511 refait le décor de la 1re image en gardant la personne :
       c'est l'image de référence du nouveau décor.
-   2) SAM3 suit la ou les personnes ; tout le reste devient gris dans la vidéo de
-      contrôle, et le masque (personne resserrée de 3 px, inversé) dit à VACE quoi
-      redessiner. VACE refait le décor sur tout le clip, guidé par la référence.
+   2) SAM3 suit la ou les personnes et BiRefNet les détoure dans cette zone (les jours
+      entre bras et corps en sortent) ; tout le reste devient gris dans la vidéo de
+      contrôle, et le masque (personne resserrée d'une douzaine de pixels, inversé) dit
+      à VACE quoi redessiner : les fentes entre bras et corps deviennent assez larges pour
+      qu'il y peigne le décor. VACE refait le décor sur tout le clip, guidé par la référence.
    3) Les personnes de la source sont recollées par-dessus, à la définition de la
       source (petit côté jusqu'à 720) : le détourage vient de BiRefNet (mèches de
       cheveux, bords doux), limité à la zone que SAM3 suit pour ne garder que les personnes. */
@@ -1405,7 +1407,16 @@ function grapheFondVace(job) {
     txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: cible } },
     trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['v', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 4, detect_interval: 1, conditioning: ['txt', 0] } },
     m: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '' } },
-    mg: { class_type: 'GrowMask', inputs: { mask: ['m', 0], expand: -3, tapered_corners: true } },
+    // la personne = détourage BiRefNet dans la zone suivie par SAM3 : les jours entre les bras et le corps,
+    // que le masque SAM3 englobe, en sortent et VACE les redessine aussi
+    bir: { class_type: 'LoadBackgroundRemovalModel', inputs: { bg_removal_name: 'birefnet.safetensors' } },
+    detw: { class_type: 'RemoveBackground', inputs: { bg_removal_model: ['bir', 0], image: ['v', 0] } },
+    zonew: { class_type: 'GrowMask', inputs: { mask: ['m', 0], expand: 4, tapered_corners: true } },
+    pw: { class_type: 'MaskComposite', inputs: { destination: ['detw', 0], source: ['zonew', 0], x: 0, y: 0, operation: 'multiply' } },
+    pb: { class_type: 'ThresholdMask', inputs: { mask: ['pw', 0], value: 0.5 } },
+    // VACE redessine aussi une bande autour de la personne : une fente de quelques pixels resterait grise ;
+    // la vraie personne est recollée par-dessus avec le détourage BiRefNet
+    mg: { class_type: 'GrowMask', inputs: { mask: ['pb', 0], expand: -Math.max(6, Math.round(W / 70)), tapered_corners: true } },
     bg: { class_type: 'InvertMask', inputs: { mask: ['mg', 0] } },
     gris: { class_type: 'EmptyImage', inputs: { width: W, height: H, batch_size: N, color: 8355711 } },
     ctrl: { class_type: 'ImageCompositeMasked', inputs: { destination: ['v', 0], source: ['gris', 0], x: 0, y: 0, resize_source: false, mask: ['bg', 0] } },
@@ -1415,8 +1426,8 @@ function grapheFondVace(job) {
     ml: { class_type: 'ModelSamplingSD3', inputs: { model: ['ul', 0], shift: 8 } },
     clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp16.safetensors', type: 'wan', device: 'default' } },
     vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
-    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: `${decor}. The people keep moving naturally in the new place, realistic, cinematic, consistent light.` } },
-    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'blurry, distorted, deformed, flicker, halo, outline, glow around the person, cartoon, text, watermark' } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: `${decor}. Nobody else in the background, the place is empty around the subject. Realistic, cinematic, consistent light.` } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'other people, passers-by, crowd, extra person, blurry, distorted, deformed, flicker, halo, outline, glow around the person, cartoon, text, watermark' } },
     vace: { class_type: 'WanVaceToVideo', inputs: { positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0], width: W, height: H, length: N, batch_size: 1, strength: 1,
       control_video: ['ctrl', 0], control_masks: ['bg', 0], reference_image: ['refs', 0] } },
     kh: ks(['mh', 0], 0, 10, ['vace', 2], true),
@@ -1425,10 +1436,10 @@ function grapheFondVace(job) {
     dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
     // 3) les personnes de la source recollées à sa définition : détourage BiRefNet dans la zone suivie par SAM3
     vh: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W2, custom_height: H2, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
-    bir: { class_type: 'LoadBackgroundRemovalModel', inputs: { bg_removal_name: 'birefnet.safetensors' } },
     det: { class_type: 'RemoveBackground', inputs: { bg_removal_model: ['bir', 0], image: ['vh', 0] } },
-    mh2: { class_type: 'ResizeMask', inputs: { mask: ['m', 0], width: W2, height: H2, keep_proportions: false, upscale_method: 'bilinear', crop: 'disabled' } },
-    zone: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: Math.round(W2 / 60), incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 4, lerp_alpha: 1, decay_factor: 1 } },
+    mh2: { class_type: 'ResizeMask', inputs: { mask: ['pb', 0], width: W2, height: H2, keep_proportions: false, upscale_method: 'bilinear', crop: 'disabled' } },
+    // zone serrée : élargie de quelques pixels seulement, sinon le jour entre le bras et le corps y entre et l'ancien sol revient
+    zone: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: Math.max(3, Math.round(W2 / 320)), incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 2, lerp_alpha: 1, decay_factor: 1 } },
     alpha: { class_type: 'MaskComposite', inputs: { destination: ['det', 0], source: ['zone', 0], x: 0, y: 0, operation: 'multiply' } },
     fond: { class_type: 'ImageScale', inputs: { image: ['dec', 0], upscale_method: 'lanczos', width: W2, height: H2, crop: 'disabled' } },
     colle: { class_type: 'ImageCompositeMasked', inputs: { destination: ['fond', 0], source: ['vh', 0], x: 0, y: 0, resize_source: false, mask: ['alpha', 0] } },

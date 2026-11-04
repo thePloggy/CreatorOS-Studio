@@ -33,7 +33,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
   const [ligne, setLigne] = useState<string | null>(null)
   const [prises, setPrises] = useState<number>(2)
   const [balayage, setBalayage] = useState(false)
-  const [format, setFormat] = useState('9:16')
+  const [format, setFormat] = useState('16:9')
   const [ids, setIds] = useState<string[]>(() => lireJSON<string[]>(CLE_PRISES, []))
   const [envoi, setEnvoi] = useState(false)
   const [err, setErr] = useState<string | null>(null)
