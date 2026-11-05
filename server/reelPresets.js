@@ -19,7 +19,7 @@ import { CONFIG } from './config.js'
 import * as store from './db.js'
 import { fetchOllama } from './gpu.js'
 import { persona } from './persona.js'
-import { enqueue, deposerAvecCle, cancelJob } from './jobs.js'
+import { enqueue, enqueueMusique, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
 
@@ -196,6 +196,37 @@ Everything is safe for work, no brand names, no real business names. Nobody else
       return { stills, clips, montage: { ordre: clips.map(c => c.id), accroche: hook } }
     },
   },
+  danse: {
+    nom: 'Dance trend',
+    texte: 'Une petite chorégraphie sur un morceau composé pour le reel : trois angles du même moment, une fin sur un clin d’œil.',
+    exemple: 'Une danse joyeuse sur un toit au coucher du soleil',
+    schema: {
+      type: 'object', required: ['hook', 'place', 'outfit', 'music'],
+      properties: { hook: { type: 'string' }, place: { type: 'string' }, outfit: { type: 'string' }, music: { type: 'string' } },
+    },
+    consigne: (nom, langue) => `You fill the slots of a short "dance trend" reel (Instagram / TikTok) for ${nom}, a fictional adult woman. The system films her dancing a simple upbeat choreography at one spot, from three angles, on a track composed for the reel. You only write:
+- "hook": the on-screen opening text, 3 to 7 words, in ${langue}, playful, specific to the brief.
+- "place": the spot where she dances, 15 to 30 words, English, with an open floor around her and its light. Nobody else.
+- "outfit": her outfit, 12 to 25 words, easy to move in, every garment with colour and fabric, shoes included.
+- "music": the track, 10 to 25 words, English: genre, mood, instruments and tempo in bpm (e.g. "upbeat funky pop, bright synth bass, handclaps, 118 bpm") — instrumental, no vocals.
+Everything is safe for work, no brand names, no real song or artist names.`,
+    musique: c => `${c.music}, instrumental, no vocals`,
+    graphe: ({ place, outfit, hook }) => {
+      const tenue = `She wears ${outfit}.`
+      const stills = [
+        { id: 'large', faire: 'generer', prompt: `Full-body shot, camera at her eye level, straight on, she stands at ${place}, in a playful ready-to-dance pose, one hip popped, a big smile at the camera. ${tenue} ${SEULE} Natural light, plenty of space around her.` },
+        { id: 'trois', faire: 'generer', prompt: `Medium-wide shot from a three-quarter front angle, she dances at ${place}, arms up mid-move, laughing, her face toward the camera. ${tenue} ${SEULE} Natural light.` },
+        { id: 'serre', faire: 'generer', prompt: `Tight close-up portrait: her face and shoulders fill the frame, camera at her eye level, 85mm lens, slightly out of breath after dancing, a big laugh at the camera, hair a little messy, ${place} a soft blur behind her. She wears ${sansPieds(outfit)}. ${SEULE} Shallow depth of field.` },
+      ]
+      const clips = [
+        { id: 'p1', de: 'large', prompt: 'She dances a simple upbeat choreography on the spot: steps side to side, rolls her shoulders and claps on the beat, smiling at the camera. Her face stays toward the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
+        { id: 'p2', de: 'trois', prompt: 'She does a hair flip and a quick spin on the spot, lands facing the camera and points at it with a laugh. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
+        { id: 'p3', de: 'large', prompt: 'She bounces on the beat, swings her arms and hips in rhythm, then strikes a final pose with her hands on her hips. Her face stays toward the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
+        { id: 'p4', de: 'serre', prompt: 'She laughs, catches her breath, brushes her hair back and gives the camera a wink. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 2 },
+      ]
+      return { stills, clips, montage: { ordre: clips.map(c => c.id), accroche: hook } }
+    },
+  },
 }
 /* « Day in the life » : un parcours de lieux, écrit par le réalisateur du reel libre (2e manière, format journée) */
 export const PRESETS_LIBRES = { journee: { nom: 'Day in the life', texte: 'Un moment de sa journée, lieu après lieu : une action par lieu, une petite histoire, une accroche.', exemple: 'Un dimanche à Lisbonne' } }
@@ -265,7 +296,15 @@ export function lancerPreset({ presetId, brief, langue, cle, personaId }) {
       const graphe = { stills: Object.fromEntries(g.stills.map(s => [s.id, { ...s, job: null, asset: null }])), clips: g.clips.map(c => ({ ...c, job: null, asset: null })), montage: g.montage }
       // les plans affichés dans la vue Reel : un par clip, l'image de départ en vignette
       const plans = graphe.clips.map(c => ({ still: graphe.stills[c.de].prompt, motion: c.prompt, photoJob: null, clipJob: null }))
-      ecrire(id, 'preset', { cases, graphe, plans, n: plans.length, accroche: String(cases.hook ?? '').trim() })
+      // un preset musical : le morceau est composé pendant que les images se font
+      let musiqueJob = null
+      if (preset.musique) {
+        try { musiqueJob = enqueueMusique({ prompt: preset.musique(cases).slice(0, 380), paroles: '', secondes: 14, genre: 'musique', personaId: p.id }).id }
+        catch (e) { console.warn(`[reel ${id}] musique : ${e.message || e}`) }
+      }
+      // une accroche se lit d'un coup d'œil : 8 mots au plus
+      const accroche = String(cases.hook ?? '').trim().split(/\s+/).slice(0, 8).join(' ').replace(/[,;:]$/, '')
+      ecrire(id, 'preset', { cases, graphe, plans, n: plans.length, accroche, musiqueJob })
       console.log(`[reel ${id}] preset ${presetId} : ${g.stills.length} images, ${g.clips.length} clips`)
     } catch (e) {
       ecrire(id, 'echec', { erreur: String(e.message || e).slice(0, 400) })
@@ -315,7 +354,9 @@ function avancerPreset(r) {
     else if (RATE.has(st)) c.rate = true
   })
   if (g.clips.some(c => c.rate)) return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: 'un clip a échoué — relancer le reel' })
-  if (g.clips.every(c => c.asset)) return monterPreset(r)
+  // le montage attend le morceau s'il y en a un (au plus 10 min de plus)
+  const ms = r.musiqueJob ? etatJob(r.musiqueJob) : null
+  if (g.clips.every(c => c.asset) && (!r.musiqueJob || ms === 'done' || RATE.has(ms) || Date.now() - r.updatedAt > 600_000)) return monterPreset(r)
   if (change) ecrire(r.id, 'preset', { graphe: g, plans: r.plans })
 }
 
@@ -325,7 +366,13 @@ function monterPreset(r) {
   const proj = montage.creerProjet(`Reel — ${r.brief.slice(0, 50)}`, r.personaId)
   const clips = g.montage.ordre.map((id, i) => { const c = g.clips.find(x => x.id === id); return { assetId: c.asset, debut: c.debut ?? 0, fin: c.fin ?? null, duree: 3,
     texte: i === 0 ? r.accroche ?? '' : '', textePos: 'centre', transition: 'coupe', transitionDuree: 0.35, crop: null } })
-  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: false, volumeClips: 1, musique: null, clips } })
+  // le morceau composé pour le reel : son fichier porte la fin de l'id du job
+  let musique = null
+  if (r.musiqueJob && etatJob(r.musiqueJob) === 'done') {
+    const f = montage.listerMusiques().map(m => m.nom).find(n => n.endsWith(`_${r.musiqueJob.slice(-6)}.mp3`))
+    if (f) musique = { fichier: f, boucle: false, volume: 0.9, fonduEntree: 0, fonduSortie: 1.0, decalage: 0 }
+  }
+  const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: false, volumeClips: 1, musique, clips } })
   try {
     const { jobId } = montage.exporter(p2)
     return ecrire(r.id, 'export', { graphe: g, plans: r.plans, montageId: proj.id, exportJob: jobId })
