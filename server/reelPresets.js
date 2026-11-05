@@ -56,7 +56,7 @@ export const PRESETS = {
   1. a simple comfortable home outfit (the "before");
   2. and 3. two COMPLETELY different outfits that fit the brief (different main garment, colour and style);
   4. the best outfit of the reel, complete with its accessories (bag, jewellery, sunglasses or hat, shoes).
-Everything is safe for work: fully clothed, no lingerie, no swimwear unless the brief is about the beach, no brand names.`,
+Everything is safe for work: fully clothed, no lingerie, no brand names. Swimwear only if the brief asks for it, and then always a one-piece swimsuit worn with a cover-up (an open linen shirt, a sarong, a kaftan or a beach dress over it) — never a bikini alone (the demo's nudity filter removes those images and the reel stops).`,
     graphe: ({ room, outfits, hook }) => {
       const tenue = k => `She wears ${outfits[k]}.`
       const base = `${CADRE_SAUT} She stands in ${room}`
@@ -253,6 +253,7 @@ function ecrire(id, etat, patch) {
 const etatJob = id => id ? store.getJob(id)?.status ?? 'absent' : null
 const premierAsset = id => (id && store.assetsOfJob(id).find(a => !String(a.id).endsWith('-full'))) || null
 const RATE = new Set(['blocked', 'cancelled', 'failed', 'absent'])
+const RETIRE = 'une image ou un clip a été retiré par le filtre de nudité de la démo (souvent un maillot de bain trop échancré) — relancer avec des tenues plus couvrantes'
 function versInput(a) {
   const nom = `crs_still_${path.basename(a.filename)}`
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
@@ -337,7 +338,12 @@ function avancerPreset(r) {
       continue
     }
     const st = etatJob(s.job)
-    if (st === 'done') { const a = premierAsset(s.job); if (a) { s.asset = a.id; change = true } }
+    if (st === 'done') {
+      const a = premierAsset(s.job)
+      if (a) { s.asset = a.id; change = true }
+      // rendu fini sans fichier : le filtre d'images l'a mis en quarantaine — le reel s'arrête et le dit
+      else return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: RETIRE })
+    }
     else if (RATE.has(st)) return ecrire(r.id, 'echec', { graphe: g, erreur: `l’image « ${s.id} » a échoué — relancer le reel` })
   }
   g.clips.forEach((c, k) => {
@@ -353,10 +359,10 @@ function avancerPreset(r) {
       return
     }
     const st = etatJob(c.job)
-    if (st === 'done') { const a = premierAsset(c.job); if (a) { c.asset = a.id; r.plans[k].clipAsset = a.id; change = true } }
+    if (st === 'done') { const a = premierAsset(c.job); if (a) { c.asset = a.id; r.plans[k].clipAsset = a.id; change = true } else c.rate = 'retire' }
     else if (RATE.has(st)) c.rate = true
   })
-  if (g.clips.some(c => c.rate)) return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: 'un clip a échoué — relancer le reel' })
+  if (g.clips.some(c => c.rate)) return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: g.clips.some(c => c.rate === 'retire') ? RETIRE : 'un clip a échoué — relancer le reel' })
   // le montage attend le morceau s'il y en a un (au plus 10 min de plus)
   const ms = r.musiqueJob ? etatJob(r.musiqueJob) : null
   if (g.clips.every(c => c.asset) && (!r.musiqueJob || ms === 'done' || RATE.has(ms) || Date.now() - r.updatedAt > 600_000)) return monterPreset(r)

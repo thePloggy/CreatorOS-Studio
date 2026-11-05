@@ -173,5 +173,6 @@ export const MOTIFS_SERVEUR: [RegExp, (m: RegExpMatchArray, tr: Tr) => string][]
     const [cause, ...conseil] = m[4].split(' — ')
     const c = cause.replace(/\(reçu : /g, '(received: ').replace(/ ; … \((\d+) de plus\)$/, ' ; … ($1 more)')
     return `node ${m[1]} (${m[2]})${m[3]}: ${[c, ...conseil.map(tr)].join(' — ')}`
-  }],
+    'une image ou un clip a été retiré par le filtre de nudité de la démo (souvent un maillot de bain trop échancré) — relancer avec des tenues plus couvrantes': "an image or a clip was removed by the demo's nudity filter (often a swimsuit that is too revealing) — run it again with more covering outfits",
+}],
 ]
