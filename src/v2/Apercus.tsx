@@ -31,6 +31,7 @@ export const APERCUS: Record<string, Apercu> = {
   'Depth Map': { type: 'compare', a: v('v2-depth-a.webp'), b: v('v2-depth-b.webp'), legA: 'Photo', legB: 'Profondeur' },
   'Remove Background': { type: 'compare', a: v('v2-transp-a.webp'), b: v('v2-transp-b.webp'), legA: 'Photo', legB: 'PNG transparent' },
   'Upscale Image': { type: 'compare', a: v('v2-upimg-a.webp'), b: v('v2-upimg-b.webp'), legA: '400 px', legB: 'SeedVR2 · 2048 px' },
+  'Dance': { type: 'media', image: v('v2-danse.webp'), video: v('v2-danse.mp4'), auto: true },
   'Carousel': { type: 'media', image: v('v2-carrousel.webp'), video: v('v2-carrousel.mp4'), auto: true },
   'Coverage': { type: 'media', image: v('v2-coverage.webp'), puces: ['Large', '¾', 'Serré'] },
   'Next Shot': { type: 'media', image: v('v2-suivant.webp'), puces: ['Plan 1', 'Plan 2'] },

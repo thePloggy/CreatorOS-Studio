@@ -199,38 +199,6 @@ Everything is safe for work, no brand names, no real business names. Nobody else
       return { stills, clips, montage: { ordre: clips.map(c => c.id), accroche: hook } }
     },
   },
-  danse: {
-    nom: 'Dance trend',
-    texte: 'Une petite chorégraphie sur un morceau composé pour le reel : trois angles du même moment, une fin sur un clin d’œil.',
-    exemple: 'Une danse joyeuse sur un toit au coucher du soleil',
-    schema: {
-      type: 'object', required: ['hook', 'place', 'outfit', 'music'],
-      properties: { hook: { type: 'string' }, place: { type: 'string' }, outfit: { type: 'string' }, music: { type: 'string' } },
-    },
-    consigne: (nom, langue) => `You fill the slots of a short "dance trend" reel (Instagram / TikTok) for ${nom}, a fictional adult woman. The system films her dancing a simple upbeat choreography at one spot, from three angles, on a track composed for the reel. You only write:
-- "hook": the on-screen opening text, 3 to 7 words, in ${langue}, playful, specific to the brief.
-- "place": the spot where she dances, 15 to 30 words, English, with an open floor around her and its light. Nobody else.
-- "outfit": her outfit, 12 to 25 words, easy to move in, every garment with colour and fabric, shoes included.
-- "music": the track, 10 to 25 words, English: genre, mood, instruments and tempo in bpm (e.g. "upbeat funky pop, bright synth bass, handclaps, 118 bpm") — instrumental, no vocals.
-Everything is safe for work, no brand names, no real song or artist names.`,
-    musique: c => `${c.music}, instrumental, no vocals`,
-    graphe: ({ place, outfit, hook }) => {
-      const tenue = `She wears ${outfit}.`
-      const stills = [
-        { id: 'large', faire: 'generer', prompt: `Full-body shot, camera at her eye level, straight on, she stands at ${place}, in a playful ready-to-dance pose, one hip popped, a big smile at the camera. ${tenue} ${SEULE} Natural light, plenty of space around her.` },
-        { id: 'trois', faire: 'generer', prompt: `Medium-wide shot from a three-quarter front angle, she dances at ${place}, arms up mid-move, laughing, her face toward the camera. ${tenue} ${SEULE} Natural light.` },
-        // le gros plan est tiré du plan large par la LoRA d'angles : Klein seul ressortait un plan en pied
-        { id: 'serre', faire: 'retoucher', depuis: 'large', angle: true, prompt: '<sks> front view eye-level shot close-up' },
-      ]
-      const clips = [
-        { id: 'p1', de: 'large', prompt: 'She dances a simple upbeat choreography on the spot: steps side to side, rolls her shoulders and claps on the beat, smiling at the camera. Her face stays toward the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
-        { id: 'p2', de: 'trois', prompt: 'She does a hair flip and a quick spin on the spot, lands facing the camera and points at it with a laugh. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
-        { id: 'p3', de: 'large', prompt: 'She bounces on the beat, swings her arms and hips in rhythm, then strikes a final pose with her hands on her hips. Her face stays toward the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
-        { id: 'p4', de: 'serre', prompt: 'She laughs, catches her breath, brushes her hair back and gives the camera a wink. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 2 },
-      ]
-      return { stills, clips, montage: { ordre: clips.map(c => c.id), accroche: hook } }
-    },
-  },
 }
 /* « Day in the life » : un parcours de lieux, écrit par le réalisateur du reel libre (2e manière, format journée) */
 export const PRESETS_LIBRES = { journee: { nom: 'Day in the life', texte: 'Un moment de sa journée, lieu après lieu : une action par lieu, une petite histoire, une accroche.', exemple: 'Un dimanche à Lisbonne' } }

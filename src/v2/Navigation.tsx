@@ -14,7 +14,7 @@ import { Pastille } from './bits'
 import { FramePicker } from './popups'
 import { APERCUS } from './Apercus'
 
-export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel'
+export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
@@ -56,6 +56,7 @@ export const MENUS: Menu[] = [
   { titre: 'Vidéo', defaut: 'Image to Video', colonnes: [
       { titre: 'Créer une vidéo', outils: [
       { label: 'One-click Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
+      { label: 'Dance', texte: 'Une photo de ton personnage et une danse du catalogue : il danse exactement comme elle.', section: 'danse', pastille: 'new' },
       { label: 'Image to Video', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
       { label: 'Text to Video', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
       { label: 'Sketch to Video', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },

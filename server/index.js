@@ -37,6 +37,7 @@ import zlib from 'node:zlib'
 import { promisify } from 'node:util'
 import * as reel from './reel.js'
 import * as reelPresets from './reelPresets.js'
+import * as danses from './danses.js'
 import * as presets from './presets.js'
 
 // 256 Mo : les drivers du Motion Control sont des vidéos (8 Mo suffisaient
@@ -2680,6 +2681,8 @@ app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
 app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req.params.id)) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
+// le catalogue des danses : vidéos de mouvement d'un mannequin, choisies par le visiteur
+app.get('/api/danses', async () => ({ danses: danses.listeDanses() }))
 // le storyboard relu et corrigé part au tournage
 app.post('/api/reels/:id/tourner', async (req, reply) => {
   try { return reelOut(reelPresets.tournerStoryboard(req.params.id, req.body?.cases)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
@@ -2761,6 +2764,8 @@ app.post('/api/reels/livrer', async (req, reply) => {
 
 /* ---------- fichiers ---------- */
 
+fs.mkdirSync(path.join(danses.DOSSIER, 'apercus'), { recursive: true })
+await app.register(fastifyStatic, { root: path.join(danses.DOSSIER, 'apercus'), prefix: '/danses/', decorateReply: false, cacheControl: true, maxAge: '1d' })
 await app.register(fastifyStatic, {
   root: CONFIG.mediaDir, prefix: '/media/', decorateReply: false,
   cacheControl: true, maxAge: '365d', immutable: true,
@@ -2803,6 +2808,7 @@ void recoverQueue().catch(e => console.error('[reprise]', e.message || e))
 demarrerFiltre()
 store.surFinJob(() => { void filtrerNouveaux() })
 reel.demarrerSuivi(); reelPresets.demarrerSuiviPresets()
+setTimeout(() => { try { danses.preparerDanses() } catch (e) { console.warn(`[danses] ${e.message || e}`) } }, 3000)
 presets.demarrerSuites()
 
 /* Diagnostic au démarrage, puis toutes les 30 min : une panne d'environnement
