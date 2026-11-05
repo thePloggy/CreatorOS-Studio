@@ -346,6 +346,12 @@ function avancerPreset(r) {
     }
     else if (RATE.has(st)) return ecrire(r.id, 'echec', { graphe: g, erreur: `l’image « ${s.id} » a échoué — relancer le reel` })
   }
+  // la vignette d'un plan apparaît dès que son image de départ est faite, sans attendre l'image de fin
+  g.clips.forEach((c, k) => {
+    const de = g.stills[c.de]
+    if (!r.plans[k].photoJob && de.job) { r.plans[k].photoJob = de.job; change = true }
+    if (!r.plans[k].photoAsset && de.asset) { r.plans[k].photoAsset = de.asset; change = true }
+  })
   g.clips.forEach((c, k) => {
     if (c.asset) return
     if (!c.job) {
