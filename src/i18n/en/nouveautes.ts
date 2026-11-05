@@ -1083,4 +1083,5 @@ export const nouveautes: Record<string, string> = {
   'Compter environ 25 min : le format est tenu par le studio, les images puis les clips, montage.': 'Allow about 25 min: the studio holds the format, images then clips, then the edit.',
   'Une petite chorégraphie sur un morceau composé pour le reel : trois angles du même moment, une fin sur un clin d’œil.': 'A short choreography on a track composed for the reel: three angles of the same moment, ending on a wink.',
   'Une danse joyeuse sur un toit au coucher du soleil': 'A joyful dance on a rooftop at sunset',
+  'Ton brief, ta structure': 'Your brief, your structure',
 }

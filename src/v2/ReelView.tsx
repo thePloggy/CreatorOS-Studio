@@ -104,10 +104,22 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
 
         <div style={{ display: 'grid', gap: 10, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>
           <ChoixPersonnage />
-          {presets.length > 0 && <div className="flex gap-1.5 flex-wrap items-center" style={{ fontSize: 12, color: 'var(--muted)' }}>
-            <span>{t('Format')}</span>
-            <button className={`wtab ${!preset ? 'on' : ''}`} onClick={() => setPreset('')}>{t('Libre')}</button>
-            {presets.map(p => <button key={p.id} className={`wtab ${preset === p.id ? 'on' : ''}`} title={t(p.texte)} onClick={() => setPreset(p.id)}>{t(p.nom)}</button>)}
+          {presets.length > 0 && <div style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Format')}</span>
+            {/* un format tenu par le studio : son aperçu tourne en boucle, muet */}
+            <div className="flex gap-2" style={{ overflowX: 'auto', paddingBottom: 4 }}>
+              <button onClick={() => setPreset('')} style={{ flex: '0 0 96px', height: 170, borderRadius: 12, border: `2px solid ${!preset ? 'var(--accent)' : 'var(--lv3)'}`, background: 'var(--lv2)', color: 'var(--text)', fontSize: 12, padding: 8, cursor: 'pointer' }}>
+                <b style={{ display: 'block', marginBottom: 4 }}>{t('Libre')}</b><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('Ton brief, ta structure')}</span>
+              </button>
+              {presets.filter(p => p.id !== 'journee').map(p => (
+                <button key={p.id} onClick={() => setPreset(p.id)} title={t(p.texte)}
+                  style={{ flex: '0 0 96px', height: 170, borderRadius: 12, border: `2px solid ${preset === p.id ? 'var(--accent)' : 'var(--lv3)'}`, background: '#000', padding: 0, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}>
+                  <video src={`/vitrine/reels/${p.id}.mp4`} poster={`/vitrine/reels/${p.id}.webp`} muted loop playsInline autoPlay preload="metadata"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <b style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 6px 6px', fontSize: 11.5, color: '#fff', background: 'linear-gradient(transparent, rgba(0,0,0,.75))', textAlign: 'left' }}>{t(p.nom)}</b>
+                </button>
+              ))}
+            </div>
           </div>}
           {choisi && <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t(choisi.texte)}</div>}
           <textarea value={brief} onChange={e => setBrief(e.target.value)} maxLength={600} placeholder={choisi ? t(choisi.exemple) : t('Le lieu, l’ambiance, ce qui se passe…')}
