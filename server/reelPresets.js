@@ -25,6 +25,8 @@ import { t0Hit } from './t0.js'
 
 export const MODELE = process.env.CREATOROS_REALISATEUR || 'qwen3.5:35b'
 const SEULE = 'She is the only person in the frame.'
+// LoRA d'angles de Qwen-Image-Edit (outil Multi-Angle) : un gros plan tiré d'une photo, même personne, même tenue
+const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
 const CADRE_SAUT = 'Full-body shot, camera at her eye level, straight on, static camera, 35mm lens, plenty of space above her head and below her feet.'
 const GARDE = 'Keep exactly the same woman, the same face and hair, the same framing, the same camera position, the same background and the same light.'
 
@@ -216,7 +218,8 @@ Everything is safe for work, no brand names, no real song or artist names.`,
       const stills = [
         { id: 'large', faire: 'generer', prompt: `Full-body shot, camera at her eye level, straight on, she stands at ${place}, in a playful ready-to-dance pose, one hip popped, a big smile at the camera. ${tenue} ${SEULE} Natural light, plenty of space around her.` },
         { id: 'trois', faire: 'generer', prompt: `Medium-wide shot from a three-quarter front angle, she dances at ${place}, arms up mid-move, laughing, her face toward the camera. ${tenue} ${SEULE} Natural light.` },
-        { id: 'serre', faire: 'generer', prompt: `Tight close-up portrait: her face and shoulders fill the frame, camera at her eye level, 85mm lens, slightly out of breath after dancing, a big laugh at the camera, hair a little messy, ${place} a soft blur behind her. She wears ${sansPieds(outfit)}. ${SEULE} Shallow depth of field.` },
+        // le gros plan est tiré du plan large par la LoRA d'angles : Klein seul ressortait un plan en pied
+        { id: 'serre', faire: 'retoucher', depuis: 'large', angle: true, prompt: '<sks> front view eye-level shot close-up' },
       ]
       const clips = [
         { id: 'p1', de: 'large', prompt: 'She dances a simple upbeat choreography on the spot: steps side to side, rolls her shoulders and claps on the beat, smiling at the camera. Her face stays toward the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
@@ -327,7 +330,7 @@ function avancerPreset(r) {
       if (refs.some(x => !x.asset)) continue
       const commun = { mode: 'photo', register: 'sfw', personaId: s.sansPersonnage ? 'aucun' : r.personaId, purpose: 'creative', userPrompt: s.prompt, composedPositive: s.prompt, composedNegative: '', batchId: `reel-${r.id}`, reelId: r.id }
       const j = s.faire === 'retoucher'
-        ? filer(r.id, { ...commun, id: `${r.id}-${s.id}`, op: 'edit', sourceImage: versInput(store.getAsset(src.asset)) })
+        ? filer(r.id, { ...commun, id: `${r.id}-${s.id}`, op: 'edit', sourceImage: versInput(store.getAsset(src.asset)), ...(s.angle ? { loras: [{ name: LORA_ANGLES, strength: 1 }] } : {}) })
         : filer(r.id, { ...commun, id: `${r.id}-${s.id}`, photoEngine: 'klein', width: 768, height: 1344, seed: { mode: 'lock', value: r.graine },
           ...(refs.length ? { references: refs.map(x => versInput(store.getAsset(x.asset))) } : {}) })
       s.job = j.id; change = true
