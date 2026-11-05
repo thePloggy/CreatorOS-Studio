@@ -1084,4 +1084,5 @@ export const nouveautes: Record<string, string> = {
   'Une petite chorégraphie sur un morceau composé pour le reel : trois angles du même moment, une fin sur un clin d’œil.': 'A short choreography on a track composed for the reel: three angles of the same moment, ending on a wink.',
   'Une danse joyeuse sur un toit au coucher du soleil': 'A joyful dance on a rooftop at sunset',
   'Ton brief, ta structure': 'Your brief, your structure',
+  'Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.': 'Public demo: for everyone’s safety, no photos with a person (face, body, hand). Objects, products, places or animals only.',
 }

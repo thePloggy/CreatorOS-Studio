@@ -208,8 +208,9 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               </button>
               <span className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
                 <b style={{ color: 'var(--text)' }}>{t('Image à retoucher')}</b><br />
+                {!edition && <><small style={{ color: 'var(--faint)' }}>{t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}</small><br /></>}
                 <span className="inline-flex gap-1.5 mt-1">
-                  {<label className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={edition ? undefined : t('photo sans personne : objet, produit, décor, animal')}>⇪ {t('Upload')}
+                  {<label className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={edition ? undefined : t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}>⇪ {t('Upload')}
                     <input type="file" accept="image/*" className="hidden" onChange={e => {
                       const f = e.target.files?.[0]
                       if (f) void s.uploadEditSource(f)

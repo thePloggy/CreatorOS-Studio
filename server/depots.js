@@ -119,7 +119,7 @@ export async function depotVisiteur(req, reply) {
     reply.code(422)
     return { error: raisons.some(r => r.startsWith('erreur'))
       ? 'contrôle de la photo indisponible : réessaie plus tard'
-      : 'photo refusée : on y voit une personne. Sur la démo publique, seulement des objets, produits, décors ou animaux.' }
+      : 'Pour la sécurité de tous, la démo publique refuse les photos où l’on voit une personne (visage, corps, main) : dépose un objet, un produit, un décor ou un animal.' }
   }
   const nom = `crs_${base}.png`
   fs.renameSync(png, path.join(CONFIG.comfyInput, nom))

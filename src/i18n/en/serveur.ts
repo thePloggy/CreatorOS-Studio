@@ -23,7 +23,7 @@ export const serveur: Record<string, string> = {
   '6 photos par heure au plus sur la démo publique': 'at most 6 photos per hour on the public demo',
   'image illisible': 'unreadable image',
   'contrôle de la photo indisponible : réessaie plus tard': 'photo check unavailable: try again later',
-  'photo refusée : on y voit une personne. Sur la démo publique, seulement des objets, produits, décors ou animaux.': 'photo refused: a person is visible. On the public demo, only objects, products, places or animals.',
+  'Pour la sécurité de tous, la démo publique refuse les photos où l’on voit une personne (visage, corps, main) : dépose un objet, un produit, un décor ou un animal.': 'For everyone’s safety, the public demo refuses photos showing a person (face, body, hand): upload an object, a product, a place or an animal.',
   'décomposition impossible': 'could not break the image down',
   'décomposition impossible : ni image d\'ancrage exploitable, ni tri du texte': 'could not break the image down: no usable anchor image, and the text could not be sorted',
   'décris ce que cet élément doit devenir': 'describe what this element should become',
