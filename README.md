@@ -4,7 +4,7 @@
 
 ![Movie Studio: a lighthouse keeper shot from a camera sheet, and a superhero flight over Manhattan built from start and end frames, a prequel and a sequel](docs/screenshots/movie-studio.gif)
 
-![Real renders from the studio: one-click reel, camera moves, sketch to video, re-shoot, 3D Scene, talking avatar, text to video, restoring a 1951 film of the Statue of Liberty](docs/screenshots/renders.gif)
+![Real renders from the studio: one-click reel, Smooth (frame interpolation for fluid motion), sketch to video, re-shoot, 3D Scene, talking avatar, text to video, restoring a 1951 film of the Statue of Liberty](docs/screenshots/renders.gif)
 
 - **Try it now**: https://forge.taila06702.ts.net:8443 — the public demo runs on the author's RTX 5090, one render at a time, 12 images or clips per hour per visitor.
 - **Demo video**: https://youtu.be/0muDKpkbcWw
