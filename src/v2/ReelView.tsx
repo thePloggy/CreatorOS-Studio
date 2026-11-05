@@ -18,6 +18,7 @@ interface Reel {
   n: number; accroche?: string; plans: PlanReel[]; montageId?: string; reelUri: string | null; erreur?: string | null; createdAt: number
 }
 interface MusiqueRow { nom: string; duree: number }
+interface PresetReel { id: string; nom: string; texte: string; exemple: string }
 
 const EXEMPLES = [
   'Un dimanche matin à Paris : café en terrasse, balade sur les quais, librairie ancienne, lumière dorée',
@@ -63,6 +64,11 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     }
   }
   const [reels, setReels] = useState<Reel[]>([])
+  // un preset (saut de tenues, GRWM…) : la structure du reel est tenue par le studio, le brief remplit les cases
+  const [presets, setPresets] = useState<PresetReel[]>([])
+  const [preset, setPreset] = useState<string>('')
+  useEffect(() => { void fetch('/api/reels/presets').then(json).then(d => setPresets(d.presets ?? [])).catch(() => {}) }, [])
+  const choisi = presets.find(p => p.id === preset)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -80,7 +86,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     setBusy(true); setErr(null)
     try {
       const r = await json(await fetch('/api/reels', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief, n, duree, musique: musique || undefined, voix: voixOff || undefined, calerMusique: !!musique && caler, langue: getLang() }) }))
+        body: JSON.stringify(preset ? { preset, brief, langue: getLang() } : { brief, n, duree, musique: musique || undefined, voix: voixOff || undefined, calerMusique: !!musique && caler, langue: getLang() }) }))
       setReels(x => [r, ...x]); setBrief('')
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
@@ -98,13 +104,19 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
 
         <div style={{ display: 'grid', gap: 10, padding: 16, borderRadius: 16, background: 'var(--lv1)' }}>
           <ChoixPersonnage />
-          <textarea value={brief} onChange={e => setBrief(e.target.value)} maxLength={600} placeholder={t('Le lieu, l’ambiance, ce qui se passe…')}
+          {presets.length > 0 && <div className="flex gap-1.5 flex-wrap items-center" style={{ fontSize: 12, color: 'var(--muted)' }}>
+            <span>{t('Format')}</span>
+            <button className={`wtab ${!preset ? 'on' : ''}`} onClick={() => setPreset('')}>{t('Libre')}</button>
+            {presets.map(p => <button key={p.id} className={`wtab ${preset === p.id ? 'on' : ''}`} title={t(p.texte)} onClick={() => setPreset(p.id)}>{t(p.nom)}</button>)}
+          </div>}
+          {choisi && <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t(choisi.texte)}</div>}
+          <textarea value={brief} onChange={e => setBrief(e.target.value)} maxLength={600} placeholder={choisi ? t(choisi.exemple) : t('Le lieu, l’ambiance, ce qui se passe…')}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && brief.trim()) void lancer() }}
             style={{ minHeight: 84, resize: 'vertical', padding: 12, borderRadius: 12, background: 'var(--lv2)', border: '1px solid var(--lv3)', color: 'var(--text)', font: 'inherit', fontSize: 14 }} />
-          <div className="flex gap-1.5 flex-wrap">
+          {!preset && <div className="flex gap-1.5 flex-wrap">
             {EXEMPLES.map(x => <button key={x} className="pill tool" style={{ fontSize: 12 }} onClick={() => setBrief(t(x))}>{t(x).split(':')[0].split(',')[0]}</button>)}
-          </div>
-          <div className="flex items-center gap-3 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
+          </div>}
+          {!preset && <div className="flex items-center gap-3 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
             <span>{t('Plans')}</span>
             {[3, 4, 5, 6].map(k => <button key={k} className={`wtab ${n === k ? 'on' : ''}`} onClick={() => setN(k)}>{k}</button>)}
             <span style={{ marginLeft: 10 }}>{t('Durée par plan')}</span>
@@ -134,12 +146,15 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
               <button className="pill" disabled={!nouvelle.prompt.trim()} onClick={() => void genererMorceau()}>{t('Générer')} · {n * duree + 2} s</button>
               {nouvelle.msg && <span className="texte-erreur">{nouvelle.msg}</span>}
             </span>}
-            <span style={{ flex: 1 }} />
-            <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={busy || !brief.trim()} onClick={() => void lancer()}>
+          </div>}
+          <div className="flex items-center gap-3">
+            <span style={{ flex: 1, fontSize: 12, color: 'var(--faint)' }}>{preset
+              ? t('Compter environ 25 min : le format est tenu par le studio, les images puis les clips, montage.')
+              : t('Compter environ {m} min : rédaction, {n} photos, {n} clips LTX-2.5 avec le son, montage.', { m: 2 + n * 3, n })}</span>
+            <button className="cta" style={{ padding: '10px 18px', flexDirection: 'row' }} disabled={busy || (!brief.trim() && !preset)} onClick={() => void lancer()}>
               {busy ? '…' : `✨ ${t('Réaliser le reel')}`}
             </button>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--faint)' }}>{t('Compter environ {m} min : rédaction, {n} photos, {n} clips LTX-2.5 avec le son, montage.', { m: 2 + n * 3, n })}</div>
           {err && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</div>}
         </div>
 

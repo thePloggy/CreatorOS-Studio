@@ -357,7 +357,8 @@ db.exec(`UPDATE folders SET persona_id = (
 
 /** `personaId` absent : tous les dossiers (outils internes). */
 export function listFolders(personaId) {
-  const filtre = personaId ? 'WHERE f.persona_id = ?' : ''
+  // les dossiers communs (sans personnage) sont visibles de tous ; ceux d'un personnage, de lui seul
+  const filtre = personaId ? 'WHERE (f.persona_id = ? OR f.persona_id IS NULL)' : ''
   return db.prepare(`SELECT f.id, f.name, f.created_at, f.persona_id,
     (SELECT COUNT(*) FROM folder_assets fa JOIN assets a ON a.id = fa.asset_id
       WHERE fa.folder_id = f.id) AS count

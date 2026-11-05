@@ -23,8 +23,17 @@ export const FORMATS = {
   transition: {
     nom: 'Outfit transition',
     quand: 'trying outfits, a glow-up, getting dressed, a style change, a before/after look — the outfit is the subject',
-    regles: `Format "outfit transition": every shot is filmed at EXACTLY the same spot, same framing, same camera position, static camera — only her outfit changes. Shot 1 starts simple (a comfortable home outfit), each next shot adds or swaps one thing (a dress, then a bag, then a hat, then shoes…) and the last shot is the complete look, ready to go out. The cut hides the change: the still of every shot catches her in the air at the top of a small jump in place (or in the middle of a spin), and the motion is her landing and striking a pose with a confident look to the camera — so each shot starts on the move and the outfit seems to change in mid-air. In the last shot she lands, poses, then takes a step toward the camera. "outfit" of each shot describes her full outfit in that shot. The place does not move: "spot" is the same words in every shot.`,
-    cadrageFixe: true, tenueParPlan: true, coupe: 'coupe', dureePlan: 1.8,
+    regles: `Format "outfit transition": every shot is filmed at EXACTLY the same spot, same framing, same camera position, static camera — only her outfit changes, on a jump. The system writes the jumps itself; you write the OUTFITS. "outfit" of each shot: shot 1 is a simple comfortable home outfit; every next shot is a COMPLETELY DIFFERENT outfit (a different main garment, a different colour, a different style — never the same dress with one more accessory); the last shot is the best outfit of the reel, complete with all its accessories (bag, hat or sunglasses, jewellery, shoes). "spot" is the same words in every shot, a spot where no mirror is visible behind her (a mirror in the frame fills the image with copies of her).`,
+    cadrageFixe: true, tenueParPlan: true, coupe: 'coupe', dureePlan: 2.3, dureePremier: 1.4, secondesClip: 3,
+    /* plans écrits par le code : le saut tombe toujours sur la coupe. Chaque clip part du haut
+       d'un saut dans la nouvelle tenue, retombe, pose, et repart en l'air ; la coupe tombe en l'air. */
+    plan: (k, n) => k === 0
+      ? { still: 'She stands facing the camera, both feet on the floor, knees slightly bent, arms down, about to jump, smiling at the camera.',
+          motion: 'She does ONE single jump straight up with both arms raised. Only one jump in the whole shot: no bouncing, no second jump. Static camera.' }
+      : { still: 'She is high in the air in the middle of a jump, both feet clearly off the floor with empty space under her shoes, knees bent, both arms raised, hair flying up, smiling at the camera.',
+          motion: k === n - 1
+            ? 'She lands on both feet once, then holds a confident pose with a big smile and takes one step toward the camera. No more jumping. Static camera.'
+            : 'She lands on both feet once and holds a confident pose for a moment, then does ONE single jump straight up at the very end. Only this one jump: no bouncing, no repeated jumps. Static camera.' },
   },
   grwm: {
     nom: 'Get ready with me',

@@ -36,6 +36,7 @@ import { master } from './master.js'
 import zlib from 'node:zlib'
 import { promisify } from 'node:util'
 import * as reel from './reel.js'
+import * as reelPresets from './reelPresets.js'
 import * as presets from './presets.js'
 
 // 256 Mo : les drivers du Motion Control sont des vidéos (8 Mo suffisaient
@@ -2678,8 +2679,18 @@ app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
 })
 app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req.params.id)) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
+app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
 app.post('/api/reels', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  // un preset (saut de tenues…) : la structure est tenue par le code, le LLM remplit les cases
+  if (req.body?.preset && reelPresets.PRESETS_LIBRES[req.body.preset]) {
+    const corps = { brief: req.body.brief || reelPresets.PRESETS_LIBRES[req.body.preset].exemple, n: 5, duree: 4, langue: req.body.langue, ecriture: 2, format: req.body.preset }
+    try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  }
+  if (req.body?.preset) {
+    try { return reelOut(reelPresets.lancerPreset({ presetId: String(req.body.preset), brief: req.body.brief, langue: req.body.langue, personaId: personaDe(req), cle: cleComfy(req) })) }
+    catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  }
   // « perso » : la voix enregistrée sur la fiche du personnage
   const corps = { ...(req.body ?? {}) }
   if (corps.voix === 'perso') corps.voix = persona(personaDe(req)).voix ?? null
@@ -2787,7 +2798,7 @@ void recoverQueue().catch(e => console.error('[reprise]', e.message || e))
 // filtre de nudité : une ronde à chaque fin de job, et une ronde périodique de rattrapage
 demarrerFiltre()
 store.surFinJob(() => { void filtrerNouveaux() })
-reel.demarrerSuivi()
+reel.demarrerSuivi(); reelPresets.demarrerSuiviPresets()
 presets.demarrerSuites()
 
 /* Diagnostic au démarrage, puis toutes les 30 min : une panne d'environnement
