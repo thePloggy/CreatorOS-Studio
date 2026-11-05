@@ -79,6 +79,10 @@ export const MENUS: Menu[] = [
       { label: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', section: 'outil', dedie: 'change-bg', pastille: 'new' },
       { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
       { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', section: 'outil', dedie: 'upscale' },
+      { label: 'Refine Details', texte: 'Le clip retrouve de la matière : peau, tissus, cheveux et grain, sans changer le mouvement (LTX-2.5).', section: 'outil', dedie: 'refine-details', pastille: 'new' },
+      { label: 'Day to Night', texte: 'Le même plan, la nuit : lumières, ciel et ambiance changent, le mouvement reste.', section: 'outil', dedie: 'day-to-night', pastille: 'new' },
+      { label: 'Unblur', texte: 'Un clip flou ou bougé redevient net, sans changer la scène.', section: 'outil', dedie: 'deblur', pastille: 'new' },
+      { label: 'Remove Compression', texte: 'Les blocs et les bandes d’une vidéo trop compressée disparaissent.', section: 'outil', dedie: 'decompression', pastille: 'new' },
       { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', section: 'outil', dedie: 'green-screen' },
       ] },
       { titre: 'Finir', outils: [

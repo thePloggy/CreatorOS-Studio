@@ -260,6 +260,9 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
           )}
           <ChoixPersonnage />
           <textarea ref={champPrompt}
+            // une photo de la bibliothèque glissée ici devient une référence
+            onDragOver={e => { if (e.dataTransfer.types.includes('text/asset-id')) e.preventDefault() }}
+            onDrop={e => { const id = e.dataTransfer.getData('text/asset-id'); const a = id && s.assets.find(x => x.id === id && x.mediaType === 'photo'); if (a) { e.preventDefault(); void s.ajouterReference(a) } }}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
             style={{ color: 'var(--text)', minHeight: 40, fieldSizing: 'content' } as React.CSSProperties}
             placeholder={task === 'edit' ? t('Instruction de retouche — « la robe devient rouge »') : multi ? t('Un prompt par ligne : chaque ligne part avec les mêmes réglages') : t('Décrire la scène…')}

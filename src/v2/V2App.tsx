@@ -6,7 +6,7 @@ import { OutilDedie } from './OutilsDedies'
 import { BandeauGithub } from '../components/BandeauGithub'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
-import { RenderIsland, useTabTitle } from '../components/RenderWatch'
+import { RenderIsland, PastilleRendu, useTabTitle } from '../components/RenderWatch'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './v2.css'
 import type { Asset } from '../types'
@@ -198,6 +198,7 @@ export default function V2App() {
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
         <div className="ml-auto flex items-center gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>
+          <PastilleRendu />
           <Telemetry />
           {activeJobs > 0 && <span className="masquer-etroit" style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{t('{n} en rendu', { n: activeJobs })}</span>}
           <span className="masquer-tres-etroit"><QuotaDemo /></span>

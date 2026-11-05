@@ -24,6 +24,10 @@ const CONSEILS = [
     'deux éléments incompatibles sont branchés ensemble (souvent un VAE ou une LoRA d\'un autre modèle)'],
   [/safetensors|HeaderTooLarge|invalid load key|PytorchStreamReader/i,
     'un fichier de modèle est corrompu ou incomplet : le retélécharger'],
+  [/no kernel image is available|sm_\d+ is not compatible/i,
+    'un module n\'est pas compilé pour cette carte graphique : lancer le diagnostic, ou choisir un autre outil'],
+  [/Node '?[\w ]+'? not found|missing_node_type|custom node may not be installed/i,
+    'un module de ComfyUI manque pour cette recette : lancer le diagnostic'],
   [/Connection refused|ECONNREFUSED|fetch failed/i,
     'ComfyUI ne répond plus : il a peut-être redémarré, le rendu sera repris'],
 ]

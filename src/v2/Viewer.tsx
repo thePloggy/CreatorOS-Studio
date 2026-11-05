@@ -263,7 +263,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     : asset.parentAssetId ? s.assets.find(a => a.id === asset.parentAssetId && a.mediaType === asset.mediaType) ?? null : null
   const [compare, setCompare] = useState(false)
   // un clip affiné ou une restauration s'ouvre sur son avant / après : c'est ce qu'on vient voir
-  useEffect(() => { setCompare(String(asset.videoEngine) === 'seedvr2' || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
+  // un effet vidéo (Refine Details, Day to Night, Unblur…, Remove Objects) aussi : on vient voir la différence
+  useEffect(() => { setCompare(['seedvr2', 'ltx_effet', 'ltx_cleanplate'].includes(String(asset.videoEngine)) || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
   const [pinceau, setPinceau] = useState(action === 'pinceau' && asset.mediaType === 'photo')
   const [editer, setEditer] = useState(action === 'retouche' || action === 'detour' || action === 'retirer' || action === 'fond')
   const [plusOuvert, setPlusOuvert] = useState(action === 'looks')

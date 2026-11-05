@@ -101,3 +101,60 @@ export function RenderRing({ size = 34 }: { size?: number }) {
     WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px))',
     mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px))' }} />
 }
+
+/* ---------- pastille de la barre du haut ----------
+   Toujours visible pendant un rendu : l'étape en clair, les pas, le temps écoulé et restant,
+   le nombre de rendus en attente, un bouton Arrêter. Si rien n'avance depuis 2 min (ni les pas
+   ni l'étape), elle prévient que le rendu semble bloqué. Un clic déplie la liste des rendus. */
+const fmt = (s: number) => s >= 60 ? `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')}` : `${Math.round(s)} s`
+export function PastilleRendu() {
+  const j = useRunningJob()
+  const jobs = useAppStore(s => s.jobs)
+  const annuler = useAppStore(s => s.cancelJob)
+  const [ouvert, setOuvert] = useState(false)
+  const [erreur, setErreur] = useState<string | null>(null)
+  // dernier signal de vie : les pas ou l'étape qui changent
+  const signal = useRef<{ cle: string; at: number }>({ cle: '', at: Date.now() })
+  const cle = j ? `${j.id}|${j.progress?.value ?? ''}|${j.phase ?? ''}|${j.status}` : ''
+  if (cle !== signal.current.cle) signal.current = { cle, at: Date.now() }
+  const attente = jobs.filter(x => x.status === 'queued' || x.status === 'queued-comfy').length
+  if (!j && !attente) return null
+  const ecoule = j?.startedAt ? (Date.now() - j.startedAt) / 1000 : 0
+  const reste = j?.progress?.etaS ?? (j?.startedAt && j?.estimatedMs ? Math.max(0, (j.estimatedMs - (Date.now() - j.startedAt)) / 1000) : null)
+  const bloque = !!j && Date.now() - signal.current.at > 120_000
+  const pct = j ? Math.round(jobFraction(j) * 100) : 0
+  const stop = async (id: string) => { setErreur(null); const e = await annuler(id); if (e) setErreur(e) }
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOuvert(o => !o)} title={t('Rendus en cours')}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 11px', borderRadius: 999, fontSize: 12, whiteSpace: 'nowrap', cursor: 'pointer',
+          color: '#f2f2f4', background: bloque ? 'rgba(234,78,78,0.18)' : 'var(--lv2)', border: `1px solid ${bloque ? 'rgba(234,78,78,0.6)' : 'var(--lv3)'}` }}>
+        {j ? (<>
+          <span style={{ width: 46, height: 5, borderRadius: 9, background: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
+            <i style={{ display: 'block', height: '100%', width: `${Math.max(4, pct)}%`, background: 'linear-gradient(90deg, #f6a961, #ea4e89)' }} />
+          </span>
+          <span>{bloque ? t('semble bloqué') : j.status === 'post-process' ? t('finition') : t(j.phase ?? 'rendu')}</span>
+          {j.progress?.max ? <span style={{ opacity: .6 }}>{j.progress.value}/{j.progress.max}</span> : null}
+          <span style={{ opacity: .6 }}>{fmt(ecoule)}{reste != null ? ` · ${t('reste ~{t}', { t: fmt(reste) })}` : ''}</span>
+        </>) : <span style={{ opacity: .7 }}>{t('en attente')}</span>}
+        {attente ? <span style={{ padding: '1px 7px', borderRadius: 9, background: 'var(--lv3)', fontSize: 11 }}>+{attente}</span> : null}
+      </button>
+      {ouvert && (
+        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 400, width: 320, padding: 10, borderRadius: 12, fontSize: 12,
+          background: 'rgba(24,25,30,0.98)', border: '1px solid var(--lv3)', boxShadow: '0 12px 34px rgba(0,0,0,0.5)', display: 'grid', gap: 6 }}>
+          {bloque && <div style={{ color: '#f39a9a' }}>{t('Rien n’a bougé depuis plus de 2 minutes : le rendu est peut-être bloqué. Tu peux l’arrêter et le relancer.')}</div>}
+          {jobs.filter(x => STATUTS_ACTIFS.includes(x.status)).slice(0, 8).map(x => (
+            <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <b>{x.status === 'queued' || x.status === 'queued-comfy' ? t('en attente') : t(x.phase ?? 'rendu')}</b>
+                <span style={{ opacity: .55 }}> · {x.mode === 'video' ? t('vidéo') : t('image')} · #{x.id}</span>
+              </span>
+              <button className="pill" style={{ fontSize: 11, padding: '3px 9px' }} onClick={() => void stop(x.id)}>{t('Arrêter')}</button>
+            </div>
+          ))}
+          {erreur && <div style={{ color: '#f39a9a' }}>{erreur}</div>}
+        </div>
+      )}
+    </div>
+  )
+}

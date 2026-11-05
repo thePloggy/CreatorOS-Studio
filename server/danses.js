@@ -12,14 +12,17 @@
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import * as store from './db.js'
 
 export const DOSSIER = path.join(CONFIG.dataDir, 'danses')
 const APERCUS = path.join(DOSSIER, 'apercus')
-// danses écartées du catalogue public : trop suggestives pour une démo tout public
-const ECARTEES = new Set(['dancing-twerk'])
+/* danses écartées du catalogue public : trop suggestive pour une démo tout public (twerk), ou qui
+   traversent tant la scène qu'avec la caméra fixe le corps devient minuscule et le motion control
+   le perd (acrobaties au sol, grands déplacements) */
+const ECARTEES = new Set(['dancing-twerk', 'breakdance-1990', 'dancing-1', 'salsa-dancing-1'])
 const nomDriver = slug => `crs_danse_${slug}.mp4`
 const titre = slug => slug.replace(/-(\d+)$/, ' $1').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase())
 
@@ -53,5 +56,14 @@ export function preparerDanses() {
   return liste
 }
 let catalogue = []
-export const listeDanses = () => catalogue
+// la version de l'aperçu (date du fichier) : une vignette refaite n'est pas resservie depuis le cache du navigateur
+const version = slug => { try { return Math.round(fs.statSync(path.join(APERCUS, `${slug}.webp`)).mtimeMs / 1000) } catch { return 0 } }
+export const listeDanses = () => catalogue.map(d => ({ ...d, v: version(d.slug) }))
+/* Le fichier FBX d'une danse : danses/fbx des données, ou le dossier donné par CREATOROS_DANSES_FBX. */
+const DOSSIER_FBX = process.env.CREATOROS_DANSES_FBX || path.join(CONFIG.dataDir, 'danses', 'fbx')
+const slugDe = nom => nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+export function fbxDe(slug) {
+  try { const f = fs.readdirSync(DOSSIER_FBX).find(x => x.toLowerCase().endsWith('.fbx') && slugDe(x.replace(/\.fbx$/i, '')) === slug); return f ? path.join(DOSSIER_FBX, f) : null }
+  catch { return null }
+}
 export const driverDe = slug => catalogue.some(d => d.slug === slug) ? nomDriver(slug) : null

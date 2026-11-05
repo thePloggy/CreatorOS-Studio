@@ -425,6 +425,8 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
   const cls = a.reviewStatus === 'approved' ? 'approved' : a.reviewStatus === 'rejected' ? 'rejected' : ''
   return (
     <div className={`card ${cls} ${picked ? 'picked' : ''} ${menu ? 'menu-open' : ''}`} onClick={() => (picking && onPick ? onPick(a.id) : onOpen(a))}
+      // glisser une vignette sur une zone de prompt : référence (Image) ou image de départ (Vidéo)
+      draggable onDragStart={e => { e.dataTransfer.setData('text/asset-id', a.id); e.dataTransfer.effectAllowed = 'copy' }}
       onMouseEnter={() => { void vid.current?.play().catch(() => { /* autoplay refusé : tant pis */ }) }}
       onMouseLeave={() => { const el = vid.current; if (el) { el.pause(); el.currentTime = 0 } }}>
       {a.mediaType === 'video'
@@ -618,9 +620,13 @@ export function FailCard({ j }: { j: Job }) {
           <span className="pill9 ko">{t('échec')}</span>
           <span className="pill9">{j.mode === 'video' ? (j.videoEngine ?? 'video') : (j.recipeId?.split('@')[0] ?? 'photo')}</span>
         </div>
-        <div className="fcause" style={detail ? { WebkitLineClamp: 'unset' } : undefined} onClick={() => setDetail(d => !d)}
-          title={t('cliquer pour tout lire')}>{cause}</div>
-        {conseil && <div className="fconseil">→ {conseil}</div>}
+        {/* la phrase utile d'abord (ce qu'il faut faire) ; le détail technique se déplie au clic */}
+        {conseil ? <>
+          <div className="fcause" style={{ color: 'var(--text)' }}>{conseil[0].toUpperCase() + conseil.slice(1)}.</div>
+          <div className="fconseil" style={{ opacity: .6, cursor: 'pointer', ...(detail ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}
+            onClick={() => setDetail(d => !d)} title={t('cliquer pour tout lire')}>{detail ? cause : t('détail technique ›')}</div>
+        </> : <div className="fcause" style={detail ? { WebkitLineClamp: 'unset' } : undefined} onClick={() => setDetail(d => !d)}
+          title={t('cliquer pour tout lire')}>{cause}</div>}
         <div className="jprompt">{j.composedPositive || j.userPrompt || '—'}</div>
         <div className="jmeta">#{j.id}</div>
         <button className="hact ko" title={t('retirer cette carte (supprime le job en échec)')}

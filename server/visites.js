@@ -29,7 +29,7 @@ import { notifier } from './notif.js'
 const RENDUS_PAR_HEURE = 12
 /* Coût plancher d'une demande dont les jobs naissent plus tard (le reel planifie ses
    plans après la réponse) : 5 photos + 5 clips en moyenne. */
-const COUT_MINIMUM = { 'POST /api/reels': 10, 'POST /api/assets/:id/moment-suivant': 0 }   // texte seul : la retouche qui suit est comptée
+const COUT_MINIMUM = { 'POST /api/reels': 10, 'POST /api/danses/scene3d': 3, 'POST /api/assets/:id/moment-suivant': 0 }   // texte seul : la retouche qui suit est comptée
 const FILE_MAX_PUBLIC = 8      // au-delà, un visiteur Internet attend que la file se vide
 
 /** Les routes qui lancent un rendu sur le GPU. */
@@ -38,6 +38,7 @@ const ROUTES_RENDU = new Set([
   'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/recadrer', 'POST /api/croquis', 'POST /api/restauration', 'POST /api/croquis/:id/choisir', 'POST /api/extensions/:id/lancer', 'POST /api/assets/:id/analyse', 'POST /api/assets/:id/pack-pub', 'POST /api/pack-pub', 'POST /api/voix', 'POST /api/assets/:id/doubler', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
   'POST /api/assets/:id/upscale', 'POST /api/montages/:id/export', 'POST /api/presets/:id/lancer',
   'POST /api/parole', 'POST /api/reshoot', 'POST /api/assets/:id/objet3d', 'POST /api/musique', 'POST /api/assets/:id/master', 'POST /api/reels/:id/plans/:k/refaire',
+  'POST /api/danses/scene3d',
 ])
 
 const JOURNAL_MAX = 200
@@ -77,6 +78,15 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
   }
   // identité posée par Tailscale pour un appareil du tailnet ; une requête venue d'Internet par Funnel ne l'est jamais
   const duTailnet = req => !!req.headers['tailscale-user-login'] && !req.headers['tailscale-funnel-request']
+
+  /* ---------- journal des rendus du propriétaire : leur origine (appareil, Internet avec la clé, machine) ---------- */
+  const fichierProprio = path.join(dataDir, 'journal-proprietaire.json')
+  let journalProprio = []
+  try { journalProprio = JSON.parse(fs.readFileSync(fichierProprio, 'utf8')) } catch { /* pas encore de journal */ }
+  const noterProprietaire = e => {
+    journalProprio.unshift({ at: Date.now(), ...e }); journalProprio.length = Math.min(journalProprio.length, 500)
+    fs.writeFile(fichierProprio, JSON.stringify(journalProprio, null, 1), () => {})
+  }
 
   /* ---------- journal des rendus visiteurs ---------- */
   const fichierJournal = path.join(dataDir, 'journal-visiteurs.json')
@@ -156,7 +166,15 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     }
     if (!ROUTES_RENDU.has(`${req.method} ${req.routeOptions?.url}`)) return
     const c = compteurs(jourDe())
-    if (duTailnet(req) || estProprietaire(req)) { c.rendusProprietaire = (c.rendusProprietaire ?? 0) + 1; sale = true; return }
+    if (duTailnet(req) || estProprietaire(req)) {
+      c.rendusProprietaire = (c.rendusProprietaire ?? 0) + 1; sale = true
+      // d'où part un rendu du propriétaire : un appareil du tailnet, Internet avec la clé, ou la machine elle-même
+      const viaFunnel = !!req.headers['tailscale-funnel-request'] || String(req.headers.host ?? '').endsWith(':8443')
+      noterProprietaire({ route: `${req.method} ${req.url.split('?')[0]}`,
+        origine: duTailnet(req) ? `tailnet ${req.headers['tailscale-user-login']}` : viaFunnel ? 'Internet (Funnel) avec la clé' : 'machine locale',
+        navigateur: String(req.headers['user-agent'] ?? '').slice(0, 160) })
+      return
+    }
     const e = empreinte(req), maintenant = Date.now()
     if (bannis.has(e)) {
       c.refuses++; sale = true

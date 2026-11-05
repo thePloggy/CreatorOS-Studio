@@ -4,8 +4,8 @@ Usage : blender -b -P rendre_danse.py -- DANSE.fbx SORTIE.mp4 [SECONDES_MAX]
 
 Un mannequin gris neutre danse en pied sur un fond clair uni, caméra fixe de face,
 en 9:16 (720×1280) à 30 i/s, une danse courte répétée jusqu'à 8 s : le motion control ne lit que la pose, aucune
-personne réelle n'apparaît. Le cadrage englobe toute la danse (le personnage peut
-se déplacer), avec une marge autour du corps.
+personne réelle n'apparaît. Caméra fixe : le cadrage englobe toute la danse (le personnage peut se déplacer),
+avec une marge autour du corps.
 """
 import sys
 
@@ -28,22 +28,34 @@ scene.render.fps = 30
 longueur = fin - debut
 tours = max(1, min(int(secondes_max * 30) // max(longueur, 1), -(-240 // max(longueur, 1))))
 if tours > 1:
+    # chaque boucle repart de là où la précédente s'arrête : le déplacement du bassin s'additionne,
+    # sinon le danseur saute en arrière au début de chaque boucle
     arm.animation_data.action = None
     piste = arm.animation_data.nla_tracks.new()
-    bande = piste.strips.new(action.name, debut, action)
-    bande.repeat = tours
+    bassin = [c for c in action.fcurves if c.data_path.endswith('Hips"].location')]
+    ecart = {c.array_index: c.evaluate(fin) - c.evaluate(debut) for c in bassin}
+    for k in range(tours):
+        a = action.copy() if k else action
+        if k:
+            for c in a.fcurves:
+                if c.data_path.endswith('Hips"].location'):
+                    for pt in c.keyframe_points:
+                        pt.co.y += ecart[c.array_index] * k
+                        pt.handle_left.y += ecart[c.array_index] * k
+                        pt.handle_right.y += ecart[c.array_index] * k
+        piste.strips.new(f'{action.name}-{k}', debut + longueur * k, a)
     fin = debut + longueur * tours
 scene.frame_start = debut
 scene.frame_end = min(fin, debut + int(secondes_max * 30))
 
-# le corps image par image : la caméra le suit de côté et le cadre tient le corps le plus large,
-# pour qu'une danse qui se déplace garde un personnage grand dans l'image
+# le corps image par image : la caméra reste FIXE et cadre toute la danse. Une caméra qui suit
+# le danseur annule son déplacement : sur un fond uni, le motion control le fait alors glisser sur
+# place (les pieds marchent, le sol ne défile pas). Le recadrage serré se fait après, sur le rendu.
 pas = 2
-boites = {}
+mini, maxi = Vector((1e9, 1e9, 1e9)), Vector((-1e9, -1e9, -1e9))
 for f in range(scene.frame_start, scene.frame_end + 1, pas):
     scene.frame_set(f)
     deps = bpy.context.evaluated_depsgraph_get()
-    mini, maxi = Vector((1e9, 1e9, 1e9)), Vector((-1e9, -1e9, -1e9))
     for o in corps:
         ev = o.evaluated_get(deps)
         for v in ev.to_mesh().vertices:
@@ -51,11 +63,7 @@ for f in range(scene.frame_start, scene.frame_end + 1, pas):
             mini = Vector(map(min, mini, p))
             maxi = Vector(map(max, maxi, p))
         ev.to_mesh_clear()
-    boites[f] = (mini, maxi)
-sol = min(b[0].z for b in boites.values())
-haut = max(b[1].z for b in boites.values())
-demi_largeur = max(max(b[1].x - (b[0].x + b[1].x) / 2, (b[0].x + b[1].x) / 2 - b[0].x) for b in boites.values())
-profondeur = min(b[0].y for b in boites.values())
+sol, haut = mini.z, maxi.z
 hauteur = haut - sol
 
 # sol et fond
@@ -64,21 +72,16 @@ monde = bpy.data.worlds.new('fond')
 scene.world = monde
 monde.color = (0.82, 0.82, 0.84)
 
-# caméra orthographique de face qui suit le centre du corps (lissé), corps entier avec une marge
+# caméra orthographique de face, fixe, toute la danse dans le cadre avec une marge
 cam_data = bpy.data.cameras.new('cam')
 cam_data.type = 'ORTHO'
 ratio = 9 / 16
-cam_data.ortho_scale = max(hauteur * 1.15, demi_largeur * 2 * 1.12 / ratio)
+cam_data.ortho_scale = max(hauteur * 1.15, (maxi.x - mini.x) * 1.12 / ratio)
 cam = bpy.data.objects.new('cam', cam_data)
 scene.collection.objects.link(cam)
 cam.rotation_euler = (1.5708, 0, 0)
+cam.location = ((mini.x + maxi.x) / 2, mini.y - hauteur * 4 - 5, sol + cam_data.ortho_scale / 2 - hauteur * 0.06)
 scene.camera = cam
-centres = {f: (b[0].x + b[1].x) / 2 for f, b in boites.items()}
-cles = sorted(centres)
-for k, f in enumerate(cles):
-    voisins = [centres[cles[x]] for x in range(max(0, k - 4), min(len(cles), k + 5))]
-    cam.location = (sum(voisins) / len(voisins), profondeur - hauteur * 4 - 5, sol + hauteur / 2)
-    cam.keyframe_insert('location', frame=f)
 
 # rendu rapide et lisible : ombrage studio, mannequin gris, ombres portées
 scene.render.engine = 'BLENDER_WORKBENCH'

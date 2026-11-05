@@ -29,7 +29,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -949,6 +949,7 @@ app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
   if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
+  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong']) delete req.body[k]   // réglages de banc : propriétaire seulement
   // une vidéo qui part d'une photo de la bibliothèque joue le personnage de cette photo, quel que soit le choix courant
   const depart = req.body?.mode === 'video' && req.body?.selections?.task !== 't2v' && req.body?.selections?.startAssetId ? store.getAsset(String(req.body.selections.startAssetId)) : null
   if (depart?.persona_id) req.body.personaId = depart.persona_id
@@ -2430,13 +2431,21 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
   /* Trois façons : modifier un élément, le retirer, ou changer le fond autour de la personne. */
-  const mode = ['retirer', 'fond', 'detourer'].includes(req.body?.mode) ? req.body.mode : 'modifier'
+  const mode = ['retirer', 'fond', 'detourer', 'effet'].includes(req.body?.mode) ? req.body.mode : 'modifier'
   let prompt = String(req.body?.prompt ?? '').trim(), cible = String(req.body?.cible ?? '').trim()
   let strength = Number(req.body?.strength)
   if (mode === 'fond') cible = cible || 'person'
   if (mode === 'detourer') {
     try {
       const r = deposerAvecCle(cleComfy(req), () => enqueueDetour({ source: path.basename(src), cible, alpha: req.body?.alpha === true, parentAssetId: a.id, personaId: a.persona_id }))
+      return { jobId: r.id }
+    } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+  }
+  /* Effets en un clic : IC-LoRA LTX-2.5 de Lightricks (Refine Details, Day to Night, Unblur, Remove Compression). */
+  if (mode === 'effet') {
+    try {
+      const r = deposerAvecCle(cleComfy(req), () => enqueueEffetLtx({ source: path.basename(src), effet: String(req.body?.effet ?? ''), texte: prompt,
+        parentAssetId: a.id, personaId: a.persona_id }))
       return { jobId: r.id }
     } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
@@ -2682,7 +2691,21 @@ app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
 // le catalogue des danses : vidéos de mouvement d'un mannequin, choisies par le visiteur
-app.get('/api/danses', async () => ({ danses: danses.listeDanses() }))
+app.get('/api/danses', async () => ({ danses: danses.listeDanses(), studios: Object.entries(STUDIOS_DANSE).map(([id, s]) => ({ id, nom: s.nom })) }))
+/* Danse en scène 3D : la danse dans un studio, caméra qui suit (LTX Layout-to-Render), puis le Swap redessine la danseuse d'après la photo. */
+app.post('/api/danses/scene3d', async (req, reply) => {
+  if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
+  const a = store.getAsset(String(req.body?.assetId ?? ''))
+  if (!a || a.media_type !== 'photo') { reply.code(400); return { error: 'photo inconnue' } }
+  const fbx = danses.fbxDe(String(req.body?.slug ?? ''))
+  if (!fbx) { reply.code(400); return { error: 'danse inconnue' } }
+  try {
+    const still = `crs_still_${path.basename(a.filename)}`
+    fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, still))
+    store.noterInput(still)
+    return enqueueDanse3d({ fbx, still, decor: req.body?.decor, scene: req.body?.scene, personaId: a.persona_id, suivi: req.body?.suivi === true })
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 // le storyboard relu et corrigé part au tournage
 app.post('/api/reels/:id/tourner', async (req, reply) => {
   try { return reelOut(reelPresets.tournerStoryboard(req.params.id, req.body?.cases)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }

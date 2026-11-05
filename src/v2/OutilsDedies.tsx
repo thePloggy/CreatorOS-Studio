@@ -13,6 +13,7 @@ import { ANGLES, LORA_ANGLES } from './Viewer'
 
 export type IdOutil = 'inpaint' | 'remove-bg' | 'depth' | 'loop' | 'retouch' | 'remove-objects' | 'change-bg'
   | 'upscale' | 'green-screen' | 'add-sound' | 'smooth' | 'hdr' | 'multi-angle' | 'coverage' | 'next-shot' | 'image-3d'
+  | 'refine-details' | 'day-to-night' | 'deblur' | 'decompression'
 
 type Valeurs = { texte: string; texte2: string; alpha: boolean; choix: string }
 type Conf = {
@@ -85,6 +86,19 @@ const CONFS: Record<IdOutil, Conf> = {
     champ2: { label: 'Décor à reconstituer (facultatif)', placeholder: 'an empty cobblestone street' },
     etapes: [{ titre: 'Choisis le clip', texte: 'Un plan fixe ou un mouvement lent marche le mieux.' }, { titre: 'Nomme ce qui part', texte: 'En anglais : people, the car, the dog.' }, { titre: 'Récupère le clip', texte: 'Le décor est reconstruit derrière, le son d’origine est gardé.' }],
     lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'retirer', cible: v.texte.trim(), prompt: v.texte2.trim() }) },
+  'refine-details': { titre: 'Refine Details', texte: 'Le clip retrouve de la matière : peau, tissus, cheveux et grain, sans changer le mouvement (LTX-2.5).', media: 'video', prefixes: ['effet-'], bouton: 'Affiner le clip',
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu trop lisse : une danse, un motion control, un clip IA.' }, { titre: 'Lance', texte: 'LTX-2.5 et l’IC-LoRA Refine Details de Lightricks redessinent le détail.' }, { titre: 'Compare', texte: 'Même cadrage, même mouvement, plus de texture.' }],
+    lancer: a => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'refine-details' }) },
+  'day-to-night': { titre: 'Day to Night', texte: 'Le même plan, la nuit : lumières, ciel et ambiance changent, le mouvement reste.', media: 'video', prefixes: ['effet-'], bouton: 'Passer à la nuit',
+    champ: { label: 'Ambiance de nuit (facultatif, en anglais)', placeholder: 'warm street lamps, a deep blue sky' },
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un plan de jour, en extérieur de préférence.' }, { titre: 'Décris la nuit', texte: 'Facultatif : les lumières, le ciel.' }, { titre: 'Récupère le clip', texte: 'La même scène et le même mouvement, de nuit.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'day-to-night', prompt: v.texte.trim() }) },
+  'deblur': { titre: 'Unblur', texte: 'Un clip flou ou bougé redevient net, sans changer la scène.', media: 'video', prefixes: ['effet-'], bouton: 'Rendre net',
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un plan flou de bougé ou de mise au point.' }, { titre: 'Lance', texte: 'LTX-2.5 et l’IC-LoRA Deblur de Lightricks.' }, { titre: 'Compare', texte: 'Même plan, net.' }],
+    lancer: a => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'deblur' }) },
+  'decompression': { titre: 'Remove Compression', texte: 'Les blocs et les bandes d’une vidéo trop compressée disparaissent.', media: 'video', prefixes: ['effet-'], bouton: 'Nettoyer la compression',
+    etapes: [{ titre: 'Choisis le clip', texte: 'Une vidéo de réseau social ou de messagerie, très compressée.' }, { titre: 'Lance', texte: 'LTX-2.5 et l’IC-LoRA Decompression de Lightricks.' }, { titre: 'Compare', texte: 'Même plan, sans artefacts.' }],
+    lancer: a => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'decompression' }) },
   'change-bg': { titre: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', media: 'video', bouton: 'Changer le décor',
     champ: { label: 'Nouveau décor (en anglais)', placeholder: 'a sunny beach at golden hour', requis: true },
     champ2: { label: 'Sujet à garder (facultatif)', placeholder: 'person' },

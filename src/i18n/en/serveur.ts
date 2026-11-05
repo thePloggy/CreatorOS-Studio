@@ -122,6 +122,8 @@ export const serveur: Record<string, string> = {
 
   // erreurs.js — conseils ajoutés après « — »
   'mémoire vidéo insuffisante pour ce rendu : réduire la durée ou la résolution, ou relancer quand la carte est libre': 'not enough video memory for this render: reduce the duration or the resolution, or run it again when the GPU is free',
+  'un module n\'est pas compilé pour cette carte graphique : lancer le diagnostic, ou choisir un autre outil': 'a module is not built for this graphics card: run the diagnostics, or pick another tool',
+  'un module de ComfyUI manque pour cette recette : lancer le diagnostic': 'a ComfyUI module is missing for this recipe: run the diagnostics',
   'la carte graphique n\'est plus visible : lancer le diagnostic (pilote NVIDIA)': 'the GPU is no longer visible: run the diagnostic (NVIDIA driver)',
   'un fichier de modèle nommé par la recette est absent de ComfyUI : lancer le diagnostic pour savoir lequel': 'a model file named by the recipe is missing from ComfyUI: run the diagnostic to find out which',
   'un fichier d\'entrée est introuvable (image source, vidéo driver ou modèle)': 'an input file cannot be found (source image, driver video or model)',

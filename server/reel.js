@@ -24,6 +24,7 @@ import { persona } from './persona.js'
 import { enqueue as enfiler, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
+import { MOTS_RENDU, MOTS_CAMERA, MOTS_SCENE, rappel, sansMots, motsPresents, nettoyer, phrase } from './enhance.js'
 import { priseRetenue } from './controle.js'
 import { FORMATS, reglesFormat, consigneChoix, SCHEMA_CHOIX } from './formatsReel.js'
 import { anatomieImage, anatomieVideo } from './anatomie.js'
@@ -434,6 +435,111 @@ export async function rediger2({ brief, n, nom, langue, formatImpose }) {
   return { ...out, format, shots, affectations: aff, fautes, look: LOOKS_REEL[out.look] ?? LOOKS_REEL['natural-day'] }
 }
 
+/* ---------- écriture v3 : le LLM n'écrit que le contenu, le code tient le rendu ----------
+   Même raisonnement que la v2 (situation, lieux, actions, histoire, accroche), mais chaque plan n'a
+   plus de « still » rédigée d'un bloc : le LLM donne l'endroit, la pose au premier instant, l'expression
+   et le geste ; le code compose la photo (cadrage et angle assignés, puis tenue, lieu, lumière et look
+   communs à tout le reel) et le mouvement (geste écrit + mouvement de caméra assigné). Les mots de rendu
+   et de caméra sont listés au LLM, rappelés après la demande, et retirés s'ils passent quand même. */
+const INTERDITS3 = [...MOTS_RENDU, ...MOTS_CAMERA]
+const SCHEMA3 = (n, tenueParPlan = false) => ({
+  type: 'object', required: ['situation', 'goal', 'times', 'places', 'actions', 'story', 'hook', 'brief_objects', 'outfit', 'location', 'light', 'look', 'shots'],
+  properties: {
+    situation: { type: 'string' }, goal: { type: 'string' },
+    times: { type: 'array', minItems: n, maxItems: n, items: { type: 'string' } },
+    places: { type: 'array', minItems: n, maxItems: n, items: { type: 'string' } },
+    actions: { type: 'array', minItems: n, maxItems: n, items: { type: 'string' } },
+    story: { type: 'string' }, hook: { type: 'string' },
+    brief_objects: { type: 'array', items: { type: 'string' } }, outfit: { type: 'string' }, location: { type: 'string' }, light: { type: 'string' },
+    look: { type: 'string', enum: Object.keys(LOOKS_REEL) },
+    shots: { type: 'array', minItems: n, maxItems: n, items: {
+      type: 'object', required: ['spot', 'action', 'support', 'object', ...(tenueParPlan ? ['outfit'] : []), 'pose', 'expression', 'motion'],
+      properties: { spot: { type: 'string' }, action: { type: 'string' }, support: { type: 'string' }, object: { type: 'string' }, ...(tenueParPlan ? { outfit: { type: 'string' } } : {}),
+        pose: { type: 'string' }, expression: { type: 'string' }, motion: { type: 'string' } } } },
+  },
+})
+function consigne3(nom, n, langue, format = 'journee') {
+  const f = FORMATS[format] ?? FORMATS.journee
+  const parcours = !f.cadrageFixe && (format === 'journee' || format === 'voyage')
+  return `You write the content of a short vertical Instagram / TikTok reel: ${n} shots of ONE woman named ${nom}, a fictional adult content creator, in one continuous session. An everyday creator reel, light and relatable, never a movie or a stunt.
+THE FORMAT (it overrides the rules below when they disagree):
+${reglesFormat(format, n)}
+The system films the reel: it chooses the framing, the camera angle and the camera move of each shot, the light and the film look, and adds her outfit, the location and her identity to every shot. You write ONLY what happens: who does what, where, with what. Never write framing, camera, lens, light or style words.
+Fill in this order:
+- "situation": one sentence — what this moment is for her, from the brief.
+- "goal": where this moment ends — the last place and what she achieves there (for a routine before an event: she arrives at the event; for a day out: the high point of the day).
+- "times": ${n} clock times (07:05, 07:20…), strictly increasing: the moment of each shot. Real life decides the order: what is done first comes first (she makes coffee, then gets dressed, then packs her bag, then leaves, then arrives); she never does a step twice.
+- "places": ${n} places in order${parcours ? ', all different, connected the way they would be in real life: once she leaves a place she never comes back to it, and each place brings her closer to the goal; the last place IS the goal' : ', as the format says'}.
+- "actions": ${n} concrete actions, one per place, a viewer recognises (not "she enjoys the view"). The first one hooks, one is the strongest moment, the last one lands with a smile or a look to camera.
+- "story": two sentences, a real little story with a turn.
+- "hook": the on-screen opening text, 3 to 7 words, in ${langue}, specific and intriguing, never generic, never a ranking.
+- once for the whole reel, never repeated in a shot: "outfit" (every garment with colour and fabric${f.tenueParPlan ? '; here her outfit in shot 1, each shot also has its own "outfit"' : ''}), "location" (the town, beach or house), "light" (time of day; it never jumps back), "look" (one of: ${Object.keys(LOOKS_REEL).join(', ')}), "brief_objects" (objects the brief names for her, with colour and material; [] if none).
+Then one shot per line, shot k = places[k] + actions[k]:
+- "spot": the exact place only, 4 to 12 words, starting with "a" or "the" (a café terrace with white tables…), never her name or what she does.${f.tenueParPlan ? '\n- "outfit": her complete outfit in this shot.' : ''}
+- "action": what she does in this beat, specific to the story.
+- "support": what her body rests on or stands on ("none" only in a close-up).
+- "object": only the object the line assigns, 2 to 8 words with colour and material, or "none". Never a piece of clothing (no jacket, scarf, wetsuit or dress to hold or put on). A big object (surfboard, suitcase, bicycle, umbrella) stays tucked under her arm, on her shoulder or on the ground — never lifted in the air or held above her head.
+- "pose": the FIRST INSTANT of the shot, 15 to 35 words, starting with "${nom}" or "She": her body position, where her hands are and what they hold (name the object of the line), what she looks at. Only what the line's framing shows: in a close-up, her face and hands only; in a medium shot, nothing below the waist.
+- "expression": 2 to 6 words (curious, amused, moved, delighted…).
+- "motion": what she does in the next seconds, 8 to 20 words, ONE action at real-time speed, only body parts the pose shows.
+Real life: objects stay where they belong (a café cup stays at the café); what she holds stays in her hand until a shot shows her putting it down; physical actions happen in their order; her face is visible in every shot (front, three-quarter or profile), she never turns her back or walks away. She is alone in her space: nobody near her (no waiter, vendor or friend); passers-by only far away and blurred. No animals. No text, signs or brands. Never put on or take off clothes inside a shot. Fully clothed, safe for work, no real people.
+Everything except the hook in English.`
+}
+/* Un endroit déjà quitté : il partage la plupart de ses mots-clés avec un endroit d'avant (hors le plan juste avant). */
+function retourLieu(spot, avant) {
+  const cles = t => new Set(String(t ?? '').toLowerCase().match(/[a-z]{4,}/g)?.filter(w => !['with', 'near', 'over', 'from', 'that', 'this', 'their', 'small', 'large', 'quiet', 'wooden'].includes(w)) ?? [])
+  const a = cles(spot)
+  return a.size >= 2 && avant.some(b => { const c = cles(b); return [...a].filter(w => c.has(w)).length >= Math.max(2, Math.ceil(a.size * 0.5)) })
+}
+export async function rediger3({ brief, n, nom, langue, formatImpose }) {
+  const format = FORMATS[formatImpose] ? formatImpose : await choisirFormat(brief)
+  const aff = affectations2(n, format)
+  const system = consigne3(nom, n, langue, format)
+  const lignes = aff.map((a, k) => `SHOT ${k + 1}: the system films it as ${a.cadrage}, ${a.angle} — ${({ aucun: 'object: none, her hands are free or rest on the setting', lieu: 'object: the one she really has at this moment, or one that belongs to this spot', objet: 'object: the subject of this detail shot, in her hands' })[a.objet]}`)
+  const demande = `Brief: ${brief}\nWrite the situation, the places, the actions, the story, the hook, the reel fields, then one shot per line:\n${lignes.join('\n')}\n${rappel(INTERDITS3)}`
+  const out = await appeler2({ system, prompt: demande, format: SCHEMA3(n, FORMATS[format].tenueParPlan), temperature: 0.8, predire: 4500 })
+  if (!Array.isArray(out.shots) || out.shots.length < 2) throw new Error('le réalisateur n’a pas rendu de plans exploitables')
+  // le code compose : cadrage et angle assignés, puis le contenu écrit, sans mot de rendu ni de caméra
+  const net = t => sansMots(nettoyer(t), INTERDITS3).replace(/[.\s]+$/, '')
+  const composerPlan = (x, k) => {
+    const a = aff[k], expr = net(x.expression)
+    // l'endroit en groupe nominal : sans « At », sans le nom ni la personne, en minuscule sauf nom propre
+    const spot = net(x.spot).replace(/^(at|in|on|inside|near)\s+/i, '').replace(new RegExp(`^${nom}\\s+\\w+(ing)?\\s+(at|in|on|by|near)?\\s*`, 'i'), '')
+      .replace(/^([A-Z])(?=[a-z]+\s+[a-z])/, c => c.toLowerCase())
+    let pose = net(x.pose)
+    if (!new RegExp(`^(${nom}|she|her)\\b`, 'i').test(pose)) pose = `${nom}, ${pose.replace(/^([A-Z])/, c => c.toLowerCase())}`
+    // l'objet assigné doit être dans la photo : s'il manque à la pose, le code l'ajoute
+    if (!vide(x.object) && teteObjet(x.object) && !pose.toLowerCase().includes(teteObjet(x.object))) pose = `${pose}, with ${net(x.object).replace(/^(a|an|the)\s+/i, 'her ')}`
+    const geste = net(x.motion)
+    return { ...x, geste, still: phrase(`${a.cadrage}, ${a.angle}, ${spot}. ${pose}${expr ? `, ${expr}` : ''}`),
+      motion: phrase(`${geste || 'She smiles at the camera'}. ${a.camera[0].toUpperCase()}${a.camera.slice(1)}`) }
+  }
+  const shots = out.shots.slice(0, n).map(composerPlan)
+  const objetsAvant = k => shots.slice(0, k).map(x => x.object).filter(o => !vide(o))
+  const duBrief = (out.brief_objects ?? []).map(String).filter(x => x.trim()).slice(0, 4)
+  const controles = (x, k) => [...fautesPlan(x, aff[k], objetsAvant(k), duBrief).filter(f => !/does not show the action|the brief names|another shot already uses this object|camera/.test(f)), ...fautesVraieVie(x),
+    ...motsPresents(`${x.pose} ${x.motion} ${x.spot}`, MOTS_SCENE).map(m => `"${m}" is not allowed in a shot: remove it`),
+    ...(k > 0 && retourLieu(x.spot, shots.slice(0, k - 0).filter((_, i) => i < k - 1).map(y => y.spot)) ? ['she is back at a place she already left: each shot is a NEW place, further along her journey toward the goal'] : []),
+    ...(/\b(jacket|coat|scarf|wetsuit|dress|shirt|sweater|hoodie|blazer|top|skirt|trousers|jeans|shorts|swimsuit|bikini)\b/i.test(String(x.object ?? '')) && !vide(x.object) ? ['the object is a piece of clothing: hands never hold or put on clothes — choose a small object or "none"'] : []),
+    ...(/\b(surf ?board|board|suitcase|luggage|bicycle|bike|umbrella|paddle|ladder)\b/i.test(`${x.object} ${x.motion}`) && /\b(lift(s|ing)?|rais(e|es|ing)|hold(s|ing)? (it )?(up|above|over)|above her head|overhead|in the air|swing(s|ing)?)\b/i.test(String(x.motion ?? '')) ? ['a big object is lifted in the motion: it stays under her arm or on the ground'] : []),
+    ...(/\b(pull(s|ing)? (it |the \w+ )?(down|off)|unzip(s|ping)?|take(s)? off|taking off|remov(e|es|ing) (her|the) (top|shirt|wetsuit|jacket|dress|sweater|hoodie)|undress)/i.test(`${x.motion} ${x.pose}`) ? ['she never takes off or pulls down clothing: choose another gesture'] : []),
+    // un mouvement vidé par le nettoyage (il ne parlait que de caméra ou de lenteur) : à réécrire
+    ...(x.geste ? [] : ['motion is empty: write what SHE does, one action, no camera words'])]
+  let fautes = shots.map(controles)
+  const aRefaire = fautes.map((f, k) => (f.length ? k : -1)).filter(k => k >= 0)
+  if (aRefaire.length) {
+    try {
+      const u2 = `Brief: ${brief}\nThe story: ${out.story}\nRewrite ONLY these shots. Each one failed a check, given after it:\n`
+        + aRefaire.map(k => `${lignes[k]} (place: ${out.places?.[k] ?? ''}; action: ${out.actions?.[k] ?? ''})\n  your version: ${JSON.stringify({ spot: out.shots[k].spot, pose: out.shots[k].pose, expression: out.shots[k].expression, motion: out.shots[k].motion, object: out.shots[k].object })}\n  FAILED: ${fautes[k].join('; ')}`).join('\n')
+        + `\n${rappel([...INTERDITS3, ...MOTS_SCENE])}`
+      const refaits = (await appeler2({ system, prompt: u2, format: { type: 'object', required: ['shots'], properties: { shots: SCHEMA3(aRefaire.length, FORMATS[format].tenueParPlan).properties.shots } }, temperature: 0.5, predire: 2500 })).shots ?? []
+      aRefaire.forEach((k, j) => { const neuf = refaits[j] && composerPlan(refaits[j], k); if (neuf && !t0Hit(`${neuf.still} ${neuf.motion}`) && controles(neuf, k).length < fautes[k].length) shots[k] = neuf })
+    } catch (e) { console.warn(`réécriture des plans impossible — ${e.message || e}`) }
+    fautes = shots.map(controles)
+  }
+  return { ...out, format, shots, affectations: aff, fautes, look: LOOKS_REEL[out.look] ?? LOOKS_REEL['natural-day'] }
+}
+
 /* Tenue cadrée : dans un gros plan, les chaussures et les bas ne sont pas nommés — le
    modèle montre ce qu'on lui nomme, et un gros plan avec « white sneakers » recule en pied.
    Le vêtement lui-même n'est jamais retiré : ce qui n'est pas nommé n'existe pas. */
@@ -481,11 +587,15 @@ const CONTROLES_PLAN = [
 ]
 // toute autre personne dans le cadre prend le visage du personnage : elle est seule à l'image
 const SEULE = ' She is the only person in focus; any other people are far in the background, small and blurred, their faces not visible.'
+/* Chez elle (une pièce de la maison) : nommer des passants lointains en fait apparaître derrière elle. Seule, sans exception. */
+const SEULE_DEDANS = ' She is alone in the room: nobody else in the frame, no other person anywhere.'
+const INTERIEUR = /\b(kitchen|bedroom|bathroom|living room|lounge|hallway|corridor|apartment|flat|home|house|sofa|couch|bed|wardrobe|closet|vanity|desk|study|dining room|balcony|window ledge|entryway|doorway|staircase)\b/i
+const seule = (...lieux) => INTERIEUR.test(lieux.join(' ')) ? SEULE_DEDANS : SEULE
 export function controlerPlan(pl) { return CONTROLES_PLAN.filter(c => c.test(pl)) }
 
 /* ---------- lancement ---------- */
 export function realiser({ brief, n, duree, musique, langue, cle, personaId, voix, calerMusique, proprietaire, ecriture, format }) {
-  const v2 = ecriture === 2
+  const v2 = ecriture === 2 || ecriture === 3
   const b = String(brief ?? '').trim().slice(0, v2 ? 1500 : 600)
   if (!b) throw new Error('écris un brief : le lieu, l’ambiance, ce qui se passe')
   if (t0Hit(b)) throw new Error('brief refusé (liste T0)')
@@ -497,7 +607,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
     musique: typeof musique === 'string' && montage.cheminMusique(musique) ? musique : null,
     langue: langue === 'en' ? 'English' : 'French',
     voix: voixAcceptee(voix, proprietaire), narration: null, calerMusique: calerMusique === true,
-    plans: [], erreur: null, ecriture: v2 ? 2 : 1,
+    plans: [], erreur: null, ecriture: ecriture === 3 ? 3 : v2 ? 2 : 1,
     // un seul moteur pour toutes les photos du reel : Klein, qui part de la photo du plan
     // précédent (même tenue, mêmes accessoires, même décor) avec la LoRA Klein du personnage
     // ou sa photo de profil ; une graine commune tient le rendu
@@ -509,7 +619,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
   void (async () => {
     try {
       const nom = String(p.name || 'the model').replace(/\s*\([^)]*\)\s*$/, '').trim()
-      const r = v2 ? await rediger2({ brief: b, n: data.n, nom, langue: data.langue, formatImpose: format }) : await rediger({ brief: b, n: data.n, nom, langue: data.langue })
+      const r = ecriture === 3 ? await rediger3({ brief: b, n: data.n, nom, langue: data.langue, formatImpose: format }) : v2 ? await rediger2({ brief: b, n: data.n, nom, langue: data.langue, formatImpose: format }) : await rediger({ brief: b, n: data.n, nom, langue: data.langue })
       if (!enCours(id)) return
       // « She wears A white linen shirt » : le LLM ouvre souvent sur une majuscule
       // … ou répète le sujet (« She wears Mila wears a white blouse »)
@@ -532,8 +642,8 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
           // chaque plan à son endroit, le look de cinéma commun, l'optique selon le cadrage
           pl.endroit = String(s.spot ?? '').trim().replace(/[.\s]+$/, '')
           const tenue = FORMATS[r.format]?.tenueParPlan && String(s.outfit ?? '').trim() ? s.outfit : r.outfit
-          pl.still = `${pl.still} She wears ${bas(tenueCadree(tenue, a.cadrage))}. ${pl.endroit ? `${pl.endroit}, ` : ''}${lieu}. ${lumiere}. ${r.look}, ${focaleDe(a.cadrage)}.${SEULE}${anatomieImage(b)}`
-        } else pl.still = `${pl.still} She wears ${bas(tenueCadree(r.outfit, a.cadrage))}. ${lieu}. ${lumiere}.${SEULE}${anatomieImage(b)}`
+          pl.still = `${pl.still} She wears ${bas(tenueCadree(tenue, a.cadrage))}. ${pl.endroit ? `${pl.endroit}, ` : ''}${lieu}. ${lumiere}. ${r.look}, ${focaleDe(a.cadrage)}.${seule(pl.endroit, pl.still)}${anatomieImage(b)}`
+        } else pl.still = `${pl.still} She wears ${bas(tenueCadree(r.outfit, a.cadrage))}. ${lieu}. ${lumiere}.${seule(pl.still, lieu)}${anatomieImage(b)}`
         return pl
       })
       for (const pl of plans) {

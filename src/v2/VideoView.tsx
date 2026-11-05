@@ -99,6 +99,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
   const v = s.video
   const surStage = s.stageOuvert
+  // part de l'écran donnée à la scène 3D (le reste à la bibliothèque), réglée par la poignée et retenue
+  const [hautStage, setHautStageBrut] = useState(() => { try { return Number(localStorage.getItem('creatoros-haut-stage')) || 55 } catch { return 55 } })
+  const setHautStage = (v: number | ((h: number) => number)) => setHautStageBrut(h => { const n = typeof v === 'function' ? v(h) : v; try { localStorage.setItem('creatoros-haut-stage', String(Math.round(n))) } catch { /* stockage refusé */ } return n })
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
@@ -169,6 +172,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           <div className="varea">
             <ChoixPersonnage />
             <textarea placeholder={t('Mouvement — une action claire, temps réel…')}
+              // une photo de la bibliothèque glissée ici devient l'image de départ
+              onDragOver={e => { if (e.dataTransfer.types.includes('text/asset-id')) e.preventDefault() }}
+              onDrop={e => { const id = e.dataTransfer.getData('text/asset-id'); const a = id && s.assets.find(x => x.id === id && x.mediaType === 'photo'); if (a) { e.preventDefault(); void s.pickStartFrame(a.id) } }}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
             <div className="flex gap-1.5 mt-2 flex-wrap">
               <button className="pill tool" style={{ fontSize: 12 }} onClick={() => setEnh(true)}>✦ Enhancer</button>
@@ -441,7 +447,21 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
       {/* ---------- bibliothèque vidéo ---------- */}
       <div className="flex-1 min-w-0 flex flex-col relative">
-        {surStage && !isMobile && <div id="stage-vues" style={{ flex: '0 0 70vh', minHeight: 0 }} />}
+        {surStage && !isMobile && <>
+          <div id="stage-vues" style={{ flex: `0 0 ${hautStage}vh`, minHeight: 0 }} />
+          {/* poignée : glisser vers le haut ou le bas partage la place entre la scène et la bibliothèque */}
+          <div role="separator" aria-orientation="horizontal" title={t('Glisser pour agrandir la scène ou la bibliothèque')}
+            onPointerDown={e => {
+              const y0 = e.clientY, h0 = hautStage
+              const bouger = (ev: PointerEvent) => setHautStage(Math.min(85, Math.max(20, h0 + (ev.clientY - y0) / window.innerHeight * 100)))
+              const lacher = () => { window.removeEventListener('pointermove', bouger); window.removeEventListener('pointerup', lacher) }
+              window.addEventListener('pointermove', bouger); window.addEventListener('pointerup', lacher)
+            }}
+            onDoubleClick={() => setHautStage(h => (h > 50 ? 30 : 70))}
+            style={{ flex: '0 0 14px', cursor: 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none', userSelect: 'none' }}>
+            <span style={{ width: 48, height: 5, borderRadius: 9, background: 'var(--lv4)' }} />
+          </div>
+        </>}
         <SortBar assets={s.assets.filter(a => a.mediaType === 'video')} draft={draft} setDraft={setDraft}
           review={review} setReview={setReview}
           cols={cols} setCols={setCols} picking={picking} setPicking={() => setPicked(new Set())}
