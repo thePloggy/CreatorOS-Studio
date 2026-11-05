@@ -56,7 +56,7 @@ export const PRESETS = {
   1. a simple comfortable home outfit (the "before");
   2. and 3. two COMPLETELY different outfits that fit the brief (different main garment, colour and style);
   4. the best outfit of the reel, complete with its accessories (bag, jewellery, sunglasses or hat, shoes).
-Everything is safe for work: fully clothed, no lingerie, no brand names. Swimwear only if the brief asks for it, and then always a one-piece swimsuit worn with a cover-up (an open linen shirt, a sarong, a kaftan or a beach dress over it) — never a bikini alone (the demo's nudity filter removes those images and the reel stops).`,
+Everything is safe for work: fully clothed, no lingerie, no brand names. Swimwear only if the brief asks for it: a classic swimsuit or bikini with full coverage, never a micro or see-through one.`,
     graphe: ({ room, outfits, hook }) => {
       const tenue = k => `She wears ${outfits[k]}.`
       const base = `${CADRE_SAUT} She stands in ${room}`

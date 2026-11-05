@@ -15,13 +15,14 @@ import tempfile
 
 from nudenet import NudeDetector
 
-# classes qui rendent un rendu positif, avec leur seuil
+# classes qui rendent un rendu positif, avec leur seuil ; en dessous, maillots de bain et
+# combinaisons moulantes sortaient en faux positifs (scores mesurés de 0,48 à 0,72)
 SEUILS = {
-    'FEMALE_GENITALIA_EXPOSED': 0.45,
-    'MALE_GENITALIA_EXPOSED': 0.45,
-    'ANUS_EXPOSED': 0.45,
-    'FEMALE_BREAST_EXPOSED': 0.55,
-    'BUTTOCKS_EXPOSED': 0.6,
+    'FEMALE_GENITALIA_EXPOSED': 0.6,
+    'MALE_GENITALIA_EXPOSED': 0.6,
+    'ANUS_EXPOSED': 0.6,
+    'FEMALE_BREAST_EXPOSED': 0.7,
+    'BUTTOCKS_EXPOSED': 0.75,
 }
 VIDEO = ('.mp4', '.webm', '.mov', '.mkv', '.gif')
 
