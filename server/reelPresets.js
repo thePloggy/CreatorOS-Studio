@@ -276,7 +276,44 @@ async function remplir(preset, brief, nom, langue, eviter = []) {
 }
 
 /* ---------- lancement ---------- */
-export function lancerPreset({ presetId, brief, langue, cle, personaId }) {
+/* Le tournage d'un storyboard : graphe d'images et de clips, morceau éventuel, état 'preset'. */
+function tournerCases(id, preset, cases, personaId) {
+  const g = preset.graphe(cases)
+  const graphe = { stills: Object.fromEntries(g.stills.map(s => [s.id, { ...s, job: null, asset: null }])), clips: g.clips.map(c => ({ ...c, job: null, asset: null })), montage: g.montage }
+  // les plans affichés dans la vue Reel : un par clip, l'image de départ en vignette
+  const plans = graphe.clips.map(c => ({ still: graphe.stills[c.de].prompt, motion: c.prompt, photoJob: null, clipJob: null }))
+  // un preset musical : le morceau est composé pendant que les images se font
+  let musiqueJob = null
+  if (preset.musique) {
+    try { musiqueJob = enqueueMusique({ prompt: preset.musique(cases).slice(0, 380), paroles: '', secondes: 14, genre: 'musique', personaId }).id }
+    catch (e) { console.warn(`[reel ${id}] musique : ${e.message || e}`) }
+  }
+  // une accroche se lit d'un coup d'œil : 8 mots au plus
+  const accroche = String(cases.hook ?? '').trim().split(/\s+/).slice(0, 8).join(' ').replace(/[,;:]$/, '')
+  console.log(`[reel ${id}] preset tourné : ${g.stills.length} images, ${g.clips.length} clips`)
+  return ecrire(id, 'preset', { cases, graphe, plans, n: plans.length, accroche, musiqueJob })
+}
+const bloque = g => [...g.stills.map(s => s.prompt), ...g.clips.map(c => c.prompt), String(g.montage?.accroche ?? '')].map(t0Hit).find(Boolean)
+
+/** Le storyboard relu (et corrigé) : contrôlé comme une rédaction, puis tourné. */
+export function tournerStoryboard(id, casesCorrigees) {
+  const r = lire(id)
+  if (!r) throw new Error('reel inconnu')
+  if (r.etat !== 'storyboard') throw new Error('ce reel n’attend pas de relecture')
+  const preset = PRESETS[r.preset]
+  // seules les cases du preset sont reprises, au même format que celles du réalisateur
+  const cases = { ...r.cases }
+  for (const k of Object.keys(r.cases ?? {})) {
+    const v = casesCorrigees?.[k]
+    if (Array.isArray(r.cases[k]) && Array.isArray(v) && v.length === r.cases[k].length) cases[k] = v.map(x => String(x).slice(0, 400))
+    else if (typeof r.cases[k] === 'string' && typeof v === 'string' && v.trim()) cases[k] = v.trim().slice(0, 400)
+  }
+  const propres = nettoyer(cases)
+  if (bloque(preset.graphe(propres))) throw new Error('une case contient un terme bloqué (liste T0)')
+  return tournerCases(id, preset, propres, r.personaId)
+}
+
+export function lancerPreset({ presetId, brief, langue, cle, personaId, relire = false }) {
   const preset = PRESETS[presetId]
   if (!preset) throw new Error('preset inconnu')
   const b = String(brief ?? '').trim().slice(0, 600) || preset.exemple
@@ -291,26 +328,15 @@ export function lancerPreset({ presetId, brief, langue, cle, personaId }) {
     try {
       const nom = String(p.name || 'the model').replace(/\s*\([^)]*\)\s*$/, '').trim()
       // un mot de la liste T0 dans une case : le LLM réécrit en l'évitant, deux fois au plus
-      const bloque = g => [...g.stills.map(s => s.prompt), ...g.clips.map(c => c.prompt), String(g.montage?.accroche ?? '')].map(t0Hit).find(Boolean)
       let cases = nettoyer(await remplir(preset, b, nom, data.langue)), g = preset.graphe(cases), mot = bloque(g)
       for (let essai = 0, eviter = []; mot && essai < 2; essai++) {
         eviter.push(mot); console.log(`[reel ${id}] case réécrite (terme bloqué)`)
         cases = nettoyer(await remplir(preset, b, nom, data.langue, eviter)); g = preset.graphe(cases); mot = bloque(g)
       }
       if (mot) throw new Error('une image rédigée contient un terme bloqué (liste T0) — relancer')
-      const graphe = { stills: Object.fromEntries(g.stills.map(s => [s.id, { ...s, job: null, asset: null }])), clips: g.clips.map(c => ({ ...c, job: null, asset: null })), montage: g.montage }
-      // les plans affichés dans la vue Reel : un par clip, l'image de départ en vignette
-      const plans = graphe.clips.map(c => ({ still: graphe.stills[c.de].prompt, motion: c.prompt, photoJob: null, clipJob: null }))
-      // un preset musical : le morceau est composé pendant que les images se font
-      let musiqueJob = null
-      if (preset.musique) {
-        try { musiqueJob = enqueueMusique({ prompt: preset.musique(cases).slice(0, 380), paroles: '', secondes: 14, genre: 'musique', personaId: p.id }).id }
-        catch (e) { console.warn(`[reel ${id}] musique : ${e.message || e}`) }
-      }
-      // une accroche se lit d'un coup d'œil : 8 mots au plus
-      const accroche = String(cases.hook ?? '').trim().split(/\s+/).slice(0, 8).join(' ').replace(/[,;:]$/, '')
-      ecrire(id, 'preset', { cases, graphe, plans, n: plans.length, accroche, musiqueJob })
-      console.log(`[reel ${id}] preset ${presetId} : ${g.stills.length} images, ${g.clips.length} clips`)
+      // relecture demandée : le storyboard attend « Tourner », rien ne part au rendu avant
+      if (relire) { ecrire(id, 'storyboard', { cases }); console.log(`[reel ${id}] storyboard à relire`) }
+      else tournerCases(id, preset, cases, p.id)
     } catch (e) {
       ecrire(id, 'echec', { erreur: String(e.message || e).slice(0, 400) })
       console.warn(`[reel ${id}] preset : ${e.message || e}`)

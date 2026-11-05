@@ -14,7 +14,8 @@ import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 
 interface PlanReel { still: string; motion: string; avertissements?: string[]; clipJob?: string | null; photoUri: string | null; clipUri: string | null; photoEtat: string | null; clipEtat: string | null; supprime?: boolean }
 interface Reel {
-  id: string; brief: string; etat: 'redaction' | 'photos' | 'clips' | 'export' | 'fini' | 'echec'
+  id: string; brief: string; etat: 'redaction' | 'storyboard' | 'preset' | 'photos' | 'clips' | 'export' | 'fini' | 'echec'
+  cases?: Record<string, string | string[] | Record<string, string>[]>
   n: number; accroche?: string; plans: PlanReel[]; montageId?: string; reelUri: string | null; erreur?: string | null; createdAt: number
 }
 interface MusiqueRow { nom: string; duree: number }
@@ -67,6 +68,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
   // un preset (saut de tenues, GRWM…) : la structure du reel est tenue par le studio, le brief remplit les cases
   const [presets, setPresets] = useState<PresetReel[]>([])
   const [preset, setPreset] = useState<string>('')
+  const [relire, setRelire] = useState(true)
   useEffect(() => { void fetch('/api/reels/presets').then(json).then(d => setPresets(d.presets ?? [])).catch(() => {}) }, [])
   const choisi = presets.find(p => p.id === preset)
   const [err, setErr] = useState<string | null>(null)
@@ -86,7 +88,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     setBusy(true); setErr(null)
     try {
       const r = await json(await fetch('/api/reels', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preset ? { preset, brief, langue: getLang() } : { brief, n, duree, musique: musique || undefined, voix: voixOff || undefined, calerMusique: !!musique && caler, langue: getLang() }) }))
+        body: JSON.stringify(preset ? { preset, brief, langue: getLang(), relire } : { brief, n, duree, musique: musique || undefined, voix: voixOff || undefined, calerMusique: !!musique && caler, langue: getLang() }) }))
       setReels(x => [r, ...x]); setBrief('')
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
@@ -160,6 +162,8 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
             </span>}
           </div>}
           <div className="flex items-center gap-3">
+            {preset && <label className="flex gap-1.5 items-center" style={{ fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={relire} onChange={e => setRelire(e.target.checked)} /> {t('Relire le storyboard avant de tourner')}</label>}
             <span style={{ flex: 1, fontSize: 12, color: 'var(--faint)' }}>{preset
               ? t('Compter environ 25 min : le format est tenu par le studio, les images puis les clips, montage.')
               : t('Compter environ {m} min : rédaction, {n} photos, {n} clips LTX-2.5 avec le son, montage.', { m: 2 + n * 3, n })}</span>
@@ -198,7 +202,9 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
       setPlanRefait(null)
     } catch (e) { setErrPlan(String((e as Error).message)) }
   }
-  const idx = r.etat === 'echec' ? -1 : (r.etat as string) === 'montage' ? ETAPES.indexOf('export') : ETAPES.indexOf(r.etat)
+  // un reel à preset passe par 'storyboard' (relecture) puis 'preset' (images et clips) : on l'affiche sur les mêmes étapes
+  const etape = r.etat === 'storyboard' ? 'redaction' : r.etat === 'preset' ? (r.plans.some(p => p.clipJob) ? 'clips' : 'photos') : r.etat
+  const idx = r.etat === 'echec' ? -1 : (etape as string) === 'montage' ? ETAPES.indexOf('export') : ETAPES.indexOf(etape as typeof ETAPES[number])
   const photos = r.plans.filter(p => p.photoUri).length, clips = r.plans.filter(p => p.clipUri).length
   const detail = (e: Reel['etat']) => e === 'photos' ? ` ${photos}/${r.plans.length || r.n}` : e === 'clips' ? ` ${clips}/${r.plans.length || r.n}` : ''
   return (
@@ -206,6 +212,7 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
       <div style={{ display: 'grid', gap: 10, alignContent: 'start', minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.accroche ? `« ${r.accroche} »` : r.brief}</div>
         {r.accroche && <div style={{ fontSize: 12, color: 'var(--faint)' }}>{r.brief}</div>}
+        {r.etat === 'storyboard' && r.cases && <Storyboard r={r} />}
         <div className="flex items-center gap-1.5 flex-wrap" style={{ fontSize: 12 }}>
           {ETAPES.map((e, k) => (
             <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px', borderRadius: 999, background: k < idx || r.etat === 'fini' ? 'var(--lv3)' : k === idx ? 'var(--accent)' : 'var(--lv2)',
@@ -265,6 +272,41 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
           <a className="pill tool" style={{ justifyContent: 'center' }} href={r.reelUri} download={`reel-${r.id}.mp4`}>{t('Télécharger')}</a>
         </div>
       )}
+    </div>
+  )
+}
+
+/* Le storyboard d'un reel à preset, avant le tournage : chaque case écrite par le réalisateur
+   se corrige (une tenue, le plat, l'accroche…), puis « Tourner » lance les images et les clips. */
+function Storyboard({ r }: { r: Reel }) {
+  const [cases, setCases] = useState(() => JSON.parse(JSON.stringify(r.cases ?? {})) as Record<string, unknown>)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const NOMS: Record<string, string> = { hook: 'Accroche', room: 'Pièce', outfits: 'Tenues', vanity: 'Coiffeuse', robe: 'Tenue de préparation', skin: 'Teint', eyes: 'Yeux', lips: 'Lèvres', final: 'Coiffure et bijoux',
+    street: 'Rue', place: 'Lieu', outfit: 'Tenue', dish: 'Plat', drink: 'Boisson', shop: 'Vitrine', find: 'Trouvaille', view: 'Vue de fin', light: 'Lumière', music: 'Morceau' }
+  const champ = (v: string, set: (x: string) => void) => <textarea className="pin" rows={2} value={v} onChange={e => set(e.target.value)} style={{ marginTop: 0, fontSize: 12.5 }} />
+  const tourner = async () => {
+    setBusy(true); setErr(null)
+    try { await json(await fetch(`/api/reels/${encodeURIComponent(r.id)}/tourner`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cases }) })) }
+    catch (e) { setErr(String((e as Error).message)) }
+    setBusy(false)
+  }
+  return (
+    <div style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, background: 'var(--lv2)' }}>
+      <b style={{ fontSize: 12.5 }}>{t('Storyboard : relis et corrige, puis tourne')}</b>
+      {Object.entries(cases).map(([k, v]) => (
+        <label key={k} style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+          <span>{t(NOMS[k] ?? k)}</span>
+          {typeof v === 'string' ? champ(v, x => setCases(c => ({ ...c, [k]: x })))
+            : Array.isArray(v) && v.every(x => typeof x === 'string')
+              ? (v as string[]).map((x, i) => <span key={i}>{champ(x, y => setCases(c => ({ ...c, [k]: (c[k] as string[]).map((z, j) => j === i ? y : z) })))}</span>)
+              : <span style={{ color: 'var(--faint)' }}>{t('(case non modifiable)')}</span>}
+        </label>
+      ))}
+      <div className="flex gap-2 items-center">
+        <button className="cta" style={{ padding: '8px 16px', flexDirection: 'row' }} disabled={busy} onClick={() => void tourner()}>{busy ? '…' : `🎬 ${t('Tourner')}`}</button>
+        {err && <span className="texte-erreur">{err}</span>}
+      </div>
     </div>
   )
 }

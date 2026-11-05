@@ -2680,6 +2680,10 @@ app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
 app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req.params.id)) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
+// le storyboard relu et corrigé part au tournage
+app.post('/api/reels/:id/tourner', async (req, reply) => {
+  try { return reelOut(reelPresets.tournerStoryboard(req.params.id, req.body?.cases)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 app.post('/api/reels', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   // un preset (saut de tenues…) : la structure est tenue par le code, le LLM remplit les cases
@@ -2688,7 +2692,7 @@ app.post('/api/reels', async (req, reply) => {
     try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
   if (req.body?.preset) {
-    try { return reelOut(reelPresets.lancerPreset({ presetId: String(req.body.preset), brief: req.body.brief, langue: req.body.langue, personaId: personaDe(req), cle: cleComfy(req) })) }
+    try { return reelOut(reelPresets.lancerPreset({ presetId: String(req.body.preset), brief: req.body.brief, langue: req.body.langue, personaId: personaDe(req), cle: cleComfy(req), relire: req.body.relire === true })) }
     catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
   // « perso » : la voix enregistrée sur la fiche du personnage

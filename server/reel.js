@@ -770,7 +770,10 @@ export async function annulerReel(id) {
   if (r.etat === 'fini' || r.etat === 'echec') return r
   ecrire(id, 'echec', { erreur: 'annulé' })
   cles.delete(id)
-  const jobs = [...(r.plans ?? []).flatMap(p => [p.photoJob, p.clipJob]), r.exportJob].filter(Boolean)
+  // un reel à preset a aussi ses images clés, ses clips et son morceau dans son graphe
+  const g = r.graphe ?? {}
+  const jobs = [...(r.plans ?? []).flatMap(p => [p.photoJob, p.clipJob]), ...Object.values(g.stills ?? {}).map(s => s.job), ...(g.clips ?? []).map(c => c.job),
+    r.musiqueJob, r.exportJob].filter(Boolean)
   for (const j of jobs) await cancelJob(j).catch(() => {})
   return lireReel(id)
 }
