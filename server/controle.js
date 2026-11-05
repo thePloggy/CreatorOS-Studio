@@ -113,3 +113,25 @@ export async function controlerJob(job, relancer) {
     }
   }
 }
+
+/* La prise d'un clip à monter, une fois le contrôle passé : la prise 1 si elle n'a pas de défaut
+   grave, sinon la meilleure des deux une fois la nouvelle prise contrôlée. `attente` tant que le
+   contrôle ou la nouvelle prise ne sont pas finis ; sans contrôle au bout de 2 min, la prise 1. */
+const premiere = jobId => store.assetsOfJob(jobId).find(x => x.media_type === 'video' && !String(x.id).endsWith('-full') && !String(x.filename).includes('-montage-')) || null
+export function priseRetenue(jobId) {
+  const a = premiere(jobId)
+  if (!a) return { etat: 'attente' }
+  const c = store.lireControle(a.id)
+  if (!c) {
+    const fin = store.getJob(jobId)?.finished_at ?? store.getJob(jobId)?.finishedAt ?? 0
+    return Date.now() - fin > 120_000 ? { etat: 'pret', assetId: a.id } : { etat: 'attente' }
+  }
+  if (!c.relance || c.relance === true) return { etat: 'pret', assetId: a.id }
+  const r = store.getJob(c.relance)
+  if (!r || ['blocked', 'failed', 'cancelled'].includes(r.status)) return { etat: 'pret', assetId: a.id }
+  if (r.status !== 'done') return { etat: 'attente', relance: c.relance }
+  const b = premiere(c.relance)
+  const cb = b && store.lireControle(b.id)
+  if (!b || !cb?.choix) return { etat: 'attente', relance: c.relance }
+  return { etat: 'pret', assetId: cb.choix === 'gardée' ? b.id : a.id, relance: c.relance }
+}

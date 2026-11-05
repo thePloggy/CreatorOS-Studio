@@ -22,6 +22,7 @@ import { persona } from './persona.js'
 import { enqueue, enqueueMusique, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
+import { priseRetenue } from './controle.js'
 
 export const MODELE = process.env.CREATOROS_REALISATEUR || 'qwen3.5:35b'
 const SEULE = 'She is the only person in the frame.'
@@ -365,7 +366,13 @@ function avancerPreset(r) {
       return
     }
     const st = etatJob(c.job)
-    if (st === 'done') { const a = premierAsset(c.job); if (a) { c.asset = a.id; r.plans[k].clipAsset = a.id; change = true } else c.rate = 'retire' }
+    if (st === 'done') {
+      if (!premierAsset(c.job)) { c.rate = 'retire'; return }
+      // le contrôle automatique a pu relancer une prise : on monte celle qu'il a gardée
+      const p = priseRetenue(c.job)
+      if (p.relance && c.relance !== p.relance) { c.relance = p.relance; change = true }
+      if (p.etat === 'pret') { c.asset = p.assetId; r.plans[k].clipAsset = p.assetId; change = true }
+    }
     else if (RATE.has(st)) c.rate = true
   })
   if (g.clips.some(c => c.rate)) return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: g.clips.some(c => c.rate === 'retire') ? RETIRE : 'un clip a échoué — relancer le reel' })

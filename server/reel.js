@@ -24,6 +24,7 @@ import { persona } from './persona.js'
 import { enqueue as enfiler, deposerAvecCle, cancelJob } from './jobs.js'
 import * as montage from './montage.js'
 import { t0Hit } from './t0.js'
+import { priseRetenue } from './controle.js'
 import { FORMATS, reglesFormat, consigneChoix, SCHEMA_CHOIX } from './formatsReel.js'
 import { anatomieImage, anatomieVideo } from './anatomie.js'
 import { dire, voixAcceptee } from './voix.js'
@@ -661,7 +662,14 @@ function avancer(r) {
         } else if (s === 'blocked' || s === 'cancelled' || s === 'absent') rates++
       } else if (!pl.clipAsset) {
         const s = etatJob(pl.clipJob)
-        if (s === 'done') { const a = premierAsset(pl.clipJob); if (a) { pl.clipAsset = a.id; change = true } else rates++ }
+        if (s === 'done') {
+          if (!premierAsset(pl.clipJob)) rates++
+          else {
+            // le contrôle automatique a pu relancer une prise : on monte celle qu'il a gardée
+            const p = priseRetenue(pl.clipJob)
+            if (p.etat === 'pret') { pl.clipAsset = p.assetId; change = true }
+          }
+        }
         else if (s === 'blocked' || s === 'cancelled' || s === 'absent') rates++
       }
     }
