@@ -24,6 +24,7 @@ export const serveur: Record<string, string> = {
   'image illisible': 'unreadable image',
   'contrôle de la photo indisponible : réessaie plus tard': 'photo check unavailable: try again later',
   'Pour la sécurité de tous, la démo publique refuse les photos où l’on voit une personne (visage, corps, main) : dépose un objet, un produit, un décor ou un animal.': 'For everyone’s safety, the public demo refuses photos showing a person (face, body, hand): upload an object, a product, a place or an animal.',
+  'une image ou un clip a été retiré par le filtre de nudité de la démo (souvent un maillot de bain trop échancré) — relancer avec des tenues plus couvrantes': "an image or a clip was removed by the demo's nudity filter (often a swimsuit that is too revealing) — run it again with more covering outfits",
   'décomposition impossible': 'could not break the image down',
   'décomposition impossible : ni image d\'ancrage exploitable, ni tri du texte': 'could not break the image down: no usable anchor image, and the text could not be sorted',
   'décris ce que cet élément doit devenir': 'describe what this element should become',
@@ -173,6 +174,5 @@ export const MOTIFS_SERVEUR: [RegExp, (m: RegExpMatchArray, tr: Tr) => string][]
     const [cause, ...conseil] = m[4].split(' — ')
     const c = cause.replace(/\(reçu : /g, '(received: ').replace(/ ; … \((\d+) de plus\)$/, ' ; … ($1 more)')
     return `node ${m[1]} (${m[2]})${m[3]}: ${[c, ...conseil.map(tr)].join(' — ')}`
-    'une image ou un clip a été retiré par le filtre de nudité de la démo (souvent un maillot de bain trop échancré) — relancer avec des tenues plus couvrantes': "an image or a clip was removed by the demo's nudity filter (often a swimsuit that is too revealing) — run it again with more covering outfits",
 }],
 ]
