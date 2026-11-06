@@ -24,7 +24,7 @@ import { MLibrary } from './MLibrary'
 import { MCreate } from './MCreate'
 import { MJobs } from './MJobs'
 import { MAtelier } from './MAtelier'
-import { MStudio } from './MStudio'
+import { MStudio, vueStudioDemandee } from './MStudio'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { useDraftPersistence } from './useDraft'
 import { t } from '../i18n'
@@ -123,7 +123,7 @@ export default function MApp() {
       </header>
 
       {space === 'library' && <MLibrary goCreate={() => setSpace('create')} goJobs={() => setSpace('jobs')} />}
-      {space === 'create' && <MCreate goJobs={() => setSpace('jobs')} />}
+      {space === 'create' && <MCreate goJobs={() => setSpace('jobs')} goMontage={() => { vueStudioDemandee.v = 'montage'; setSpace('studio') }} />}
       {space === 'studio' && <MStudio goVideo={() => { s.setMode('video'); setSpace('create') }} />}
       {space === 'jobs' && <MJobs goLibrary={() => setSpace('library')} />}
       {space === 'atelier' && <MAtelier onBack={() => setSpace('library')} />}

@@ -166,7 +166,24 @@ const jobOut = r => r && (p => ({
   comfyPromptId: r.comfy_prompt_id, seed: r.seed, userPrompt: r.user_prompt,
   userDirectives: r.user_directives, composedPositive: r.composed_positive,
   composedNegative: r.composed_negative, selections: parse(r.selections), error: r.error,
+  // champs ajoutés : l'opération du job et, pour un morceau ou un bruitage, ses réglages et ses prises (studio son)
+  op: p?.op ?? undefined,
+  audio: p?.op === 'musique' ? reglagesAudio(r, p) : undefined,
 }))((() => { try { return JSON.parse(r.payload || 'null') } catch { return null } })())
+
+/** Réglages d'un rendu musique / bruitage (cf. enqueueMusique) et ses prises encore dans la bibliothèque audio
+ *  (même nommage que runMusique : <racine>_<6 car. de l'id>.mp3, puis _2, _3…). */
+function reglagesAudio(r, p) {
+  const racine = String(p.userPrompt ?? '').normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'musique'
+  const prises = r.status === 'done'
+    ? [0, 1, 2, 3].map(k => `${racine}_${String(r.id).slice(-6)}${k ? `_${k + 1}` : ''}.mp3`).filter(n => fs.existsSync(path.join(montage.MUSIQUES_DIR, n)))
+    : []
+  return {
+    genre: p.musiqueBruitage ? 'bruitage' : 'musique', style: p.userPrompt ?? '', secondes: p.musiqueSecondes ?? null,
+    paroles: p.musiqueParoles ?? '', bpm: p.musiqueBpm ?? null, tonalite: p.musiqueTonalite ?? null, mesure: p.musiqueMesure ?? null,
+    langue: p.musiqueLangue ?? null, voix: p.musiqueVoix ?? null, instruments: p.musiqueInstruments ?? [], prises,
+  }
+}
 
 /** Ce qu'on peut chercher sur un asset en plus du prompt : recette, moteur, opération, LoRA. */
 const motsDe = r => {
@@ -999,7 +1016,8 @@ app.get('/api/poster/:file', async (req, reply) => {
 })
 
 app.get('/api/jobs', async req => ({
-  jobs: store.listJobs(Number(req.query.limit) || 50).map(jobOut),
+  // ?op=musique : seulement les jobs de cette opération (historique du studio son) ; sans op, la liste de toujours
+  jobs: (req.query.op ? store.listJobsOp(String(req.query.op), Math.min(500, Number(req.query.limit) || 50)) : store.listJobs(Number(req.query.limit) || 50)).map(jobOut),
 }))
 
 /** Annulation : file → retiré ; en cours → interrompu côté ComfyUI. */

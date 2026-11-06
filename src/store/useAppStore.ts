@@ -217,7 +217,7 @@ interface AppState {
    *  section) — sans ça les réglages atterrissaient dans une console
    *  invisible. Le nonce force la prise en compte même si la cible ne
    *  change pas. Consommée par le shell (V2App). */
-  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config' | 'nouveau-personnage' | 'outil'; nonce: number } | null
+  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config' | 'nouveau-personnage' | 'outil' | 'son'; nonce: number } | null
   /** « Utiliser dans… » : le média que la section cible reprend à son ouverture,
    *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null

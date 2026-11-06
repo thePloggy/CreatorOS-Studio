@@ -13,7 +13,7 @@ import { ReshootView } from '../v2/ReshootView'
 import { ParoleView } from '../v2/ParoleView'
 import { MontageView } from '../v2/MontageView'
 import { MViewer } from './MViewer'
-import { Musiques } from '../v2/Musiques'
+import { SonView } from '../v2/SonView'
 const CroquisView = lazy(() => import('../v2/CroquisView').then(m => ({ default: m.CroquisView })))
 const OutilsClip = () => import('../v2/OutilsClipViews')
 const RestaurerView = lazy(() => import('../v2/RestaurerView').then(m => ({ default: m.RestaurerView })))
@@ -26,11 +26,17 @@ import { t } from '../i18n'
 import { lienMobile } from './lien'
 
 type Vue = 'reel' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
-const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Music & Voice'], ['montage', 'Editor'],
+const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Son'], ['montage', 'Editor'],
   ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check']]
 
+/** Vue du Studio demandée depuis un autre espace (« Utiliser au montage » du studio son). */
+export const vueStudioDemandee: { v: Vue | null } = { v: null }
+
 export function MStudio({ goVideo }: { goVideo: () => void }) {
-  const [vue, setVue] = useState<Vue>(() => { const v = lienMobile()?.vue; return (VUES.some(([x]) => x === v) ? v : 'reel') as Vue })
+  const [vue, setVue] = useState<Vue>(() => {
+    const d = vueStudioDemandee.v; vueStudioDemandee.v = null
+    const v = d ?? lienMobile()?.vue; return (VUES.some(([x]) => x === v) ? v : 'reel') as Vue
+  })
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const [vu, setVu] = useState<{ a: Asset; list: Asset[] } | null>(null)
   // l'onglet actif reste visible dans la barre qui défile
@@ -50,7 +56,7 @@ export function MStudio({ goVideo }: { goVideo: () => void }) {
         {vue === 'reshoot' && <ReshootView />}
         {vue === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
         {vue === 'parole' && <ParoleView goVideo={goVideo} />}
-        {vue === 'sons' && <Musiques />}
+        {vue === 'sons' && <SonView goMontage={() => setVue('montage')} />}
         {vue === 'montage' && <MontageView ouvrirId={montageAOuvrir} onOpen={(a, list) => setVu({ a, list })} />}
         <Suspense fallback={null}>
           {vue === 'restaurer' && <RestaurerView onOpen={(a, list) => setVu({ a, list })} />}

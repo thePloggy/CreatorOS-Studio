@@ -39,15 +39,20 @@ longueur = fin - debut
 # photo est posé sur le mannequin à la 1re image, debout, bras baissés ; si le mannequin y a les bras levés ou écartés,
 # LTX suit le mannequin et garde aussi les bras de la photo (3 bras). La danse tourne en boucle : elle peut commencer
 # à n'importe laquelle de ses images.
+# Les jambes comptent aussi : la photo est debout, pieds au sol et jambes jointes ; une danse qui démarre jambe levée
+# (can-can) donnait 3 jambes. Score = mains loin des hanches + pieds écartés + pied le plus haut décollé du sol.
 paires = [(arm.pose.bones.get('mixamorig:' + c + 'Hand'), arm.pose.bones.get('mixamorig:' + c + 'UpLeg')) for c in ('Left', 'Right')]
+pieds = [arm.pose.bones.get('mixamorig:' + c + 'Foot') for c in ('Left', 'Right')]
 depart = debut
-if all(m and h for m, h in paires):
-    meilleur = None
+if all(m and h for m, h in paires) and all(pieds):
+    vus = []
     for f in range(debut, fin):
         scene.frame_set(f)
-        ecart = sum(((arm.matrix_world @ m.head) - (arm.matrix_world @ h.head)).length for m, h in paires)
-        if meilleur is None or ecart < meilleur - 1e-6:
-            meilleur, depart = ecart, f
+        bras = sum(((arm.matrix_world @ m.head) - (arm.matrix_world @ h.head)).length for m, h in paires)
+        p0, p1 = (arm.matrix_world @ x.head for x in pieds)
+        vus.append((f, bras, (p0 - p1).length, abs(p0.z - p1.z), max(p0.z, p1.z)))
+    sol_pieds = min(v[4] for v in vus)
+    depart = min(vus, key=lambda v: v[1] + v[2] + 2 * v[3] + 2 * (v[4] - sol_pieds))[0]
 tours = max(1, math.ceil((depart - debut + secondes * 30) / max(longueur, 1)))
 if tours > 1:
     # une danse plus courte que le rendu est rejouée ; chaque reprise repart d'où la précédente s'est arrêtée (le
@@ -185,7 +190,7 @@ elif decor == 'cabaret':
         # dessus à 0,3 : nettement sous le plancher de la scène (0,45), sinon Qwen pose les tables sur la scène
         volume('table ronde', x, bord - T * 0.24, salle, T * 0.4, T * 0.4, T * 0.3, 0.25)
         volume('lampe', x, bord - T * 0.24, salle + T * 0.3, T * 0.14, T * 0.14, T * 0.18, 0.9)
-    volume('micro', cx + R * 0.5 + T * 0.3, fond - T * 0.8, sol, T * 0.05, T * 0.05, T * 0.95, 0.15)
+    # pas de micro : pour être dans le cadre de la 1re image il revenait dans l'axe, derrière elle, et elle le traversait
 elif decor == 'bal':
     haut_cam = 0.8
     sol_dalles(T * 0.45, 0.5, 0.58)
@@ -224,7 +229,8 @@ elif decor == 'cuisine':
     volume('placards', cx, fond + T * 0.75, sol + T * 1.2, R * 2 + T * 3, T * 0.35, T * 0.6, 0.55)
     volume('frigo', cx + R + T * 1.8, fond + T * 0.6, sol, T * 0.6, T * 0.6, T * 1.8, 0.85)
     # l'îlot central, entre la danse et le plan de travail du fond : sans lui la pièce ne se lit pas comme une cuisine
-    volume('ilot', cx - R * 0.3, fond - T * 0.75, sol, T * 1.5, T * 0.6, T * 0.9, 0.5)
+    # gris foncé : du même gris que le plan de travail, il s'y fondait et Qwen le repeignait devant elle
+    volume('ilot', cx - R * 0.3, fond - T * 0.15, sol, T * 1.5, T * 0.5, T * 0.85, 0.28)
 elif decor == 'plage':
     sol_dalles(T * 1.2, 0.74, 0.76)
     volume('mer', cx, fond + T * 4, sol - 0.01, R * 2 + T * 40, T * 6, 0.02, 0.45)
@@ -273,7 +279,7 @@ else:   # salon
     volume('mur gauche', cx - R - T * 3.0, cy, sol, T * 0.1, T * 10, T * 1.9, 0.62)
     volume('canape', cx - R * 0.5, fond + T * 0.3, sol, T * 1.3, T * 0.5, T * 0.45, 0.33)
     # la table basse devant le canapé, entre lui et la zone de danse
-    volume('table basse', cx - R * 0.5, fond - T * 0.45, sol, T * 0.75, T * 0.38, T * 0.24, 0.3)
+    volume('table basse', cx - R * 0.5, fond - T * 0.2, sol, T * 0.7, T * 0.32, T * 0.24, 0.3)
     volume('table', cx + R * 0.7, fond + T * 0.2, sol, T * 0.55, T * 0.5, T * 0.4, 0.28)
     volume('plante', cx + R + T * 1.2, fond + T * 0.3, sol, T * 0.3, T * 0.3, T * 0.9, 0.22)
 for o in corps:
@@ -350,7 +356,7 @@ CITES = {
     'tokyo': [['enseigne'], ['facade']],
     'paris': [['banc'], ['reverbere'], ['balcon']],
     'parking': [['voiture', 'vitres']],
-    'cabaret': [['table ronde', 'lampe'], ['micro']],
+    'cabaret': [['table ronde', 'lampe']],
     'bal': [['colonne'], ['lustre'], ['fenetre']],
     'loft': [['fauteuil'], ['verriere']],
     'studio-danse': [['barre'], ['fenetre']],

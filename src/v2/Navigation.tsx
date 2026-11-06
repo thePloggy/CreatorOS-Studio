@@ -1,5 +1,5 @@
 /* ============================================================
-   Navigation : trois familles, Image, Vidéo, Audio (plus les extensions).
+   Navigation : trois familles, Image, Vidéo, Son (plus les extensions).
    Chaque famille ouvre un grand menu en colonnes (créer, modifier, réaliser,
    finir) avec une vignette par outil, et la colonne des modèles employés. Un outil
    qui part d'un média existant ouvre le choix dans la bibliothèque, puis la
@@ -14,7 +14,7 @@ import { Pastille } from './bits'
 import { FramePicker } from './popups'
 import { APERCUS } from './Apercus'
 
-export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
+export type Section = 'croquis' | 'accueil' | 'image' | 'son' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
 /** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
@@ -94,13 +94,13 @@ export const MENUS: Menu[] = [
       { label: 'Social Check', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
       ] },
     ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['MiniMax H3', 'Clip avec son, le plus fluide · prébranché, à installer', 'h3'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
-  { titre: 'Audio', defaut: 'Music Studio', colonnes: [
+  { titre: 'Son', defaut: 'Music Studio', colonnes: [
       { titre: 'Créer du son', outils: [
-      { label: 'Music Studio', texte: 'Un morceau complet : style, instruments, tempo, tonalité, paroles et voix, en libre ou d’après un preset.', section: 'assets', tache: 'musiques', pastille: 'new' },
-      { label: 'Dialog & Voice Studio', texte: 'Tape une phrase, choisis une voix, et donne une voix à chaque personnage.', section: 'assets', tache: 'voix', pastille: 'new' },
-      { label: 'Sound Effects', texte: 'Décris un bruitage pour tes vidéos : il rejoint la bibliothèque audio.', section: 'assets', tache: 'bruitage' },
-      { label: 'Voice Clone', texte: 'Ta voix, d’après un court extrait que tu enregistres avec ton accord (propriétaire du studio).', section: 'assets', tache: 'cloner', pastille: 'new' },
-      { label: 'Voice Changer', texte: 'Une phrase enregistrée, redite avec une autre voix (propriétaire du studio).', section: 'assets', tache: 'changer', pastille: 'new' },
+      { label: 'Music Studio', texte: 'Un morceau complet : style, instruments, tempo, tonalité, paroles et voix, en libre ou d’après un preset.', section: 'son', tache: 'musiques', pastille: 'new' },
+      { label: 'Dialog & Voice Studio', texte: 'Tape une phrase, choisis une voix, et donne une voix à chaque personnage.', section: 'son', tache: 'voix', pastille: 'new' },
+      { label: 'Sound Effects', texte: 'Décris un bruitage pour tes vidéos : il rejoint la bibliothèque audio.', section: 'son', tache: 'bruitage' },
+      { label: 'Voice Clone', texte: 'Ta voix, d’après un court extrait que tu enregistres avec ton accord (propriétaire du studio).', section: 'son', tache: 'cloner', pastille: 'new' },
+      { label: 'Voice Changer', texte: 'Une phrase enregistrée, redite avec une autre voix (propriétaire du studio).', section: 'son', tache: 'changer', pastille: 'new' },
       ] },
       { titre: 'Sur un clip', outils: [
       { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
@@ -131,9 +131,9 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     if ('stage' in o) { ouvrirStage(); return }
     if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
-    // page audio : chaque entrée du menu ouvre son onglet (musique, voix, bruitage)
+    // studio son (section « son ») : chaque entrée du menu ouvre son onglet (musique, voix, bruitage)
     const audio = o.tache === 'musiques' ? 'musique' : o.tache === 'bruitage' ? 'bruitage' : o.tache === 'voix' || o.tache === 'cloner' || o.tache === 'changer' ? 'voix' : null
-    useAppStore.setState(audio ? { ongletMusiques: true, ongletAudio: audio } : { ongletMusiques: false })
+    useAppStore.setState(audio ? { ongletAudio: audio, ongletMusiques: false } : { ongletMusiques: false })
     if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : 'tout' })
     if (o.tache === 'camera' || o.tache === 'effets') useAppStore.setState({ famillePresets: o.tache === 'camera' ? 'camera' : 'effet' })
     useAppStore.setState({ demandeOutil: o.tache === 'hd' || o.tache === 'cloner' || o.tache === 'changer' ? o.tache : null })

@@ -7,7 +7,7 @@
    Le brouillon est conservé par opération : changer d'onglet ne perd jamais le travail en cours,
    puisque tout vit dans le store partagé avec le desktop.
    ============================================================ */
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { VideoAspect } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { engineInfo, moteurT2v, VIDEO_ENGINES } from '../features/console/video/engines'
@@ -16,12 +16,18 @@ import { MSourcePicker } from './MSourcePicker'
 import { MEnhance, MElements } from './MPrompt'
 import { storageAvailable } from './draft'
 import { t, tp } from '../i18n'
+import { lienMobile } from './lien'
+import '../v2/v2.css'
+/* Studio son : la vue du bureau, chargée à la demande dans un conteneur `.v2` pour ses styles. */
+const SonView = lazy(() => import('../v2/SonView').then(m => ({ default: m.SonView })))
 
 type ImgOp = 'generate' | 'edit'
 type VidOp = 'animate' | 'ambiance' | 'replay' | 'extend'
 
-export function MCreate({ goJobs }: { goJobs: () => void }) {
+export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?: () => void }) {
   const s = useAppStore()
+  // Image, Vidéo ou Son : le son a son propre studio (musique, voix, bruitages)
+  const [son, setSon] = useState(() => !!lienMobile()?.son)
   const v = s.video
   const mode = s.mode === 'video' ? 'video' : 'photo'
 
@@ -81,6 +87,20 @@ export function MCreate({ goJobs }: { goJobs: () => void }) {
       : (s.batchCount > 1 ? t('Retoucher {n} fois', { n: s.batchCount }) : t('Retoucher')))
     : (vidOp === 'extend' ? t('Prolonger de {n} s', { n: v.durationS }) : (s.batchCount > 1 ? t('Générer {n} vidéos', { n: s.batchCount }) : t('Générer la vidéo')))
 
+  const choixMode = (m: string) => { if (m === 'son') { setSon(true); return } setSon(false); s.setMode(m as 'photo' | 'video') }
+  if (son) return (
+    <>
+      <div className="htitle">
+        <h1>{t('Créer')}</h1>
+        <p>{t('Musique, voix et bruitages, en deux prises.')}</p>
+      </div>
+      <div className="scroll">
+        <Seg value="son" onPick={choixMode} options={[['photo', t('Image')], ['video', t('Vidéo')], ['son', t('Son')]]} />
+        <div className="v2 m-son"><Suspense fallback={null}><SonView goMontage={goMontage} /></Suspense></div>
+      </div>
+    </>
+  )
+
   return (
     <>
       <div className="htitle">
@@ -89,8 +109,8 @@ export function MCreate({ goJobs }: { goJobs: () => void }) {
       </div>
 
       <div className="scroll">
-        <Seg value={mode} onPick={m => s.setMode(m as 'photo' | 'video')}
-          options={[['photo', t('Image')], ['video', t('Vidéo')]]} />
+        <Seg value={mode} onPick={choixMode}
+          options={[['photo', t('Image')], ['video', t('Vidéo')], ['son', t('Son')]]} />
 
         <div className="ops" style={{ marginTop: 12 }}>
           {mode === 'photo' ? (<>

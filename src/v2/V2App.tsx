@@ -34,6 +34,7 @@ const ReshootView = lazy(() => import('./ReshootView').then(m => ({ default: m.R
 const HomeView = lazy(() => import('./HomeView').then(m => ({ default: m.HomeView })))
 const ParoleView = lazy(() => import('./ParoleView').then(m => ({ default: m.ParoleView })))
 const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.VideoView })))
+const SonView = lazy(() => import('./SonView').then(m => ({ default: m.SonView })))
 const AssetsView = lazy(() => import('./AssetsView').then(m => ({ default: m.AssetsView })))
 const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
 const CroquisView = lazy(() => import('./CroquisView').then(m => ({ default: m.CroquisView })))
@@ -92,7 +93,7 @@ function Telemetry() {
   </>)
 }
 
-const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
+const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
 // l'outil d'une page dédiée et la famille de Camera Moves / Effects viennent aussi de l'adresse
 {
   const q = new URLSearchParams(window.location.search)
@@ -223,6 +224,7 @@ export default function V2App() {
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'son' && <SonView goMontage={() => setSection('montage')} />}
         {section === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
         {section === 'extensions' && <ExtensionsView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'pub' && <PubView onOpen={(a, list) => setFocus({ a, list })} />}

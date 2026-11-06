@@ -43,17 +43,10 @@ function SelectVoix({ valeur, onChange, voix, clones, persos }: { valeur: string
   )
 }
 
-function Resultat({ nom }: { nom: string | null }) {
-  if (!nom) return null
-  return (
-    <div className="musique">
-      <span className="texte-faible">{nomCourt(nom)}</span>
-      <audio controls preload="none" src={urlMusique(nom) ?? undefined} />
-    </div>
-  )
-}
+/** Une réplique rendue : le studio son la pose dans ses résultats et son historique. */
+export type RenduVoix = { nom: string; texte: string; voix: string; voixNom: string; mode: 'dire' | 'cloner' | 'changer'; at: number }
 
-export function StudioVoix({ surPret }: { surPret: () => void }) {
+export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
   const edition = useEdition()
   const [cle, setCle] = useState(0)
   const { voix, clones, disponible, clone, extraits } = useCatalogueVoix(cle)
@@ -74,38 +67,38 @@ export function StudioVoix({ surPret }: { surPret: () => void }) {
   const [occupe, setOccupe] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erreur, setErreur] = useState(false)
-  const [dernier, setDernier] = useState<string | null>(null)
   useEffect(() => { if (!ref && extraits[0]) setRef(extraits[0]); if (!source && extraits[0]) setSource(`audio:${extraits[0]}`) }, [extraits]) // eslint-disable-line react-hooks/exhaustive-deps
   const assets = useAppStore(st => st.assets)
   const clips = useMemo(() => assets.filter(a => String(a.mediaType) === 'video').slice(0, 40), [assets])
 
   // « perso:<id> » se résout en la voix rattachée au personnage
   const voixReelle = (v: string) => v.startsWith('perso:') ? persos.find(p => p.id === v.slice(6))?.voix ?? '' : v
-  const fin = (r: Response, d: { error?: string; nom?: string }) => {
+  const nomVoix = (v: string) => v.startsWith('clone:') ? `${t('voix clonée')} · ${nomCourt(v.slice(6))}` : v.startsWith('extrait:') ? `${t('voix clonée')} · ${nomCourt(v.slice(8))}` : voix.find(x => x.id === v)?.nom ?? v
+  const fin = (r: Response, d: { error?: string; nom?: string }, info?: Omit<RenduVoix, 'nom' | 'at'>) => {
     setOccupe(false)
     if (!r.ok) { setErreur(true); setMsg(tServeur(d.error ?? null) ?? `HTTP ${r.status}`); return false }
-    if (d.nom) setDernier(d.nom)
-    surPret(); setCle(c => c + 1); return true
+    // le rendu s'affiche dans la zone des résultats du studio son
+    surPret(d.nom && info ? { ...info, nom: d.nom, at: Date.now() } : undefined); setCle(c => c + 1); return true
   }
   const dire = async () => {
-    setOccupe(true); setMsg(null); setErreur(false); setDernier(null)
+    setOccupe(true); setMsg(null); setErreur(false)
     const v = voixReelle(choix)
     const r = v.startsWith('clone:') ? await poster('/api/voix/clone', { texte, reference: v.slice(6), accord: true }) : await poster('/api/voix', { texte, voix: v })
-    if (fin(r, await r.json().catch(() => ({})))) setTexte('')
+    if (fin(r, await r.json().catch(() => ({})), { texte, voix: v, voixNom: nomVoix(v), mode: 'dire' })) setTexte('')
   }
   const cloner = async () => {
-    setOccupe(true); setMsg(null); setErreur(false); setDernier(null)
+    setOccupe(true); setMsg(null); setErreur(false)
     const r = await poster('/api/voix/clone', { texte, reference: ref, accord })
-    if (fin(r, await r.json().catch(() => ({})))) setTexte('')
+    if (fin(r, await r.json().catch(() => ({})), { texte, voix: `clone:${ref}`, voixNom: nomVoix(`clone:${ref}`), mode: 'cloner' })) setTexte('')
   }
   const changer = async () => {
-    setOccupe(true); setMsg(null); setErreur(false); setDernier(null)
+    setOccupe(true); setMsg(null); setErreur(false)
     const versCible = cible.startsWith('extrait:') ? { reference: cible.slice(8), accord } : { voix: cible }
     const corps = source.startsWith('clip:') ? { assetId: source.slice(5), ...versCible } : { audio: source.slice(6), ...versCible }
     const r = await poster('/api/voix/changer', corps)
     const d = await r.json().catch(() => ({})) as { error?: string; nom?: string; jobId?: string }
     // un clip revoisé devient un nouveau clip de la bibliothèque
-    if (fin(r, d) && d.jobId) { void useAppStore.getState().adoptServerJob(d.jobId); setMsg(t('Nouveau clip dans la bibliothèque, avec la voix changée.')) }
+    if (fin(r, d, { texte: source.startsWith('clip:') ? '' : nomCourt(source.slice(6)), voix: cible, voixNom: nomVoix(cible), mode: 'changer' }) && d.jobId) { void useAppStore.getState().adoptServerJob(d.jobId); setMsg(t('Nouveau clip dans la bibliothèque, avec la voix changée.')) }
   }
 
   const onglets: [Mode, string][] = [['dire', 'Dire une réplique'], ...(edition && clone ? [['cloner', 'Cloner une voix'], ['changer', 'Changer une voix']] as [Mode, string][] : []), ...(edition ? [['personnages', 'Voix des personnages']] as [Mode, string][] : [])]
@@ -171,7 +164,6 @@ export function StudioVoix({ surPret }: { surPret: () => void }) {
       {mode === 'personnages' && <VoixPersonnages persos={persos} voix={voix} clones={clones} surChange={chargerPersos} />}
 
       {msg && <span className={erreur ? 'texte-erreur' : 'texte-doux'}>{msg}</span>}
-      {mode !== 'personnages' && <Resultat nom={dernier} />}
     </div>
   )
 }

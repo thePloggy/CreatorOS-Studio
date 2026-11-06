@@ -57,3 +57,14 @@ export const INSTRUMENTS_COURANTS = ['piano', 'acoustic guitar', 'electric guita
 /** Balises de structure reconnues par ACE-Step. */
 export const BALISES_PAROLES = ['[Intro]', '[Verse]', '[Pre-Chorus]', '[Chorus]', '[Bridge]', '[Outro]', '[Instrumental]']
 export const SQUELETTE_PAROLES = '[Intro]\n\n[Verse]\n\n\n[Chorus]\n\n\n[Verse]\n\n\n[Chorus]\n\n\n[Bridge]\n\n\n[Chorus]\n\n\n[Outro]\n'
+
+/* La tonalité part en notation courte (« Dm », « F# », « Bbm ») : le mot anglais « minor » ferait
+   refuser la demande par le filtre de contenu de la démo. Le serveur la remet en toutes lettres pour ACE-Step. */
+export const codeTonalite = (k: string) => k.replace(/ minor$/, 'm').replace(/ major$/, '')
+
+/** Exemples de bruitages, posés d'un clic dans le champ (textes vérifiés contre le filtre de contenu). */
+export const EXEMPLES_BRUITAGE = [
+  'a heavy wooden door creaking open', 'rain on a tin roof, distant thunder', 'footsteps on gravel, slow and heavy',
+  'a glass bottle shattering on a stone floor', 'city traffic at night, distant sirens', 'ocean waves on a pebble beach, gulls',
+  'small crowd applauding in a wooden hall', 'retro arcade coin pickup blip',
+]

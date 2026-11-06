@@ -257,6 +257,9 @@ export const getJob   = id => getJobStmt.get(id)
 export const jobsByPlanGroup = g => db.prepare(`SELECT id, status, payload FROM jobs
   WHERE json_extract(payload, '$.motionPlan.group') = ? ORDER BY created_at, id`).all(g)
 export const listJobs = (limit = 50) => listJobsStmt.all(limit)
+/** Jobs d'une opération (ex. « musique » : l'historique du studio son), les plus récents d'abord. */
+const listJobsOpStmt = db.prepare(`SELECT * FROM jobs WHERE json_extract(payload, '$.op') = ? ORDER BY created_at DESC LIMIT ?`)
+export const listJobsOp = (op, limit = 50) => listJobsOpStmt.all(String(op), limit)
 
 /* ---------- assets + provenance ---------- */
 
