@@ -184,6 +184,8 @@ interface AppState {
   stageOuvert: boolean
   /** la bibliothèque s'ouvre sur ses musiques */
   ongletMusiques: boolean
+  /** onglet de la page audio : studio musique, studio voix, bruitage */
+  ongletAudio: 'musique' | 'voix' | 'bruitage'
   /** MiniMax H3 en option : installé, et permis sur cette instance. */
   h3: { demo: boolean; installe: boolean; disponible: boolean } | null
   /** onglet de la configuration demandé par un autre écran */
@@ -617,6 +619,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 
     stageOuvert: false,
     ongletMusiques: false,
+    ongletAudio: 'musique',
     h3: null,
     ongletConfig: null,
     famillePresets: null,

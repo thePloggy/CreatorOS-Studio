@@ -280,7 +280,7 @@ claude mcp add creatoros-studio -- node /path/to/creatoros-studio/scripts/agent/
 # or, after `npm link` in the repo: claude mcp add creatoros-studio -- creatoros-studio-mcp
 ```
 
-The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `get_status`, `list_library`, `list_characters` and `machine_status`. It has no dependency beyond Node. Set `STUDIO_URL` if the studio is not on `http://127.0.0.1:8787`, and `CREATOROS_OWNER_KEY` if it is locked with an owner key. Without the key, a request from the same machine is treated like any visitor.
+The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `dance` and `list_dances`, `generate_music` and `list_music`, `speak`, `list_voices` and `talking_clip`, `edit_video` (one-click LTX effects, remove or replace an element, change the background), `get_status`, `list_library`, `list_characters` and `machine_status`. `skills/creatoros-studio/SKILL.md` is a matching agent skill: copy it to `~/.claude/skills/` so Claude knows which tool fits which request. It has no dependency beyond Node. Set `STUDIO_URL` if the studio is not on `http://127.0.0.1:8787`, and `CREATOROS_OWNER_KEY` if it is locked with an owner key. Without the key, a request from the same machine is treated like any visitor.
 
 ## Community
 

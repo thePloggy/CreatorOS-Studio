@@ -135,5 +135,53 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
       videoEngines: Object.keys(h.videoEngines ?? {}), vramProfile: a?.profil ?? null }
   }
 
-  return { api, job, attendreJob, photo, video, reel, etatReel, attendreReel, bibliotheque, personas, machine }
+  /** Le catalogue des danses et des studios 3D où les jouer. */
+  async function danses() {
+    const d = await api('/api/danses')
+    return { dances: d.danses.map(x => ({ slug: x.slug, title: x.titre, seconds: Math.round(x.secondes * 10) / 10 })), studios: d.studios.map(x => ({ id: x.id, name: x.nom })) }
+  }
+
+  /** Une danse du catalogue jouée par le personnage d'une photo, dans un studio 3D. Le rendu final est
+      le job « <id>-swap » (scène 3D, puis Swap qui pose l'identité et la tenue de la photo). */
+  async function danse({ photo, danse: slug, studio, description, suivi = false }) {
+    if (!photo) throw new Error('missing photo (the id of a library photo of the character)')
+    const r = await api('/api/danses/scene3d', { method: 'POST', body: { assetId: photo, slug, decor: studio, scene: description ?? '', suivi: !!suivi } })
+    return { jobId: r.id, finalJobId: `${r.id}-swap` }
+  }
+
+  /** Une musique (ACE-Step, deux prises) ou un bruitage ; le fichier rejoint la liste des musiques du montage. */
+  async function musique({ style, paroles = '', secondes = 30, bruitage = false }) {
+    const r = await api('/api/musique', { method: 'POST', body: { prompt: style, paroles, secondes, genre: bruitage ? 'bruitage' : 'musique' } })
+    return { jobId: r.jobId }
+  }
+
+  async function musiques() {
+    return (await api('/api/montage/musiques')).musiques.map(m => ({ file: m.nom, seconds: m.duree, bytes: m.bytes }))
+  }
+
+  async function voix() {
+    const d = await api('/api/voix')
+    return { available: d.disponible, voices: d.voix, cloning: d.clone }
+  }
+
+  /** Une phrase dite par une voix de synthèse ; rend le fichier audio, réutilisable pour un clip parlant. */
+  async function dire({ texte, voix: v }) {
+    const r = await api('/api/parole/dire', { method: 'POST', body: { texte, voix: v } })
+    return { audioFile: r.fichier, seconds: r.duree }
+  }
+
+  /** Une photo qui parle : la photo et un fichier audio déposé (par dire ou par l'interface). */
+  async function parole({ photo, audio, texte }) {
+    const r = await api('/api/parole', { method: 'POST', body: { assetId: photo, voix: audio, texte } })
+    return { jobId: r.id }
+  }
+
+  /** Retouche d'un clip : un effet en un clic (refine-details, day-to-night, deblur, decompression) ou une
+      édition au prompt (modifier / retirer un élément suivi par SAM3, changer le fond). */
+  async function editionVideo({ clip, mode, effet, cible, prompt }) {
+    const r = await api(`/api/assets/${encodeURIComponent(clip)}/edit-video`, { method: 'POST', body: { mode, effet, cible, prompt } })
+    return { jobId: r.jobId ?? r.id }
+  }
+
+  return { api, job, attendreJob, photo, video, reel, etatReel, attendreReel, bibliotheque, personas, machine, danses, danse, musique, musiques, voix, dire, parole, editionVideo }
 }

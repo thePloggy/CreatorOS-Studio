@@ -24,6 +24,14 @@ h = bc[3] - bc[1]
 w = round(perso.width * h / perso.height)
 perso, masque = perso.resize((w, h), Image.LANCZOS), masque.resize((w, h), Image.LANCZOS)
 x = round((bc[0] + bc[2]) / 2 - w / 2)
+# le mannequin est d'abord effacé de l'image (reconstruit à partir de ce qui l'entoure) : posée par-dessus, une personne
+# bras le long du corps laissait dépasser les bras ou les jambes d'un mannequin en pleine danse, et LTX en faisait
+# une deuxième personne derrière elle
+import cv2
+import numpy as np
+fond_np = cv2.cvtColor(np.array(fond), cv2.COLOR_RGB2BGR)
+trou = cv2.dilate((np.array(mc) > 128).astype(np.uint8) * 255, np.ones((15, 15), np.uint8))
+fond = Image.fromarray(cv2.cvtColor(cv2.inpaint(fond_np, trou, 9, cv2.INPAINT_TELEA), cv2.COLOR_BGR2RGB))
 fond.paste(perso, (x, bc[1]), masque)
 fond.save(sortie)
 print('POSE', bc, (x, bc[1], w, h))

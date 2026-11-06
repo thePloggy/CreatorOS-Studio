@@ -9,8 +9,9 @@ import { nouveautes } from './nouveautes'
 import { serveur } from './serveur'
 import { cinema } from './cinema'
 import { reshoot } from './reshoot'
+import { audio } from './audio'
 
 /* `serveur` en premier : un texte d'interface identique garde sa traduction d'interface. */
 export const EN: Record<string, string> = {
-  ...serveur, ...partage, ...bureau_grilles, ...bureau_visionneuse, ...mobile, ...commun, ...nouveautes, ...cinema, ...reshoot,
+  ...serveur, ...partage, ...bureau_grilles, ...bureau_visionneuse, ...mobile, ...commun, ...nouveautes, ...cinema, ...reshoot, ...audio,
 }

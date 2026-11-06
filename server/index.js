@@ -29,7 +29,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -61,7 +61,7 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLi
    Choisir le personnage actif reste libre. */
 const ROUTES_PROPRIETAIRE = new Set([
   'DELETE /api/montage/musiques/:nom',
-  'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id',
+  'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id', 'PUT /api/personas/:id/voix',
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
@@ -798,6 +798,16 @@ app.put('/api/personas/:id', async (req, reply) => {
   let ok
   try { ok = enregistrerPersona(req.body, req.params.id) } catch (e) { if (e.statusCode !== 409) throw e; reply.code(409); return { error: e.message } }
   if (!ok) { reply.code(404); return { error: 'personnage inconnu' } }
+  return personaPublique(req.params.id)
+})
+/* Voix rattachée à un personnage (champ voix) : une voix du studio, une voix clonée de la
+   bibliothèque, ou null pour la détacher. Réservé au propriétaire (ROUTES_PROPRIETAIRE). */
+app.put('/api/personas/:id/voix', async (req, reply) => {
+  const brut = req.body?.voix
+  const voix = brut === null || brut === '' ? null : voixAcceptee(brut, true)
+  if (brut !== null && brut !== '' && !voix) { reply.code(400); return { error: 'voix inconnue' } }
+  if (!personas().list.some(p => p.id === req.params.id)) { reply.code(404); return { error: 'personnage inconnu' } }
+  enregistrerPersona({ voix }, req.params.id)
   return personaPublique(req.params.id)
 })
 app.post('/api/personas/:id/activer', async (req, reply) => {
@@ -2370,7 +2380,9 @@ app.post('/api/assets/:id/objet3d', async (req, reply) => {
 app.post('/api/musique', async (req, reply) => {
   try {
     const b = req.body ?? {}
-    const { id } = deposerAvecCle(cleComfy(req), () => enqueueMusique({ prompt: b.prompt, paroles: b.paroles, secondes: b.secondes, genre: b.genre }))
+    // réglages facultatifs (tempo, tonalité, mesure, langue, voix chantée, instruments) : validés par enqueueMusique
+    const { id } = deposerAvecCle(cleComfy(req), () => enqueueMusique({ prompt: b.prompt, paroles: b.paroles, secondes: b.secondes, genre: b.genre,
+      bpm: b.bpm, tonalite: b.tonalite, mesure: b.mesure, langue: b.langue, voix: b.voix, instruments: b.instruments }))
     return { jobId: id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
@@ -2727,6 +2739,17 @@ app.post('/api/reels', async (req, reply) => {
   try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/montage/musiques', async () => ({ musiques: montage.listerMusiques() }))
+/* Transition générée entre deux plans du montage (LTX-2.5, première et dernière image, avec le son) : les images
+   de bord respectent la coupe et le recadrage des plans et le format du montage. Liste des effets : GET. */
+app.get('/api/montage/transition', async () => ({ effets: Object.entries(EFFETS_TRANSITION).map(([id, e]) => ({ id, nom: e.nom })), secondes: [3, 5, 8, 10] }))
+app.post('/api/montage/transition', async (req, reply) => {
+  const b = req.body ?? {}
+  try {
+    const { debut, fin, format } = montage.cadresTransition({ format: b.format, a: b.a, b: b.b })
+    const a = store.getAsset(String(b.a?.assetId ?? ''))
+    return deposerAvecCle(cleComfy(req), () => enqueueTransition({ debut, fin, effet: String(b.effet ?? 'fondu'), secondes: b.secondes, format, personaId: a?.persona_id, parentAssetId: a?.id }))
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
 app.post('/api/montage/musiques', async (req, reply) => {
   if (Buffer.isBuffer(req.body) && req.body.length > 40 * 1024 * 1024) { reply.code(413); return { error: 'fichier > 40 Mio' } }
   try { return montage.deposerMusique(req.headers['content-type'], req.query.name, req.body) }

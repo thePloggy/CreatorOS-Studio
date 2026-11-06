@@ -176,7 +176,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             className="champ" style={{ fontSize: 12.5 }} />
         </div>
         <div className="flex items-center gap-3">
-          <button className="cta" style={{ padding: '11px 20px', flexDirection: 'row' }} disabled={!photo || busy || (source === 'voix' ? !voix : !replique.trim())} onClick={() => void (source === 'voix' ? lancer() : voixPhrase === 'ltx' ? lancerReplique() : lancerAvecVoix())}>{busy ? '…' : `✨ ${t('Faire parler')}`}</button>
+          <button className="cta" disabled={!photo || busy || (source === 'voix' ? !voix : !replique.trim())} onClick={() => void (source === 'voix' ? lancer() : voixPhrase === 'ltx' ? lancerReplique() : lancerAvecVoix())}>{busy ? '…' : `✨ ${t('Faire parler')}`}</button>
           {fait && <span style={{ fontSize: 12.5 }}>✓ {t('En file de rendu')} — {fait}. <button className="pill tool" onClick={goVideo}>{t('Aller à Vidéo')}</button></span>}
           {err && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</span>}
         </div>

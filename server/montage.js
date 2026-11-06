@@ -176,6 +176,34 @@ function couper(texte, parLigne) {
   return lignes.join('\n').trim()
 }
 
+/** Images de bord d'une transition générée : la dernière image GARDÉE du plan A (sa coupe de fin) et la première
+ *  gardée du plan B (sa coupe de début), avec le recadrage de chaque plan puis le cadre du montage, comme à l'export.
+ *  Rend les deux noms déposés dans input/ et le format. */
+export function cadresTransition({ format, a, b }) {
+  const [W, H] = FORMATS[format] ?? FORMATS['9:16']
+  const bord = (c, quelle) => {
+    const asset = store.getAsset(String(c?.assetId ?? ''))
+    if (!asset?.filename) throw new Error('plan introuvable dans la bibliothèque')
+    const fichier = path.join(CONFIG.mediaDir, path.basename(asset.filename))
+    if (!fs.existsSync(fichier)) throw new Error('fichier absent du disque')
+    const video = asset.media_type === 'video'
+    const total = video ? dureeDe(fichier) : 0
+    const debut = video ? Math.min(Number(c.debut) || 0, Math.max(0, total - 0.2)) : 0
+    const fin = video ? Math.min(total, c.fin ?? total) : 0
+    // la dernière image gardée : un peu avant la coupe, ffmpeg ne décode rien pile sur la fin du fichier
+    const t = !video ? 0 : quelle === 'fin' ? Math.max(debut, fin - 1 / 24) : debut
+    const k = c.crop
+    const vf = [k && `crop=trunc(iw*${Number(k.w).toFixed(4)}/2)*2:trunc(ih*${Number(k.h).toFixed(4)}/2)*2:iw*${Number(k.x).toFixed(4)}:ih*${Number(k.y).toFixed(4)}`,
+      `scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}`].filter(Boolean).join(',')
+    const nom = `crs_trans_${quelle}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}.png`
+    execFileSync('ffmpeg', ['-v', 'error', '-y', ...(video ? ['-ss', t.toFixed(3)] : []), '-i', fichier, '-frames:v', '1', '-vf', vf, path.join(CONFIG.comfyInput, nom)], { timeout: 60_000 })
+    if (!fs.existsSync(path.join(CONFIG.comfyInput, nom))) throw new Error('image de bord non extraite')
+    store.noterInput(nom)
+    return nom
+  }
+  return { debut: bord(a, 'fin'), fin: bord(b, 'debut'), format: FORMATS[format] ? format : '9:16' }
+}
+
 /** Plan de rendu : résout les assets, mesure les durées, calcule la longueur
  *  livrée. Lève une erreur lisible si quelque chose manque. */
 export function planDe(projet) {
@@ -274,11 +302,17 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
     f.push(`[${iMusique}:a]${boucleSonore(path.join(MUSIQUES_DIR, m.fichier), Number(m.decalage) || 0, longueur, m.boucle !== false)},volume=${m.volume}`
       + (m.fonduEntree > 0 ? `,afade=t=in:d=${m.fonduEntree}` : '')
       + (m.fonduSortie > 0 ? `,afade=t=out:st=${Math.max(0, longueur - m.fonduSortie).toFixed(3)}:d=${m.fonduSortie}` : '') + '[mus]')
-    // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air
-    f.push(`[${ac}][mus]amix=inputs=2:duration=first:normalize=0[amx]`); aOut = 'amx'
+    // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air.
+    // Le son des plans (voix, parole) pilote un compresseur sur la musique : elle baisse de 7 à 8 dB sous une voix
+    // normalisée et revient entre les phrases (un ratio plus fort la faisait disparaître).
+    f.push(`[${ac}]asplit=2[voix][cle]`,
+      `[mus][cle]sidechaincompress=threshold=0.08:ratio=3:attack=15:release=350:makeup=1[musd]`,
+      `[voix][musd]amix=inputs=2:duration=first:normalize=0[amx]`); aOut = 'amx'
   }
   const avecSon = d.sonClips || !!d.musique
   if (!avecSon) f.push(`[${ac}]anullsink`)
+  // niveau final des plateformes de vidéo courte : −14 LUFS intégrés, crêtes à −1 dBTP
+  else { f.push(`[${aOut}]loudnorm=I=-14:TP=-1:LRA=11,aresample=48000[afin]`); aOut = 'afin' }
   args.push('-filter_complex', f.join(';'), '-map', `[${vc}]`)
   if (avecSon) args.push('-map', `[${aOut}]`, '-c:a', 'aac', '-b:a', '192k')
   else args.push('-an')

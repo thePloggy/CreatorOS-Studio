@@ -19,7 +19,7 @@ export type Section = 'croquis' | 'accueil' | 'image' | 'cinema' | 'reshoot' | '
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
-  { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'camera' | 'effets' | 'comfy' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
+  { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'voix' | 'bruitage' | 'camera' | 'effets' | 'comfy' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 /** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
 export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][]; defaut?: string }
@@ -94,10 +94,11 @@ export const MENUS: Menu[] = [
       { label: 'Social Check', texte: 'Accroche, sujet, image, histoire : une note et trois conseils avant de publier.', section: 'analyse', pastille: 'new' },
       ] },
     ], modeles: [['LTX-2.5 22B', 'Clip avec son, IC-LoRA, caméra'], ['Wan 2.2 A14B', 'Image vers vidéo, transitions'], ['Wan 2.1 + effect LoRAs', '25 mouvements et effets'], ['MiniMax H3', 'Clip avec son, le plus fluide · prébranché, à installer', 'h3'], ['Wan Animate 2', 'Mix et Move'], ['InfiniteTalk', 'Avatar parlant, doublage'], ['SAM3', 'Suivi, détourage'], ['SeedVR2 7B', 'Netteté et restauration']] },
-  { titre: 'Audio', defaut: 'Music & Sound Effects', colonnes: [
+  { titre: 'Audio', defaut: 'Music Studio', colonnes: [
       { titre: 'Créer du son', outils: [
-      { label: 'Music & Sound Effects', texte: 'Génère un morceau ou un son, retrouve-les tous dans la bibliothèque.', section: 'assets', tache: 'musiques', pastille: 'new' },
-      { label: 'Voice-over', texte: 'Tape une phrase, choisis une voix : le fichier rejoint la bibliothèque audio.', section: 'assets', tache: 'musiques' },
+      { label: 'Music Studio', texte: 'Un morceau complet : style, instruments, tempo, tonalité, paroles et voix, en libre ou d’après un preset.', section: 'assets', tache: 'musiques', pastille: 'new' },
+      { label: 'Dialog & Voice Studio', texte: 'Tape une phrase, choisis une voix, et donne une voix à chaque personnage.', section: 'assets', tache: 'voix', pastille: 'new' },
+      { label: 'Sound Effects', texte: 'Décris un bruitage pour tes vidéos : il rejoint la bibliothèque audio.', section: 'assets', tache: 'bruitage' },
       { label: 'Voice Clone', texte: 'Ta voix, d’après un court extrait que tu enregistres avec ton accord (propriétaire du studio).', section: 'assets', tache: 'cloner', pastille: 'new' },
       { label: 'Voice Changer', texte: 'Une phrase enregistrée, redite avec une autre voix (propriétaire du studio).', section: 'assets', tache: 'changer', pastille: 'new' },
       ] },
@@ -130,11 +131,12 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     if ('stage' in o) { ouvrirStage(); return }
     if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
-    useAppStore.setState({ ongletMusiques: o.tache === 'musiques' })
+    // page audio : chaque entrée du menu ouvre son onglet (musique, voix, bruitage)
+    const audio = o.tache === 'musiques' ? 'musique' : o.tache === 'bruitage' ? 'bruitage' : o.tache === 'voix' || o.tache === 'cloner' || o.tache === 'changer' ? 'voix' : null
+    useAppStore.setState(audio ? { ongletMusiques: true, ongletAudio: audio } : { ongletMusiques: false })
     if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : 'tout' })
     if (o.tache === 'camera' || o.tache === 'effets') useAppStore.setState({ famillePresets: o.tache === 'camera' ? 'camera' : 'effet' })
     useAppStore.setState({ demandeOutil: o.tache === 'hd' || o.tache === 'cloner' || o.tache === 'changer' ? o.tache : null })
-    if (o.tache === 'cloner' || o.tache === 'changer') useAppStore.setState({ ongletMusiques: true })
     if (o.tache === 'edition') useAppStore.getState().updatePhoto({ task: 'edit' })
     if (o.tache === 'etendre') updateVideo({ task: 'extend' })
     if (o.tache === 'creer') updateVideo({ task: 'i2v' })

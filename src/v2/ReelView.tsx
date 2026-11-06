@@ -61,7 +61,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
         if (neuf) setMusique(neuf.nom)
         setNouvelle(null); return
       }
-      if (st === 'blocked' || st === 'failed') { setNouvelle(x => x && { ...x, job: null, msg: tServeur(j?.job?.error) ?? t('échec') }); return }
+      if (st === 'blocked' || st === 'failed' || st === 'cancelled') { setNouvelle(x => x && { ...x, job: null, msg: tServeur(j?.job?.error) ?? t('échec') }); return }
     }
   }
   const [reels, setReels] = useState<Reel[]>([])

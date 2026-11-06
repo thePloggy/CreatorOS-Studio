@@ -35,17 +35,43 @@ action = arm.animation_data.action
 debut, fin = (int(round(x)) for x in action.frame_range)
 scene.render.fps = 30   # l'animation Mixamo est à 30 i/s ; l'appelant ramène la vidéo à 24 i/s
 longueur = fin - debut
-tours = max(1, math.ceil((secondes * 30) / max(longueur, 1)))
+# l'image de départ : celle où chaque main est au plus près de sa hanche (bras le long du corps). Le personnage de la
+# photo est posé sur le mannequin à la 1re image, debout, bras baissés ; si le mannequin y a les bras levés ou écartés,
+# LTX suit le mannequin et garde aussi les bras de la photo (3 bras). La danse tourne en boucle : elle peut commencer
+# à n'importe laquelle de ses images.
+paires = [(arm.pose.bones.get('mixamorig:' + c + 'Hand'), arm.pose.bones.get('mixamorig:' + c + 'UpLeg')) for c in ('Left', 'Right')]
+depart = debut
+if all(m and h for m, h in paires):
+    meilleur = None
+    for f in range(debut, fin):
+        scene.frame_set(f)
+        ecart = sum(((arm.matrix_world @ m.head) - (arm.matrix_world @ h.head)).length for m, h in paires)
+        if meilleur is None or ecart < meilleur - 1e-6:
+            meilleur, depart = ecart, f
+tours = max(1, math.ceil((depart - debut + secondes * 30) / max(longueur, 1)))
 if tours > 1:
+    # une danse plus courte que le rendu est rejouée ; chaque reprise repart d'où la précédente s'est arrêtée (le
+    # déplacement d'un tour, au sol, s'ajoute) : sans ça, la danseuse « réapparaît » à son point de départ
+    hanches = next((b for b in arm.pose.bones if b.name.lower().endswith('hips')), arm.pose.bones[0])
+    scene.frame_set(debut); p0 = arm.matrix_world @ hanches.head
+    scene.frame_set(fin); p1 = arm.matrix_world @ hanches.head
+    pas = (p1.x - p0.x, p1.y - p0.y)
+    base = arm.location.copy()
     arm.animation_data.action = None
     piste = arm.animation_data.nla_tracks.new()
     for k in range(tours):
         piste.strips.new(f'{action.name}-{k}', debut + longueur * k, action)
-scene.frame_start = debut
-scene.frame_end = debut + int(secondes * 30)
+    for k in range(tours):
+        arm.location = (base.x + pas[0] * k, base.y + pas[1] * k, base.z)
+        arm.keyframe_insert('location', frame=debut + longueur * k)
+    for fc in arm.animation_data.action.fcurves:
+        for kp in fc.keyframe_points:
+            kp.interpolation = 'CONSTANT'
+scene.frame_start = depart
+scene.frame_end = depart + int(secondes * 30)
 
 # le corps : sa taille et sa trajectoire
-centres, haut, sol = [], 0.0, 1e9
+centres, haut, sol, avant = [], 0.0, 1e9, 1e9
 for f in range(scene.frame_start, scene.frame_end + 1, 2):
     scene.frame_set(f)
     deps = bpy.context.evaluated_depsgraph_get()
@@ -56,7 +82,7 @@ for f in range(scene.frame_start, scene.frame_end + 1, 2):
             p = o.matrix_world @ v.co
             mini = Vector(map(min, mini, p)); maxi = Vector(map(max, maxi, p))
         ev.to_mesh_clear()
-    centres.append((f, (mini + maxi) / 2)); haut = max(haut, maxi.z); sol = min(sol, mini.z)
+    centres.append((f, (mini + maxi) / 2)); haut = max(haut, maxi.z); sol = min(sol, mini.z); avant = min(avant, mini.y)
 taille = haut - sol
 cx = sum(c.x for _, c in centres) / len(centres); cy = sum(c.y for _, c in centres) / len(centres)
 
@@ -74,9 +100,11 @@ def volume(nom, x, y, z, sx, sy, sz, gris):
 rayon = max(max(((c.x - cx) ** 2 + (c.y - cy) ** 2) ** 0.5 for _, c in centres) + taille * 0.9, taille * 1.4)
 
 
-def sol_dalles(case, g1, g2, etendue=14):
+def sol_dalles(case, g1, g2, etendue=14, y_min=None):
     for i in range(-etendue, etendue + 1):
         for j in range(-etendue, etendue + 1):
+            if y_min is not None and cy + j * case < y_min:
+                continue
             volume('dalle', cx + i * case, cy + j * case, sol - 0.02, case, case, 0.02, g1 if (i + j) % 2 else g2)
 
 
@@ -140,12 +168,24 @@ elif decor == 'parking':
         v.rotation_euler = (0, 0, math.radians(18 * (1 if k % 2 else -1)))
         volume('vitres', v.location.x, v.location.y + T * 0.15, sol + T * 0.62, T * 0.85, T * 1.0, T * 0.3, 0.12).rotation_euler = v.rotation_euler
 elif decor == 'cabaret':
-    haut_cam = 0.8
-    sol_dalles(T * 0.3, 0.3, 0.36)
+    haut_cam = 1.0
+    # une scène surélevée : son bord passe devant le point le plus avancé du corps sur toute la danse (pieds, bassin,
+    # mains), avec une marge de 0,3 taille ; mesuré au centre du corps, le bord tombait sous ses pieds et LTX la
+    # faisait déborder de la scène, dansant dans le vide devant elle. Caméra plus haute : elle plonge vers la salle et
+    # les tables entrent dans le cadre malgré le bord avancé
+    bord = avant - T * 0.3
+    salle = sol - T * 0.45
+    sol_dalles(T * 0.3, 0.3, 0.36, y_min=bord)
+    volume('bord de scene', cx, bord - T * 0.03, salle, R * 2 + T * 8, T * 0.06, T * 0.45, 0.2)
+    volume('salle', cx, bord - T * 3, salle - 0.02, R * 2 + T * 8, T * 6, 0.02, 0.15)
     volume('rideau', cx, fond + T * 0.5, sol, R * 2 + T * 5, T * 0.3, T * 3.2, 0.32)
-    for k in range(-3, 4):
-        volume('table ronde', cx + k * T * 1.1, cy - R - T * 1.6, sol, T * 0.45, T * 0.45, T * 0.42, 0.25)
-    volume('micro', cx + R + T * 0.6, fond - T * 0.5, sol, T * 0.05, T * 0.05, T * 0.95, 0.15)
+    # les petites tables rondes et leurs lampes, dans la salle, juste devant le bord de la scène, aux deux coins bas du cadre
+    for cote in (-1, 1):
+        x = cx + cote * T * 0.55
+        # dessus à 0,3 : nettement sous le plancher de la scène (0,45), sinon Qwen pose les tables sur la scène
+        volume('table ronde', x, bord - T * 0.24, salle, T * 0.4, T * 0.4, T * 0.3, 0.25)
+        volume('lampe', x, bord - T * 0.24, salle + T * 0.3, T * 0.14, T * 0.14, T * 0.18, 0.9)
+    volume('micro', cx + R * 0.5 + T * 0.3, fond - T * 0.8, sol, T * 0.05, T * 0.05, T * 0.95, 0.15)
 elif decor == 'bal':
     haut_cam = 0.8
     sol_dalles(T * 0.45, 0.5, 0.58)
@@ -154,6 +194,8 @@ elif decor == 'bal':
             volume('colonne', cx + cote * (R + T * 2.0), cy + j * T * 1.7, sol, T * 0.3, T * 0.3, T * 3.4, 0.8)
     volume('lustre', cx, cy + T * 0.5, sol + T * 3.0, T * 0.9, T * 0.9, T * 0.5, 0.85)
     volume('fond', cx, fond + T * 1.2, sol, R * 2 + T * 6, T * 0.2, T * 3.8, 0.72)
+    for k in (-1, 1):                             # les hautes fenêtres, dans le mur du fond
+        volume('fenetre', cx + k * T * 0.8, fond + T * 1.08, sol + T * 0.3, T * 0.8, T * 0.05, T * 2.6, 0.95)
 elif decor == 'loft':
     sol_dalles(T * 0.8, 0.42, 0.45)
     volume('mur briques', cx, fond + T * 0.8, sol, R * 2 + T * 8, T * 0.2, T * 2.8, 0.5)
@@ -166,8 +208,9 @@ elif decor == 'studio-danse':
     volume('mur fond', cx, fond + T * 0.6, sol, R * 2 + T * 8, T * 0.1, T * 2.4, 0.82)
     volume('barre', cx, fond + T * 0.45, sol + T * 0.55, R * 2 + T * 6, T * 0.06, T * 0.06, 0.4)
     volume('mur gauche', cx - R - T * 3.0, cy, sol, T * 0.1, T * 10, T * 2.4, 0.78)
+    # les grandes fenêtres sur le mur du fond, au-dessus de la barre : sur le mur de gauche, la caméra ne les voyait pas
     for k in (-1, 1):
-        volume('fenetre', cx - R - T * 2.95, cy + k * T * 1.8, sol + T * 0.8, T * 0.05, T * 1.2, T * 1.3, 0.95)
+        volume('fenetre', cx + k * T * 0.75, fond + T * 0.53, sol + T * 0.85, T * 1.0, T * 0.05, T * 1.3, 0.95)
 elif decor == 'sport':
     sol_dalles(T * 0.6, 0.35, 0.38)
     volume('mur fond', cx, fond + T * 0.7, sol, R * 2 + T * 8, T * 0.1, T * 2.6, 0.62)
@@ -180,6 +223,8 @@ elif decor == 'cuisine':
     volume('plan de travail', cx, fond + T * 0.6, sol, R * 2 + T * 3, T * 0.6, T * 0.9, 0.45)
     volume('placards', cx, fond + T * 0.75, sol + T * 1.2, R * 2 + T * 3, T * 0.35, T * 0.6, 0.55)
     volume('frigo', cx + R + T * 1.8, fond + T * 0.6, sol, T * 0.6, T * 0.6, T * 1.8, 0.85)
+    # l'îlot central, entre la danse et le plan de travail du fond : sans lui la pièce ne se lit pas comme une cuisine
+    volume('ilot', cx - R * 0.3, fond - T * 0.75, sol, T * 1.5, T * 0.6, T * 0.9, 0.5)
 elif decor == 'plage':
     sol_dalles(T * 1.2, 0.74, 0.76)
     volume('mer', cx, fond + T * 4, sol - 0.01, R * 2 + T * 40, T * 6, 0.02, 0.45)
@@ -227,12 +272,14 @@ else:   # salon
     volume('mur fond', cx, fond + T * 0.6, sol, R * 2 + T * 8, T * 0.1, T * 1.9, 0.7)
     volume('mur gauche', cx - R - T * 3.0, cy, sol, T * 0.1, T * 10, T * 1.9, 0.62)
     volume('canape', cx - R * 0.5, fond + T * 0.3, sol, T * 1.3, T * 0.5, T * 0.45, 0.33)
+    # la table basse devant le canapé, entre lui et la zone de danse
+    volume('table basse', cx - R * 0.5, fond - T * 0.45, sol, T * 0.75, T * 0.38, T * 0.24, 0.3)
     volume('table', cx + R * 0.7, fond + T * 0.2, sol, T * 0.55, T * 0.5, T * 0.4, 0.28)
     volume('plante', cx + R + T * 1.2, fond + T * 0.3, sol, T * 0.3, T * 0.3, T * 0.9, 0.22)
-# le mannequin a la couleur de peau de la personne de la photo : en gris, LTX garde des bras et des jambes gris ; la tenue vient de la 1re image
 for o in corps:
-    # les articulations de la même couleur que le corps : plus foncées, LTX en faisait des genoux et des coudes de robot
-    o.color = (*teint, 1)
+    # un gris clair uni (articulations comprises) : couleur peau, LTX en faisait parfois un corps dévêtu quand le mannequin
+    # restait visible ; la peau, la tenue et le visage viennent du Swap, d'après la photo
+    o.color = (0.62, 0.62, 0.64, 1)
 
 # des repères de sens : une masse de cheveux sombre à l'ARRIÈRE de la tête et des chaussures foncées. Sur un mannequin
 # uni, l'avant et l'arrière se confondent et le modèle « saute » un tour ; avec des cheveux derrière, chaque demi-tour se lit.
@@ -255,8 +302,21 @@ def attache(nom, os_nom, ou, taille_bloc, couleur):
 
 mw = arm.matrix_world
 e = taille / 1.75
-# derrière la tête (le dos est du côté +Y : la danseuse fait face à la caméra, placée côté -Y)
-attache('cheveux', 'Head', lambda pb: mw @ pb.tail + Vector((0, e * 0.06, -e * 0.06)), (e * 0.085, e * 0.075, e * 0.11), (0.07, 0.05, 0.04, 1))
+# derrière la tête, dans le repère de l'os (y le long de l'os vers le haut, +z vers le visage) : une danse qui commence
+# penchée ou tête baissée garde la masse à l'arrière ; calculée dans le repère du monde, elle passait sur le crâne et
+# le Swap en faisait un chignon
+def derriere_tete(pb):
+    r = (mw @ pb.matrix).to_3x3().normalized()
+    return mw @ pb.tail + r @ Vector((0, -e * 0.15, -e * 0.065))
+# plus bas que le sommet du crâne et aplatie : vue de face, elle ne doit pas dépasser du crâne (sinon : un chignon)
+attache('cheveux', 'Head', derriere_tete, (e * 0.08, e * 0.11, e * 0.055), (0.07, 0.05, 0.04, 1))
+cheveux = scene.objects.get('cheveux')
+if cheveux is not None:
+    # l'ellipsoïde suit l'orientation de la tête (allongé le long de l'os), l'inverse de la contrainte est refait
+    cheveux.rotation_euler = (mw @ arm.pose.bones['mixamorig:Head'].matrix).to_euler()
+    bpy.context.view_layer.update()
+    c = cheveux.constraints[0]
+    c.inverse_matrix = (arm.matrix_world @ arm.pose.bones['mixamorig:Head'].matrix).inverted()
 for cote in ('Left', 'Right'):
     attache('chaussure', cote + 'Foot', lambda pb: (mw @ pb.head + mw @ pb.tail) / 2 + Vector((0, 0, -e * 0.025)), (e * 0.05, e * 0.09, e * 0.045), (0.93, 0.93, 0.93, 1))
 
@@ -277,7 +337,98 @@ for k, (f, c) in enumerate(centres):
     cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
     cam.keyframe_insert('location', frame=f); cam.keyframe_insert('rotation_euler', frame=f)
 
-monde = bpy.data.worlds.new('fond')
+# Les éléments que la phrase du studio cite (server/jobs.js, STUDIOS_DANSE) doivent être dans le cadre à la 1re image :
+# absents de la maquette, Qwen Edit les invente à une place quelconque (des tables de cabaret sur la scène, par exemple).
+# Chaque groupe cité hors du cadre est rapproché de l'axe de la caméra ; s'il entrerait dans la zone de danse, il recule ;
+# un objet suspendu (lustre, portique, loge) descend. Les noms sont ceux des volumes ci-dessus.
+CITES = {
+    'salon': [['canape'], ['table basse'], ['table'], ['plante']],
+    'ruelle': [['benne'], ['caisse']],
+    'opera': [['loge']],
+    'toit': [['citerne'], ['parapet fond']],
+    'concert': [['portique'], ['enceintes'], ['ecran']],
+    'tokyo': [['enseigne'], ['facade']],
+    'paris': [['banc'], ['reverbere'], ['balcon']],
+    'parking': [['voiture', 'vitres']],
+    'cabaret': [['table ronde', 'lampe'], ['micro']],
+    'bal': [['colonne'], ['lustre'], ['fenetre']],
+    'loft': [['fauteuil'], ['verriere']],
+    'studio-danse': [['barre'], ['fenetre']],
+    'sport': [['banc muscu'], ['espalier']],
+    'cuisine': [['frigo'], ['placards'], ['plan de travail'], ['ilot']],
+    'plage': [['parasol', 'toile'], ['transat']],
+    'jardin': [['arbre', 'feuillage'], ['haie']],
+    'basket': [['panier', 'planche']],
+    'desert': [['panneau'], ['mesa']],
+    'metro': [['banc']],
+    'hotel': [['colonne'], ['comptoir'], ['fauteuil'], ['lustre']],
+}
+SUSPENDUS = ('lustre', 'portique', 'loge')
+if not paysage:
+    from bpy_extras.object_utils import world_to_camera_view
+    scene.render.resolution_x, scene.render.resolution_y = 704, 1280   # le cadre du rendu : la projection en dépend
+    scene.frame_set(scene.frame_start)
+    vise = Vector((centres[0][1].x, centres[0][1].y))
+
+    def part_cadre(o):
+        """Part de la boîte de l'objet, projetée, qui tombe dans le cadre (0 à 1)."""
+        pts = [world_to_camera_view(scene, cam, o.matrix_world @ Vector(c)) for c in o.bound_box]
+        pts = [p for p in pts if p.z > 0]
+        if not pts:
+            return 0.0
+        x0, x1, y0, y1 = min(p.x for p in pts), max(p.x for p in pts), min(p.y for p in pts), max(p.y for p in pts)
+        ix, iy = max(0.0, min(1.0, x1) - max(0.0, x0)), max(0.0, min(1.0, y1) - max(0.0, y0))
+        # axe par axe, rapporté au cadre : un objet plus large que l'image (un mur, un portique) compte comme visible
+        return ix / max(1e-9, min(1.0, x1 - x0)) * iy / max(1e-9, min(1.0, y1 - y0))
+
+    def empiete(o):
+        """Vrai si l'emprise au sol d'un objet bas entre dans la zone de danse."""
+        if o.matrix_world.translation.z - o.dimensions.z / 2 > sol + taille * 1.1:
+            return False
+        px = min(max(cx, o.location.x - o.dimensions.x / 2), o.location.x + o.dimensions.x / 2)
+        py = min(max(cy, o.location.y - o.dimensions.y / 2), o.location.y + o.dimensions.y / 2)
+        return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5 < rayon
+
+    def axe_x(y):
+        """L'abscisse de l'axe de visée de la caméra (1re image) à la profondeur y."""
+        c = cam.matrix_world.translation
+        s = (y - c.y) / (vise.y - c.y) if abs(vise.y - c.y) > 1e-6 else 0
+        return c.x + s * (vise.x - c.x)
+
+    tous = [o for o in scene.objects if o.type == 'MESH' and o not in corps]
+    for groupe in CITES.get(decor, []):
+        membres = [o for o in tous if o.name.split('.')[0] in groupe]
+        if not membres:
+            continue
+        # dans la salle, en contrebas (les tables du cabaret) : elles restent devant la scène et toutes doivent se voir
+        en_salle = min(o.location.z - o.dimensions.z / 2 for o in membres) < sol - taille * 0.1
+        for _ in range(80):
+            bpy.context.view_layer.update()
+            vus = [part_cadre(o) for o in membres if not en_salle or o.name.startswith('lampe')]
+            if (min(vus) if en_salle else max(vus)) >= 0.6:
+                break
+            # le membre le plus proche de l'axe sert de repère ; chacun se déplace vers l'axe, de son côté
+            ref = min(membres, key=lambda o: abs(o.location.x - axe_x(o.location.y)))
+            p = world_to_camera_view(scene, cam, ref.matrix_world.translation)
+            suspendu = ref.name.split('.')[0] in SUSPENDUS
+            if en_salle:
+                dx, dy, dz = taille * 0.06, 0, 0
+            elif p.z <= 0 or p.y < 0.03:
+                dx, dy, dz = 0, taille * 0.2, 0
+            elif p.y > 0.97:
+                dx, dy, dz = (0, 0, -taille * 0.15) if suspendu and ref.location.z > sol + taille * 1.6 else (0, taille * 0.2, 0)
+            else:
+                dx, dy, dz = taille * 0.12, 0, 0
+            pas_x = [(1 if axe_x(o.location.y) > o.location.x else -1) * dx for o in membres]
+            for o, ddx in zip(membres, pas_x):
+                o.location.x += ddx; o.location.y += dy; o.location.z += dz
+            bpy.context.view_layer.update()
+            if dx and not en_salle and any(empiete(o) for o in membres):
+                # vers l'axe, il entrerait dans la zone de danse : on annule et il recule
+                for o, ddx in zip(membres, pas_x):
+                    o.location.x -= ddx; o.location.y += taille * 0.2
+
+monde =bpy.data.worlds.new('fond')
 scene.world = monde
 monde.color = (0.75, 0.75, 0.77)
 scene.render.engine = 'BLENDER_WORKBENCH'

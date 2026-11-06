@@ -840,3 +840,23 @@
 .entrainement-visiteur img { width: 100%; border-radius: 10px; display: block; }
 .entrainement-visiteur ol { list-style: decimal; }
 @media (max-width: 760px) { .entrainement-visiteur { grid-template-columns: 1fr; } }
+/* Le bouton de lancement des pages outils : partout la même taille et le même style (celui de Dance) */
+.v2 .outil-action > .cta { padding: 18px 15px; flex-direction: row; justify-content: center; gap: 8px; width: 100%; font-size: 14px; }
+
+/* Page audio : onglets des trois studios, formulaire du studio musique, puces d'instruments et de balises */
+.v2 .onglets-audio button { line-height: 1.25; }
+@media (max-width: 520px) { .v2 .onglets-audio button { font-size: 12px; padding: 7px 4px; } }
+.v2 .studio-audio { display: grid; gap: 10px; min-width: 0; }
+.v2 .studio-champ { display: grid; gap: 5px; min-width: 0; }
+.v2 .studio-champ .etiquette { margin-top: 0; }
+.v2 .studio-champ input[type="range"] { width: 100%; }
+.v2 .studio-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.v2 .studio-audio .puces { display: flex; flex-wrap: wrap; gap: 4px; }
+.v2 .studio-audio .puce { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--lv3); background: var(--lv2); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.v2 .studio-audio .puce:hover { color: var(--text); }
+.v2 .studio-audio .puce.on { background: var(--lv4); color: var(--text); border-color: var(--lv4); }
+.v2 .presets-musique { display: flex; flex-wrap: wrap; gap: 5px; }
+.v2 .presets-musique .pill { font-size: 12px; padding: 5px 10px; }
+.v2 .audio-prises, .v2 .voix-persos { display: grid; gap: 8px; }
+.v2 .studio-audio .musique { background: var(--lv2); padding: 10px 12px; }
+.v2 .studio-audio textarea.champ { resize: vertical; width: 100%; }

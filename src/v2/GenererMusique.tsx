@@ -18,9 +18,12 @@ export function GenererMusique({ surPret }: { surPret: () => void }) {
     // le rendu rejoint la file du studio : sa carte « en cours » s'affiche dans la liste audio
     void useAppStore.getState().adoptServerJob(d.jobId)
     const attendre = async (): Promise<void> => {
-      const j = await (await fetch(`/api/jobs/${encodeURIComponent(d.jobId!)}`)).json().catch(() => ({})) as { status?: string; error?: string }
+      // la route rend { job, assets } : l'état est dans job
+      const r = await (await fetch(`/api/jobs/${encodeURIComponent(d.jobId!)}`)).json().catch(() => ({})) as { job?: { status?: string; error?: string } }
+      const j = r.job ?? {}
       if (j.status === 'done') { surPret(); setMsg(t('Prêt, choisis-le dans la liste.')); setOccupe(false); return }
-      if (j.status === 'blocked') { setMsg(tServeur(j.error) ?? t('échec')); setOccupe(false); return }
+      // fin sans fichier : échec, blocage ou annulation (sinon le sondage tournerait sans fin)
+      if (j.status === 'blocked' || j.status === 'failed' || j.status === 'cancelled') { setMsg(j.status === 'cancelled' ? t('Rendu annulé.') : tServeur(j.error) ?? t('échec')); setOccupe(false); return }
       await new Promise(p => setTimeout(p, 1500)); return attendre()
     }
     await attendre()

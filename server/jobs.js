@@ -1876,6 +1876,99 @@ export const EFFETS_LTX = {
   'decompression': { lora: 'ltx/ltx-2.5-22b-ic-lora-decompression-0.9.safetensors', nom: 'Remove Compression',
     prompt: () => 'The exact same footage, clean, with no compression artifacts, no blocking and no banding. Same scene, same motion.' },
 }
+/* Transitions générées du montage : LTX-2.5 relie la dernière image d'un plan à la première du suivant
+   (deux guides à 0,7 en 1re et dernière position), avec le son. Les effets sont écrits selon la règle « l'effet
+   couvre tout le cadre, la scène change pendant qu'il couvre, il se dissipe sur le plan suivant ». Les images de
+   bord arrivent déjà coupées et recadrées au format du montage (montage.cadresTransition). */
+export const EFFETS_TRANSITION = {
+  fondu: { nom: 'Morph', chemin: 'The first scene flows and morphs continuously into the second scene in one fluid movement, shapes and colours blending smoothly', camera: 'slow continuous push-in', son: 'a soft airy whoosh' },
+  smoke: { nom: 'Smoke', chemin: 'Thick billowing smoke rolls in from the edges and swallows the first scene; the smoke swirls and thins, revealing the second scene as it clears', camera: 'slow push-in through the smoke', son: 'a deep whoosh of rolling smoke' },
+  ink: { nom: 'Ink', chemin: 'The first scene dissolves into dense black ink that blooms and spirals through the air like ink in water, then gathers and reforms into the second scene', camera: 'static camera', son: 'a muffled underwater swirl' },
+  light: { nom: 'Light burst', chemin: 'A blinding flash of white light bursts from the center of the first scene, rays and lens flares filling the frame, then fading to reveal the second scene', camera: 'static camera', son: 'a bright rising whoosh and a shimmering chime' },
+  zoom: { nom: 'Zoom through', chemin: 'The camera rushes forward into the first scene, diving through the frame with streaking motion blur, and emerges inside the second scene', camera: 'fast dolly-in that slows down at the end', son: 'a rushing wind whoosh' },
+  whip: { nom: 'Whip pan', chemin: 'The camera whips sideways away from the first scene in a fast blurred pan and lands precisely on the second scene, which comes into sharp focus', camera: 'fast horizontal whip pan with motion blur, settling at the end', son: 'a sharp swish' },
+  vent: { nom: 'Wind vortex', chemin: 'Begin on the first scene. Wind enters from outside the frame, wrapping around the scene in a three-dimensional spiral of dense leaves and airborne dust. The vortex expands toward the lens until opaque swirling debris completely covers the entire frame. While coverage remains complete, the scene changes. The same vortex clears to reveal the second scene already fully established. No transparent overlap, dissolve, or late cut', camera: 'locked camera, fixed framing', son: 'a rising howling wind that drops to a calm breeze' },
+  eau: { nom: 'Water', chemin: 'The first scene liquefies into clear rushing water that rises as a tall wave, curls through the frame and reshapes itself into the second scene as the water settles', camera: 'static camera', son: 'rushing water and a soft splash' },
+  melt: { nom: 'Melt', chemin: 'The first scene softens and melts downward in thick glossy drips, the whole frame liquefying into a swirling pool of color that rises and solidifies into the second scene', camera: 'static camera', son: 'viscous dripping and a low warm hum' },
+}
+// au format du montage, environ 0,9 Mpx, multiples de 32
+const TAILLES_TRANSITION = { '9:16': [704, 1280], '16:9': [1280, 704], '1:1': [960, 960], '4:5': [832, 1024] }
+function promptTransition(effet, secondes) {
+  const e = EFFETS_TRANSITION[effet]
+  // au-delà de 5 s, l'effet est tenu dans une fenêtre de 3 s au milieu : sans ça il s'étale sur toute la prise
+  const lead = (secondes - 3) / 2
+  const fenetre = secondes > 5 ? ` For the first ${lead} seconds the opening scene plays on with gentle natural motion. The transition happens between ${lead} and ${lead + 3} seconds. For the last ${lead} seconds the end scene plays on with gentle natural motion and settles on the final frame.` : ''
+  return `Use the provided start image as the first frame and the provided end image as the final frame anchor.${fenetre} ${e.chemin}. Camera: ${e.camera}. The sound is ${e.son}. The video ends exactly on the end image.`
+}
+export function enqueueTransition({ debut, fin, effet, secondes, format, personaId, parentAssetId }) {
+  if (!EFFETS_TRANSITION[effet]) throw new Error('effet de transition inconnu')
+  for (const f of [debut, fin]) if (!f || /[\\/]/.test(f) || f.startsWith('.') || !fs.existsSync(path.join(CONFIG.comfyInput, f))) throw new Error('image de bord introuvable')
+  const s = [3, 5, 8, 10].includes(Number(secondes)) ? Number(secondes) : 5
+  const [W, H] = TAILLES_TRANSITION[format] ?? TAILLES_TRANSITION['9:16']
+  const id = `trans-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: `transition-${effet}@v1`, workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'transition', videoEngine: 'ltx_transition',
+    transitionDebut: debut, transitionFin: fin, transitionEffet: effet, transitionSecondes: s, transitionW: W, transitionH: H,
+    parentAssetId: parentAssetId ?? null,
+    userPrompt: `transition ${EFFETS_TRANSITION[effet].nom}`, userDirectives: null, composedPositive: promptTransition(effet, s), composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(40_000 + s * 12_000),
+  }
+  store.createJob(row)
+  retenirCle(row.id)
+  queue.push(row)
+  pump()
+  return { id }
+}
+function grapheTransition(job) {
+  const W = job.transitionW, H = job.transitionH, N = job.transitionSecondes * 24 + 1
+  const redim = img => ({ class_type: 'ResizeImageMaskNode', inputs: { input: [img, 0], resize_type: 'scale dimensions', 'resize_type.width': W, 'resize_type.height': H, 'resize_type.crop': 'center', scale_method: 'lanczos' } })
+  return {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors', weight_dtype: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-video-vae-bf16.safetensors' } },
+    avae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-audio-vae-bf16.safetensors' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors', type: 'ltxv', device: 'default' } },
+    imgA: { class_type: 'LoadImage', inputs: { image: job.transitionDebut } },
+    imgB: { class_type: 'LoadImage', inputs: { image: job.transitionFin } },
+    rA: redim('imgA'), rB: redim('imgB'),
+    pA: { class_type: 'LTXVPreprocess', inputs: { img_compression: 18, image: ['rA', 0] } },
+    pB: { class_type: 'LTXVPreprocess', inputs: { img_compression: 18, image: ['rB', 0] } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { text: job.composedPositive, clip: ['clip', 0] } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { text: '', clip: ['clip', 0] } },
+    cond: { class_type: 'LTXVConditioning', inputs: { positive: ['pos', 0], negative: ['neg', 0], frame_rate: 24 } },
+    lat: { class_type: 'EmptyLTXVLatentVideo', inputs: { width: W, height: H, length: N, batch_size: 1 } },
+    g0: { class_type: 'LTXVAddGuide', inputs: { frame_idx: 0, strength: 0.7, positive: ['cond', 0], negative: ['cond', 1], vae: ['vae', 0], latent: ['lat', 0], image: ['pA', 0] } },
+    g1: { class_type: 'LTXVAddGuide', inputs: { frame_idx: -1, strength: 0.7, positive: ['g0', 0], negative: ['g0', 1], vae: ['vae', 0], latent: ['g0', 2], image: ['pB', 0] } },
+    alat: { class_type: 'LTXVEmptyLatentAudio', inputs: { frames_number: N, frame_rate: 24, batch_size: 1, audio_vae: ['avae', 0] } },
+    av: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['g1', 2], audio_latent: ['alat', 0] } },
+    bruit: { class_type: 'RandomNoise', inputs: { noise_seed: Number(job.seed) || 42 } },
+    ech: { class_type: 'SamplerEulerAncestral', inputs: { eta: 0, s_noise: 1 } },
+    sig: { class_type: 'ManualSigmas', inputs: { sigmas: '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0' } },
+    guide: { class_type: 'LTXVDualCFGGuider', inputs: { video_cfg: 1, audio_cfg: 1, model: ['unet', 0], positive: ['g1', 0], negative: ['g1', 1] } },
+    k: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['bruit', 0], guider: ['guide', 0], sampler: ['ech', 0], sigmas: ['sig', 0], latent_image: ['av', 0] } },
+    sep: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['k', 1] } },
+    rogne: { class_type: 'LTXVCropGuides', inputs: { positive: ['g1', 0], negative: ['g1', 1], latent: ['sep', 0] } },
+    dec: { class_type: 'VAEDecodeTiled', inputs: { tile_size: 512, overlap: 64, temporal_size: 64, temporal_overlap: 16, samples: ['rogne', 2], vae: ['vae', 0] } },
+    adec: { class_type: 'LTXVAudioVAEDecode', inputs: { samples: ['sep', 1], audio_vae: ['avae', 0] } },
+    film: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], fps: 24, audio: ['adec', 0], bit_depth: 8 } },
+    save: { class_type: 'SaveVideo', inputs: { video: ['film', 0], filename_prefix: `creatoros/${job.id}/transition`, format: 'auto', codec: 'auto' } },
+  }
+}
+async function runTransition(job, t0) {
+  const g = grapheTransition(job)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, {
+    applied: [`transition ${EFFETS_TRANSITION[job.transitionEffet]?.nom} : LTX-2.5 première et dernière image (guides 0,7), ${job.transitionSecondes} s ${job.transitionW}×${job.transitionH}, son généré`],
+    skipped: [], finalWorkflow: g,
+  })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 export function enqueueEffetLtx({ source, effet, texte, parentAssetId, personaId }) {
   const e = EFFETS_LTX[effet]
   if (!e) throw new Error('effet inconnu')
@@ -2087,7 +2180,7 @@ export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
    avec la caméra, la danseuse se déplace dedans. */
 /* Les studios de danse : la maquette est dans scripts/scene_danse.py (même identifiant), la phrase sert à repeindre la 1re image. */
 export const STUDIOS_DANSE = {
-  salon: { nom: 'Salon', texte: 'a bright apartment living room with white walls, a grey sofa, a small wooden table and a plant, light wooden floor' },
+  salon: { nom: 'Salon', texte: 'a bright apartment living room with white walls, a grey sofa with a low wooden coffee table in front of it, a small side table and a plant, light wooden floor' },
   ruelle: { nom: 'Ruelle hip-hop', texte: 'a narrow urban alley with colourful graffiti on brick walls, dark asphalt ground, a dumpster and wooden crates' },
   opera: { nom: 'Scène d’opéra', texte: 'the stage of an empty opera house, red velvet curtains, golden balcony boxes, a polished wooden stage floor, warm spotlights' },
   toit: { nom: 'Toit au coucher du soleil', texte: 'a rooftop terrace at sunset with a low concrete parapet, a water tank and the city skyline behind, warm golden light' },
@@ -2095,12 +2188,12 @@ export const STUDIOS_DANSE = {
   tokyo: { nom: 'Rue de Tokyo', texte: 'a narrow Tokyo side street at night with glowing neon signs in pink and blue, small shop fronts and wet asphalt reflecting the lights' },
   paris: { nom: 'Rue de Paris', texte: 'a Parisian street with cream Haussmann building facades, wrought-iron balconies, a green bench and a classic street lamp, cobblestones' },
   parking: { nom: 'Parking Tokyo drift', texte: 'a Tokyo-drift style underground car park at night, concrete pillars, tyre marks on the floor, purple and blue neon underglow, and a row of tuned Japanese street-racing cars parked behind her: a Honda NSX, a Toyota Supra, a BMW M3, a Nissan Skyline GT-R R34, a Nissan GT-R R35 and a Lamborghini with a Japanese-style widebody kit' },
-  cabaret: { nom: 'Cabaret', texte: 'the small stage of an empty cabaret with a red velvet curtain, little round tables with lamps in front and a vintage microphone stand' },
+  cabaret: { nom: 'Cabaret', texte: 'the small raised stage of an empty cabaret with a red velvet curtain and a vintage microphone stand; below the front edge of the stage, in the audience, little round tables with lamps' },
   bal: { nom: 'Salle de bal', texte: 'an empty grand ballroom with marble columns, a polished parquet floor, tall windows and a crystal chandelier' },
   loft: { nom: 'Loft industriel', texte: 'a spacious industrial loft with an exposed brick wall, tall black-framed windows, a concrete floor and a leather armchair' },
   'studio-danse': { nom: 'Studio de danse', texte: 'a bright dance studio with a light wooden floor, a ballet barre along the white back wall and large windows, no mirror' },
   sport: { nom: 'Salle de sport', texte: 'a modern gym with a rubber floor, weight benches and racks along the back wall and a wall ladder' },
-  cuisine: { nom: 'Cuisine', texte: 'a bright modern kitchen with white cabinets, a long counter along the back wall and a tall fridge' },
+  cuisine: { nom: 'Cuisine', texte: 'a bright modern kitchen with white cabinets, a long counter along the back wall, a tall fridge and, between her and the counter, one plain rectangular kitchen island: flat matte white cabinet doors with no handles, a thick white quartz top, nothing on it and no stools' },
   plage: { nom: 'Plage', texte: 'a sunny sandy beach with turquoise sea behind, a striped parasol and a deck chair' },
   jardin: { nom: 'Jardin', texte: 'a green garden lawn with a trimmed hedge behind and two leafy trees, soft daylight' },
   basket: { nom: 'Terrain de basket', texte: 'an outdoor street basketball court with a hoop behind, painted court lines and a chain-link fence' },
@@ -2343,7 +2436,7 @@ async function runDoublage(job, t0) {
 
 /* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
    si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
-export const OPS_RELANCABLES = new Set(['effetltx', 'inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'profondeur', 'extension'])
+export const OPS_RELANCABLES = new Set(['transition', 'effetltx', 'inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'profondeur', 'extension'])
 export function relancerSpecial(p) {
   if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
   const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque].filter(Boolean)
@@ -2400,49 +2493,196 @@ async function runExtension(job, t0) {
 
 /* Musique et bruitages : ACE-Step 1.5 turbo (MIT), nœuds du cœur de ComfyUI. Le morceau
    rejoint le dossier des musiques du montage et du reel. */
-export function enqueueMusique({ prompt, paroles, secondes, genre, personaId }) {
-  const texte = String(prompt ?? '').trim().slice(0, 400)
-  const mots = String(paroles ?? '').trim().slice(0, 2000)
-  if (!texte) throw new Error('décris le morceau')
-  if (t0Hit(`${texte} ${mots}`)) throw new Error('prompt refusé (liste T0)')
+/* Réglages explicites d'un morceau, tous facultatifs : vides, le studio les déduit du style
+   (profilMusique) et des paroles (langueParoles). Listes blanches = les choix du nœud
+   TextEncodeAceStepAudio1.5. */
+const NOTES_MUSIQUE = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
+const TONALITES_MUSIQUE = new Set(NOTES_MUSIQUE.flatMap(n => [`${n} major`, `${n} minor`]))
+const MESURES_MUSIQUE = new Set(['2', '3', '4', '6'])
+const LANGUES_MUSIQUE = new Set(['ar', 'az', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es', 'fa', 'fi', 'fr', 'he', 'hi', 'hr', 'ht', 'hu', 'id', 'is', 'it', 'ja', 'ko', 'la', 'lt', 'ms', 'ne', 'nl', 'no', 'pa', 'pl', 'pt', 'ro', 'ru', 'sa', 'sk', 'sr', 'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'yue', 'zh', 'unknown'])
+/* Type de voix chantée → étiquette ajoutée aux tags ACE-Step ; « none » rend le morceau instrumental. */
+const VOIX_CHANTEES = { female: 'female vocals', male: 'male vocals', duet: 'male and female duet vocals', choir: 'choir vocals', none: 'instrumental, no vocals' }
+const BPM_MIN = 40, BPM_MAX = 220
+
+/** Valide les réglages facultatifs d'un morceau ; un champ vide reste null (comportement automatique). */
+function reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments }) {
+  const vide = v => v === undefined || v === null || String(v).trim() === '' || String(v).trim() === 'auto'
+  const r = { bpm: null, tonalite: null, mesure: null, langue: null, voix: null, instruments: [] }
+  if (!vide(bpm)) {
+    const n = Math.round(Number(bpm))
+    if (!Number.isFinite(n)) throw new Error('tempo invalide')
+    r.bpm = Math.min(BPM_MAX, Math.max(BPM_MIN, n))
+  }
+  if (!vide(tonalite)) {
+    // notation courte acceptée (« Dm », « F# », « Bbm ») : l'interface évite ainsi le mot « minor », refusé par le filtre de contenu
+    const court = /^([A-Ga-g][#b]?)(m?)$/.exec(String(tonalite).trim())
+    const k = court ? `${court[1][0].toUpperCase()}${court[1].slice(1)} ${court[2] ? 'minor' : 'major'}`
+      : String(tonalite).trim().replace(/\s+/g, ' ').replace(/^([a-g])/, c => c.toUpperCase()).replace(/ (Major|Minor)$/i, m => m.toLowerCase())
+    if (!TONALITES_MUSIQUE.has(k)) throw new Error('tonalité inconnue')
+    r.tonalite = k
+  }
+  if (!vide(mesure)) {
+    const m = String(mesure).trim().replace(/\/\d+$/, '')
+    if (!MESURES_MUSIQUE.has(m)) throw new Error('mesure inconnue')
+    r.mesure = m
+  }
+  if (!vide(langue)) {
+    const l = String(langue).trim().toLowerCase()
+    if (!LANGUES_MUSIQUE.has(l)) throw new Error('langue inconnue')
+    r.langue = l
+  }
+  if (!vide(voix)) {
+    const v = String(voix).trim().toLowerCase()
+    if (!Object.hasOwn(VOIX_CHANTEES, v)) throw new Error('type de voix inconnu')
+    r.voix = v
+  }
+  const liste = Array.isArray(instruments) ? instruments : String(instruments ?? '').split(',')
+  r.instruments = [...new Set(liste.map(x => String(x ?? '').replace(/[^\p{L}\p{N} '&+#./-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)).filter(Boolean))].slice(0, 12)
+  return r
+}
+
+export function enqueueMusique({ prompt, paroles, secondes, genre, personaId, bpm, tonalite, mesure, langue, voix, instruments }) {
   const bruit = genre === 'bruitage'
+  const texte = String(prompt ?? '').trim().slice(0, 400)
+  // un bruitage n'a que sa description : ni paroles, ni voix, ni réglages musicaux
+  const reglages = bruit ? reglagesMusique({}) : reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments })
+  const mots = bruit || reglages.voix === 'none' ? '' : String(paroles ?? '').trim().slice(0, 3000)
+  if (!texte && !reglages.instruments.length) throw new Error(bruit ? 'décris le son' : 'décris le morceau')
+  if (t0Hit(`${texte} ${reglages.instruments.join(' ')} ${mots}`)) throw new Error('prompt refusé (liste T0)')
   const duree = Math.round(Math.min(bruit ? 20 : 120, Math.max(bruit ? 2 : 5, Number(secondes) || (bruit ? 6 : 30))))
   const id = `musique-${Date.now().toString(36)}`
+  const style = texte || reglages.instruments.join(', ')
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'audio', purpose: 'creative', recipeId: 'musique@v1', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffff), op: 'musique', videoEngine: null, musiqueSecondes: duree, musiqueParoles: mots, musiqueBruitage: bruit,
-    parentAssetId: null, userPrompt: texte, userDirectives: null, composedPositive: texte, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(12_000 + duree * 500),
+    musiqueBpm: reglages.bpm, musiqueTonalite: reglages.tonalite, musiqueMesure: reglages.mesure, musiqueLangue: reglages.langue,
+    musiqueVoix: reglages.voix, musiqueInstruments: reglages.instruments,
+    parentAssetId: null, userPrompt: style, userDirectives: null, composedPositive: tagsMusique({ userPrompt: style, musiqueBruitage: bruit, musiqueVoix: reglages.voix, musiqueInstruments: reglages.instruments }), composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round((12_000 + duree * 500) * PRISES_MUSIQUE),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
+/** Tags ACE-Step : le style, puis les instruments, puis le type de voix chantée. */
+function tagsMusique(job) {
+  if (job.musiqueBruitage) return `sound effect, foley, no music, no vocals, ${job.userPrompt}`
+  const instr = (job.musiqueInstruments ?? []).filter(x => !String(job.userPrompt).toLowerCase().includes(String(x).toLowerCase()))
+  return [job.userPrompt, ...instr, job.musiqueVoix ? VOIX_CHANTEES[job.musiqueVoix] : null].filter(Boolean).join(', ')
+}
+/* Tempo et tonalité du morceau d'après le style décrit : le premier genre reconnu donne son tempo
+   et une tonalité courante du genre ; un tempo écrit dans la consigne (« 128 bpm ») l'emporte. */
+const PROFILS_MUSIQUE = [
+  [/drum ?(and|&|n) ?bass|\bdnb\b|jungle/, 174, 'D minor'],
+  [/\btrap\b|drill/, 140, 'C minor'],
+  [/dubstep/, 140, 'F minor'],
+  [/techno/, 130, 'A minor'],
+  [/house|\bedm\b|electro|trance|club|dance/, 124, 'F minor'],
+  [/punk|metal/, 160, 'E minor'],
+  [/disco|nu.?disco/, 118, 'A minor'],
+  [/funk/, 108, 'E minor'],
+  [/reggaeton|dembow|latin/, 95, 'A minor'],
+  [/afrobeat|amapiano/, 110, 'G minor'],
+  [/lo.?fi|chill.?hop|study beat/, 80, 'A minor'],
+  [/hip.?hop|\brap\b|boom.?bap/, 90, 'A minor'],
+  [/r ?& ?b|\brnb\b|soul|neo.?soul/, 85, 'Eb major'],
+  [/jazz|swing|bossa/, 120, 'Bb major'],
+  [/reggae|dub\b/, 75, 'G major'],
+  [/country|folk|acoustic|guitare/, 100, 'G major'],
+  [/ambient|cinematic|orchestral|piano|classique|classical|lullaby|berceuse|calme|calm/, 70, 'D major'],
+  [/rock|indie|grunge/, 122, 'E minor'],
+  [/pop|k.?pop|j.?pop|synthwave|retrowave/, 116, 'C major'],
+]
+function profilMusique(style) {
+  const t = String(style ?? '').toLowerCase()
+  const trouve = PROFILS_MUSIQUE.find(([re]) => re.test(t))
+  const ecrit = /(\d{2,3})\s*bpm/.exec(t)
+  const bpm = ecrit ? Math.min(220, Math.max(50, Number(ecrit[1]))) : trouve?.[1] ?? 110
+  return { bpm, keyscale: trouve?.[2] ?? 'E minor' }
+}
+
+/* La langue chantée, reconnue aux mots-outils les plus fréquents des paroles (anglais par défaut). */
+const MOTS_LANGUE = {
+  fr: /\b(je|tu|nous|vous|les|des|est|une|pas|que|qui|dans|pour|avec|mon|ton|toi|moi|et)\b/g,
+  es: /\b(yo|tú|que|los|las|una|por|con|para|mi|tu|es|el|la|y|corazón|amor)\b/g,
+  it: /\b(io|che|non|il|lo|gli|una|per|con|sono|mio|amore|cuore|e)\b/g,
+  de: /\b(ich|du|wir|und|nicht|die|der|das|ist|ein|eine|mit|mein|dein)\b/g,
+  pt: /\b(eu|você|não|que|uma|com|para|meu|minha|coração|é|o|a)\b/g,
+  en: /\b(i|you|the|and|is|my|your|me|we|in|on|love|it|to)\b/g,
+}
+function langueParoles(paroles) {
+  const t = String(paroles ?? '').toLowerCase().replace(/\[[^\]]*\]/g, ' ')
+  if (/[぀-ヿ]/.test(t)) return 'ja'
+  if (/[가-힯]/.test(t)) return 'ko'
+  if (/[一-鿿]/.test(t)) return 'zh'
+  if (/[Ѐ-ӿ]/.test(t)) return 'ru'
+  let meilleure = 'en', max = 0
+  for (const [l, re] of Object.entries(MOTS_LANGUE)) {
+    const n = (t.match(re) ?? []).length
+    if (n > max) { max = n; meilleure = l }
+  }
+  return meilleure
+}
+
+/* Des paroles sans balises sont structurées pour ACE-Step : les strophes séparées par une ligne vide
+   alternent [Verse] / [Chorus] (la 2e est le refrain, reprise après le 2e couplet) ; un bloc d'un seul
+   tenant est coupé en strophes de 4 lignes. Des paroles déjà balisées restent telles quelles. */
+function structurerParoles(paroles) {
+  const t = String(paroles ?? '').trim()
+  if (!t || /^\s*\[/m.test(t)) return t || '[instrumental]'
+  let strophes = t.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)
+  if (strophes.length === 1) {
+    const lignes = t.split('\n').map(x => x.trim()).filter(Boolean)
+    strophes = []
+    for (let i = 0; i < lignes.length; i += 4) strophes.push(lignes.slice(i, i + 4).join('\n'))
+  }
+  if (strophes.length === 1) return `[Verse]\n${strophes[0]}`
+  const refrain = strophes[1]
+  const sortie = strophes.map((x, k) => `${k % 2 ? '[Chorus]' : '[Verse]'}\n${x}`)
+  if (strophes.length === 3) sortie.push(`[Chorus]\n${refrain}`)
+  return sortie.join('\n\n')
+}
+
+const PRISES_MUSIQUE = 2   // deux prises par demande (graines différentes) : l'opérateur garde la meilleure
+
 async function runMusique(job, t0) {
   const d = job.musiqueSecondes, s = Number(job.seed) || 42
-  const tags = job.musiqueBruitage ? `sound effect, foley, no music, no vocals, ${job.userPrompt}` : job.userPrompt
+  const tags = tagsMusique(job)
+  // un réglage explicite l'emporte ; sinon tempo et tonalité viennent du style, la langue des paroles
+  const auto = profilMusique(job.userPrompt)
+  const bpm = job.musiqueBpm ?? auto.bpm, keyscale = job.musiqueTonalite ?? auto.keyscale, timesignature = job.musiqueMesure ?? '4'
+  const lyrics = job.musiqueBruitage || job.musiqueVoix === 'none' ? '[instrumental]' : structurerParoles(job.musiqueParoles)
+  const language = lyrics === '[instrumental]' ? 'en' : job.musiqueLangue ?? langueParoles(job.musiqueParoles)
   const g = {
     unet: { class_type: 'UNETLoader', inputs: { unet_name: 'acestep_v1.5_turbo.safetensors', weight_dtype: 'default' } },
     ms: { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['unet', 0], shift: 3 } },
     clip: { class_type: 'DualCLIPLoader', inputs: { clip_name1: 'qwen_0.6b_ace15.safetensors', clip_name2: 'qwen_4b_ace15.safetensors', type: 'ace', device: 'default' } },
     vae: { class_type: 'VAELoader', inputs: { vae_name: 'ace_1.5_vae.safetensors' } },
-    txt: { class_type: 'TextEncodeAceStepAudio1.5', inputs: { clip: ['clip', 0], tags, lyrics: job.musiqueParoles || '[instrumental]', seed: s, bpm: 110, duration: d, timesignature: '4', language: 'en', keyscale: 'E minor', generate_audio_codes: true, cfg_scale: 2, temperature: 0.85, top_p: 0.9, top_k: 0, min_p: 0 } },
-    neg: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['txt', 0] } },
     lat: { class_type: 'EmptyAceStep1.5LatentAudio', inputs: { seconds: d, batch_size: 1 } },
-    k: { class_type: 'KSampler', inputs: { seed: s, steps: 8, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1, model: ['ms', 0], positive: ['txt', 0], negative: ['neg', 0], latent_image: ['lat', 0] } },
-    dec: { class_type: 'VAEDecodeAudio', inputs: { samples: ['k', 0], vae: ['vae', 0] } },
-    save: { class_type: 'SaveAudioMP3', inputs: { audio: ['dec', 0], filename_prefix: `creatoros/${job.id}/musique`, quality: 'V0' } },
+  }
+  // une branche par prise : chacune a sa graine, donc ses propres codes audio
+  for (let p = 0; p < PRISES_MUSIQUE; p++) {
+    const sp = (s + p * 7919) % 0xffffffff
+    g[`txt${p}`] = { class_type: 'TextEncodeAceStepAudio1.5', inputs: { clip: ['clip', 0], tags, lyrics, seed: sp, bpm, duration: d, timesignature, language, keyscale, generate_audio_codes: true, cfg_scale: 2, temperature: 0.85, top_p: 0.9, top_k: 0, min_p: 0 } }
+    g[`neg${p}`] = { class_type: 'ConditioningZeroOut', inputs: { conditioning: [`txt${p}`, 0] } }
+    g[`k${p}`] = { class_type: 'KSampler', inputs: { seed: sp, steps: 8, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1, model: ['ms', 0], positive: [`txt${p}`, 0], negative: [`neg${p}`, 0], latent_image: ['lat', 0] } }
+    g[`dec${p}`] = { class_type: 'VAEDecodeAudio', inputs: { samples: [`k${p}`, 0], vae: ['vae', 0] } }
+    g[`save${p}`] = { class_type: 'SaveAudioMP3', inputs: { audio: [`dec${p}`, 0], filename_prefix: `creatoros/${job.id}/musique_p${p + 1}`, quality: 'V0' } }
   }
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
-  const f = Object.values(history.outputs ?? {}).flatMap(o => o.audio ?? [])[0]
-  if (!f) throw new Error('aucun son en sortie')
+  const sorties = Array.from({ length: PRISES_MUSIQUE }, (_, p) => (history.outputs?.[`save${p}`]?.audio ?? [])[0]).filter(Boolean)
+  if (!sorties.length) throw new Error('aucun son en sortie')
   const racine = job.userPrompt.normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'musique'
   fs.mkdirSync(MUSIQUES_DIR, { recursive: true })
-  // ACE-Step sort à 0 dB : niveau ramené à celui d'une musique de fond, sans saturation
-  await executer('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-q:a', '2', path.join(MUSIQUES_DIR, `${racine}_${job.id.slice(-6)}.mp3`)], { timeout: 60_000 })
+  // ACE-Step sort à 0 dB : niveau ramené à celui d'une musique de fond, sans saturation.
+  // La 1re prise garde le nom attendu par les reels (…_<id>.mp3), les suivantes prennent _2, _3…
+  for (const [p, f] of sorties.entries()) {
+    const nom = `${racine}_${job.id.slice(-6)}${p ? `_${p + 1}` : ''}.mp3`
+    await executer('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-q:a', '2', path.join(MUSIQUES_DIR, nom)], { timeout: 60_000 })
+  }
   store.markFinished(job.id, Date.now() - t0)
   return 1
 }
@@ -3679,6 +3919,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'entrainement') return await runEntrainement(job, t0)
     if (job.op === 'restauration_hd') return await runRestaurationHd(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
+    if (job.op === 'transition') return await runTransition(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'profondeur') return await runProfondeur(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)

@@ -1190,4 +1190,8 @@ export const nouveautes: Record<string, string> = {
   'La danse, en capture de mouvement, est jouée par un mannequin dans le studio en 3D ; la caméra l’accompagne.': 'The motion-captured dance is played by a mannequin in the 3D studio, with a camera that follows.',
   'La scène devient une vraie vidéo, et ton personnage est repeint sur le mannequin d’après la photo.': 'The scene becomes a real video, and your character is painted over the mannequin from the photo.',
   'Parking Tokyo drift': 'Tokyo drift car park',
+  'Jour': 'Day',
+  'Flou': 'Blurry',
+  'Net': 'Sharp',
+  'Compressé': 'Compressed',
 }
