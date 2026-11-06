@@ -976,7 +976,7 @@ app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
   if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
-  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong']) delete req.body[k]   // réglages de banc : propriétaire seulement
+  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong', 'mixWanAnimate', 'motionPoseDriver', 'motionFpsNatif']) delete req.body[k]   // réglages de banc : propriétaire seulement
   // une vidéo qui part d'une photo de la bibliothèque joue le personnage de cette photo, quel que soit le choix courant
   const depart = req.body?.mode === 'video' && req.body?.selections?.task !== 't2v' && req.body?.selections?.startAssetId ? store.getAsset(String(req.body.selections.startAssetId)) : null
   if (depart?.persona_id) req.body.personaId = depart.persona_id

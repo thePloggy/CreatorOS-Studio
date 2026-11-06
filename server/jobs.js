@@ -788,6 +788,10 @@ export function enqueue(job) {
     motionVisionRef: isMotion && job.motionVisionRef === true ? true : undefined,
     swapAnimation: isMotion && job.swapAnimation === true ? true : undefined,
     swapLong: isMotion && Number.isInteger(job.swapLong) ? job.swapLong : undefined,
+    // bancs du propriétaire : forcer Wan Animate, prendre la pose d'une autre vidéo (ex. le mannequin 3D), garder la cadence du driver
+    mixWanAnimate: isMotion && job.mixWanAnimate === true ? true : undefined,
+    motionPoseDriver: isMotion && typeof job.motionPoseDriver === 'string' && /^[\w.-]+$/.test(job.motionPoseDriver) ? job.motionPoseDriver : undefined,
+    motionFpsNatif: isMotion && job.motionFpsNatif === true ? true : undefined,
     motionDistill: isMotion && typeof job.motionDistill === 'boolean' ? job.motionDistill : undefined,
     motionPoseFin: isMotion && Number.isFinite(job.motionPoseFin) ? Math.min(1, Math.max(0.3, job.motionPoseFin)) : undefined,
     danseSuivi: isMotion && job.danseSuivi === true ? true : undefined,
@@ -2215,7 +2219,7 @@ export function enqueueDanse3d({ fbx, still, decor, scene: description, personaI
     reshootSource: path.join('.stage', `${id}.mp4`), danseFbx: fbx, danseStill: still, danseSuivi: suivi === true ? true : undefined, danseDecor: STUDIOS_DANSE[decor] ? decor : 'salon',
     reshootAngle: 'danse 3d', reshootCamera: { az: 0, el: 0 }, reshootImages: 121,
     parentAssetId: null, userPrompt: d || 'a woman dancing', userDirectives: null,
-    composedPositive: `A real video of the woman dancing with energy and a big smile${d ? `, ${d}` : ''}. Real smartphone footage, natural light, the camera follows her. She is the only person in the place.`,
+    composedPositive: `A real video of the woman dancing with energy and a big smile${d ? `, ${d}` : ''}. Real smartphone footage, natural light, the camera follows her. She is the only person in the place: nobody else appears at any moment, no passers-by, no people in the background, not even tiny figures far away.`,
     composedNegative: null, selections: null, loras: [], videoLoras: [], estimatedMs: 200_000,
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
@@ -3030,7 +3034,7 @@ async function preparerDanse3d(job) {
     + 'The woman keeps the same face, hair, outfit and shoes, at exactly the same place and the same size in the frame, '
     + 'but she is relit by the light of the place: the same colour, direction and intensity of light on her skin, hair and clothes as on the scene around her, with matching shadows. '
     + `The grey blocks become ${(STUDIOS_DANSE[job.danseDecor] ?? STUDIOS_DANSE.salon).texte}, with real materials and light. `
-    + 'She is the only person in the place. Real photo.'
+    + 'She is the only person in the place: no other people anywhere, not even tiny figures far away in the background. Real photo.'
   g['40'].inputs.seed = Number(job.seed) || 42
   g['90'].inputs.filename_prefix = `creatoros/${job.id}/look`
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
@@ -3095,7 +3099,7 @@ function enchainerSwapDanse(job) {
   enqueue({ id: `${job.id}-swap`, mode: 'video', register: 'sfw', purpose: 'creative', personaId: job.personaId,
     motionDriver: driver, motionRef: ref, motionMode: 'replace', swapLong: 1280, danseSuivi: job.danseSuivi === true ? true : undefined,
     composedPositive: geste, userPrompt: geste, composedNegative: '',
-    motionSceneText: `A young woman dancing in ${(STUDIOS_DANSE[job.danseDecor] ?? STUDIOS_DANSE.salon).texte}, lit by the light of the place. ${geste}`, parentAssetId: a.id })
+    motionSceneText: `A young woman dancing alone in ${(STUDIOS_DANSE[job.danseDecor] ?? STUDIOS_DANSE.salon).texte}, lit by the light of the place, with nobody else anywhere in the place. ${geste}`, parentAssetId: a.id })
   console.log(`[job ${job.id}] Swap enchaîné : ${job.id}-swap (référence ${ref})`)
 }
 
@@ -3663,7 +3667,7 @@ async function probeDriver(job) {
      30 i/s, où le pas court ne revient qu'une fois sur 8). minterpolate fabrique
      des images réellement intermédiaires, régulièrement espacées. Coût : 12 à
      27 s sur le processeur, une fois par driver. */
-  if (Number.isFinite(fps0) && Math.abs(fps0 - 16) > 0.5) {
+  if (Number.isFinite(fps0) && Math.abs(fps0 - 16) > 0.5 && job.motionFpsNatif !== true) {
     const resampled = driverPath.replace(/(\.\w+)$/, '_16fps_mci.mp4')
     if (!fs.existsSync(resampled)) {
       // asynchrone : jusqu'à 27 s de calcul, le serveur doit continuer de répondre aux interfaces
@@ -3792,6 +3796,14 @@ function grapheSwapScail(job, motion, applied) {
 async function grapheMix(job, motion, applied, skipped) {
   const mg = comfy.loadWorkflow(MIX_RECIPE)
   mg['63'].inputs.video = job.motionDriver
+  /* Pose prise sur une autre vidéo cadrée pareil (banc : le mannequin de la scène 3D, dont le mouvement est exact) ;
+     le décor et le masque restent ceux du driver. */
+  if (job.motionPoseDriver && fs.existsSync(path.join(CONFIG.comfyInput, job.motionPoseDriver))) {
+    mg.poseSrc = JSON.parse(JSON.stringify(mg['63']))
+    mg.poseSrc.inputs.video = job.motionPoseDriver
+    mg['73'].inputs.image = ['poseSrc', 0]
+    applied.push(`pose lue sur ${job.motionPoseDriver} (DWPose), décor et masque du driver`)
+  }
   mg['57'].inputs.image = motion.refName
   mg['65'].inputs.positive_prompt = job.motionSceneText || (job.composedPositive || '').trim()
   /* Verrou SFW du Mix : sans consigne de tenue, un driver en maillot peut rendre un corps
