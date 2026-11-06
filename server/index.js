@@ -2721,7 +2721,7 @@ app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
 // le catalogue des danses : vidéos de mouvement d'un mannequin, choisies par le visiteur
-app.get('/api/danses', async () => ({ danses: danses.listeDanses(), studios: Object.entries(STUDIOS_DANSE).map(([id, s]) => ({ id, nom: s.nom })) }))
+app.get('/api/danses', async () => ({ danses: danses.listeDanses(), studios: Object.entries(STUDIOS_DANSE).map(([id, s]) => ({ id, nom: s.nom, v: danses.versionStudio(id) })) }))
 /* Danse en scène 3D : la danse dans un studio, caméra qui suit (LTX Layout-to-Render), puis le Swap redessine la danseuse d'après la photo. */
 app.post('/api/danses/scene3d', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
@@ -2733,7 +2733,8 @@ app.post('/api/danses/scene3d', async (req, reply) => {
     const still = `crs_still_${path.basename(a.filename)}`
     fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, still))
     store.noterInput(still)
-    return enqueueDanse3d({ fbx, still, decor: req.body?.decor, scene: req.body?.scene, personaId: a.persona_id, suivi: req.body?.suivi === true })
+    return enqueueDanse3d({ fbx, still, decor: req.body?.decor, scene: req.body?.scene, personaId: a.persona_id, suivi: req.body?.suivi === true,
+      stageForce: estProprietaire(req) && Number.isFinite(Number(req.body?.stageForce)) ? Number(req.body.stageForce) : undefined })
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 // le storyboard relu et corrigé part au tournage

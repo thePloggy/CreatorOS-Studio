@@ -18,6 +18,7 @@ const CroquisView = lazy(() => import('../v2/CroquisView').then(m => ({ default:
 const OutilsClip = () => import('../v2/OutilsClipViews')
 const RestaurerView = lazy(() => import('../v2/RestaurerView').then(m => ({ default: m.RestaurerView })))
 const PubView = lazy(() => import('../v2/PubView').then(m => ({ default: m.PubView })))
+const DanseView = lazy(() => import('../v2/DanseView').then(m => ({ default: m.DanseView })))
 const RecadrerView = lazy(() => OutilsClip().then(m => ({ default: m.RecadrerView })))
 const DoublageView = lazy(() => OutilsClip().then(m => ({ default: m.DoublageView })))
 const AnalyseView = lazy(() => OutilsClip().then(m => ({ default: m.AnalyseView })))
@@ -25,8 +26,8 @@ import type { Asset } from '../types'
 import { t } from '../i18n'
 import { lienMobile } from './lien'
 
-type Vue = 'reel' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
-const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Son'], ['montage', 'Editor'],
+type Vue = 'reel' | 'danse' | 'cinema' | 'presets' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
+const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['danse', 'Danse'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Son'], ['montage', 'Editor'],
   ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check']]
 
 /** Vue du Studio demandée depuis un autre espace (« Utiliser au montage » du studio son). */
@@ -60,6 +61,7 @@ export function MStudio({ goVideo }: { goVideo: () => void }) {
         {vue === 'montage' && <MontageView ouvrirId={montageAOuvrir} onOpen={(a, list) => setVu({ a, list })} />}
         <Suspense fallback={null}>
           {vue === 'restaurer' && <RestaurerView onOpen={(a, list) => setVu({ a, list })} />}
+          {vue === 'danse' && <DanseView onOpen={(a, list) => setVu({ a, list })} goMontage={() => setVue('montage')} />}
           {vue === 'pub' && <PubView onOpen={(a, list) => setVu({ a, list })} />}
           {vue === 'recadrer' && <RecadrerView onOpen={(a, list) => setVu({ a, list })} />}
           {vue === 'doublage' && <DoublageView onOpen={(a, list) => setVu({ a, list })} />}

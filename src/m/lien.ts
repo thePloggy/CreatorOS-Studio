@@ -1,6 +1,6 @@
 /* Lien partagé vers une section (?s=reel, ?s=image…) : l'espace mobile et la vue qui lui correspondent. */
 export type EspaceMobile = 'library' | 'create' | 'studio' | 'jobs' | 'atelier'
-const VUES_STUDIO = ['reel', 'cinema', 'presets', 'reshoot', 'croquis', 'parole', 'montage', 'restaurer', 'pub', 'recadrer', 'doublage', 'analyse']
+const VUES_STUDIO = ['reel', 'danse', 'cinema', 'presets', 'reshoot', 'croquis', 'parole', 'montage', 'restaurer', 'pub', 'recadrer', 'doublage', 'analyse']
 /** Section demandée par l'adresse (?s=…), traduite en espace mobile (et vue du Studio). */
 export function lienMobile(): { space: EspaceMobile; vue?: string; mode?: 'photo' | 'video'; son?: boolean } | null {
   try {

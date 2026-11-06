@@ -2185,12 +2185,12 @@ export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
 /* Les studios de danse : la maquette est dans scripts/scene_danse.py (même identifiant), la phrase sert à repeindre la 1re image. */
 export const STUDIOS_DANSE = {
   salon: { nom: 'Salon', texte: 'a bright apartment living room with white walls, a grey sofa with a low wooden coffee table in front of it, a small side table and a plant, light wooden floor' },
-  ruelle: { nom: 'Ruelle hip-hop', texte: 'a narrow urban alley with colourful graffiti on brick walls, dark asphalt ground, a dumpster and wooden crates' },
+  ruelle: { nom: 'Ruelle hip-hop', texte: 'a narrow urban alley with colourful graffiti on brick walls, dark asphalt ground, a dumpster and wooden crates, completely deserted with nobody else anywhere' },
   opera: { nom: 'Scène d’opéra', texte: 'the stage of an empty opera house, red velvet curtains, golden balcony boxes, a polished wooden stage floor, warm spotlights' },
-  toit: { nom: 'Toit au coucher du soleil', texte: 'a rooftop terrace at sunset with a low concrete parapet, a water tank and the city skyline behind, warm golden light' },
+  toit: { nom: 'Toit au coucher du soleil', texte: 'a rooftop terrace at sunset with a low concrete parapet, a water tank and the city skyline behind, warm golden light, completely deserted with nobody else anywhere' },
   concert: { nom: 'Scène de concert', texte: 'an empty concert stage with lighting trusses, black speaker stacks, a big glowing LED screen behind and colourful stage lights' },
-  tokyo: { nom: 'Rue de Tokyo', texte: 'a narrow Tokyo side street at night with glowing neon signs in pink and blue, small shop fronts and wet asphalt reflecting the lights' },
-  paris: { nom: 'Rue de Paris', texte: 'a Parisian street with cream Haussmann building facades, wrought-iron balconies, a green bench and a classic street lamp, cobblestones' },
+  tokyo: { nom: 'Rue de Tokyo', texte: 'a short dead-end Tokyo side street late at night, closed at the end by a building facade, with glowing neon signs in pink and blue, small shop fronts already closed and wet asphalt reflecting the lights, completely deserted' },
+  paris: { nom: 'Rue de Paris', texte: 'a Parisian street with cream Haussmann building facades, wrought-iron balconies, a green bench and a classic street lamp, cobblestones, completely deserted with nobody else anywhere' },
   parking: { nom: 'Parking Tokyo drift', texte: 'a Tokyo-drift style underground car park at night, concrete pillars, tyre marks on the floor, purple and blue neon underglow, and a row of tuned Japanese street-racing cars parked behind her: a Honda NSX, a Toyota Supra, a BMW M3, a Nissan Skyline GT-R R34, a Nissan GT-R R35 and a Lamborghini with a Japanese-style widebody kit' },
   cabaret: { nom: 'Cabaret', texte: 'the small raised stage of an empty cabaret, with a polished warm wooden stage floor and a red velvet curtain behind her, no microphone; below the front edge of the stage, in the empty audience with nobody in it, little round tables with lamps' },
   bal: { nom: 'Salle de bal', texte: 'an empty grand ballroom with marble columns, a polished parquet floor, tall windows and a crystal chandelier' },
@@ -2198,14 +2198,14 @@ export const STUDIOS_DANSE = {
   'studio-danse': { nom: 'Studio de danse', texte: 'a bright dance studio with a light wooden floor, a ballet barre along the white back wall and large windows, no mirror' },
   sport: { nom: 'Salle de sport', texte: 'a modern gym with a rubber floor, weight benches and racks along the back wall and a wall ladder' },
   cuisine: { nom: 'Cuisine', texte: 'a warm modern kitchen with light oak wood lower cabinets, white upper cabinets, a long counter along the back wall, a tall stainless fridge, a few green plants and, behind her, in front of the back counter, one plain rectangular kitchen island with light oak wood fronts without handles and a thick white quartz top, nothing on it and no stools; nothing stands between her and the camera' },
-  plage: { nom: 'Plage', texte: 'a sunny sandy beach with turquoise sea behind, a striped parasol and a deck chair' },
-  jardin: { nom: 'Jardin', texte: 'a green garden lawn with a trimmed hedge behind and two leafy trees, soft daylight' },
-  basket: { nom: 'Terrain de basket', texte: 'an outdoor street basketball court with a hoop behind, painted court lines and a chain-link fence' },
-  desert: { nom: 'Route du désert', texte: 'a straight desert road with red mesas on the horizon, dry sand on both sides and a road sign, golden light' },
+  plage: { nom: 'Plage', texte: 'a sunny sandy beach with turquoise sea behind, a large white and grey-blue striped parasol on a wooden pole and a wooden deck chair, completely deserted with nobody else anywhere' },
+  jardin: { nom: 'Jardin', texte: 'a green garden lawn with a trimmed hedge behind and two leafy trees, soft daylight, completely deserted with nobody else anywhere' },
+  basket: { nom: 'Terrain de basket', texte: 'an outdoor street basketball court with a hoop behind, painted court lines and a chain-link fence, completely deserted with nobody else anywhere' },
+  desert: { nom: 'Route du désert', texte: 'a straight desert road with red mesas on the horizon, dry sand on both sides and a road sign, golden light, completely deserted with nobody else anywhere' },
   metro: { nom: 'Quai de métro', texte: 'an empty metro platform with white tiled walls, the tracks behind the platform edge and benches, no train, no people' },
   hotel: { nom: 'Hall d’hôtel', texte: 'the lobby of a luxury hotel with marble columns, a reception desk, velvet armchairs and a large chandelier' },
 }
-export function enqueueDanse3d({ fbx, still, decor, scene: description, personaId, suivi }) {
+export function enqueueDanse3d({ fbx, still, decor, scene: description, personaId, suivi, stageForce }) {
   if (!fbx || !fs.existsSync(fbx)) throw new Error('danse inconnue')
   if (!still || /[\\/]/.test(still) || !fs.existsSync(path.join(CONFIG.comfyInput, still))) throw new Error('photo du personnage introuvable')
   const d = String(description ?? '').trim().slice(0, 400)
@@ -2216,7 +2216,7 @@ export function enqueueDanse3d({ fbx, still, decor, scene: description, personaI
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'video', purpose: 'creative', recipeId: 'danse3d@v1', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'danse3d', videoEngine: 'ltx_layout',
-    reshootSource: path.join('.stage', `${id}.mp4`), danseFbx: fbx, danseStill: still, danseSuivi: suivi === true ? true : undefined, danseDecor: STUDIOS_DANSE[decor] ? decor : 'salon',
+    reshootSource: path.join('.stage', `${id}.mp4`), danseFbx: fbx, danseStill: still, danseSuivi: suivi === true ? true : undefined, danseDecor: STUDIOS_DANSE[decor] ? decor : 'salon', stageForce: Number.isFinite(stageForce) ? stageForce : undefined,
     reshootAngle: 'danse 3d', reshootCamera: { az: 0, el: 0 }, reshootImages: 121,
     parentAssetId: null, userPrompt: d || 'a woman dancing', userDirectives: null,
     composedPositive: `A real video of the woman dancing with energy and a big smile${d ? `, ${d}` : ''}. Real smartphone footage, natural light, the camera follows her. She is the only person in the place: nobody else appears at any moment, no passers-by, no people in the background, not even tiny figures far away.`,
@@ -2936,7 +2936,8 @@ export function grapheReshoot(job, W, H, sonSource) {
   if (job.op === 'stage' || job.op === 'danse3d') {
     // la maquette grise guide seule : pas de géométrie ni de vue déplacée
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
-    Object.assign(g.lora.inputs, { lora_name: STAGE_LORA, strength_model: 1 })
+    // force de l'IC-LoRA de mise en scène : 1 par défaut ; plus haut (banc du propriétaire), LTX colle davantage au mannequin
+    Object.assign(g.lora.inputs, { lora_name: STAGE_LORA, strength_model: Number.isFinite(job.stageForce) ? Math.min(2, Math.max(0.5, job.stageForce)) : 1 })
     g.pos.inputs.text = String(job.composedPositive ?? '')
     g.neg.inputs.text = 'grey clay, mannequin, blocks, untextured, text, subtitles, logo, watermark, distorted face'
     g.g2.inputs.positive = ['cond', 0]; g.g2.inputs.negative = ['cond', 1]; g.g2.inputs.latent = ['lat1', 0]

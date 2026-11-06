@@ -117,6 +117,8 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 | **3D Scene**: block a shot on a 3D set, scrub the camera, get a finished shot | **Viewer**: full recipe, seed, render time, checks, ComfyUI workflow |
 | ![Re-shoot](docs/screenshots/reshoot.jpg) | ![Talking avatar](docs/screenshots/talking-avatar.jpg) |
 | **Re-shoot**: the same moment from a new camera angle, previewed in 3D | **Talking avatar**: one photo, one voice |
+| ![Dance](docs/screenshots/dance.jpg) | ![Sound Studio](docs/screenshots/sound.jpg) |
+| **Dance**: 34 motion-captured dances in 20 3D studios, big previews, filter by style, your character takes the mannequin's place | **Sound Studio**: music with lyrics and vocals from a preset or from scratch, two takes side by side, history, voices and sound effects |
 
 ![Mobile: library and one-click reel](docs/screenshots/mobile.jpg)
 
@@ -290,13 +292,17 @@ The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `dance` 
 
 ## Community
 
-Shared on Reddit the week of the submission (numbers as of 28 October 2026):
+Shared on Reddit since the submission (numbers as of 6 November 2026):
 
-| Community | Views | Upvotes | Comments | Shares |
-|---|---|---|---|---|
-| r/comfyui | 34,000 | 98 | 27 | 45 |
-| r/StableDiffusion | 22,000 | 43 | 14 | 12 |
-| r/OpenSourceAI, r/SelfHostedAI | 1,000 | 3 | 1 | 0 |
+| Post | Views | Upvotes |
+|---|---|---|
+| r/comfyui, launch | 39,000 | 100 |
+| r/StableDiffusion, launch | 30,000 | 44 |
+| r/comfyui, one-week update | 3,000 | 7 |
+| r/OpenSourceAI, r/SelfHostedAI | 1,200 | 3 |
+| **Total** | **≈ 73,000** | **154** |
+
+The live demo logged about 600 daily visits and 300 visitor renders over its first 17 days.
 
 What people asked for, and what changed because of it:
 

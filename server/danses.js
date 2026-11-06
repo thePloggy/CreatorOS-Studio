@@ -59,6 +59,8 @@ let catalogue = []
 // la version de l'aperçu (date du fichier) : une vignette refaite n'est pas resservie depuis le cache du navigateur
 const version = slug => { try { return Math.round(fs.statSync(path.join(APERCUS, `${slug}.webp`)).mtimeMs / 1000) } catch { return 0 } }
 export const listeDanses = () => catalogue.map(d => ({ ...d, v: version(d.slug) }))
+/** Version d'une vignette de studio (studio-<id>.webp) : même principe que les danses. */
+export const versionStudio = id => version(`studio-${id}`)
 /* Le fichier FBX d'une danse : danses/fbx des données, ou le dossier donné par CREATOROS_DANSES_FBX. */
 const DOSSIER_FBX = process.env.CREATOROS_DANSES_FBX || path.join(CONFIG.dataDir, 'danses', 'fbx')
 const slugDe = nom => nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')

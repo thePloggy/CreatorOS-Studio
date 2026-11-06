@@ -231,7 +231,7 @@ export default function V2App() {
         {section === 'recadrer' && <RecadrerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'restaurer' && <RestaurerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'carrousel' && <CarrouselView onOpen={(a, list) => setFocus({ a, list })} />}
-        {section === 'danse' && <DanseView onOpen={(a, list) => setFocus({ a, list })} />}
+        {section === 'danse' && <DanseView onOpen={(a, list) => setFocus({ a, list })} goMontage={() => setSection('montage')} />}
         {section === 'outil' && <OutilDedie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />}
         {(section === 'styles' || section === 'relight' || section === 'expand') && <StylesView key={section} mode={section} goImage={() => setSection('image')} />}
         {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}
