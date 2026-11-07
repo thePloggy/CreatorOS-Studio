@@ -379,6 +379,8 @@ export interface Job {
   /* Ce que le VLM a lu dans la still de départ, donné en entrée au
      réécriveur. Absent si aucune image n'a été fournie. */
   promptVision?: string
+  /** prompt réécrit par le réécriveur FLUX 3 (ce que le moteur a reçu) */
+  promptReecrit?: string
   /** Ordres au composeur LLM (comment formuler). */
   userDirectives: string
   /* Produit par le composeur — éditable avant dispatch (reveal+edit) */
@@ -499,7 +501,7 @@ export interface Asset {
    *  à la génération et « Cloner » ne peut plus repeupler la colonne 3. */
   provenance: Pick<Job,
     'selections' | 'seed' | 'recipeId' | 'composedPositive' | 'composedNegative'
-    | 'userPrompt' | 'userDirectives' | 'initialBrief' | 'promptVision'>
+    | 'userPrompt' | 'userDirectives' | 'initialBrief' | 'promptVision' | 'promptReecrit'>
   reviewStatus: 'pending' | 'approved' | 'rejected'
   exportReady: boolean
   createdAt: number

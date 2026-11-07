@@ -19,6 +19,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { CONFIG } from './config.js'
+import { estAmd } from './carteGraphique.js'
 
 /** Profils, du plus grand au plus petit (Go de VRAM visés). */
 export const PROFILS = [24, 16, 12, 8]
@@ -34,6 +35,22 @@ for (const v of MANIFESTE.modeles.filter(m => m.leger)) {
   const orig = MANIFESTE.modeles.find(m => m.chemin.split('/').pop() === v.leger.remplace)
   const e = (VARIANTES[v.leger.remplace] ??= { tient: orig?.tient ?? 24, variantes: [] })
   e.variantes.push({ pour: v.leger.pour, fichier: v.chemin.split('/').pop(), chargeur: v.leger.chargeur, suit: v.leger.suit })
+}
+
+/* ROCm (carte AMD) : les fichiers int8-convrot et nvfp4 demandent des noyaux CUDA. Chaque
+   fichier de recette concerné a sa version bf16 officielle (`rocm` dans le manifeste). */
+const ROCM = {}
+for (const v of MANIFESTE.modeles.filter(m => m.rocm))
+  (ROCM[v.rocm.remplace] ??= []).push({ fichier: v.chemin.split('/').pop(), taille: v.taille ?? 0, chargeur: v.rocm.chargeur ?? null })
+/* bf16 d'abord (le plus fidèle), puis les GGUF du plus gros au plus petit */
+for (const l of Object.values(ROCM)) l.sort((a, b) => (a.chargeur ? 1 : 0) - (b.chargeur ? 1 : 0) || b.taille - a.taille)
+
+/** La version ROCm à employer : la plus fidèle installée qui tient dans ~85 % de la VRAM, sinon la plus petite installée. */
+export function choixRocm(candidats, vramOctets, installe) {
+  const dispo = candidats.filter(c => installe(c))
+  if (!dispo.length) return null
+  const tient = vramOctets ? dispo.find(c => !c.taille || c.taille <= vramOctets * 0.85) : dispo[0]
+  return tient ?? dispo[dispo.length - 1]
 }
 
 /* Le nom d'entrée de chaque chargeur, et ses entrées propres. */
@@ -98,10 +115,31 @@ async function choisir(nom, profil, dejaChoisis) {
 
 /** Remplace les chargeurs lourds d'un graphe au format API. Rend { graphe, remplaces: [[de, vers]] }. */
 export async function alleger(graphe) {
+  if (!graphe || typeof graphe !== 'object') return { graphe, remplaces: [] }
+  const amd = estAmd()
   const { profil } = await profilActuel()
-  if (profil >= 24 || !graphe || typeof graphe !== 'object') return { graphe, remplaces: [] }
+  if (profil >= 24 && !amd) return { graphe, remplaces: [] }
   const out = structuredClone(graphe)
   const remplaces = []
+  /* ROCm d'abord : la version bf16 officielle, si elle est installée (sinon on laisse le fichier
+     d'origine : ComfyUI dira lui-même s'il ne sait pas le charger). */
+  if (amd) {
+    const { vram } = await profilActuel()
+    for (const n of Object.values(out)) {
+      if (!(n?.class_type in ENTREE)) continue
+      const nom = n.inputs?.[ENTREE[n.class_type]]
+      const cands = typeof nom === 'string' ? ROCM[nom.split('/').pop()] : null
+      if (!cands) continue
+      const installes = new Map()
+      for (const c of cands) installes.set(c.fichier, (await fichiersDe(c.chargeur ?? n.class_type)).has(c.fichier))
+      const v = choixRocm(cands, vram, c => installes.get(c.fichier))
+      if (!v) continue
+      remplaces.push([nom, v.fichier])
+      if (v.chargeur === 'UnetLoaderGGUF') { n.class_type = 'UnetLoaderGGUF'; n.inputs = { unet_name: v.fichier } }
+      else n.inputs[ENTREE[n.class_type]] = v.fichier
+    }
+    if (profil >= 24) return { graphe: out, remplaces }
+  }
   const choisis = new Set()
   // modèles de diffusion d'abord : le choix de l'encodeur en dépend
   const noeuds = Object.values(out).filter(n => n?.class_type in ENTREE)

@@ -3,6 +3,7 @@
    Un seul process (`npm start`). Il n'écoute que sur la boucle locale
    par défaut (CREATOROS_HOST pour l'ouvrir).
    ============================================================ */
+import { mesures } from './carteGraphique.js'
 import { etatAllegement } from './allege.js'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
@@ -242,6 +243,7 @@ const assetOut = r => r && ({
   userDirectives: r.user_directives ?? undefined,
   initialBrief: r.initial_brief ?? undefined,
   promptVision: r.prompt_vision ?? undefined,
+  promptReecrit: r.prompt_reecrit ?? undefined,
   videoFps: r.video_fps ?? undefined,
   // badges des cartes : son, plan d'ambiance (texte → vidéo), recette photo, finition
   withAudio: r.with_audio ? true : undefined,
@@ -381,11 +383,9 @@ app.get('/api/telemetry', async () => {
 })
 async function mesurerTelemetrie() {
   let gpu = null
-  try {
-    const out = (await execFileAsync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
-      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 })).stdout.trim().split(',').map(x => x.trim())
-    gpu = { util: Number(out[0]), temp: Number(out[1]), vramUsedMb: Number(out[2]), vramTotalMb: Number(out[3]), nom: String(out[4] ?? '').replace(/^NVIDIA\s+(GeForce\s+)?/, '') }
-  } catch { /* driver occupé : la topbar garde la dernière valeur */ }
+  // NVIDIA (nvidia-smi) ou AMD (rocm-smi) : cf. carteGraphique.js
+  const m = await mesures()
+  if (m) gpu = { util: m.util, temp: m.temp, vramUsedMb: m.memUtiliseeMo, vramTotalMb: m.memTotaleMo, nom: String(m.nom ?? '').replace(/^(NVIDIA|AMD)\s+(GeForce\s+|Radeon\s+)?/, '') }
   let cpuTemp = null
   try {
     // k10temp = capteur Tctl des processeurs AMD.

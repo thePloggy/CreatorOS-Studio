@@ -23,6 +23,7 @@ const relireH3 = () => etatH3().then(e => { h3Disponible = e.disponible }).catch
 relireH3(); setInterval(relireH3, 30_000).unref()
 import * as comfy from './comfy.js'
 import { blocOllama, pourRendu } from './gpu.js'
+import { aReecrire, reecrireFlux3 } from './flux3Upsampler.js'
 import * as sdk from './transport-sdk.js'
 import * as store from './db.js'
 import { enregistrer as enregistrerPersona, SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
@@ -4192,7 +4193,23 @@ async function runJob(job, isRetry = false, connRetried = false) {
        RÉSOLU — le front n'a vu que le token. Un terme bloqué fait échouer
        le job en le disant, plutôt que de rendre une image qu'on ne peut
        pas livrer. */
-    const drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
+    let drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
+    /* FLUX 3 : la scène passe par le réécriveur officiel (description complète), le déclencheur du
+       personnage reste en tête. Repli sur le texte d'origine si le LLM échoue : le rendu part quand même. */
+    const flux3Photo = job.mode === 'photo' && !isEdit && (job.photoEngine === 'flux3' || /flux3/.test(String(job.workflowFile ?? '')))
+    const personnageFlux3 = !!job.personaId && job.personaId !== SANS_PERSONNAGE && lorasPhoto(persona(job.personaId), 'flux3').length > 0
+    if (flux3Photo && !job.flux3Brut) {
+      const scene = drawn.text.startsWith(triggerTxt) ? drawn.text.slice(triggerTxt.length) : drawn.text
+      if (aReecrire(scene)) {
+        try {
+          const t0r = Date.now()
+          const riche = await reecrireFlux3(scene, { largeur: job.width, hauteur: job.height, personnage: personnageFlux3 })
+          drawn = { ...drawn, text: triggerTxt + riche }
+          store.noterPromptReecrit(job.id, riche)
+          console.log(`[job ${job.id}] FLUX 3 : prompt réécrit (${riche.split(/\s+/).length} mots, ${Date.now() - t0r} ms)`)
+        } catch (e) { console.warn(`[job ${job.id}] FLUX 3 : réécriveur indisponible, prompt d'origine (${e.message})`) }
+      }
+    }
     // Vidéo avec son : la réplique est la SEULE parole (voir speechGuard).
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
     // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
@@ -4291,6 +4308,28 @@ async function runJob(job, isRetry = false, connRetried = false) {
       const r = comfy.rendre2MP(workflow)
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
+    }
+    /* FLUX 3 avec la LoRA du personnage : un visage petit dans le cadre (plan large) sort flou et générique.
+       FaceDetailer (Impact Pack) le détecte, le redessine à 1024 px avec la même LoRA puis le recolle :
+       la pose, la lumière et le décor ne bougent pas. CREATOROS_FLUX3_VISAGE=0 le coupe. */
+    if (flux3Photo && personnageFlux3 && process.env.CREATOROS_FLUX3_VISAGE !== '0') {
+      const ks = Object.entries(workflow).find(([, n]) => n.class_type === 'KSampler')
+      const save = Object.entries(workflow).find(([, n]) => n.class_type === 'SaveImage')
+      const clip = Object.entries(workflow).find(([, n]) => n.class_type === 'CLIPLoader')
+      const vae = Object.entries(workflow).find(([, n]) => n.class_type === 'VAELoader')
+      if (ks && save && clip && vae) {
+        const [, k] = ks
+        workflow.visage_txt = { class_type: 'CLIPTextEncode', inputs: { clip: [clip[0], 0], text: `${preamble?.text ?? ''}close-up photograph of her face, natural skin texture, sharp focus, same light and colour grade as the scene` } }
+        workflow.visage_neg = { class_type: 'CLIPTextEncode', inputs: { clip: [clip[0], 0], text: '' } }
+        workflow.visage_det = { class_type: 'UltralyticsDetectorProvider', inputs: { model_name: 'bbox/face_yolov8m.pt' } }
+        workflow.visage = { class_type: 'FaceDetailer', inputs: { image: save[1].inputs.images, model: k.inputs.model, clip: [clip[0], 0], vae: [vae[0], 0],
+          guide_size: 1024, guide_size_for: true, max_size: 1024, seed: k.inputs.seed, steps: 16, cfg: 1, sampler_name: 'euler', scheduler: 'simple',
+          positive: ['visage_txt', 0], negative: ['visage_neg', 0], denoise: 0.6, feather: 8, noise_mask: true, force_inpaint: true,
+          bbox_threshold: 0.4, bbox_dilation: 12, bbox_crop_factor: 2.4, sam_detection_hint: 'none', sam_dilation: 0, sam_threshold: 0.93,
+          sam_bbox_expansion: 0, sam_mask_hint_threshold: 0.7, sam_mask_hint_use_negative: 'False', drop_size: 10, bbox_detector: ['visage_det', 0], wildcard: '', cycle: 1 } }
+        save[1].inputs.images = ['visage', 0]
+        applied.push('FLUX 3 : visage redessiné à 1024 px avec la LoRA du personnage (FaceDetailer, denoise 0,6)')
+      }
     }
     // Klein sans LoRA du personnage : sa photo de profil tient le visage, références ou non
     const kleinSansLora = job.mode === 'photo' && job.photoEngine === 'klein' && !isEdit

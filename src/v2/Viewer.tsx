@@ -508,7 +508,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {p.promptVision && (
           <PromptCard titre={t('Vision VLM de la still')} texte={p.promptVision} hauteur={110} />
         )}
-        <PromptCard titre={p.promptVision || p.initialBrief ? t('Prompt composé (envoyé au moteur)') : t('Prompt composé')}
+        {p.promptReecrit && (
+          <PromptCard titre={t('Prompt réécrit (envoyé à FLUX 3)')} texte={p.promptReecrit} hauteur={150} />
+        )}
+        <PromptCard titre={p.promptReecrit ? t('Ton prompt') : p.promptVision || p.initialBrief ? t('Prompt composé (envoyé au moteur)') : t('Prompt composé')}
           texte={p.composedPositive || p.userPrompt || '—'} hauteur={130} />
         <div className="vfiche text-[12px]">
           <button className="vfiche-tete vfiche-pli" onClick={() => setDetails(v => !v)} aria-expanded={details}>

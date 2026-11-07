@@ -14,6 +14,7 @@
    Deux gravités : « bloquant » (un rendu échouera) et « alerte » (ça marche,
    mais quelque chose a changé ou va gêner).
    ============================================================ */
+import { estAmd, identite } from './carteGraphique.js'
 import { alleger } from './allege.js'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -38,14 +39,17 @@ const json = async (url, timeout = 15_000) => {
 /* ---------- contrôles ---------- */
 
 async function carteGraphique(p, infos) {
-  const r = await run('nvidia-smi', ['--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'])
-  if (r.code !== 0 || !r.out.trim()) {
+  const c = await identite()
+  if (!c) {
     const noyau = os.release()
-    p.push({ gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote NVIDIA ne répond pas (nvidia-smi en échec)',
-      conseil: `vérifier que le module du noyau ${noyau} est installé (paquet linux-modules-nvidia-…-${noyau}), puis « sudo modprobe nvidia » ou redémarrer` })
+    p.push(estAmd()
+      ? { gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote AMD ne répond pas (rocm-smi en échec)',
+          conseil: 'vérifier que ROCm est installé et que l’utilisateur est dans les groupes render et video, puis redémarrer' }
+      : { gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote NVIDIA ne répond pas (nvidia-smi en échec)',
+          conseil: `vérifier que le module du noyau ${noyau} est installé (paquet linux-modules-nvidia-…-${noyau}), puis « sudo modprobe nvidia » ou redémarrer` })
     return
   }
-  infos.carte = r.out.trim().split('\n')[0]
+  infos.carte = `${c.nom}, ${c.pilote ?? '?'}, ${c.vramGo} GiB${c.fabricant === 'amd' ? ' (ROCm)' : ''}`
 }
 
 /** Les paquets que ComfyUI et les scripts de CreatorOS importent réellement. */

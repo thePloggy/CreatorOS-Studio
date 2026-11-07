@@ -4,6 +4,7 @@
    une still rejoue le geste d'une vidéo) / Étendre.
    Tâches : i2v=Créer · motion_pure=Rejouer · extend=Étendre.
    ============================================================ */
+import { SANS_PERSONNAGE } from '../lib/personnage'
 import { LoraStacks, LoraSwitch, loraFamily } from '../components/LoraStacks'
 import { ImportLora } from '../components/ImportLora'
 import { useBriefHistory } from '../components/BriefHistory'
@@ -108,7 +109,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
-  const shown = useMemo(() => applyFilters(s.assets.filter(a => a.personaId === s.personaId), selecting ? 'photo' : 'video', review, q)
+  const shown = useMemo(() => applyFilters(s.assets.filter(a => !s.personaId || s.personaId === SANS_PERSONNAGE || a.personaId === s.personaId), selecting ? 'photo' : 'video', review, q)
     .filter(a => selecting || draft === 'all' || (draft === 'draft' ? !!a.videoDraft : !a.videoDraft)),
   [s.assets, s.personaId, review, q, selecting, draft])
   const activeJobs = s.jobs.filter(j => j.mode === 'video' && STATUTS_ACTIFS.includes(j.status))

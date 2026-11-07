@@ -151,7 +151,7 @@ function trouverPython312(uv) {
 
 function gpu() {
   const smi = trouver('nvidia-smi')
-  if (!smi) return null
+  if (!smi || process.env.CREATOROS_GPU === 'amd') return gpuAmd()
   const q = lire(smi, ['--query-gpu=name,memory.total,driver_version', '--format=csv,noheader,nounits'])
   if (q.code !== 0 || !q.out.trim()) return { erreur: (q.err || q.out).trim().split('\n')[0] }
   const [nom, mem, pilote] = q.out.trim().split('\n')[0].split(',').map(s => s.trim())
@@ -159,10 +159,29 @@ function gpu() {
   return { nom, vram: Number(mem) * 1024 * 1024, pilote, cuda }
 }
 
+/* Carte AMD (ROCm) : rocm-smi donne le nom et la VRAM, /opt/rocm/.info/version la version de ROCm.
+   Expérimental : les recettes y tournent avec les poids bf16 officiels (cf. modeles.json, `rocm`). */
+function gpuAmd() {
+  const smi = trouver('rocm-smi')
+  if (!smi) return null
+  const q = lire(smi, ['--showproductname', '--showmeminfo', 'vram', '--json'])
+  if (q.code !== 0 || !q.out.trim()) return { fournisseur: 'amd', erreur: (q.err || q.out).trim().split('\n')[0] }
+  try {
+    const c = Object.entries(JSON.parse(q.out)).filter(([k]) => /^card\d+$/.test(k)).map(([, v]) => v)[0] ?? {}
+    const cle = re => Object.keys(c).find(k => re.test(k))
+    const nom = String(c[cle(/card series|card model|product name/i)] ?? 'AMD GPU').trim()
+    const vram = Number(String(c[cle(/vram total memory/i)] ?? '0').replace(/[^\d]/g, '')) || 0
+    let rocm = null
+    try { rocm = fs.readFileSync('/opt/rocm/.info/version', 'utf8').trim() } catch { /* version inconnue */ }
+    return { fournisseur: 'amd', nom, vram, pilote: rocm ? `ROCm ${rocm}` : 'ROCm', rocm }
+  } catch (e) { return { fournisseur: 'amd', erreur: String(e.message || e) } }
+}
+
 /* Index de roues PyTorch selon le CUDA que le pilote sait servir : on prend
-   le plus récent que le pilote couvre. CREATOROS_TORCH_INDEX l'emporte. */
-function indexTorch(cuda) {
+   le plus récent que le pilote couvre. Carte AMD : la roue ROCm. CREATOROS_TORCH_INDEX l'emporte. */
+function indexTorch(cuda, carte) {
   if (process.env.CREATOROS_TORCH_INDEX) return process.env.CREATOROS_TORCH_INDEX
+  if (carte?.fournisseur === 'amd') return 'https://download.pytorch.org/whl/rocm7.1'
   const v = Number(cuda) || 0
   const tag = v >= 13.2 ? 'cu132' : v >= 13.0 ? 'cu130' : v >= 12.9 ? 'cu129' : v >= 12.6 ? 'cu126' : null
   return tag && `https://download.pytorch.org/whl/${tag}`
@@ -193,8 +212,12 @@ function prerequis() {
   if (!p.uv) info('uv not found: pip/venv will be used (uv is faster: https://docs.astral.sh/uv/)')
 
   p.gpu = gpu()
-  if (!p.gpu) { ko('nvidia-smi not found: no NVIDIA driver', 'install the NVIDIA driver (Ubuntu: `sudo ubuntu-drivers install`), then reboot'); bilan.manque.push('NVIDIA driver') }
-  else if (p.gpu.erreur) { ko(`nvidia-smi fails: ${p.gpu.erreur}`, 'the driver does not match the running kernel: reinstall it or reboot'); bilan.manque.push('NVIDIA driver') }
+  if (!p.gpu) { ko('no GPU driver found (nvidia-smi or rocm-smi)', 'NVIDIA: install the driver (Ubuntu: `sudo ubuntu-drivers install`) and reboot; AMD: install ROCm (https://rocm.docs.amd.com)'); bilan.manque.push('GPU driver') }
+  else if (p.gpu.erreur) { ko(`${p.gpu.fournisseur === 'amd' ? 'rocm-smi' : 'nvidia-smi'} fails: ${p.gpu.erreur}`, p.gpu.fournisseur === 'amd' ? 'check ROCm and that your user is in the render and video groups' : 'the driver does not match the running kernel: reinstall it or reboot'); bilan.manque.push('GPU driver') }
+  else if (p.gpu.fournisseur === 'amd') {
+    ok(`${p.gpu.nom}, ${octets(p.gpu.vram)} VRAM`, p.gpu.pilote)
+    alerte('AMD / ROCm support is experimental', 'the recipes use the official bf16 weights instead of int8-convrot / nvfp4 (larger downloads, more VRAM); start ComfyUI without --use-sage-attention')
+  }
   else {
     ok(`${p.gpu.nom}, ${octets(p.gpu.vram)} VRAM`, `driver ${p.gpu.pilote}, CUDA ${p.gpu.cuda ?? '?'}`)
     if (p.gpu.vram < 23e9) alerte('less than 24 GB of VRAM: video recipes are sized for a 32 GB card and may run out of memory')
@@ -251,9 +274,9 @@ async function preparerVenv(dir, p) {
     bilan.fait.push(`venv ${tilde(venv)}`)
   }
 
-  const idx = indexTorch(p.gpu?.cuda)
+  const idx = indexTorch(p.gpu?.cuda, p.gpu)
   if (!idx) alerte('could not pick a CUDA build of PyTorch from the driver version', 'set CREATOROS_TORCH_INDEX, e.g. https://download.pytorch.org/whl/cu130')
-  else if (await confirmer(`Install PyTorch (CUDA, ${idx.split('/').pop()}) into the venv? (~3-5 GB)`)) {
+  else if (await confirmer(`Install PyTorch (${p.gpu?.fournisseur === 'amd' ? 'ROCm' : 'CUDA'}, ${idx.split('/').pop()}) into the venv? (~3-5 GB)`)) {
     await pip(py, p, ['torch', 'torchvision', 'torchaudio', '--index-url', idx])
     bilan.fait.push(`PyTorch (${idx.split('/').pop()})`)
   }
@@ -321,9 +344,9 @@ async function etapeComfy(p) {
     const r = lire(py, ['-I', '-c', 'import sys\ntry:\n import torch; t=torch.__version__; c=torch.cuda.is_available()\nexcept Exception as e: t=None; c=False\nprint("PY", sys.version.split()[0], t, c)'], 120_000)
     const m = r.out.match(/PY (\S+) (\S+) (True|False)/)
     if (!m) { ko(`the ComfyUI Python does not start (${tilde(py)})`, (r.err.trim().split('\n').pop() || '').slice(0, 160)); bilan.manque.push('ComfyUI Python') }
-    else if (m[2] === 'None') { ko(`torch is not installed in ${tilde(py)}`, `install a CUDA build: ${indexTorch(p.gpu?.cuda) ?? 'https://pytorch.org/get-started/locally/'}`); bilan.manque.push('torch') }
-    else if (m[3] !== 'True') { alerte(`Python ${m[1]}, torch ${m[2]}, but CUDA is not available to torch`, 'check the driver (nvidia-smi) and that torch is a CUDA build'); }
-    else ok(`Python ${m[1]}, torch ${m[2]}, CUDA ok`, tilde(py))
+    else if (m[2] === 'None') { ko(`torch is not installed in ${tilde(py)}`, `install a ${p.gpu?.fournisseur === 'amd' ? 'ROCm' : 'CUDA'} build: ${indexTorch(p.gpu?.cuda, p.gpu) ?? 'https://pytorch.org/get-started/locally/'}`); bilan.manque.push('torch') }
+    else if (m[3] !== 'True') { alerte(`Python ${m[1]}, torch ${m[2]}, but the GPU is not available to torch`, p.gpu?.fournisseur === 'amd' ? 'check ROCm (rocm-smi) and that torch is a ROCm build (+rocm in the version)' : 'check the driver (nvidia-smi) and that torch is a CUDA build'); }
+    else ok(`Python ${m[1]}, torch ${m[2]}, ${/rocm/.test(m[2]) ? 'ROCm' : 'CUDA'} ok`, tilde(py))
   }
 
   let actifs = await objectInfo(dir)
@@ -457,8 +480,19 @@ async function choisirGroupes(modeles, vram, profil = 24) {
    même substitution à l'envoi (server/allege.js) ; ici on ne télécharge que ce qui
    servira. Mêmes marches que le serveur. */
 const profilDe = o => { const go = o / 2 ** 30; return !go ? 24 : go >= 22 ? 24 : go >= 14 ? 16 : go >= 10 ? 12 : 8 }
-function selonCarte(modeles, profil) {
+function selonCarte(modeles, profil, amd = false, vramCarte = 0) {
   const nom = m => m.chemin.split('/').pop()
+  /* Carte AMD : la version bf16 officielle (`rocm`) à la place du fichier int8-convrot / nvfp4 de la
+     recette ; sur NVIDIA, ces versions bf16 ne sont jamais téléchargées. */
+  const rocmDe = new Set(modeles.filter(m => m.rocm).map(m => m.rocm.remplace))
+  /* une seule version par modèle : bf16 si elle tient dans ~85 % de la VRAM, sinon le GGUF le plus fidèle qui tient */
+  const retenue = new Set()
+  if (amd) for (const r of rocmDe) {
+    const cands = modeles.filter(m => m.rocm?.remplace === r).sort((a, b) => (a.rocm.chargeur ? 1 : 0) - (b.rocm.chargeur ? 1 : 0) || b.taille - a.taille)
+    const v = (vramCarte ? cands.find(c => c.taille <= vramCarte * 0.85) : cands[0]) ?? cands[cands.length - 1]
+    if (v) retenue.add(nom(v))
+  }
+  modeles = modeles.filter(m => m.rocm ? retenue.has(nom(m)) : !(amd && rocmDe.has(nom(m)) && !drapeau('--keep-full')))
   const tient = r => modeles.find(m => nom(m) === r)?.tient ?? 24
   const gardees = new Set()
   for (const r of new Set(modeles.filter(m => m.leger).map(m => m.leger.remplace))) {
@@ -472,7 +506,7 @@ function selonCarte(modeles, profil) {
   return modeles.filter(m => m.leger ? gardees.has(nom(m)) : drapeau('--keep-full') || !remplaces.has(nom(m)))
 }
 
-async function etapeGroupes(comfy, vram) {
+async function etapeGroupes(comfy, vram, amd = false) {
   titre('3. Features')
   const etat = etatModeles(comfy.dir)
   if (etat.extra.length) info(`extra_model_paths.yaml: ${etat.extra.map(s => `${s.nom} → ${tilde(s.base)}${s.defaut ? ' (default)' : ''}`).join(', ')}`)
@@ -480,7 +514,7 @@ async function etapeGroupes(comfy, vram) {
   const force = Number(valeur('--vram') ?? process.env.CREATOROS_VRAM)
   const profil = [24, 16, 12, 8].includes(force) ? force : profilDe(vram)
   if (force) vram = force * 1e9
-  const modeles = selonCarte(etat.modeles, profil)
+  const modeles = selonCarte(etat.modeles, profil, amd, vram)
   const legers = modeles.filter(m => m.leger)
   if (legers.length) {
     info(`${profil} GB profile: ${legers.length} light model(s) replace the full-size ones (same recipes, quantized or smaller weights)`)
@@ -757,7 +791,7 @@ async function principal() {
   let groupes = null
   if (comfy) {
     // Le choix des fonctions vient d'abord : il décide des packs ET des modèles.
-    const etat = await etapeGroupes(comfy, p.gpu?.vram)
+    const etat = await etapeGroupes(comfy, p.gpu?.vram, p.gpu?.fournisseur === 'amd')
     groupes = etat.groupes
     await etapeNoeuds(comfy, p, groupes)
     await etapeModeles(etat)

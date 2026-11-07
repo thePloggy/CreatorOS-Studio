@@ -3,10 +3,10 @@
    Tout est surchargeable par variable d'environnement : aucun chemin
    propre à une machine n'est écrit en dur.
    ============================================================ */
+import { vramGoSync } from './carteGraphique.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 
 const home = os.homedir()
 const repo = path.resolve(import.meta.dirname, '..')
@@ -27,10 +27,7 @@ const dataDir = process.env.CREATOROS_DATA || path.join(home, 'creatoros-data')
 let vramLue
 function vramLocaleGo() {
   if (vramLue === undefined) {
-    try {
-      const mo = execFileSync('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeout: 3000, encoding: 'utf8' })
-      vramLue = Math.round(Number(mo.split('\n')[0]) / 1024) || 0
-    } catch { vramLue = 0 }
+    vramLue = vramGoSync()   // NVIDIA ou AMD (carteGraphique.js)
   }
   return vramLue
 }

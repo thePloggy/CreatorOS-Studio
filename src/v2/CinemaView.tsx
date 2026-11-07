@@ -3,7 +3,7 @@
 
    Caméra (boîtier, optique, focale, ouverture), plan, lumière, pellicule,
    look et étalonnage, une palette de couleurs : la fiche compose la phrase
-   que lit le moteur photo (Krea 2 ou Klein), le personnage actif y met son
+   que lit le moteur photo (FLUX 3 Klein, Krea 2 ou Klein), le personnage actif y met son
    visage. « Même plan, 4 lumières » rend la même graine sous quatre
    lumières. Les prises sont des rendus photo ordinaires : elles arrivent
    dans la bibliothèque et s'animent comme les autres.
@@ -208,12 +208,14 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
               {[1, 2, 3, 4].map(n => <button key={n} disabled={balayage} className={`wtab ${!balayage && prises === n ? 'on' : ''}`} onClick={() => setPrises(n)}>×{n}</button>)}
               <button className={`wtab ${balayage ? 'on' : ''}`} onClick={() => setBalayage(!balayage)} title={t('la même graine sous l’heure dorée, l’heure bleue, des néons et un clair-obscur')}>☀ {t('Même plan, 4 lumières')}</button>
               <span className="text-[12px]" style={{ marginLeft: 6 }}>
+                <button className={`spill ${s.photoEngine === 'flux3' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('flux3')}
+                  title={s.personaFlux3 ? t('FLUX 3 Klein : le rendu le plus réaliste, avec la LoRA de {nom}', { nom: s.personaName }) : t('FLUX 3 Klein : le rendu le plus réaliste ; {nom} n’a pas de LoRA FLUX 3, son visage n’est pas tenu', { nom: s.personaName })}>FLUX 3 Klein</button>
                 <button className={`spill ${s.photoEngine === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')}>Krea 2</button>
                 {s.personaKlein && <button className={`spill ${s.photoEngine === 'klein' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('klein')}>FLUX.2 Klein</button>}
               </span>
               <span style={{ flex: 1 }} />
               <button className="cta" style={{ padding: '10px 20px', flexDirection: 'row' }} disabled={envoi} onClick={() => void tourner()}>
-                {envoi ? '…' : `🎬 ${t('Tourner')}`} <small style={{ marginLeft: 6 }}>{balayage ? 4 : prises} {t('prises')}</small>
+                {envoi ? '…' : <><Ic n="film" s={15} /> {t('Tourner')}</>} <small style={{ marginLeft: 6 }}>{balayage ? 4 : prises} {t('prises')}</small>
               </button>
             </div>
             {err && <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>{err}</div>}

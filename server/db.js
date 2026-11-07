@@ -326,6 +326,7 @@ SELECT a.*, p.recipe_id, p.seed, p.composed_positive, p.composed_negative,
        json_extract(j.payload, '$.carouselLocks') AS carousel_locks,
        json_extract(j.payload, '$.initialBrief') AS initial_brief,
        json_extract(j.payload, '$.promptVision') AS prompt_vision,
+       json_extract(j.payload, '$.promptReecrit') AS prompt_reecrit,
        json_extract(j.payload, '$.videoFps') AS video_fps,
        json_extract(j.payload, '$.withAudio') AS with_audio,
        json_extract(j.payload, '$.t2v') AS t2v,
@@ -525,6 +526,9 @@ const setPayloadStmt = db.prepare(`UPDATE jobs SET payload = ? WHERE id = ?`)
 const setComposedStmt = db.prepare(`UPDATE jobs SET composed_positive = ? WHERE id = ?`)
 /** Prompt écrit au moment du rendu (quand il dépend d'une description de la source). */
 export function setComposedPositive(id, texte) { setComposedStmt.run(String(texte), String(id)) }
+/* Prompt réécrit par le réécriveur FLUX 3 : gardé à part, le prompt de l'opérateur reste tel qu'il l'a écrit. */
+const promptReecritStmt = db.prepare(`UPDATE jobs SET payload = json_set(payload, '$.promptReecrit', ?) WHERE id = ?`)
+export function noterPromptReecrit(id, texte) { promptReecritStmt.run(String(texte), String(id)) }
 export function setJobBatchId(id, batchId) {
   const row = getPayloadStmt.get(id)
   if (!row) return false

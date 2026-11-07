@@ -46,8 +46,8 @@ export function preparerDanses() {
       if (!fs.existsSync(dst)) fs.copyFileSync(src, dst)
       store.noterInput(nomDriver(slug), 'danse')
       const mini = path.join(APERCUS, `${slug}.mp4`), vignette = path.join(APERCUS, `${slug}.webp`)
-      if (!fs.existsSync(mini)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', src, '-an', '-vf', 'scale=240:-2', '-c:v', 'libx264', '-crf', '30', '-movflags', '+faststart', mini], { timeout: 60_000 })
-      if (!fs.existsSync(vignette)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '1.5', '-i', src, '-frames:v', '1', '-vf', 'scale=240:-2', vignette], { timeout: 30_000 })
+      if (!fs.existsSync(mini)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', src, '-an', '-vf', 'scale=540:-2', '-c:v', 'libx264', '-crf', '27', '-preset', 'slow', '-movflags', '+faststart', mini], { timeout: 60_000 })
+      if (!fs.existsSync(vignette)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '1.5', '-i', src, '-frames:v', '1', '-vf', 'scale=540:-2', '-quality', '86', vignette], { timeout: 30_000 })
       liste.push({ slug, titre: titre(slug), secondes: duree(src) })
     } catch (e) { console.warn(`[danses] ${slug} : ${String(e.message || e).slice(0, 160)}`) }
   }

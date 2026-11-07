@@ -145,7 +145,7 @@ Ollama (local)         prompt rewriting, captions, light vision checks
 
 ## Requirements
 
-- An NVIDIA GPU. The production machine uses a 32 GB card and the full-size recipes are sized for it; on 12 and 16 GB cards the photo recipes run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
+- An NVIDIA GPU, or an AMD GPU with ROCm on the `rocm` branch (experimental, see [AMD / ROCm](#amd--rocm-experimental)). The production machine uses a 32 GB card and the full-size recipes are sized for it; on 12 and 16 GB cards the photo recipes run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
 - Node.js 22.5 or newer (the server uses the built-in `node:sqlite`) and ffmpeg.
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI), recent enough to ship the Wan Animate 2, LTX-2.5 and SAM3 core nodes, plus these custom node packs:
   ComfyUI-KJNodes, ComfyUI-VideoHelperSuite, ComfyUI-GGUF, ComfyUI-CrossViewWarp (re-shoot), ComfyUI-WanVideoWrapper + ComfyUI-segment-anything-2 + comfyui_controlnet_aux + comfyui_segment_anything (Mix), ComfyUI-Frame-Interpolation (RIFE, for video refine and smoothing), RES4LYF, ComfyUI-Impact-Pack + Impact-Subpack (only for photo HD).
@@ -305,6 +305,24 @@ claude mcp add creatoros-studio -- node /path/to/creatoros-studio/scripts/agent/
 ```
 
 The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `dance` and `list_dances`, `generate_music` and `list_music`, `speak`, `list_voices` and `talking_clip`, `edit_video` (one-click LTX effects, remove or replace an element, change the background), `get_status`, `list_library`, `list_characters` and `machine_status`. `skills/creatoros-studio/SKILL.md` is a matching agent skill: copy it to `~/.claude/skills/` so Claude knows which tool fits which request. It has no dependency beyond Node. Set `STUDIO_URL` if the studio is not on `http://127.0.0.1:8787`, and `CREATOROS_OWNER_KEY` if it is locked with an owner key. Without the key, a request from the same machine is treated like any visitor.
+
+## AMD / ROCm (experimental)
+
+This branch runs the studio on AMD cards through ROCm. It has not been tested on real AMD hardware yet: reports are welcome in the issues.
+
+What changes on an AMD card:
+
+- **Detection.** The server and `npm run setup` find the card with `rocm-smi` (or `CREATOROS_GPU=amd` to force it). Gauges, diagnostics and the VRAM profile read `rocm-smi` instead of `nvidia-smi`.
+- **PyTorch.** The setup installs the ROCm build (`https://download.pytorch.org/whl/rocm7.1`). Override with `CREATOROS_TORCH_INDEX`.
+- **Weights.** The int8-convrot files used by some recipes (FLUX 3, LTX-2.5, Wan Animate 2, MOSS, TRELLIS.2) need CUDA kernels. On ROCm the setup downloads a replacement instead, and the server swaps the loader when it sends the recipe:
+  - the official **bf16** weights when they fit in about 85 % of the VRAM (Strix Halo 128 GB, or large cards);
+  - otherwise a **GGUF** (Q8_0, then Q4_K_M) through ComfyUI-GGUF, for LTX-2.5 and FLUX 3.
+
+  fp8 files stay as they are: ComfyUI stores them in fp8 and computes in bf16.
+- **Attention.** Start ComfyUI without `--use-sage-attention` (SageAttention is CUDA only). PyTorch attention is used.
+- **Not available on ROCm:** MiniMax H3 (nvfp4 text encoder, CUDA only) and SCAIL 2 swap (int8 only, no bf16 release yet).
+
+One studio drives one GPU. With two cards, run two ComfyUI instances (`HIP_VISIBLE_DEVICES=0` and `=1`) and point one studio at each (`COMFY_URL`).
 
 ## Community
 
