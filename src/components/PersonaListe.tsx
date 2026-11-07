@@ -6,6 +6,7 @@
    était actif quand il a été lancé.
    Styles en ligne, couleurs héritées : partagé bureau et mobile.
    ============================================================ */
+import { Ic } from '../v2/bits'
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
@@ -119,7 +120,7 @@ export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: st
                   <span style={{ opacity: 0.7 }}>{t('Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.')}</span>
                 </button>}
                 <button style={{ ...bouton, padding: '12px 14px', textAlign: 'left', display: 'grid', gap: 4 }} onClick={() => { setChoix(false); setNouveau('') }}>
-                  <b style={{ fontSize: 13 }}>⬆ {t('Importer une LoRA existante')}</b>
+                  <b style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}><Ic n="upload" s={13} />{t('Importer une LoRA existante')}</b>
                   <span style={{ opacity: 0.7 }}>{t('Un personnage vide : tu ajoutes ensuite sa LoRA (déposée dans le dossier des LoRA) et son crédit.')}</span>
                 </button>
                 <button style={{ ...bouton, justifySelf: 'start' }} onClick={() => setChoix(false)}>{t('Annuler')}</button>

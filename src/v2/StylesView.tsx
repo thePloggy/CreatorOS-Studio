@@ -172,13 +172,13 @@ export function StylesView({ mode = 'styles', goImage, onOpen }: { mode?: Mosaiq
           <figure className="carree">
             {choisi
               ? (imageChoisie ? <img key={choisi.id} src={imageChoisie} alt="" /> : <span className="dz-carte-lettre" aria-hidden>{choisi.format ?? choisi.nom.slice(0, 1)}</span>)
-              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('galerie')}>{t(tx.choisir)}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('galerie')}><span className="vide-icone"><Ic n="grid" s={22} /></span>{t(tx.choisir)}</button>}
             <figcaption>{choisi ? choisi.nom : t(tx.carte)}</figcaption>
           </figure>
           <figure className="carree">
             {photo?.asset || photo?.apercu
               ? <img key={photo.asset?.id ?? photo.apercu} src={photo.asset?.uri ?? photo.apercu} alt="" />
-              : <button type="button" className="dz-apercu-vide" onClick={() => setPicker(true)}>{t('Choisir une photo')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => setPicker(true)}><span className="vide-icone"><Ic n="image" s={22} /></span>{t('Choisir une photo')}</button>}
             <figcaption>{t('Ta photo')}</figcaption>
           </figure>
         </div>

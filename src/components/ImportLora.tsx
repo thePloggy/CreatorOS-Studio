@@ -15,6 +15,7 @@ import { useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useEdition } from '../lib/proprietaire'
 import { t, tServeur } from '../i18n'
+import { Ic } from '../v2/bits'
 
 /** Envoi en flux avec progression : fetch n'en donne pas sur un envoi. */
 export function deposerLora(f: File, remplacer: boolean, progres: (p: number) => void) {
@@ -84,7 +85,7 @@ export function ImportLora({ compatible, onAjout, style }: {
       <input ref={champ} type="file" accept=".safetensors" hidden
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void envoyer(f) }} />
       <button type="button" style={bouton} disabled={envoi !== null} onClick={() => champ.current?.click()}>
-        {envoi !== null ? t('Envoi… {p} %', { p: Math.round(envoi * 100) }) : t('＋ Importer une LoRA (.safetensors)')}
+        {envoi !== null ? t('Envoi… {p} %', { p: Math.round(envoi * 100) }) : <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><Ic n="upload" s={14} />{t('Importer une LoRA (.safetensors)')}</span>}
       </button>
       {enAttente && (
         <div style={{ fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -661,8 +661,23 @@ async function etapeReglages() {
   if (ecoute === 2) r.CREATOROS_HOST = '0.0.0.0'; else delete r.CREATOROS_HOST
   if (ecoute === 2 && usage === 1) alerte('anyone on your network gets the full studio: pick "Shared" above if that is not what you want')
 
+  // Mode adulte : installation locale à un seul utilisateur, jamais avec une clé propriétaire
+  let adulte = false
+  if (usage === 1 && ecoute === 1) {
+    console.log(`\n    ${gras('Adult content (18+)')} ${gris('(local, single-user install only)')}`)
+    info('on: text-only renders are no longer filtered for nudity or sexual content')
+    info('still refused, always: anything about minors; and sexual content on any render that starts from an')
+    info('imported photo, uses a character or any LoRA (a face that could belong to a real person)')
+    // jamais par --yes : une réponse tapée au clavier, et rien par défaut
+    if (OUI || !interactif) info('adult content: left as is (answer it in an interactive run)')
+    adulte = OUI || !interactif ? r.CREATOROS_CONTENU_ADULTE === '1'
+      : (await demander(`Type ${gras('adult')} to turn it on, Enter to leave it off:`, '')).trim().toLowerCase() === 'adult'
+  }
+  if (adulte) r.CREATOROS_CONTENU_ADULTE = '1'; else delete r.CREATOROS_CONTENU_ADULTE
+
   console.log(`\n    ${gras('Nudity filter on renders')} ${gris('(NudeNet, CPU: a positive render goes to quarantine)')}`)
-  const filtre = await choisir('Choice:', [`Off ${gris('(nothing is checked after the render)')}`, `On ${gris('(installs NudeNet in its own Python environment)')}`], usage === 2 ? 2 : 1)
+  const filtre = adulte ? 1 : await choisir('Choice:', [`Off ${gris('(nothing is checked after the render)')}`, `On ${gris('(installs NudeNet in its own Python environment)')}`], usage === 2 ? 2 : 1)
+  if (adulte) info('nudity filter on renders: off (adult content is on)')
   if (filtre === 2) {
     const venv = r.CREATOROS_FILTRE_PYTHON ? path.dirname(path.dirname(r.CREATOROS_FILTRE_PYTHON)) : path.join(os.homedir(), 'venvs', 'filtre-images')
     const py = path.join(venv, 'bin', 'python')
@@ -700,7 +715,8 @@ async function etapeReglages() {
     : ['you (with the owner key): everything', 'visitors: studio images only (no photo of a real person), no LoRA import, a render limit per hour']
   for (const l of lignes) ok(l)
   info(`nudity filter on renders: ${filtre === 2 ? 'on' : 'off'}`)
-  info('always on in this public edition: the prompt floor that refuses anything about minors and sexual content')
+  info(adulte ? 'adult content: on for text-only renders; minors and real-person sources stay refused'
+    : 'the prompt floor refuses anything about minors and sexual content (turn adult content on in this step, single-user install only)')
 }
 
 /* ============================================================

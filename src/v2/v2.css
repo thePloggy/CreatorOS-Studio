@@ -215,7 +215,7 @@
 .v2 .scrollwrap { overflow-x: hidden; }
 
 /* menu contextuel ancré (⋯) */
-.v2 .menu { position: fixed; z-index: 70; background: var(--lv3); border-radius: 12px;
+.v2 .menu { position: fixed; z-index: 1000; background: var(--lv3); border-radius: 12px;
   box-shadow: var(--sh-lg); padding: 5px; min-width: 160px; }
 .v2 .menu button { display: flex; width: 100%; text-align: left; gap: 8px; align-items: center;
   padding: 8px 11px; border-radius: 8px; background: none; border: 0; color: var(--text);
@@ -247,7 +247,8 @@
   margin: 9px auto 5px; flex: none; cursor: grab; }
 .v2 .sheet .sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 14px 14px;
   display: flex; flex-direction: column; gap: 9px; }
-.v2 .selbar { position: fixed; top: 0; left: 0; right: 0; z-index: 45;
+/* les îlots et menus de sélection passent devant tout (liserés des vignettes, survols) */
+.v2 .selbar { position: fixed; top: 0; left: 0; right: 0; z-index: 999;
   background: rgba(84, 33, 74, 0.92); backdrop-filter: blur(10px);
   padding: 11px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px;
   border-radius: 0 0 14px 14px; color: var(--text); }
@@ -1399,3 +1400,9 @@
 @keyframes apercu-balaye { 0%, 8% { --coupe: 18%; } 50%, 58% { --coupe: 82%; } 100% { --coupe: 18%; } }
 .v2 .apercu.compare.balaye { animation: apercu-balaye 6s cubic-bezier(.45, 0, .55, 1) infinite; }
 @media (prefers-reduced-motion: reduce) { .v2 .apercu.compare.balaye { animation: none; } }
+
+/* l'îlot de sélection passe devant les liserés des vignettes sélectionnées et leurs survols */
+.v2 .fbar.ilot-selection { z-index: 999; }
+
+/* icône au-dessus du texte des boutons « Choisir une photo / un clip » */
+.v2 .zone-icone, .v2 .vide-icone { display: block; margin: 0 auto 6px; width: max-content; opacity: .75; }

@@ -212,13 +212,13 @@ export function PresetsView({ goVideo, onOpen }: { goVideo: () => void; onOpen?:
           <figure>
             {preset?.apercu
               ? <video key={preset.id} src={preset.apercu} poster={urlFixe(preset)} muted loop playsInline {...(reduit ? { controls: true, preload: 'none' } : { autoPlay: true })} />
-              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet(famille)}>{famille === 'effet' ? t('Choisir un effet') : t('Choisir un mouvement')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet(famille)}><span className="vide-icone"><Ic n="grid" s={22} /></span>{famille === 'effet' ? t('Choisir un effet') : t('Choisir un mouvement')}</button>}
             <figcaption>{preset ? nom(preset) : famille === 'effet' ? t('Effet') : t('Mouvement')}</figcaption>
           </figure>
           <figure>
             {photo?.asset || photo?.apercu
               ? <img key={photo.asset?.id ?? photo.apercu} src={photo.asset?.uri ?? photo.apercu} alt="" />
-              : <button type="button" className="dz-apercu-vide" onClick={() => setPicker(true)}>{t('Choisir une photo')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => setPicker(true)}><span className="vide-icone"><Ic n="image" s={22} /></span>{t('Choisir une photo')}</button>}
             <figcaption>{t('Ta photo')}</figcaption>
           </figure>
         </div>

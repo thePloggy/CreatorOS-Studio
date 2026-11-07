@@ -333,7 +333,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
           {tab === 'up' && onUploadFile && (
             <label className="pk" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', cursor: 'pointer',
               fontSize: 12, color: 'var(--muted)', border: '1px dashed var(--line, rgba(255,255,255,.2))', minHeight: 90 }}>
-              ＋<br />{t('Depuis l’ordinateur…')}{!edition && <><br /><small>{t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}</small></>}
+              <span style={{ display: 'grid', justifyItems: 'center', gap: 6 }}><Ic n="upload" s={22} />{t('Depuis l’ordinateur…')}</span>{!edition && <><br /><small>{t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}</small></>}
               <input type="file" accept={accept} className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) { onUploadFile(f); onClose() } }} />
             </label>
@@ -787,7 +787,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
         </div>
       </div>
       {picking && (
-        <div style={{ position: 'absolute', left: 0, right: 300, bottom: 0, zIndex: 6 }}>
+        <div style={{ position: 'absolute', left: 0, right: 300, bottom: 0, zIndex: 999 }}>
           <SelectionBar ids={[...picked]} assets={items} onClear={() => setPicked(new Set())} />
         </div>
       )}

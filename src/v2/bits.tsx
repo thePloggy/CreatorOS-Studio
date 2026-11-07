@@ -32,6 +32,8 @@ const IC: Record<string, React.ReactNode> = {
   dots: <><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" /></>,
   chevron: <path d="M6 9l6 6 6-6" />,
   play: <path d="M7 4.5l12 7.5-12 7.5V4.5z" />,
+  upload: <><path d="M12 15V4" /><path d="M7 9l5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
   extend: <><path d="M4 5v14" /><path d="M9 12h11" /><path d="M16 8l4 4-4 4" /></>,
   upscale: <><rect x="4" y="10" width="10" height="10" rx="2" /><path d="M13 4h7v7" /><path d="M20 4l-7 7" /></>,
   dice: <><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.2" cy="8.2" r="1.4" fill="currentColor" stroke="none" /><circle cx="15.8" cy="8.2" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="8.2" cy="15.8" r="1.4" fill="currentColor" stroke="none" /><circle cx="15.8" cy="15.8" r="1.4" fill="currentColor" stroke="none" /></>,
@@ -1087,7 +1089,7 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
     }
   }
   return (
-    <div className="fbar" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div className="fbar ilot-selection" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <b className="text-[13px]" style={{ whiteSpace: 'nowrap' }}>{tp(sel.length, '{n} sélectionnée', '{n} sélectionnées')}</b>
       <button className="pill" onClick={() => void download()}><Ic n="download" /> {t('Télécharger')}</button>
       <button className="pill tool" disabled={sel.length < 2 || sel.length > 4}

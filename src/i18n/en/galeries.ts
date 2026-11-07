@@ -316,4 +316,7 @@ export const galeries: Record<string, string> = {
   'Visage de la photo': 'Face from the photo',
   'Aucun personnage : le visage de la photo de départ est repris dans chaque image.': 'No character: the face from the start photo is kept in every image.',
   'Le personnage choisi remplace la personne de la photo.': 'The chosen character replaces the person in the photo.',
+  'Importer une LoRA (.safetensors)': 'Import a LoRA (.safetensors)',
+  'déposer une vidéo': 'upload a video',
+  'Les 8 variantes sont en file : elles arrivent à droite, l’original en tête du lot. Choisis une autre photo pour un nouveau carrousel.': 'The 8 variants are queued: they arrive on the right, the original first. Pick another photo for a new carousel.',
 }

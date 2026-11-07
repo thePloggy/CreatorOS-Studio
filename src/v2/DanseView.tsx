@@ -186,13 +186,13 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
               ? (reduit
                   ? <video key={danse.slug} src={urlDanse(danse, 'mp4')} poster={urlDanse(danse, 'webp')} muted loop playsInline controls preload="none" />
                   : <video key={danse.slug} src={urlDanse(danse, 'mp4')} poster={urlDanse(danse, 'webp')} muted loop playsInline autoPlay />)
-              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('danses')}>{t('Choisir une danse')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('danses')}><span className="vide-icone"><Ic n="play" s={22} /></span>{t('Choisir une danse')}</button>}
             <figcaption>{danse?.titre ?? t('Danse')}</figcaption>
           </figure>
           <figure>
             {leStudio
               ? (reduit ? <ImageFixe src={urlStudio(leStudio, true)} /> : <img key={leStudio.id} src={urlStudio(leStudio, true)} alt="" />)
-              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('studios')}>{t('Choisir un studio')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet('studios')}><span className="vide-icone"><Ic n="grid" s={22} /></span>{t('Choisir un studio')}</button>}
             <figcaption>{leStudio ? t(leStudio.nom) : t('Studio')}</figcaption>
           </figure>
         </div>

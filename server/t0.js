@@ -110,6 +110,9 @@ export function t0Enfance(text) {
   return T0_ENFANCE_MOTS.find(m => mots.has(m)) ?? null
 }
 
+/** Le plancher qui ne se lève jamais : tout ce qui évoque un mineur. */
+export const t0Mineur = text => t0Enfance(text)
+
 /** Rend le terme bloqué, ou null. */
 export function t0Hit(text) {
   const enfance = t0Enfance(text)

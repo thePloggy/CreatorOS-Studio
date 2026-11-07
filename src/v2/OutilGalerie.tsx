@@ -277,14 +277,14 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
               ? (P.media === 'video'
                   ? <video key={source.id} src={source.uri} poster={posterOf(source)} muted loop playsInline {...(reduit ? { controls: true, preload: 'none' } : { autoPlay: true })} />
                   : <img key={source.id} src={vignetteOf(source)} alt="" />)
-              : <button type="button" className="dz-apercu-vide" onClick={() => { setCible('personne'); changerOnglet('biblio') }}>{tryon ? t('Choisir la personne') : page === 'sref' ? t('Choisir l’image de style') : P.media === 'video' ? t('Choisir un clip') : t('Choisir une photo')}</button>}
+              : <button type="button" className="dz-apercu-vide" onClick={() => { setCible('personne'); changerOnglet('biblio') }}><span className="vide-icone"><Ic n={tryon ? 'user' : P.media === 'video' ? 'play' : 'image'} s={22} /></span>{tryon ? t('Choisir la personne') : page === 'sref' ? t('Choisir l’image de style') : P.media === 'video' ? t('Choisir un clip') : t('Choisir une photo')}</button>}
             <figcaption>{tryon ? t('La personne') : page === 'sref' ? t('Le style') : P.media === 'video' ? t('Ton clip') : t('Ta photo')}</figcaption>
           </figure>
           {tryon && (
             <figure>
               {v.second
                 ? <img key={v.second.id} src={vignetteOf(v.second)} alt="" />
-                : <button type="button" className="dz-apercu-vide" onClick={() => { setCible('vetement'); changerOnglet('biblio') }}>{t('Choisir le vêtement')}</button>}
+                : <button type="button" className="dz-apercu-vide" onClick={() => { setCible('vetement'); changerOnglet('biblio') }}><span className="vide-icone"><Ic n="image" s={22} /></span>{t('Choisir le vêtement')}</button>}
               <figcaption>{t('Le vêtement')}</figcaption>
             </figure>
           )}

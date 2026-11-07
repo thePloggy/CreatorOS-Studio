@@ -30,7 +30,7 @@ import { ensurePoster } from './poster.js'
 import { controlerJob } from './controle.js'
 import * as wildcards from './wildcards.js'
 import * as vision from './vision.js'
-import { t0Hit } from './t0.js'
+import { t0Hit, t0Mineur } from './t0.js'
 import * as plans from './plans.js'
 import { MUSIQUES_DIR } from './montage.js'
 
@@ -4197,7 +4197,14 @@ async function runJob(job, isRetry = false, connRetried = false) {
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
     // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
     // (sans les mots du filtre T0, que le prompt final traverse ensuite)
-    const vetuOpaque = !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo'
+    /* Mode adulte (installation locale) : seulement quand AUCUN visage ne peut venir d'une vraie personne — pas
+       de personnage, aucune LoRA (une LoRA importée peut porter un visage réel), aucune photo importée (une
+       source d'origine inconnue compte comme importée). Le plancher « mineurs » reste toujours. */
+    const entrees = [job.sourceImage, job.endImage, ...(job.references ?? [])].filter(x => typeof x === 'string' && x.trim())
+    const adulteLibre = CONFIG.contenuAdulte && (!job.personaId || job.personaId === SANS_PERSONNAGE)
+      && !(job.loras ?? []).length && !(job.videoLoras ?? []).length
+      && entrees.every(n => store.origineInput(path.basename(n)) === 'genere')
+    const vetuOpaque = !adulteLibre && !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo'
     const texteBrut = speech?.text ?? drawn.text
     // un maillot sur une adulte reste permis : la consigne ne demande alors que des tissus opaques
     const maillot = /\b(bikini|swimsuit|swimwear|one-piece|swim trunks)\b/i.test(texteBrut)
@@ -4206,7 +4213,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
       ...drawn.draws.map(d => `tirage wildcard ${d.token} → « ${d.value} »`),
       ...drawn.unknown.map(t => `wildcard ${t} INCONNU : aucun fichier dans ${CONFIG.wildcardsDir} — laissé tel quel`),
     ]
-    const blocked = t0Hit(positive)
+    const blocked = adulteLibre ? t0Mineur(positive) : t0Hit(positive)
     if (blocked)
       throw new Error(`T0 : terme bloqué « ${blocked} »`
         + (drawn.draws.length ? ' — apparu dans un tirage wildcard' : ' dans le prompt'))

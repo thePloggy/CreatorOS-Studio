@@ -79,7 +79,7 @@ let relancer = false
 
 /** Une ronde : analyse les assets créés depuis la dernière ronde. Sûr à appeler à tout moment. */
 export async function filtrerNouveaux() {
-  if (!filtreDisponible()) return
+  if (!filtreDisponible() || CONFIG.contenuAdulte) return
   if (enCours) { relancer = true; return }
   enCours = true
   try {

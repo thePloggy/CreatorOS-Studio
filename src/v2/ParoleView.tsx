@@ -3,6 +3,7 @@
    personnage dit le texte, lèvres calées sur l'audio (InfiniteTalk, Wan 2.1).
    Le rendu passe par la file ordinaire et arrive dans l'onglet Vidéo.
    ============================================================ */
+import { Ic } from './bits'
 import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -166,7 +167,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
             {!edition && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
             {edition && <><button className={`pill ${enreg ? 'used' : ''}`} onClick={() => void micro()}>{enreg ? `■ ${t('Arrêter')} · ${secondes.toFixed(1)} s` : `🎙 ${t('Enregistrer au micro')}`}</button>
-            <label className="pill tool" style={{ cursor: 'pointer' }}>⇪ {t('déposer un fichier audio')}
+            <label className="pill tool" style={{ cursor: 'pointer' }}><Ic n="upload" s={13} /> {t('déposer un fichier audio')}
               <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void deposer(f, f.type || 'audio/mpeg'); e.target.value = '' }} />
             </label></>}
             {voix && <audio src={voix.url} controls style={{ height: 32 }} />}

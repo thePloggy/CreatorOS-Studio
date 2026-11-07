@@ -25,7 +25,7 @@ import * as composer from './composer.js'
 import * as carrousel from './carrousel.js'
 import * as captions from './captions.js'
 import { ensurePoster } from './poster.js'
-import { T0_BLOCKLIST, t0Hit } from './t0.js'
+import { T0_BLOCKLIST, t0Hit, t0Mineur } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
@@ -137,11 +137,22 @@ function texteInterdit(v, cle = '') {
   if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { const h = texteInterdit(x, k); if (h) return h } }
   return null
 }
+const ROUTES_ADULTES = new Set(['POST /api/jobs', 'POST /api/compose', 'POST /api/rewrite', 'POST /api/carrousel'])
+function mineurDans(v, cle = '') {
+  if (CLES_IDENTIFIANTS.has(cle)) return null
+  if (typeof v === 'string') return /^data:image\/png;base64,/.test(v) ? null : t0Mineur(v)
+  if (Array.isArray(v)) { for (const x of v) { const h = mineurDans(x, cle); if (h) return h } return null }
+  if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { const h = mineurDans(x, k); if (h) return h } }
+  return null
+}
 app.addHook('preHandler', async (req, reply) => {
   if (req.method !== 'POST' && req.method !== 'PUT') return
   const route = `${req.method} ${req.routeOptions?.url}`
   if (!req.url.startsWith('/api/') || sansFiltreContenu.has(route) || Buffer.isBuffer(req.body)) return
-  const terme = texteInterdit(req.body) ?? texteInterdit(req.query)
+  /* Mode adulte (installation locale) : sur la génération et la réécriture des prompts, seul le plancher « mineurs »
+     est contrôlé ici ; le rendu décide ensuite d'après la provenance des images (jobs.js). */
+  const adulte = CONFIG.contenuAdulte && ROUTES_ADULTES.has(route)
+  const terme = adulte ? (mineurDans(req.body) ?? mineurDans(req.query)) : (texteInterdit(req.body) ?? texteInterdit(req.query))
   if (!terme) return
   refuserContenu(terme, route, req)
   return reply.code(400).send({ error: 'demande refusée : ce studio ne produit aucun contenu impliquant un mineur, ni de contenu sexuel' })

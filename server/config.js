@@ -128,6 +128,12 @@ export const CONFIG = {
      écritures répondent 403. Absente, rien n'est verrouillé (installation
      locale, un seul utilisateur). */
   cleProprietaire: (process.env.CREATOROS_OWNER_KEY || '').trim() || null,
+  /* Mode adulte (installation locale, un seul utilisateur) : la génération à partir d'un texte n'est plus
+     filtrée sur le contenu sexuel. Jamais avec une clé propriétaire (studio partagé), jamais sur le plancher
+     « mineurs », jamais quand un rendu part d'une photo importée (cf. jobs.js). */
+  // jamais sur la démo publique : il faut l'installation locale, sans clé propriétaire, écoutant sur cette machine seulement
+  contenuAdulte: process.env.CREATOROS_CONTENU_ADULTE === '1' && !(process.env.CREATOROS_OWNER_KEY || '').trim()
+    && ['127.0.0.1', 'localhost', '::1'].includes(process.env.CREATOROS_HOST || '127.0.0.1'),
 }
 
 CONFIG.mediaDir = path.join(CONFIG.dataDir, 'media')

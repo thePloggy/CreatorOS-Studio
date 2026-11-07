@@ -226,13 +226,13 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                 <b style={{ color: 'var(--text)' }}>{t('Image à retoucher')}</b><br />
                 {!edition && <><small style={{ color: 'var(--faint)' }}>{t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}</small><br /></>}
                 <span className="inline-flex gap-1.5 mt-1">
-                  {<label className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={edition ? undefined : t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}>⇪ {t('Upload')}
+                  {<label className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={edition ? undefined : t('Démo publique : pour la sécurité de tous, pas de photo avec une personne (visage, corps, main). Objets, produits, décors ou animaux seulement.')}><span style={{ display: 'inline-flex', marginRight: 5, verticalAlign: '-2px' }}><Ic n="upload" s={13} /></span>{t('Upload')}
                     <input type="file" accept="image/*" className="hidden" onChange={e => {
                       const f = e.target.files?.[0]
                       if (f) void s.uploadEditSource(f)
                     }} />
                   </label>}
-                  <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setSrcPick(true)}>▦ {t('Bibliothèque')}</button>
+                  <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setSrcPick(true)}><Ic n="grid" s={13} /> {t('Bibliothèque')}</button>
                   {s.photo.editUploadState === 'uploading' && <span>{t('contrôle de la photo…')}</span>}
                   {s.photo.editUploadState === 'error' && <span style={{ color: 'var(--danger)' }}>{s.photo.editUploadError}</span>}
                   {(() => { const src = s.assets.find(x => x.id === s.photo.editSourceAssetId); return src
@@ -264,7 +264,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               <span>{t('FLUX.2 Klein, nomme-les dans le prompt')}</span>
             </div>
           )}
-          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}>＋ {t('Images de référence')}</button>}
+          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}><Ic n="image" s={13} /> {t('Images de référence')}</button>}
           {task !== 'edit' && (
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               {t('Préréglages')}

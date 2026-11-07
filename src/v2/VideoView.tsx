@@ -397,7 +397,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               {v.extendVideoUri ? <video src={v.extendVideoUri} muted /> : <>▶＋<br />{t('vidéo à prolonger')}<br /><span className="text-[12px]">{t('bibliothèque (clic) ou dépôt')}</span></>}
             </button>
           </div>
-          {edition && <label className="pill" style={{ fontSize: 12, justifyContent: 'center' }}>{t('⇪ déposer une vidéo')}
+          {edition && <label className="pill" style={{ fontSize: 12, justifyContent: 'center' }}><Ic n="upload" s={13} /> {t('déposer une vidéo')}
             <input type="file" accept="video/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) void s.uploadExtendVideo(f) }} />
           </label>}

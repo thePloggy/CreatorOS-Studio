@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import type { Asset, Job } from '../types'
 import { t, tServeur } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
-import { AssetCard, BatchCard, JobCard, groupLotsPhotos } from './bits'
+import { AssetCard, BatchCard, Ic, JobCard, groupLotsPhotos } from './bits'
 import { BatchViewer } from './popups'
 import { FramePicker } from './popups'
 import { HowItWorks, howto as fichiersHowto } from './HowItWorks'
@@ -129,7 +129,7 @@ export function ZoneSource({ media, valeur, onChoix, depot, label }: {
       <button className={`zone-source ${apercu ? 'pleine' : ''}`} onClick={() => setOuvert(true)}>
         {apercu
           ? (media === 'video' ? <video src={apercu} muted playsInline preload="metadata" /> : <img src={apercu} alt="" />)
-          : <span>{media === 'video' ? t('Choisir un clip') : t('Choisir une photo')}<small>{depot ? t('bibliothèque ou fichier') : t('dans la bibliothèque')}</small></span>}
+          : <span><span className="zone-icone"><Ic n={media === 'video' ? 'play' : 'image'} s={22} /></span>{media === 'video' ? t('Choisir un clip') : t('Choisir une photo')}<small>{depot ? t('bibliothèque ou fichier') : t('dans la bibliothèque')}</small></span>}
       </button>
       {apercu && <button className="pill" style={{ justifySelf: 'start' }} onClick={() => onChoix(null)}>{t('Retirer')}</button>}
       {msg && <span className="texte-erreur">{msg}</span>}

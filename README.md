@@ -122,7 +122,7 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 | ![Dance](docs/screenshots/dance.jpg) | ![Sound Studio](docs/screenshots/sound.jpg) |
 | **Dance**: 34 motion-captured dances in 20 3D studios, big previews, filter by style, your character takes the mannequin's place | **Sound Studio**: music with lyrics and vocals from a preset or from scratch, two takes side by side, history, voices and sound effects |
 
-![Mobile: library and one-click reel](docs/screenshots/mobile.jpg)
+![Mobile: One-click Reel, Video Effects and Dance, each with its How it works](docs/screenshots/mobile.jpg)
 
 ## Architecture
 
@@ -203,9 +203,10 @@ ComfyUI is expected at `http://127.0.0.1:8188` and Ollama at `http://127.0.0.1:1
    - **address**: this machine only, or your local network;
    - **nudity filter on renders**: off, or on (installs NudeNet in its own Python environment);
    - **local LLM**: GPU when free, GPU only when ComfyUI has no job from another app (a ComfyUI shared with another pipeline), or always CPU;
+   - **adult content** (single-user install listening on this machine only, typed confirmation): see [Content policy](#content-policy);
    - **LoRA folder**.
 
-   The prompt floor that refuses anything about minors and sexual content is always on in this public edition; it is not a setting.
+   Anything about minors is refused in every mode; it is not a setting.
 
 ```bash
 npm run setup -- --check         # report only, change nothing (alias --dry-run)
@@ -240,6 +241,7 @@ All settings are environment variables; the setup wizard writes the usual ones t
 | `CREATOROS_PHOTO_ENGINE` | `krea` | `krea` or `klein` |
 | `CREATOROS_OWNER_KEY` | unset | locks the studio for a public demo, see below |
 | `CREATOROS_LLM_GPU` | unset (GPU when free) | `libre`: GPU only when ComfyUI has no job from another client; `0`: always CPU |
+| `CREATOROS_CONTENU_ADULTE` | unset | `1`: adult content on text-only renders, local single-user install only (see Content policy) |
 | `CREATOROS_FILTRE_PYTHON` | `~/venvs/filtre-images/bin/python` | Python with `nudenet`, for the nudity filter on renders; absent = filter off |
 | `CREATOROS_VOIX_PYTHON` | `$CREATOROS_DATA/voix-venv/bin/python` | Python with `kokoro` installed, for voice-over and dubbing voices |
 | `CREATOROS_AI_TOOLKIT` | `~/ai-toolkit` | ai-toolkit folder, for character training |
@@ -327,7 +329,9 @@ A fork built around reference-driven video has been announced. Forks are welcome
 
 ## Content policy
 
-This edition is general-audience only. Every job runs with a single SFW register, the rewriter instructions keep the character fully clothed, and a blocklist (`server/t0.js`) rejects prompts and captions with forbidden terms before anything reaches the GPU. Every render of a character also states that she is an adult woman in her mid-twenties, so a prompt that names no person cannot drift towards a younger-looking figure.
+The public demo is general-audience only, and so is any install by default. Every job runs with a single SFW register, the rewriter instructions keep the character fully clothed, and a blocklist (`server/t0.js`) rejects prompts and captions with forbidden terms before anything reaches the GPU. Every render of a character also states that she is an adult woman in her mid-twenties, and a render without a character states that every person shown is an adult, so a prompt that names no person cannot drift towards a younger-looking figure.
+
+**Adult content on a local install.** On your own machine, the setup wizard can turn adult content on (`CREATOROS_CONTENU_ADULTE=1`; you type `adult` to confirm, `--yes` never does it). It only takes effect when all of these hold: no owner key (a shared studio or a public demo always stays SFW), the server listens on this machine only, and the render has no face that could belong to a real person — no character, no LoRA, no imported photo as a source or reference. Anything that refers to a minor is refused in every mode.
 
 ## Characters in the demo
 
