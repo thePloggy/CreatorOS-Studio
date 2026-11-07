@@ -22,7 +22,7 @@ let h3Disponible = false
 const relireH3 = () => etatH3().then(e => { h3Disponible = e.disponible }).catch(() => {})
 relireH3(); setInterval(relireH3, 30_000).unref()
 import * as comfy from './comfy.js'
-import { pourRendu } from './gpu.js'
+import { blocOllama, pourRendu } from './gpu.js'
 import * as sdk from './transport-sdk.js'
 import * as store from './db.js'
 import { enregistrer as enregistrerPersona, SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
@@ -763,6 +763,8 @@ export function enqueue(job) {
       : mode === 'photo' && op !== 'edit' && RECIPES_PAR_MOTEUR[job.photoEngine] ? job.photoEngine : undefined,
     // jusqu'à 6 images de référence (FLUX.2 Klein), noms nus du dossier input
     references: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) ? job.references.filter(n => typeof n === 'string' && n && !/[\\/]/.test(n) && !n.startsWith('.')).slice(0, 6) : undefined,
+    // sans personnage, la personne de la première référence est le sujet (carrousel d'après une photo)
+    refVisage: mode === 'photo' && op !== 'edit' && job.refVisage === true && Array.isArray(job.references) && job.references.length > 0,
     // Mix à plusieurs : rang de la personne (de gauche à droite), nombre de personnes, personnages restants
     mixRang: isMotion && Number.isInteger(job.mixRang) ? job.mixRang : undefined,
     mixTotal: isMotion && Number.isInteger(job.mixTotal) ? job.mixTotal : undefined,
@@ -1879,6 +1881,19 @@ export const EFFETS_LTX = {
     prompt: () => 'The exact same footage, sharp and in focus, with no motion blur and no defocus. Same scene, same motion.' },
   'decompression': { lora: 'ltx/ltx-2.5-22b-ic-lora-decompression-0.9.safetensors', nom: 'Remove Compression',
     prompt: () => 'The exact same footage, clean, with no compression artifacts, no blocking and no banding. Same scene, same motion.' },
+  /* Les trois suivantes suivent leur fiche : une seule passe à la résolution de sortie (la 2e passe, guidée
+     par la source, ramène le gris ou efface l'eau) et un prompt qui décrit la scène : la description est
+     écrite par le modèle de vision sur la 1re image, au moment du rendu (`decrit`). */
+  'restore': { lora: 'ltx/ltx-2.5-22b-ic-lora-restore-1.0.safetensors', nom: 'Restore', unePasse: true, decrit: true,
+    neg: 'logos, signage, lettering, modern vehicles, graffiti, modern buildings, blurry, soft, plastic, smeared detail, oversharpened halos, warped faces',
+    prompt: (t, d) => `${d || 'The same scene'}${t ? ` ${t}.` : ''} Natural colour, sharp photographic detail, crisp faces and clothing texture, natural grain, high resolution footage.` },
+  'colorize': { lora: 'ltx/ltx-2.5-22b-ic-lora-colorization-0.9.safetensors', nom: 'Colorize', unePasse: true, decrit: true,
+    neg: 'blur, distorted face, text, subtitles, logo, watermark, monochrome, sepia, desaturated',
+    prompt: (t, d) => `Reference shows ${d ? d.replace(/\.$/, '') : 'the scene'}, in black and white. Edited shows the same scene with natural colors restored. COLORIZE the same scene in vivid natural colors${t ? `: ${t}` : ', with realistic skin tones, true-to-life clothing and surroundings'}. Subject identity, framing, and background geometry are identical to the reference; only color information differs between reference and edited.` },
+  // force 1,25 : à 1 l'eau reste timide (quelques éclaboussures) ; la fiche situe les déformations à partir de 1,5
+  'water': { lora: 'ltx/ltx-2.5-22b-ic-lora-water-simulation-0.9.safetensors', nom: 'Add Water', unePasse: true, decrit: true, force: 1.25,
+    neg: '',
+    prompt: (t, d) => `Reference shows ${d ? d.replace(/\.$/, '') : 'the scene'}. Edited shows the same scene with water added. ADD WATER ${t || 'the whole ground is flooded with ankle-deep clear water that ripples and surges, splashing up with white foam around every step and every wheel, the lights reflecting and dancing on its moving surface'}. Subject identity, clothing, framing, and background geometry are identical to the reference; only water-related elements differ between reference and edited.` },
 }
 /* Transitions générées du montage : LTX-2.5 relie la dernière image d'un plan à la première du suivant
    (deux guides à 0,7 en 1re et dernière position), avec le son. Les effets sont écrits selon la règle « l'effet
@@ -1996,9 +2011,21 @@ export function enqueueEffetLtx({ source, effet, texte, parentAssetId, personaId
   }
   store.createJob(row)
   retenirCle(row.id)
+  if (e.decrit) descriptionsEffet.set(id, decrireSource(path.join(CONFIG.mediaDir, source), id))
   queue.push(row)
   pump()
   return { id, images }
+}
+/* Restore, Colorize, Add Water : leur prompt décrit la scène. Le modèle de vision la lit sur la 1re image dès la
+   mise en file, dans un bloc Ollama : dans le job, la carte est tenue par le rendu et la vision passerait sur CPU. */
+const descriptionsEffet = new Map()
+async function decrireSource(src, id) {
+  const img = path.join(CONFIG.mediaDir, '.stage', `${id}_desc.jpg`)
+  try {
+    fs.mkdirSync(path.dirname(img), { recursive: true })
+    execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', src, '-frames:v', '1', '-vf', 'scale=768:-2', img], { timeout: 30_000 })
+    return await blocOllama(() => vision.describeScene(img))
+  } catch { return null } finally { fs.rmSync(img, { force: true }) }
 }
 
 /* Détourer : SAM3 suit la personne, tout le reste passe sur fond vert uni, sans rien
@@ -2324,9 +2351,12 @@ async function runObjet3d(job, t0) {
   const json = path.join(dossier, 'tour.json'), mp4 = path.join(dossier, 'tour.mp4')
   const camera = Array.from({ length: 13 }, (_, i) => { const a = i / 12 * 2 * Math.PI; return { t: i / 12, oeil: [3.4 * Math.sin(a), 1.3, 3.4 * Math.cos(a)], cible: [0, 0.75, 0], fov: 32 } })
   fs.writeFileSync(json, JSON.stringify({ largeur: 720, hauteur: 720, images: 97, objets: [{ type: 'modele', fichier: glb, x: 0, z: 0, h: 1.5 }], camera, lineaire: true }))
-  await rendreClay(json, mp4)
+  // le tour texturé (Blender, le GLB tel qu'il sort, couleurs comprises) ; la maquette grise en repli
+  let texture = true
+  try { await executer(path.join(os.homedir(), 'apps', 'blender', 'blender'), ['-b', '-P', path.join(SCRIPTS, 'tour_texture.py'), '--', glb, mp4, '97', '720'], { timeout: 600_000 }) }
+  catch (e) { texture = false; console.warn(`[job ${job.id}] tour texturé impossible, maquette grise — ${String(e.message || e).slice(0, 200)}`); await rendreClay(json, mp4) }
   history.outputs.tour = { images: [{ filename: 'tour.mp4', subfolder: `creatoros/${job.id}`, type: 'output' }] }
-  const n = await harvestJob(job, promptId, history, { applied: [`objet 3D : SAM3 isole « ${job.userPrompt} », TRELLIS.2 construit le GLB, tour en maquette grise`], skipped: [], finalWorkflow: g })
+  const n = await harvestJob(job, promptId, history, { applied: [`objet 3D : SAM3 isole « ${job.userPrompt} », TRELLIS.2 construit le GLB, tour ${texture ? 'texturé (Blender EEVEE)' : 'en maquette grise'}`], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
@@ -2440,10 +2470,10 @@ async function runDoublage(job, t0) {
 
 /* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
    si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
-export const OPS_RELANCABLES = new Set(['transition', 'effetltx', 'inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'recadrage', 'transparent', 'profondeur', 'extension'])
+export const OPS_RELANCABLES = new Set(['transition', 'effetltx', 'inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'essayage', 'photodump', 'style_ref', 'recadrage', 'transparent', 'profondeur', 'extension'])
 export function relancerSpecial(p) {
   if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
-  const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque].filter(Boolean)
+  const fichiers = [p.inpaintVideo, p.inpaintMask, p.reshootSource, p.sourceImage, p.doublageAudio, p.paroleAudio, p.finitionSource, p.finitionGuide, p.recadrage?.ctrl, p.recadrage?.masque, p.refImage].filter(Boolean)
   for (const f of fichiers) {
     const ici = [path.join(CONFIG.comfyInput, f), path.join(CONFIG.mediaDir, f), path.join(CONFIG.comfyInput, path.basename(f))]
     if (!ici.some(x => fs.existsSync(x))) throw new Error(`fichier d'entrée disparu : ${path.basename(f)}`)
@@ -2775,6 +2805,134 @@ async function runProfondeur(job, t0) {
   store.markFinished(job.id, Date.now() - t0)
   if (!n) throw new Error('la carte de profondeur n’a rendu aucune image')
 }
+/* ---------- Klein par références : essayage, photodump ----------
+   ESSAYAGE (`essayage`) : la personne de la photo porte le vêtement d'une seconde photo
+   (vêtement seul, à plat ou sur cintre). FLUX Klein reçoit les deux images en références
+   (ReferenceMultiLatent) ; la sortie garde le cadre de la photo de la personne.
+   PHOTODUMP (`photodump`) : quatre photos du quotidien de la même personne, d'après une
+   seule photo (rue, café, bord de l'eau, selfie miroir), en 2:3. */
+const KLEIN_REF = { unet: 'flux3-image-klein-int8-convrot.safetensors', clip: 'qwen3vl_4b_int8_convrot.safetensors', vae: 'flux2-vae.safetensors' }
+const PHOTODUMP_SCENES = [
+  'full body, walking across a sunlit city street at golden hour, candid mid-stride, shop fronts and trees behind',
+  'half body, at a small café table with a coffee, laughing naturally, soft window light',
+  'seen from the side, leaning on a railing by the water at dusk, warm city lights in the background',
+  'mirror selfie in a hotel room with tall windows, phone in hand, relaxed smile, warm lamp light',
+]
+const lettre = (texte, n = 400) => String(texte ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
+
+export function enqueueEssayage({ personne, vetement, parentAssetId, personaId, consigne }) {
+  const id = `essai-${Date.now().toString(36)}`
+  const texte = `Dress the person from <ref_image_0> in the garment shown in <ref_image_1>. Keep the same face, hair, body, pose, framing, background and lighting. The garment keeps its exact colour, fabric, cut, buttons and details, and fits naturally.${consigne ? ` ${lettre(consigne)}` : ''}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'essayage@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'essayage', sourceImage: personne, refImage: vetement,
+    parentAssetId: parentAssetId ?? null, userPrompt: consigne ?? null, userDirectives: null, kleinTexte: texte,
+    composedPositive: consigne ? `essayage du vêtement : ${lettre(consigne)}` : 'essayage du vêtement', composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 25000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+export function enqueuePhotodump({ personne, parentAssetId, personaId, theme }) {
+  const id = `dump-${Date.now().toString(36)}`
+  const lieu = lettre(theme, 160)
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'photodump@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'photodump', sourceImage: personne,
+    parentAssetId: parentAssetId ?? null, userPrompt: lieu || null, userDirectives: null,
+    composedPositive: `photodump : 4 scènes${lieu ? ` (${lieu})` : ''}`, composedNegative: null, photodumpTheme: lieu || null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 60000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runKleinRef(job, t0) {
+  const g = {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: KLEIN_REF.unet, weight_dtype: 'default' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: KLEIN_REF.clip, type: 'flux3', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: KLEIN_REF.vae } },
+    p: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+  }
+  const seed = Number(job.seed) || 42
+  const scene = (k, texte, latent) => {
+    g[`${k}t`] = { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: texte } }
+    g[`${k}z`] = { class_type: 'ConditioningZeroOut', inputs: { conditioning: [`${k}t`, 0] } }
+    g[`${k}r`] = { class_type: 'ReferenceMultiLatent', inputs: { positive: [`${k}t`, 0], negative: [`${k}z`, 0], vae: ['vae', 0], resolution: 'resize',
+      'resolution.megapixels': 1.0, 'images.image0': ['p', 0], ...(job.refImage ? { 'images.image1': ['v', 0] } : {}) } }
+    g[`${k}k`] = { class_type: 'KSampler', inputs: { model: ['unet', 0], positive: [`${k}r`, 0], negative: [`${k}r`, 1], latent_image: latent ?? [`${k}r`, 2],
+      seed: seed + Number(k.slice(1) || 0), steps: 16, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1 } }
+    g[`${k}d`] = { class_type: 'VAEDecode', inputs: { samples: [`${k}k`, 0], vae: ['vae', 0] } }
+    return [`${k}d`, 0]
+  }
+  let sortie
+  if (job.op === 'essayage') {
+    g.v = { class_type: 'LoadImage', inputs: { image: job.refImage } }
+    sortie = scene('e0', job.kleinTexte ?? job.composedPositive)
+  } else {
+    g.taille = { class_type: 'EmptyFlux2LatentImage', inputs: { width: 832, height: 1248, batch_size: 1 } }
+    const lieu = job.photodumpTheme ? `, ${job.photodumpTheme}` : ''
+    const images = PHOTODUMP_SCENES.map((sc, i) => scene(`s${i}`, `The same person as in <ref_image_0>, ${sc}${lieu}. Same face, hair, body and outfit as in <ref_image_0>. Candid smartphone photo, natural light, realistic skin, no text.`, ['taille', 0]))
+    sortie = images.reduce((a, b, i) => { g[`b${i}`] = { class_type: 'ImageBatch', inputs: { image1: a, image2: b } }; return [`b${i}`, 0] })
+  }
+  g.save = { class_type: 'SaveImage', inputs: { images: sortie, filename_prefix: `creatoros/${job.id}/${job.op}` } }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [job.op === 'essayage' ? `essayage FLUX Klein (2 références) : « ${job.kleinTexte ?? job.composedPositive} »` : `photodump FLUX Klein : ${PHOTODUMP_SCENES.length} scènes de la même personne`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  if (!n) throw new Error('aucune image rendue')
+}
+
+/* ---------- référence de style : Krea 2 Turbo + LoRA style-reference ----------
+   La photo choisie ne donne que le STYLE (trait, palette, matière) ; la scène vient du texte. */
+const FORMATS_STYLE_REF = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024], '4:5': [896, 1120] }
+export function enqueueStyleRef({ reference, texte, format, parentAssetId, personaId }) {
+  const scene = lettre(texte, 600)
+  if (!scene) throw new Error('décris ce qu’il faut peindre')
+  const [w, h] = FORMATS_STYLE_REF[format] ?? FORMATS_STYLE_REF['16:9']
+  const id = `sref-${Date.now().toString(36)}`
+  const row = {
+    id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
+    mode: 'photo', purpose: 'creative', recipeId: 'style-reference@v1', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'style_ref', sourceImage: reference, width: w, height: h,
+    parentAssetId: parentAssetId ?? null, userPrompt: scene, userDirectives: null, composedPositive: scene, composedNegative: null,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 15000,
+  }
+  store.createJob(row); retenirCle(row.id); queue.push(row); pump()
+  return { id }
+}
+async function runStyleRef(job, t0) {
+  const W = job.width, H = job.height
+  const g = {
+    ref: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: '_krea2/krea2_turbo_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen3vl_4b_fp8_scaled.safetensors', type: 'krea2', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'qwen_image_vae.safetensors' } },
+    lora: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'krea2_style_reference.safetensors', strength_model: 1 } },
+    ms: { class_type: 'ModelSamplingFlux', inputs: { model: ['lora', 0], width: W, height: H, max_shift: 1.15, base_shift: 0.5 } },
+    enc: { class_type: 'TextEncodeQwenImageEditPlus', inputs: { clip: ['clip', 0], vae: ['vae', 0], image1: ['ref', 0], prompt: job.composedPositive } },
+    meth: { class_type: 'FluxKontextMultiReferenceLatentMethod', inputs: { conditioning: ['enc', 0], reference_latents_method: 'index_timestep_zero' } },
+    zero: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['meth', 0] } },
+    gd: { class_type: 'CFGGuider', inputs: { model: ['ms', 0], positive: ['meth', 0], negative: ['zero', 0], cfg: 1 } },
+    smp: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    sch: { class_type: 'BasicScheduler', inputs: { model: ['ms', 0], scheduler: 'simple', steps: 8, denoise: 1 } },
+    lat: { class_type: 'EmptyLatentImage', inputs: { width: W, height: H, batch_size: 1 } },
+    noise: { class_type: 'RandomNoise', inputs: { noise_seed: Number(job.seed) || 42 } },
+    k: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['noise', 0], guider: ['gd', 0], sampler: ['smp', 0], sigmas: ['sch', 0], latent_image: ['lat', 0] } },
+    dec: { class_type: 'VAEDecode', inputs: { samples: ['k', 0], vae: ['vae', 0] } },
+    save: { class_type: 'SaveImage', inputs: { images: ['dec', 0], filename_prefix: `creatoros/${job.id}/style-ref` } },
+  }
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, { applied: [`référence de style : Krea 2 Turbo + LoRA style-reference, ${W}×${H}`], skipped: [], finalWorkflow: g })
+  store.markFinished(job.id, Date.now() - t0)
+  if (!n) throw new Error('aucune image rendue')
+}
 async function runTransparent(job, t0) {
   const g = {
     src: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
@@ -2958,11 +3116,20 @@ export function grapheReshoot(job, W, H, sonSource) {
   if (job.op === 'effetltx' && EFFETS_LTX[job.effetLtx]) {
     // un effet : le clip guide seul, comme clean plate, avec la LoRA de l'effet
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
-    Object.assign(g.lora.inputs, { lora_name: EFFETS_LTX[job.effetLtx].lora, strength_model: 1 })
+    const e = EFFETS_LTX[job.effetLtx]
+    Object.assign(g.lora.inputs, { lora_name: e.lora, strength_model: e.force ?? 1 })
     g.pos.inputs.text = String(job.composedPositive ?? '')
-    g.neg.inputs.text = 'blur, distorted face, text, subtitles, logo, watermark'
+    g.neg.inputs.text = e.neg ?? 'blur, distorted face, text, subtitles, logo, watermark'
     g.g2.inputs.positive = ['cond', 0]; g.g2.inputs.negative = ['cond', 1]; g.g2.inputs.latent = ['lat1', 0]
     g.save.inputs.filename_prefix = `creatoros/${job.id}/effet`
+    if (e.unePasse) {
+      // une seule passe, à la taille de sortie : la source guide tout le débruitage, rien ne la redessine ensuite
+      Object.assign(g.lat1.inputs, { width: W, height: H })
+      g.g2.inputs.image = ['full', 0]
+      g.dec.inputs.samples = ['crop1', 2]
+      g.adec.inputs.samples = ['sep1', 1]
+      for (const k of ['half', 'upm', 'up', 'g3', 'av2', 'gd2', 'sg2', 'n2', 'k2', 'sep2', 'crop2']) delete g[k]
+    }
   }
   if (job.op === 'cleanplate') {
     // clean plate : pas de géométrie ni de vue déplacée, le clip guide seul (facteur de réduction 1)
@@ -3057,6 +3224,16 @@ async function runReshoot(job, t0) {
   let W = 704, H = 1280
   if (d.width && d.height) {
     if (d.width > d.height * 1.15) { W = 1280; H = 704 } else if (d.width * 1.15 >= d.height) { W = 960; H = 960 }
+  }
+  if (job.op === 'effetltx' && EFFETS_LTX[job.effetLtx]?.decrit && descriptionsEffet.has(job.id)) {
+    // la description lancée à la mise en file (au plus 4 min d'attente) ; une relance garde le prompt déjà écrit
+    const desc = await Promise.race([descriptionsEffet.get(job.id), new Promise(r => setTimeout(() => r(null), 240_000))])
+    descriptionsEffet.delete(job.id)
+    if (desc) {
+      const t = job.userPrompt && job.userPrompt !== EFFETS_LTX[job.effetLtx].nom ? job.userPrompt : ''
+      job.composedPositive = EFFETS_LTX[job.effetLtx].prompt(t, desc.replace(/\s+/g, ' ').trim())
+      store.setComposedPositive(job.id, job.composedPositive)
+    }
   }
   let sonSource = false
   try { sonSource = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* pas de son */ }
@@ -3282,10 +3459,21 @@ async function runFinition(job, t0) {
   })
   const n = await harvestJob(job, promptId, history, {
     applied: [job.op === 'foley'
-        ? `bruitage LTX-2.5 (vidéo → son, images d'origine conservées) : « ${job.composedPositive} »`
+        ? `bruitage LTX-2.5 (vidéo → son, images d'origine conservées) : « ${job.composedPositive} », sonie ramenée à -18 LUFS`
       : job.composedPositive],
     skipped: [], finalWorkflow: g,
   })
+  /* La piste générée sort environ 30 dB trop bas (-53 dB de moyenne, mesuré le 07/11) : on la ramène à -18 LUFS,
+     l'image n'est pas réencodée. */
+  if (job.op === 'foley') {
+    for (const a of store.assetsOfJob(job.id).filter(x => x.media_type === 'video')) {
+      const f = path.join(CONFIG.mediaDir, path.basename(a.filename)), tmp = `${f}.norm.mp4`
+      try {
+        execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', f, '-map', '0', '-c:v', 'copy', '-af', 'loudnorm=I=-18:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', tmp], { timeout: 120_000 })
+        fs.renameSync(tmp, f)
+      } catch (e) { fs.rmSync(tmp, { force: true }); console.warn(`[job ${job.id}] sonie non corrigée — ${e.message || e}`) }
+    }
+  }
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
@@ -3938,6 +4126,8 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'seedvr') return await runSeedvr(job, t0)
     if (job.op === 'coloriser_video') return await runColoriserVideo(job, t0)
     if (job.op === 'foley' || job.op === 'interpolate') return await runFinition(job, t0)
+    if (job.op === 'essayage' || job.op === 'photodump') return await runKleinRef(job, t0)
+    if (job.op === 'style_ref') return await runStyleRef(job, t0)
     if (job.op === 'upscale' && job.upscaleH3)
       return await runUpscaleH3(job, t0)
     if (job.op === 'upscale' && typeof job.upscaleSource === 'string')
@@ -4100,6 +4290,12 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.references?.length || kleinSansLora) {
       const refs = [...visageDuPersonnage(job, workflow, applied), ...(job.references ?? [])].slice(0, 6)
       if (refs.length) appliquerReferences(workflow, refs, applied)
+      if (job.refVisage && job.personaId === SANS_PERSONNAGE) {
+        let n = workflow[Object.values(workflow).find(x => x.class_type === 'KSampler')?.inputs.positive?.[0]]
+        while (n && n.class_type !== 'CLIPTextEncode') n = workflow[Object.values(n.inputs).find(v => Array.isArray(v))?.[0]]
+        if (n) n.inputs.text = `The person in the first reference image is the subject: keep their face, hair, skin tone and body exactly. ${n.inputs.text}`
+        applied.push('sans personnage : le visage de la photo d’origine est tenu par la première référence')
+      }
     }
     if (speech?.note) applied.unshift(speech.note)
     if (drawn.draws.length) applied.unshift(...wildcardNotes.filter(n => n.startsWith('tirage')))

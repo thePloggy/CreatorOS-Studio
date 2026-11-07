@@ -8,6 +8,8 @@
    avec leurs réglages) et Comment ça marche. Sur téléphone la zone des
    rendus passe au-dessus du formulaire.
    ============================================================ */
+import { HowItWorks, howto } from './HowItWorks'
+import { useMouvementReduit } from './Galerie'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getLang, t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -259,6 +261,7 @@ const LICENCES: Record<Onglet, string> = {
 
 export function SonView({ goMontage }: { goMontage?: () => void }) {
   const onglet = useAppStore(st => st.ongletAudio)
+  const reduitHowto = useMouvementReduit()
   const choisir = (o: Onglet) => useAppStore.setState({ ongletAudio: o })
   const [panneau, setPanneau] = useState<Panneau>('resultats')
   const { jobs, biblio, charger } = useDonneesSon()
@@ -371,6 +374,18 @@ export function SonView({ goMontage }: { goMontage?: () => void }) {
           <div hidden={onglet !== 'bruitage'}><StudioBruitage lancer={lancer} aCharger={recharge} /></div>
         </aside>
         <section ref={zoneRendus} className="son-resultats" aria-label={t('Rendus')}>
+          {onglet === 'musique' && (() => {
+            const f = howto('musique')
+            return <HowItWorks cleMemoire="hiw:musique" reduit={reduitHowto} labelHero={t('Exemple de morceau généré')}
+              titre={t('Ton morceau, du style à la piste finie')} texte={t('Décris le style, ajoute des paroles si tu veux : ACE-Step compose deux prises en moins d’une minute, chantées ou instrumentales.')}
+              hero={f.hero} labelCommencer={t('Commencer')}
+              onCommencer={() => zoneForm.current?.querySelector<HTMLElement>('textarea, input')?.focus()}
+              etapes={[
+                { titre: t('Décris le style'), texte: t('Genre, ambiance, instruments, en anglais : « epic cinematic orchestral trailer ».'), ...f.etape(1) },
+                { titre: t('Ajoute des paroles'), texte: t('Facultatif : une section par balise, [Verse], [Chorus]. Sans paroles, le morceau est instrumental.'), ...f.etape(2) },
+                { titre: t('Choisis ta prise'), texte: t('Deux prises aux mêmes réglages : garde la meilleure, elle rejoint le montage.'), ...f.hero },
+              ]} />
+          })()}
           <div className="outil-onglets" role="tablist">
             <button role="tab" aria-selected={panneau === 'resultats'} className={panneau === 'resultats' ? 'on' : ''} onClick={() => setPanneau('resultats')}>
               {t('Résultats')}{onglet !== 'voix' && enCours.length > 0 && <em className="son-compte">{enCours.length}</em>}</button>

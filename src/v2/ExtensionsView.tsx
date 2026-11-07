@@ -8,6 +8,7 @@ import { useEdition } from '../lib/proprietaire'
 import { FramePicker } from './popups'
 import { AssetCard, JobCard } from './bits'
 import { useSuiviOutil } from './OutilPage'
+import { ImportLora } from '../components/ImportLora'
 
 type Entree = { id: string; type: 'texte' | 'nombre' | 'choix' | 'image'; label: string; defaut: unknown; options?: string[]; min?: number; max?: number; aide?: string }
 type Extension = { id: string; nom: string; description: string; auteur: string; licence: string; version: string; sortie: 'image' | 'video' | 'audio'; source: 'livree' | 'installee' | 'catalogue'; apercu?: string | null; entrees: Entree[]; manque: { noeuds: string[]; modeles: string[] }; urlLancer?: string }
@@ -254,7 +255,7 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
   const [msg, setMsg] = useState<string | null>(null)
   const [ouverte, setOuverte] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
-  const [filtre, setFiltre] = useState<'tout' | 'image' | 'video' | 'audio' | 'comfy'>(() => useAppStore.getState().ongletExtensions ?? 'tout')
+  const [filtre, setFiltre] = useState<'tout' | 'image' | 'video' | 'audio' | 'comfy' | 'lora'>(() => useAppStore.getState().ongletExtensions ?? 'tout')
   // le menu ouvre Extensions ou le catalogue officiel de ComfyUI, à l'ouverture comme page déjà ouverte
   const demande = useAppStore(st => st.ongletExtensions)
   useEffect(() => { if (demande) { setFiltre(demande); useAppStore.setState({ ongletExtensions: null }) } }, [demande])
@@ -276,7 +277,7 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <input className="champ" value={cherche} onChange={e => setCherche(e.target.value)} placeholder={t('Chercher une extension')} style={{ minWidth: 240 }} />
-          {([['tout', 'Tout'], ['image', 'Image'], ['video', 'Vidéo'], ['audio', 'Audio'], ['comfy', 'Workflows ComfyUI']] as const).map(([k, l]) => (
+          {([['tout', 'Tout'], ['image', 'Image'], ['video', 'Vidéo'], ['audio', 'Audio'], ['comfy', 'Workflows ComfyUI'], ['lora', 'LoRA']] as const).map(([k, l]) => (
             <button key={k} className={`wtab ${filtre === k ? 'on' : ''}`} onClick={() => setFiltre(k)}>{t(l)}</button>
           ))}
           <a className="texte-doux" style={{ marginLeft: 'auto', fontSize: 13, textDecoration: 'underline' }} href="https://github.com/thePloggy/CreatorOS-Studio/blob/main/docs/EXTENSIONS.md" target="_blank" rel="noreferrer">{t('Écrire une extension')}</a>
@@ -301,6 +302,33 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
         </>}
         {msg && <span className="texte-erreur">{msg}</span>}
         {(filtre === 'tout' || filtre === 'comfy') && <WorkflowsComfy onOuvrir={setComfyOuvert} />}
+        {filtre === 'lora' && <MesLoras q={q} />}
+      </div>
+    </div>
+  )
+}
+
+/* Tes LoRA : l'import (propriétaire, ou ton installation locale) et la liste de celles que ComfyUI voit,
+   avec l'architecture lue dans le fichier — c'est elle qui décide du moteur où la LoRA agit. */
+const MOTEUR_ARCH: Record<string, string> = { krea2: 'Krea 2', flux2: 'FLUX.2 Klein', flux3: 'FLUX 3 Klein', moss: 'MOSS', flux1: 'FLUX.1', zimage: 'Z-Image', h3: 'MiniMax H3', qwen: 'Qwen-Image', wan: 'Wan', ltx: 'LTX' }
+export function MesLoras({ q = '' }: { q?: string }) {
+  const catalogue = useAppStore(st => st.loraCatalog)
+  const charger = useAppStore(st => st.loadLoras)
+  useEffect(() => { void charger() }, [charger])
+  const vue = catalogue.filter(l => !q || `${l.name} ${l.arch} ${l.trigger ?? ''}`.toLowerCase().includes(q))
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div className="galerie-section"><b>{t('Importer une LoRA')}</b><span>{t('Un fichier .safetensors : le studio vérifie l’en-tête et lit l’architecture.')}</span></div>
+      <ImportLora />
+      <div className="galerie-section"><b>{t('Tes LoRA')}</b><span>{t('{n} fichiers', { n: vue.length })}</span></div>
+      <div style={{ display: 'grid', gap: 4 }}>
+        {vue.map(l => (
+          <div key={l.name} className="engine" style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+            <span className="text-[12.5px] truncate" style={{ flex: 1 }}>{l.name.replace(/\.safetensors$/, '')}</span>
+            <small style={{ color: 'var(--muted)' }}>{MOTEUR_ARCH[l.arch] ?? l.arch}{l.trigger ? ` · ${l.trigger}` : ''}</small>
+          </div>
+        ))}
+        {vue.length === 0 && <span className="texte-doux">{t('Aucune LoRA pour l’instant.')}</span>}
       </div>
     </div>
   )

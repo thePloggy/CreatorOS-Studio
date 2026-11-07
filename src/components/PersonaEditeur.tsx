@@ -12,6 +12,7 @@ import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { Verrouille } from '../features/config/CleProprietaire'
+import { deposerLora } from './ImportLora'
 import { personnageChoisi, SANS_PERSONNAGE } from '../lib/personnage'
 
 interface LoraRef { name: string; strength: number }
@@ -32,25 +33,6 @@ const bouton: React.CSSProperties = {
 const etiquette: React.CSSProperties = { display: 'block', fontSize: 12, opacity: 0.7, margin: '12px 0 4px' }
 const mo = (o?: number | null) => (o ? t('{n} Mo', { n: Math.round(o / 1e6) }) : '')
 
-/** Envoi en flux avec progression : fetch n'en donne pas sur un envoi. */
-function deposer(f: File, remplacer: boolean, progres: (p: number) => void) {
-  return new Promise<{ nom: string; arch?: string }>((ok, ko) => {
-    const x = new XMLHttpRequest()
-    x.open('POST', `/api/persona/lora?nom=${encodeURIComponent(f.name)}${remplacer ? '&remplacer=1' : ''}`)
-    x.setRequestHeader('Content-Type', 'application/octet-stream')
-    x.upload.onprogress = e => { if (e.lengthComputable) progres(e.loaded / e.total) }
-    x.onload = () => {
-      let r: { nom?: string; error?: string; lora?: { arch?: string } | null } = {}
-      try { r = JSON.parse(x.responseText) } catch { /* réponse vide */ }
-      if (x.status === 409) ko(Object.assign(new Error(tServeur(r.error) ?? t('existe déjà')), { existe: true }))
-      else if (x.status >= 400 || !r.nom) ko(new Error(tServeur(r.error) ?? `HTTP ${x.status}`))
-      else ok({ nom: r.nom, arch: r.lora?.arch })
-    }
-    x.onerror = () => ko(new Error(t('connexion coupée')))
-    x.send(f)
-  })
-}
-
 function ListeLoras({ titre, aide, liste, dispo, onChange, garde }: {
   titre: string; aide: string; liste: LoraRef[]; dispo: LoraDispo[]; onChange: (l: LoraRef[]) => void
   /** Architectures acceptées par cette liste (Krea 2, Klein…) ; absente = toutes. */
@@ -64,7 +46,7 @@ function ListeLoras({ titre, aide, liste, dispo, onChange, garde }: {
   async function televerser(f: File, remplacer = false): Promise<void> {
     setMsg(null); setEnvoi(0)
     try {
-      const { nom, arch } = await deposer(f, remplacer, setEnvoi)
+      const { nom, arch } = await deposerLora(f, remplacer, setEnvoi)
       if (!liste.some(l => l.name === nom)) onChange([...liste, { name: nom, strength: 1 }])
       if (garde && arch && !garde(arch)) { setMsg(t('« {nom} » déposée, mais elle semble entraînée pour un autre modèle ({arch}) : vérifie la liste.', { nom, arch })); return }
       setMsg(t('« {nom} » déposée — pense à enregistrer.', { nom }))

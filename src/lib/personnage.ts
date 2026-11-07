@@ -18,10 +18,13 @@ try {
 
 export const personnageChoisi = () => choisi
 
-export function retenirPersonnage(id: string) {
+/** `persister` : faux pour un choix de PAGE (il ne devient pas le personnage par défaut du studio). */
+export function retenirPersonnage(id: string, persister = true) {
   choisi = id
-  try { localStorage.setItem(CLE, id) } catch { /* stockage indisponible */ }
+  if (persister) try { localStorage.setItem(CLE, id) } catch { /* stockage indisponible */ }
 }
+/** Le personnage par défaut du studio (choisi dans l'en-tête ou la page Personnages). */
+export const personnageParDefaut = () => { try { return localStorage.getItem(CLE) } catch { return null } }
 
 export function installerPersonnage() {
   const origine = window.fetch.bind(window)

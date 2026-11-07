@@ -3,6 +3,7 @@
    Vidéo · Personnage · Paramètres, bibliothèque au cœur.
    ============================================================ */
 import { OutilDedie } from './OutilsDedies'
+import { OUTILS_GALERIE, OutilGalerie } from './OutilGalerie'
 import { BandeauGithub } from '../components/BandeauGithub'
 import { LangSwitch } from '../components/LangSwitch'
 import { UndoDelete } from '../components/UndoDelete'
@@ -113,6 +114,9 @@ export default function V2App() {
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
 
   useEffect(() => { void s.hydrate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // chaque page a son personnage (choisi dans la page), sinon celui par défaut du studio
+  const outilCourant = useAppStore(st => st.outilDedie)
+  useEffect(() => { void useAppStore.getState().entrerPage(section === 'outil' ? `outil:${outilCourant}` : section) }, [section, outilCourant])
 
   /* Chaque page a sa vraie adresse (?s=section, &o=outil pour une page d'outil) : ⌘R recharge la même page, et le bouton Retour du navigateur revient
      à la page d'avant. */
@@ -232,14 +236,16 @@ export default function V2App() {
         {section === 'restaurer' && <RestaurerView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'carrousel' && <CarrouselView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'danse' && <DanseView onOpen={(a, list) => setFocus({ a, list })} goMontage={() => setSection('montage')} />}
-        {section === 'outil' && <OutilDedie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />}
-        {(section === 'styles' || section === 'relight' || section === 'expand') && <StylesView key={section} mode={section} goImage={() => setSection('image')} />}
+        {section === 'outil' && (OUTILS_GALERIE[outilDedie]
+          ? <OutilGalerie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />
+          : <OutilDedie key={outilDedie} id={outilDedie} onOpen={(a, list) => setFocus({ a, list })} />)}
+        {(section === 'styles' || section === 'relight' || section === 'expand') && <StylesView key={section} mode={section} goImage={() => setSection('image')} onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'doublage' && <DoublageView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'analyse' && <AnalyseView />}
         {section === 'nouveau-personnage' && <CreerPersonnageView />}
         {section === 'accueil' && <HomeView go={c => { if (c === 'stage') ouvrirStage(); else setSection(c) }} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />}
         {section === 'parole' && <ParoleView goVideo={() => setSection('video')} />}
-        {section === 'presets' && <PresetsView goVideo={() => setSection('video')} />}
+        {section === 'presets' && <PresetsView goVideo={() => setSection('video')} onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'reel' && <ReelView goMontage={id => { setMontageAOuvrir(id); setSection('montage') }} />}
         {section === 'montage' && <MontageView ouvrirId={montageAOuvrir} onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'assets' && <AssetsView onOpen={(a, list) => setFocus({ a, list })} />}

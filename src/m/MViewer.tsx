@@ -2,6 +2,7 @@
    Visionneuse mobile — média plein écran, actions de tri,
    reprise (cloner / animer / prolonger / HD) et informations.
    ============================================================ */
+import { PrisesViewer } from '../v2/Prises'
 import { resumeControle } from '../lib/controle'
 import { useEffect, useRef, useState } from 'react'
 import type { LoraLigne } from '../v2/Viewer'
@@ -33,11 +34,15 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   const [editer, setEditer] = useState(false)
   const [armed, arm] = useConfirm()
   const [busy, setBusy] = useState('')
+  const [prises, setPrises] = useState(false)
   /* Liste de navigation CAPTURÉE à l'entrée : changer un statut pendant le
      tri ne doit pas réordonner la liste sous le doigt. */
   const navList = useRef(list.map(a => a.id))
   const idx = navList.current.indexOf(asset.id)
   const fresh = s.assets.find(a => a.id === asset.id) ?? asset
+  // les autres prises du même lot (× N rendus) : on les compare côte à côte
+  const lots = [...(fresh.batchId ? [fresh.batchId] : []), ...(fresh.batchIds ?? [])]
+  const memeLot = lots.length ? s.assets.filter(a => a.mediaType === 'video' && (lots.includes(a.batchId ?? '') || (a.batchIds ?? []).some(b => lots.includes(b)))) : []
   const go = (d: 1 | -1) => {
     const i = idx + d
     if (i < 0 || i >= navList.current.length) return
@@ -131,6 +136,9 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           <button className="act" onClick={() => void act('éditer', async () => { await s.retouchFrom(fresh); onClose() })}>
             <Ic n="brush" s={20} />{t('Éditer')}
           </button>
+        )}
+        {isVid && memeLot.length > 1 && (
+          <button className="act" onClick={() => setPrises(true)}><Ic n="layers" s={20} />{t('Takes ({n})', { n: memeLot.length })}</button>
         )}
         {isVid && fresh.videoDraft && (
           <button className="act" onClick={() => void act('hd', async () => {
@@ -238,6 +246,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           onSent={() => { setSheet(null); onClose() }} />
       )}
 
+      {prises && <PrisesViewer items={memeLot} onClose={() => setPrises(false)} onOpenAsset={a => { setPrises(false); onGo(a) }} />}
     </div>, document.body)
 }
 

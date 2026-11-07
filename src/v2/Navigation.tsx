@@ -19,7 +19,7 @@ export type Section = 'croquis' | 'accueil' | 'image' | 'son' | 'cinema' | 'resh
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
-  { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'voix' | 'bruitage' | 'camera' | 'effets' | 'comfy' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
+  { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'voix' | 'bruitage' | 'camera' | 'effets' | 'comfy' | 'lora' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
 /** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
 export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][]; defaut?: string }
@@ -45,6 +45,9 @@ export const MENUS: Menu[] = [
       { label: 'Styles', texte: 'Une mosaïque de styles : BD, manga, pâte à modeler, pixel, affiche, néon… sur n’importe quelle photo.', section: 'styles', pastille: 'new' },
       { label: 'Relight', texte: 'La même photo sous un autre éclairage : fenêtre, studio, néons, bougie, heure bleue…', section: 'relight', pastille: 'new' },
       { label: 'Expand', texte: 'La photo élargie en 16:9, 9:16, 4:5 ou 1:1 : les bords sont inventés dans la continuité.', section: 'expand', pastille: 'new' },
+      { label: 'Style Reference', texte: 'Une image donne le style, ton texte donne la scène : une image neuve dans ce style.', section: 'outil', dedie: 'style-ref', pastille: 'new' },
+      { label: 'Try-On', texte: 'La personne d’une photo porte le vêtement d’une autre photo : même visage, même pose.', section: 'outil', dedie: 'try-on', pastille: 'new' },
+      { label: 'Photo Dump', texte: 'Quatre photos du quotidien de la même personne, d’après une seule photo.', section: 'outil', dedie: 'photodump', pastille: 'new' },
       ] },
       { titre: 'Réaliser', outils: [
       { label: 'Multi-Angle', texte: 'La même photo vue d’un autre angle : ¾, profil, plongée, contre-plongée, plan large.', section: 'outil', dedie: 'multi-angle' },
@@ -69,24 +72,21 @@ export const MENUS: Menu[] = [
       { label: 'Effects', texte: 'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.', section: 'presets', tache: 'effets' },
       { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },
       { label: 'Motion Control', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
+      { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.', section: 'video', tache: 'etendre' },
+      { label: 'Reframe', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
       ] },
       { titre: 'Modifier une vidéo', outils: [
       { label: 'Swap', texte: 'Tes personnages prennent la place de 1 à 3 personnes.', section: 'video', tache: 'mix', pastille: 'new' },
       { label: 'Retouch', texte: 'Peins une zone, change-la ou pose l’objet d’une photo.', section: 'outil', dedie: 'retouch', pastille: 'new' },
-      { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.', section: 'video', tache: 'etendre' },
-      { label: 'Reframe', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },
       { label: 'Remove Objects', texte: 'Retire une personne ou un objet du clip : le décor derrière est reconstitué.', section: 'outil', dedie: 'remove-objects', pastille: 'new' },
       { label: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', section: 'outil', dedie: 'change-bg', pastille: 'new' },
       { label: 'Restore', texte: 'Vieille photo ou clip abîmé : réparé, colorisé, en HD.', section: 'restaurer', pastille: 'new' },
-      { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', section: 'outil', dedie: 'upscale' },
-      { label: 'Refine Details', texte: 'Le clip retrouve de la matière : peau, tissus, cheveux et grain, sans changer le mouvement (LTX-2.5).', section: 'outil', dedie: 'refine-details', pastille: 'new' },
-      { label: 'Day to Night', texte: 'Le même plan, la nuit : lumières, ciel et ambiance changent, le mouvement reste.', section: 'outil', dedie: 'day-to-night', pastille: 'new' },
-      { label: 'Unblur', texte: 'Un clip flou ou bougé redevient net, sans changer la scène.', section: 'outil', dedie: 'deblur', pastille: 'new' },
-      { label: 'Remove Compression', texte: 'Les blocs et les bandes d’une vidéo trop compressée disparaissent.', section: 'outil', dedie: 'decompression', pastille: 'new' },
-      { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', section: 'outil', dedie: 'green-screen' },
+      { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', section: 'outil', dedie: 'upscale-1080' },
+      { label: 'Video Effects', texte: 'Un clip, un effet : Refine, Day to Night, Unblur, Remove Compression, Colorize, Restore Footage, Add Water. Le mouvement ne change pas.', section: 'outil', dedie: 'effets-video', pastille: 'new' },
       ] },
       { titre: 'Finir', outils: [
       { label: 'Editor', texte: 'Timeline, fondus, texte, musique, transitions générées.', section: 'montage' },
+      { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', section: 'outil', dedie: 'green-screen' },
       { label: 'Lip Sync', texte: 'Une nouvelle voix sur un clip : les lèvres suivent.', section: 'doublage', pastille: 'new' },
       { label: 'Add Sound', texte: 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).', section: 'outil', dedie: 'add-sound', pastille: 'new' },
       { label: 'Smooth Motion', texte: 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.', section: 'outil', dedie: 'smooth' },
@@ -112,6 +112,7 @@ export const MENUS: Menu[] = [
       { titre: 'Ajouter des fonctions', outils: [
       { label: 'Extensions', texte: 'Des fonctions ajoutées par la communauté, sans code : un workflow ComfyUI et un formulaire.', section: 'extensions', pastille: 'new' },
       { label: 'ComfyUI Official Workflows', texte: 'Le catalogue des workflows officiels de ComfyUI, avec les modèles manquants, à télécharger et ouvrir dans ComfyUI.', section: 'extensions', tache: 'comfy' },
+      { label: 'Import LoRA', texte: 'Ajoute tes propres LoRA (.safetensors) : le studio lit leur architecture et les propose avec le bon moteur.', section: 'extensions', tache: 'lora', pastille: 'new' },
       ] },
     ], modeles: [['Workflows ComfyUI', 'Un workflow et un formulaire, sans code']] },
 ]
@@ -134,7 +135,7 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     // studio son (section « son ») : chaque entrée du menu ouvre son onglet (musique, voix, bruitage)
     const audio = o.tache === 'musiques' ? 'musique' : o.tache === 'bruitage' ? 'bruitage' : o.tache === 'voix' || o.tache === 'cloner' || o.tache === 'changer' ? 'voix' : null
     useAppStore.setState(audio ? { ongletAudio: audio, ongletMusiques: false } : { ongletMusiques: false })
-    if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : 'tout' })
+    if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : o.tache === 'lora' ? 'lora' : 'tout' })
     if (o.tache === 'camera' || o.tache === 'effets') useAppStore.setState({ famillePresets: o.tache === 'camera' ? 'camera' : 'effet' })
     useAppStore.setState({ demandeOutil: o.tache === 'hd' || o.tache === 'cloner' || o.tache === 'changer' ? o.tache : null })
     if (o.tache === 'edition') useAppStore.getState().updatePhoto({ task: 'edit' })
@@ -196,7 +197,7 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
           </button>
           {ouvert === m.titre && (
             <div data-popup className="mega-menu" style={{ position: 'absolute', top: '100%', left: 0, paddingTop: 8, zIndex: 300 }}>
-              <div className="mega-boite">
+              <div className={`mega-boite ${m.titre !== "Extensions" ? "mega-grand" : ""}`}>
                 <div className="mega-outils">
                   <div className="mega-entete">{t('Outils')} <span>{t('{n} outils', { n: nb(m) })}</span></div>
                   <div className="mega-colonnes" style={{ gridTemplateColumns: `repeat(${m.colonnes.length}, minmax(230px, 1fr))` }}>

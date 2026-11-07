@@ -12,6 +12,8 @@ import { useSuiviOutil } from './OutilPage'
 import { FailCard, Ic, JobCard, failedJobs } from './bits'
 import { FramePicker } from './popups'
 import { posterOf } from '../components/AssetMedia'
+import { Aucun, BarreGalerie, Carte, EtapesPanneau, ImageFixe, Squelettes, useCarteAuCentre, useMouvementReduit, useSurvolPossible } from './Galerie'
+import { HowItWorks } from './HowItWorks'
 
 interface Danse { slug: string; titre: string; secondes: number | null; v?: number }
 interface Studio { id: string; nom: string; v?: number }
@@ -43,20 +45,18 @@ const ETAPES = [
   { titre: 'Le rendu', texte: 'La scène devient une vraie vidéo, et ton personnage est repeint sur le mannequin d’après la photo.', image: '/vitrine/danse/etape3.webp' },
 ]
 
+/* « Comment ça marche » : le montage en grand, puis les quatre étapes (vidéos de curseur dans la vraie page). */
+const urlHowto = (f: string) => `/danses/${f}?v=20261106`
+const ETAPES_HOWTO = [
+  { titre: 'Choisis ta photo', texte: 'Une photo en pied de ton personnage, prise dans ta bibliothèque.', fichier: 'howto-1-photo' },
+  { titre: 'Choisis la danse', texte: 'Hip-hop, latino, rétro et plus : chaque aperçu montre les pas exacts.', fichier: 'howto-2-danse' },
+  { titre: 'Choisis le studio', texte: 'Le lieu de la danse : une scène, une rue, un salon ou le plein air.', fichier: 'howto-3-studio' },
+  { titre: 'Reçois ta vidéo de danse', texte: 'Environ 7 minutes plus tard, la vidéo arrive dans Rendus, prête à télécharger.', fichier: 'hero-montage' },
+]
+
 const urlDanse = (d: Danse, ext: 'webp' | 'mp4') => `/danses/${d.slug}.${ext}?v=${d.v ?? 0}`
 const urlStudio = (x: Studio, grand = false) => `/danses/studio-${x.id}${grand ? '-grand' : ''}.webp?v=${x.v ?? 0}`
 const secondes = (d: Danse) => d.secondes ? t('{n} s', { n: Math.round(d.secondes) }) : ''
-
-/* Préférences lues une fois : mouvement réduit, pointeur précis (survol possible). */
-const media = (q: string) => typeof window !== 'undefined' && window.matchMedia(q).matches
-function usePreference(q: string) {
-  const [v, setV] = useState(() => media(q))
-  useEffect(() => {
-    const mq = window.matchMedia(q); const f = () => setV(mq.matches)
-    mq.addEventListener('change', f); return () => mq.removeEventListener('change', f)
-  }, [q])
-  return v
-}
 
 /* Réglages de chaque lancement, gardés dans le navigateur pour « Refaire » et la légende du rendu. */
 const CLE_REGLAGES = 'danse:reglages'
@@ -69,95 +69,11 @@ function noterReglages(id: string, r: Reglages) {
 const CLE_CHOIX = 'danse:choix'
 const lireChoix = (): { slug?: string; studio?: string } => { try { return JSON.parse(localStorage.getItem(CLE_CHOIX) ?? '{}') } catch { return {} } }
 
-/* Image fixe : la première image d'un aperçu animé, dessinée une fois sur un canevas, chargée quand la
-   carte approche de l'écran. Les vignettes ne bougent qu'à la demande (survol, carte au centre). */
-const images = new Map<string, Promise<HTMLImageElement>>()
-function chargerImage(src: string) {
-  let p = images.get(src)
-  if (!p) {
-    p = new Promise((ok, ko) => { const i = new Image(); i.decoding = 'async'; i.onload = () => ok(i); i.onerror = ko; i.src = src })
-    p.catch(() => images.delete(src))
-    images.set(src, p)
-  }
-  return p
-}
-function ImageFixe({ src }: { src: string }) {
-  const ref = useRef<HTMLCanvasElement | null>(null)
-  const [prete, setPrete] = useState(false)
-  useEffect(() => {
-    const c = ref.current; if (!c) return
-    let fini = false
-    const dessiner = () => void chargerImage(src).then(img => {
-      if (fini) return
-      const ctx = c.getContext('2d'); if (!ctx) return
-      // recadrage « cover » au format 9:16 du canevas
-      const r = Math.max(c.width / img.naturalWidth, c.height / img.naturalHeight)
-      const w = img.naturalWidth * r, h = img.naturalHeight * r
-      ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h)
-      setPrete(true)
-    }).catch(() => {})
-    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); dessiner() } }, { rootMargin: '400px' })
-    io.observe(c)
-    return () => { fini = true; io.disconnect() }
-  }, [src])
-  return <canvas ref={ref} width={360} height={640} className={`dz-fixe ${prete ? 'prete' : ''}`} aria-hidden />
-}
-
-/* Une seule carte joue sur écran tactile : la plus proche du centre parmi celles bien visibles. */
-function useCarteAuCentre(actif: boolean, deps: unknown[]) {
-  const racine = useRef<HTMLDivElement | null>(null)
-  const [cle, setCle] = useState<string | null>(null)
-  useEffect(() => {
-    if (!actif || !racine.current) { setCle(null); return }
-    const visibles = new Set<HTMLElement>()
-    const io = new IntersectionObserver(es => {
-      for (const e of es) (e.intersectionRatio >= 0.7 ? visibles.add(e.target as HTMLElement) : visibles.delete(e.target as HTMLElement))
-      const milieu = window.innerHeight / 2
-      let meilleur: HTMLElement | null = null; let ecart = Infinity
-      for (const el of visibles) {
-        const r = el.getBoundingClientRect(); const d = Math.abs(r.top + r.height / 2 - milieu) + r.left / 10
-        if (d < ecart) { ecart = d; meilleur = el }
-      }
-      setCle(meilleur?.dataset.cle ?? null)
-    }, { threshold: [0, 0.7, 1] })
-    racine.current.querySelectorAll<HTMLElement>('[data-cle]').forEach(el => io.observe(el))
-    return () => io.disconnect()
-  }, [actif, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
-  return { racine, cle }
-}
-
-/* Carte de la galerie, au format 9:16 : image fixe au repos, aperçu animé au survol, au clavier ou au centre. */
-function Carte({ cle, titre, detail, fixe, anime, video, choisie, auCentre, survolPossible, reduit, onChoisir }: {
-  cle: string; titre: string; detail?: string; fixe: string; anime?: string; video?: string
-  choisie: boolean; auCentre: boolean; survolPossible: boolean; reduit: boolean; onChoisir: () => void
-}) {
-  const [survol, setSurvol] = useState(false)
-  const [joue, setJoue] = useState(false)
-  const enMouvement = !reduit && ((survol && survolPossible) || auCentre)
-  useEffect(() => { if (!enMouvement) setJoue(false) }, [enMouvement])
-  return (
-    <button type="button" data-cle={cle} className={`dz-carte ${choisie ? 'choisie' : ''}`} aria-pressed={choisie}
-      aria-label={detail ? `${titre}, ${detail}` : titre} onClick={onChoisir}
-      onMouseEnter={() => setSurvol(true)} onMouseLeave={() => setSurvol(false)} onFocus={() => setSurvol(true)} onBlur={() => setSurvol(false)}>
-      <ImageFixe src={fixe} />
-      {enMouvement && (video
-        ? <video className={`dz-anime ${joue ? 'prete' : ''}`} src={video} muted loop playsInline autoPlay preload="none" onPlaying={() => setJoue(true)} aria-hidden />
-        : anime && <img className={`dz-anime ${joue ? 'prete' : ''}`} src={anime} alt="" onLoad={() => setJoue(true)} />)}
-      {choisie && <span className="dz-coche"><Ic n="check" s={14} /></span>}
-      <span className="dz-legende"><b>{titre}</b>{detail && <small>{detail}</small>}</span>
-    </button>
-  )
-}
-
-function Squelettes({ n }: { n: number }) {
-  return <>{Array.from({ length: n }, (_, i) => <div key={i} className="dz-carte dz-squelette" aria-hidden />)}</>
-}
-
 export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Asset[]) => void; goMontage?: () => void }) {
   const s = useAppStore()
   const suivi = useSuiviOutil('danse')
-  const reduit = usePreference('(prefers-reduced-motion: reduce)')
-  const survolPossible = usePreference('(hover: hover) and (pointer: fine)')
+  const reduit = useMouvementReduit()
+  const survolPossible = useSurvolPossible()
   const [danses, setDanses] = useState<Danse[]>([])
   const [studios, setStudios] = useState<Studio[]>([])
   const [etat, setEtat] = useState<'charge' | 'pret' | 'erreur'>('charge')
@@ -175,6 +91,9 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
   const [options, setOptions] = useState(false)
   const [reglages, setReglages] = useState(lireReglages)
   const galerie = useRef<HTMLDivElement | null>(null)
+  const ancre = useRef<HTMLDivElement | null>(null)
+  const panneau = useRef<HTMLElement | null>(null)
+  const [appel, setAppel] = useState(false)
 
   const charger = () => {
     setEtat('charge')
@@ -187,7 +106,19 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
 
   const danse = danses.find(d => d.slug === choix) ?? null
   const leStudio = studios.find(x => x.id === studio) ?? null
-  const changerOnglet = (o: Onglet) => { setOnglet(o); setFiltre('tout'); setRecherche(''); galerie.current?.scrollTo({ top: 0 }) }
+  // changer d'onglet ramène en haut de la galerie, sous « Comment ça marche » (jamais au-dessus)
+  const changerOnglet = (o: Onglet) => {
+    setOnglet(o); setFiltre('tout'); setRecherche('')
+    const g = galerie.current; const haut = o === 'rendus' ? 0 : ancre.current?.offsetTop ?? 0
+    if (g && g.scrollTop > haut) g.scrollTo({ top: haut })
+  }
+  // « Commencer » : la galerie et le panneau de création à l'écran, la prochaine étape à faire mise en avant
+  const commencer = () => {
+    ancre.current?.scrollIntoView({ behavior: reduit ? 'auto' : 'smooth', block: 'start' })
+    const cible = panneau.current?.querySelector<HTMLElement>('.dz-etape.prochaine') ?? panneau.current?.querySelector<HTMLElement>('.dz-action .cta:not(:disabled)')
+    cible?.focus({ preventScroll: true })
+    setAppel(true); window.setTimeout(() => setAppel(false), 1600)
+  }
 
   /* La danse est jouée en 3D dans le studio choisi (le décor bouge avec la caméra), puis la danseuse est
      redessinée d'après la photo : de la photo, seuls la personne et sa tenue comptent. */
@@ -231,7 +162,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
 
   const etapes = [
     { n: 1, label: t('Personnage'), valeur: source?.asset ? t('Photo en pied choisie') : t('Choisir une photo en pied'), fait: !!source?.asset,
-      vignette: source?.asset?.uri ?? source?.apercu, ouvrir: () => setPicker(true), courant: false },
+      vignette: source?.asset?.uri ?? source?.apercu, icone: 'user' as const, ouvrir: () => setPicker(true), courant: false },
     { n: 2, label: t('Danse'), valeur: danse ? `${danse.titre}${danse.secondes ? ` · ${secondes(danse)}` : ''}` : t('Choisir une danse'), fait: !!danse,
       vignette: danse ? urlDanse(danse, 'webp') : undefined, fixe: true, ouvrir: () => changerOnglet('danses'), courant: onglet === 'danses' },
     { n: 3, label: t('Studio'), valeur: leStudio ? t(leStudio.nom) : t('Choisir un studio'), fait: !!leStudio,
@@ -240,27 +171,13 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
 
   return (
     <div className="dz">
-      <aside className={`dz-panneau ${options ? 'options-ouvertes' : ''}`} aria-label={t('Créer une danse')}>
+      <aside ref={panneau} className={`dz-panneau ${options ? 'options-ouvertes' : ''} ${appel ? 'appel' : ''}`} aria-label={t('Créer une danse')}>
         <header className="dz-tete">
           <h2 className="titre-outil">{t('Danse')}</h2>
           <p>{t('Une photo, une danse, un studio : ton personnage danse avec son visage et sa tenue.')}</p>
         </header>
 
-        <ol className="dz-etapes">
-          {etapes.map(e => (
-            <li key={e.n}>
-              <button type="button" className={`dz-etape ${e.fait ? 'faite' : ''} ${prochaine === e.n ? 'prochaine' : ''} ${e.courant ? 'courante' : ''}`}
-                onClick={e.ouvrir} aria-label={`${e.n}. ${e.label} : ${e.valeur}`}>
-                <span className="dz-etape-vignette">
-                  {e.vignette ? (e.fixe ? <ImageFixe src={e.vignette} /> : <img src={e.vignette} alt="" />) : <Ic n={e.n === 1 ? 'user' : 'play'} s={16} />}
-                  <i className="dz-num">{e.fait ? <Ic n="check" s={10} /> : e.n}</i>
-                </span>
-                <span className="dz-etape-texte"><small>{e.label}</small><b>{e.valeur}</b></span>
-                <span className="dz-etape-chevron"><Ic n="chevron" s={12} /></span>
-              </button>
-            </li>
-          ))}
-        </ol>
+        <EtapesPanneau etapes={etapes} prochaine={prochaine} />
 
         {/* la danse et le studio choisis, en grand : la danse joue, le studio s'anime */}
         <div className="dz-apercu">
@@ -313,31 +230,19 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
       </aside>
 
       <section className="dz-galerie" ref={galerie} aria-label={t('Galerie')}>
-        <div className="dz-barre">
-          <div className="dz-onglets" role="tablist" aria-label={t('Galerie')}>
-            {([['danses', t('Danses'), danses.length], ['studios', t('Studios'), studios.length], ['rendus', t('Rendus'), livres.length + nbEnCours]] as [Onglet, string, number][]).map(([k, label, n]) => (
-              <button key={k} type="button" role="tab" aria-selected={onglet === k} className={onglet === k ? 'on' : ''} onClick={() => changerOnglet(k)}>
-                {label}{n > 0 && <small>{n}</small>}{k === 'rendus' && nbEnCours > 0 && <i className="dz-point" aria-label={t('{n} en cours', { n: nbEnCours })} />}
-              </button>
-            ))}
-          </div>
-          {onglet !== 'rendus' && (
-            <label className="dz-recherche">
-              <span className="dz-sr">{onglet === 'danses' ? t('Chercher une danse') : t('Chercher un studio')}</span>
-              <input type="search" value={recherche} onChange={e => setRecherche(e.target.value)} placeholder={onglet === 'danses' ? t('Chercher une danse') : t('Chercher un studio')} />
-            </label>
-          )}
-          {puces.length > 0 && (
-            <div className="dz-puces" role="group" aria-label={t('Filtrer')}>
-              <button type="button" aria-pressed={filtre === 'tout'} className={filtre === 'tout' ? 'on' : ''} onClick={() => setFiltre('tout')}>{t('Tout')}</button>
-              {puces.map(p => (
-                <button key={p.id} type="button" aria-pressed={filtre === p.id} className={filtre === p.id ? 'on' : ''} onClick={() => setFiltre(p.id)}>
-                  {t(p.label)} <small>{p.n}</small>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {onglet !== 'rendus' && (
+          <HowItWorks cleMemoire="danse:howto-masque" reduit={reduit} onCommencer={commencer}
+            hero={{ video: urlHowto('hero-montage.mp4'), affiche: urlHowto('hero-montage.jpg') }} labelHero={t('Exemples de vidéos de danse')}
+            titre={t('Fais danser ton personnage')} texte={t('Une photo, une danse, un studio : tu reçois une vraie vidéo de danse, avec son visage et sa tenue.')}
+            etapes={ETAPES_HOWTO.map(e => ({ titre: t(e.titre), texte: t(e.texte), video: urlHowto(`${e.fichier}.mp4`), affiche: urlHowto(`${e.fichier}.jpg`) }))} />
+        )}
+        <div ref={ancre} className="dz-ancre" aria-hidden />
+        <BarreGalerie<Onglet> onglet={onglet} onOnglet={changerOnglet}
+          onglets={[{ cle: 'danses', label: t('Danses'), n: danses.length }, { cle: 'studios', label: t('Studios'), n: studios.length },
+            { cle: 'rendus', label: t('Rendus'), n: livres.length + nbEnCours, enCours: nbEnCours }]}
+          recherche={recherche} onRecherche={onglet !== 'rendus' ? setRecherche : undefined}
+          placeholder={onglet === 'danses' ? t('Chercher une danse') : t('Chercher un studio')}
+          puces={puces} filtre={filtre} onFiltre={setFiltre} />
 
         {etat === 'erreur' && onglet !== 'rendus' ? (
           <div className="dz-etat">
@@ -370,15 +275,6 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
         assets={s.assets.filter(a => a.mediaType === 'photo' && !a.modele3d)}
         onPickAsset={a => { setSource({ asset: a }); setPicker(false) }}
         onPickUpload={n => { setSource({ fichier: n, apercu: `/api/uploads/${encodeURIComponent(n)}` }); setPicker(false) }} />
-    </div>
-  )
-}
-
-function Aucun({ texte, onEffacer }: { texte: string; onEffacer: () => void }) {
-  return (
-    <div className="dz-etat dz-etat-grille">
-      <b>{texte}</b>
-      <button type="button" className="pill" onClick={onEffacer}>{t('Effacer la recherche')}</button>
     </div>
   )
 }

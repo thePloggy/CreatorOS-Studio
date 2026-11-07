@@ -942,6 +942,12 @@ export function groupBatches(assets: Asset[]): GridItem[] {
   return out.map(it => (it.kind === 'batch' && it.items.length < 2 ? { kind: 'asset', a: it.items[0] } : it))
 }
 
+/** Les lots de PHOTOS seulement (carrousels, séries) : un lot de clips reste en vignettes (ses prises ont leur comparateur). */
+export function groupLotsPhotos(assets: Asset[]): GridItem[] {
+  return groupBatches(assets).flatMap(it => it.kind === 'batch' && it.items.some(a => a.mediaType !== 'photo')
+    ? it.items.filter((a, i, l) => l.findIndex(x => x.id === a.id) === i).map(a => ({ kind: 'asset' as const, a })) : [it])
+}
+
 export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
   items: Asset[]; onOpen: () => void
   picking?: boolean; allPicked?: boolean; onPickAll?: () => void

@@ -11,8 +11,9 @@ import { cinema } from './cinema'
 import { reshoot } from './reshoot'
 import { audio } from './audio'
 import { danse } from './danse'
+import { galeries } from './galeries'
 
 /* `serveur` en premier : un texte d'interface identique garde sa traduction d'interface. */
 export const EN: Record<string, string> = {
-  ...serveur, ...partage, ...bureau_grilles, ...bureau_visionneuse, ...mobile, ...commun, ...nouveautes, ...cinema, ...reshoot, ...audio, ...danse,
+  ...serveur, ...partage, ...bureau_grilles, ...bureau_visionneuse, ...mobile, ...commun, ...nouveautes, ...cinema, ...reshoot, ...audio, ...danse, ...galeries,
 }

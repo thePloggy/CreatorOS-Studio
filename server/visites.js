@@ -38,7 +38,7 @@ const ROUTES_RENDU = new Set([
   'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/recadrer', 'POST /api/croquis', 'POST /api/restauration', 'POST /api/croquis/:id/choisir', 'POST /api/extensions/:id/lancer', 'POST /api/assets/:id/analyse', 'POST /api/assets/:id/pack-pub', 'POST /api/pack-pub', 'POST /api/voix', 'POST /api/assets/:id/doubler', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
   'POST /api/assets/:id/upscale', 'POST /api/montages/:id/export', 'POST /api/presets/:id/lancer',
   'POST /api/parole', 'POST /api/reshoot', 'POST /api/assets/:id/objet3d', 'POST /api/musique', 'POST /api/montage/transition', 'POST /api/assets/:id/master', 'POST /api/reels/:id/plans/:k/refaire',
-  'POST /api/danses/scene3d',
+  'POST /api/danses/scene3d', 'POST /api/assets/:id/essayage', 'POST /api/assets/:id/photodump', 'POST /api/assets/:id/style-reference',
 ])
 
 const JOURNAL_MAX = 200

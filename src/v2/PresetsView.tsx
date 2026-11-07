@@ -1,33 +1,52 @@
 /* ============================================================
-   Galerie « Caméra & effets » — des cartes qui tournent en boucle,
-   une photo, un clic : le clip part dans la file de rendu ordinaire et arrive
-   dans la bibliothèque (onglet Vidéo). Les presets vivent côté serveur
+   Camera Moves et Effects : la galerie des presets occupe la largeur (cartes 9:16, aperçu au survol),
+   un panneau de création compact reste visible (colonne à gauche sur bureau, barre en bas sur
+   téléphone) : la photo, le mouvement ou l'effet, la durée, le bouton. Le clip part dans la file de
+   rendu ordinaire et arrive dans l'onglet Rendus et la bibliothèque. Les presets vivent côté serveur
    (server/presets.js) ; ici on choisit et on lance.
    ============================================================ */
 import { APERCUS, ApercuOutil } from './Apercus'
 import type { IdOutil } from './OutilsDedies'
-import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
+import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { getLang, t, tServeur } from '../i18n'
-import { vignetteOf } from '../components/AssetMedia'
+import { Ic, failedJobs } from './bits'
+import { FramePicker } from './popups'
+import { useSuiviOutil } from './OutilPage'
+import { ActionPanneau, Aucun, BarreGalerie, Carte, EtapesPanneau, RendusGalerie, Squelettes, memoireReglages, useCarteAuCentre, useMouvementReduit, useSurvolPossible } from './Galerie'
+import { HowItWorks, howto } from './HowItWorks'
 
 interface Preset { id: string; famille: 'camera' | 'effet'; nom: string; nomEn: string; icone: string; lora: string | null; apercu: string | null; moteur: 'ltx_hq' | 'wan21' | 'wan21_hq' | 'wan_funcam'; deuxRendus?: boolean }
+type Famille = 'camera' | 'effet'
+type Onglet = Famille | 'clip' | 'rendus'
+type Reglages = { presetId: string; assetId: string; detail: string; duree: number }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
-/** Un aperçu ne se télécharge et ne joue que lorsqu'il est à l'écran. */
-function VideoVisible({ src, style }: { src: string; style: React.CSSProperties }) {
-  const v = useRef<HTMLVideoElement>(null)
-  useEffect(() => {
-    const el = v.current
-    if (!el) return
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) void el.play().catch(() => {}); else el.pause() }, { rootMargin: '100px' })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-  return <video ref={v} src={src} muted loop playsInline preload="none" style={style} />
+/* Familles de presets, par identifiant ; un preset inconnu reste visible sous « Tout ». */
+const GROUPES: Record<Famille, { id: string; label: string; ids: string[] }[]> = {
+  camera: [
+    { id: 'pousser', label: 'Avant et arrière', ids: ['push-in', 'pull-out', 'crash-zoom', 'crash-zoom-out', 'dolly-zoom'] },
+    { id: 'orbite', label: 'Autour du sujet', ids: ['orbite', 'arc', 'bullet-time'] },
+    { id: 'grue', label: 'Grue et drone', ids: ['drone', 'jib-down', 'grue-haute'] },
+    { id: 'suivi', label: 'Suivi et pano', ids: ['travelling-lateral', 'panoramique', 'epaule', 'fixe-vivant'] },
+  ],
+  effet: [
+    { id: 'forme', label: 'Formes', ids: ['squish', 'inflate', 'deflate', 'crush', 'cakeify', 'rotate'] },
+    { id: 'spectacle', label: 'Spectacle', ids: ['explode', 'electrify', 'robot', 'jaw-drop'] },
+  ],
 }
+
+/* Aperçus de la galerie : image fixe et clip léger, préparés à côté des fichiers de la page Danse et
+   nommés d'après la version de l'aperçu ; s'ils manquent, l'aperçu complet du serveur prend le relais. */
+const version = (p: Preset) => p.apercu?.split('v=')[1] ?? '0'
+const urlFixe = (p: Preset) => `/danses/presets/${p.id}-${version(p)}.webp`
+const urlLeger = (p: Preset) => `/danses/presets/${p.id}-${version(p)}.mp4`
+const duréesDe = (p: Preset) => p.moteur.startsWith('wan21') || p.moteur === 'wan_funcam' ? [3, 4, 5] : [4, 5, 6, 8]
+const minutesDe = (p: Preset) => p.moteur === 'wan21_hq' ? 8 : p.moteur === 'wan_funcam' ? 5 : null
+const moteurDe = (p: Preset) => p.moteur === 'wan_funcam' ? t('Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min') : p.moteur === 'wan21_hq' ? t('Wan 2.1 · LoRA dédiée · muet · ~8 min')
+  : p.moteur === 'wan21' ? t('Wan 2.1 · LoRA dédiée · muet') : p.deuxRendus ? t('LTX-2.5 puis Wan 2.2 · deux rendus, le second finit sur ta photo') : `LTX-2.5 · ${t('avec le son')}${p.lora ? ' · LoRA' : ''}`
 
 /* Outils sur un clip : la même vignette qu'à l'accueil (vrais rendus), un clic ouvre la page de l'outil. */
 const OUTILS_CLIP: { label: string; texte: string; dedie?: IdOutil }[] = [
@@ -36,134 +55,256 @@ const OUTILS_CLIP: { label: string; texte: string; dedie?: IdOutil }[] = [
   { label: 'Green Screen', texte: 'SAM3 garde le sujet, rien n’est redessiné.', dedie: 'green-screen' },
   { label: 'Add Sound', texte: 'Le clip reçoit son ambiance et ses bruitages, générés d’après l’image (LTX-2.5).', dedie: 'add-sound' },
   { label: 'Smooth Motion', texte: 'RIFE double les images : le mouvement passe à 48 i/s, plus fluide.', dedie: 'smooth' },
-  { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', dedie: 'upscale' },
+  { label: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p.', dedie: 'upscale-1080' },
   { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.' },
 ]
 
-export function PresetsView({ goVideo }: { goVideo: () => void }) {
-  const ouvrirOutilClip = (o: { dedie?: IdOutil }) => {
-    if (!o.dedie) { useAppStore.getState().updateVideo({ task: 'extend' }); goVideo(); return }
-    useAppStore.setState(st => ({ outilDedie: o.dedie!, navRequest: { section: 'outil', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
-  }
-  const [presets, setPresets] = useState<Preset[]>([])
-  const [ouvert, setOuvert] = useState<Preset | null>(null)
-  const [famille, setFamille] = useState<'camera' | 'effet' | 'clip'>(() => useAppStore.getState().famillePresets ?? 'camera')
-  // le menu ouvre Camera Moves ou Effects : la galerie suit, à l'ouverture comme déjà ouverte
-  const demandee = useAppStore(st => st.famillePresets)
-  useEffect(() => { if (demandee) { setFamille(demandee); useAppStore.setState({ famillePresets: null }) } }, [demandee])
-  // « Utiliser dans… » depuis la visionneuse : la photo est déjà choisie, il reste le mouvement
-  const [photoVenue, setPhotoVenue] = useState<Asset | null>(null)
-  useEffect(() => { setPhotoVenue(useAppStore.getState().prendrePasserelle('presets')) }, [])
-  useEffect(() => { void fetch('/api/presets').then(json).then(d => setPresets(d.presets ?? [])).catch(() => {}) }, [])
-  const liste = presets.filter(p => p.famille === famille)
-  const nom = (p: Preset) => getLang() === 'en' ? p.nomEn : p.nom
-  return (
-    <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'grid', gap: 16 }}>
-        <div className="flex items-end gap-4 flex-wrap">
-          <div>
-            <h2 className="titre-outil">{famille === 'effet' ? 'Effects' : famille === 'clip' ? t('Sur un clip') : 'Camera Moves'}</h2>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{photoVenue
-              ? t('Photo choisie : il reste à choisir un mouvement.')
-              : t('Choisis un mouvement, choisis une photo : le clip arrive dans ta bibliothèque.')}</div>
-          </div>
-          <span style={{ flex: 1 }} />
-          <div className="wtabs">
-            <button className={`wtab ${famille === 'camera' ? 'on' : ''}`} onClick={() => setFamille('camera')}>{t('Mouvements de caméra')}</button>
-            {presets.some(p => p.famille === 'effet') && <button className={`wtab ${famille === 'effet' ? 'on' : ''}`} onClick={() => setFamille('effet')}>{t('Effets')}</button>}
-            <button className={`wtab ${famille === 'clip' ? 'on' : ''}`} onClick={() => setFamille('clip')}>{t('Sur un clip')}</button>
-          </div>
-        </div>
-        {famille === 'clip' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-            {OUTILS_CLIP.map(o => (
-              <button key={o.label} onClick={() => ouvrirOutilClip(o)} style={{ borderRadius: 14, border: 0, padding: 0, overflow: 'hidden', cursor: 'pointer', textAlign: 'left', color: 'var(--text)', background: 'var(--lv2)', display: 'grid' }}>
-                <span style={{ aspectRatio: '4 / 3', display: 'block', overflow: 'hidden', position: 'relative', pointerEvents: 'none' }}><ApercuOutil apercu={APERCUS[o.label]} /></span>
-                <span style={{ display: 'grid', gap: 5, padding: '12px 14px 14px' }}>
-                  <b style={{ fontSize: 14 }}>{o.label}</b>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{t(o.texte)}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
-          {liste.map(p => (
-            <button key={p.id} onClick={() => setOuvert(p)}
-              style={{ position: 'relative', aspectRatio: '9 / 14', borderRadius: 16, overflow: 'hidden', border: 0, padding: 0, cursor: 'pointer', color: '#fff', textAlign: 'left',
-                background: 'linear-gradient(160deg, var(--lv3), var(--lv1))' }}>
-              {p.apercu
-                ? <VideoVisible src={p.apercu} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, opacity: .5 }}>{p.icone}</span>}
-              <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '28px 12px 11px', background: 'linear-gradient(transparent, rgba(0,0,0,.8))', fontSize: 13.5, fontWeight: 700 }}>
-                {nom(p)}{p.lora && <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 5px', borderRadius: 5, background: 'rgba(255,255,255,.2)' }}>LoRA</span>}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-      {ouvert && <Lancer p={ouvert} nom={nom(ouvert)} photoInitiale={photoVenue} onClose={() => setOuvert(null)} goVideo={goVideo} />}
-    </div>
-  )
+/* « Comment ça marche », par famille */
+const HOWTO: Record<Famille, { cle: string; titre: string; texte: string; label: string; repli: string; etapes: [string, string][] }> = {
+  camera: {
+    cle: 'camera', repli: '/vitrine/camera-w.webp', label: 'Exemples de mouvements de caméra',
+    titre: 'Un mouvement de cinéma sur n’importe quelle photo',
+    texte: 'Une photo, un mouvement : dolly, orbite, crash zoom ou drone, tu reçois un vrai plan de cinéma.',
+    etapes: [
+      ['Choisis ta photo', 'Un personnage, un lieu ou un produit, pris dans ta bibliothèque.'],
+      ['Choisis le mouvement', 'Chaque aperçu montre le mouvement exact de la caméra.'],
+      ['Règle la durée', 'Quelques secondes, et si tu veux ce qui se passe pendant le plan.'],
+      ['Reçois ton clip', 'Il arrive dans Rendus et dans ta bibliothèque, prêt à monter.'],
+    ],
+  },
+  effet: {
+    cle: 'effets', repli: '/vitrine/effets-z.webp', label: 'Exemples d’effets',
+    titre: 'Un effet viral en un clic',
+    texte: 'Une photo, un effet : elle gonfle, s’écrase, explose ou s’électrise, en un vrai clip.',
+    etapes: [
+      ['Choisis ta photo', 'Un personnage, un animal ou un objet, pris dans ta bibliothèque.'],
+      ['Choisis l’effet', 'Chaque aperçu montre l’effet exact, du début à la fin.'],
+      ['Règle la durée', 'Quelques secondes, et si tu veux ce qui se passe pendant le plan.'],
+      ['Reçois ton clip', 'Il arrive dans Rendus et dans ta bibliothèque, prêt à publier.'],
+    ],
+  },
 }
 
-function Lancer({ p, nom, photoInitiale, onClose, goVideo }: { p: Preset; nom: string; photoInitiale: Asset | null; onClose: () => void; goVideo: () => void }) {
+/* La famille à l'ouverture : demandée par le menu, sinon par l'adresse (?f=effet, sur téléphone aussi). */
+const familleDemandee = (): Famille => {
+  const f = useAppStore.getState().famillePresets ?? new URLSearchParams(window.location.search).get('f')
+  return f === 'effet' ? 'effet' : 'camera'
+}
+const CLE_CHOIX = 'presets:choix'
+const lireChoix = (): Partial<Record<Famille, string>> => { try { return JSON.parse(localStorage.getItem(CLE_CHOIX) ?? '{}') } catch { return {} } }
+const REGLAGES = memoireReglages<Reglages>('presets:reglages')
+
+export function PresetsView({ goVideo, onOpen }: { goVideo: () => void; onOpen?: (a: Asset, list: Asset[]) => void }) {
   const s = useAppStore()
-  const [photo, setPhoto] = useState<Asset | null>(photoInitiale)
+  const suivi = useSuiviOutil('presets')
+  const reduit = useMouvementReduit()
+  const survolPossible = useSurvolPossible()
+  const [presets, setPresets] = useState<Preset[]>([])
+  const [etat, setEtat] = useState<'charge' | 'pret' | 'erreur'>('charge')
+  const [onglet, setOnglet] = useState<Onglet>(familleDemandee)
+  const [famille, setFamille] = useState<Famille>(familleDemandee)
+  const [choix, setChoix] = useState<Partial<Record<Famille, string>>>(lireChoix)
+  const [photo, setPhoto] = useState<{ asset?: Asset; fichier?: string; apercu?: string } | null>(null)
+  const [picker, setPicker] = useState(false)
   const [detail, setDetail] = useState('')
   const [duree, setDuree] = useState(5)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [fait, setFait] = useState(false)
-  const photos = useMemo(() => s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected')
-    .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt).slice(0, 120), [s.assets])
-  const go = async () => {
-    if (!photo) return
-    setBusy(true); setErr(null)
-    try {
-      const r = await json(await fetch(`/api/presets/${p.id}/lancer`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: photo.id, detail, duree }) }))
-      void s.adoptServerJob(r.jobId)
-      setFait(true)
-    } catch (e) { setErr(String((e as Error).message)) }
-    setBusy(false)
+  const [options, setOptions] = useState(false)
+  const [occupe, setOccupe] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [filtre, setFiltre] = useState('tout')
+  const [recherche, setRecherche] = useState('')
+  const [reglages, setReglages] = useState(REGLAGES.lire)
+  const [appel, setAppel] = useState(false)
+  const galerie = useRef<HTMLElement | null>(null)
+  const ancre = useRef<HTMLDivElement | null>(null)
+  const panneau = useRef<HTMLElement | null>(null)
+
+  const charger = () => {
+    setEtat('charge')
+    void fetch('/api/presets').then(json).then(d => { setPresets(d.presets ?? []); setEtat('pret') }).catch(() => setEtat('erreur'))
   }
+  useEffect(charger, [])
+  // « Utiliser dans… » depuis la visionneuse : la photo est déjà choisie, il reste le mouvement
+  useEffect(() => { const a = useAppStore.getState().prendrePasserelle('presets'); if (a) setPhoto({ asset: a }) }, [])
+  useEffect(() => { try { localStorage.setItem(CLE_CHOIX, JSON.stringify(choix)) } catch { /* stockage indisponible */ } }, [choix])
+
+  // changer d'onglet ramène en haut de la galerie, sous « Comment ça marche » (jamais au-dessus)
+  const changerOnglet = (o: Onglet) => {
+    setOnglet(o); setFiltre('tout'); setRecherche('')
+    if (o === 'camera' || o === 'effet') setFamille(o)
+    const g = galerie.current; const haut = o === 'rendus' || o === 'clip' ? 0 : ancre.current?.offsetTop ?? 0
+    if (g && g.scrollTop > haut) g.scrollTo({ top: haut })
+  }
+  // le menu ouvre Camera Moves ou Effects : la galerie suit, à l'ouverture comme déjà ouverte
+  const demandee = useAppStore(st => st.famillePresets)
+  useEffect(() => { if (demandee) { changerOnglet(demandee); useAppStore.setState({ famillePresets: null }) } }, [demandee]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nom = (p: Preset) => getLang() === 'en' ? p.nomEn : p.nom
+  const preset = presets.find(p => p.id === choix[famille] && p.famille === famille) ?? null
+  const durees = preset ? duréesDe(preset) : [3, 4, 5]
+  useEffect(() => { if (preset && !duréesDe(preset).includes(duree)) setDuree(5) }, [preset, duree])
+
+  const commencer = () => {
+    ancre.current?.scrollIntoView({ behavior: reduit ? 'auto' : 'smooth', block: 'start' })
+    const cible = panneau.current?.querySelector<HTMLElement>('.dz-etape.prochaine') ?? panneau.current?.querySelector<HTMLElement>('.dz-action .cta:not(:disabled)')
+    cible?.focus({ preventScroll: true })
+    setAppel(true); window.setTimeout(() => setAppel(false), 1600)
+  }
+
+  const lancer = async (r: Reglages) => {
+    setOccupe(true); setMsg(null)
+    try {
+      const d = await json(await fetch(`/api/presets/${r.presetId}/lancer`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: r.assetId, detail: r.detail, duree: r.duree }) }))
+      REGLAGES.noter(d.jobId, r); setReglages(REGLAGES.lire())
+      suivi.ajouter([d.jobId]); void s.adoptServerJob(d.jobId)
+      changerOnglet('rendus')
+    } catch (e) { setMsg(String((e as Error).message)) }
+    setOccupe(false)
+  }
+  const pret = !!preset && !!photo?.asset && !occupe
+  const generer = () => { if (preset && photo?.asset) void lancer({ presetId: preset.id, assetId: photo.asset.id, detail, duree }) }
+
+  // les rendus de la page (un preset à deux passes livre sous un id dérivé du premier)
+  const suiviDe = (id: string) => suivi.ids.has(id) || [...suivi.ids].some(x => id.startsWith(`${x}-`))
+  const enCours = s.jobs.filter(j => suiviDe(j.id) && STATUTS_ACTIFS.includes(j.status))
+  const echecs = failedJobs(s.jobs, true).filter(j => suiviDe(j.id))
+  const livres = s.assets.filter(a => a.jobId && suiviDe(String(a.jobId))).slice(0, 60)
+  const reglagesDe = (a: Asset) => reglages[String(a.jobId)] ?? Object.entries(reglages).find(([k]) => String(a.jobId).startsWith(`${k}-`))?.[1]
+
+  // la galerie de l'onglet, filtrée par groupe et par recherche
+  const q = recherche.trim().toLowerCase()
+  const liste = presets.filter(p => p.famille === famille)
+  const vus = useMemo(() => liste.filter(p => (filtre === 'tout' || GROUPES[famille].find(g => g.id === filtre)?.ids.includes(p.id))
+    && (!q || p.nom.toLowerCase().includes(q) || p.nomEn.toLowerCase().includes(q))), [liste, filtre, q, famille])
+  const puces = onglet === 'camera' || onglet === 'effet'
+    ? GROUPES[famille].map(g => ({ id: g.id, label: g.label, n: liste.filter(p => g.ids.includes(p.id)).length })).filter(p => p.n > 0) : []
+  const centre = useCarteAuCentre(!survolPossible && !reduit && (onglet === 'camera' || onglet === 'effet'), [onglet, filtre, q, etat])
+
+  const manque = !photo?.asset ? (photo?.fichier ? t('Choisis une photo de la bibliothèque.') : t('Choisis d’abord la photo à animer.'))
+    : !preset ? (famille === 'effet' ? t('Choisis un effet dans la galerie.') : t('Choisis un mouvement dans la galerie.')) : null
+  const prochaine = !photo?.asset ? 1 : !preset ? 2 : 0
+  const h = HOWTO[famille]
+  const fichiers = howto(h.cle)
+  const titre = famille === 'effet' ? 'Effects' : 'Camera Moves'
+  const minutes = preset ? minutesDe(preset) : null
+
+  const photos = useMemo(() => s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected' && !a.modele3d)
+    .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt).slice(0, 120), [s.assets])
+
   return (
-    <div className="pop" onClick={onClose}>
-      <div className="pbox" style={{ width: 'min(860px,94%)' }} onClick={e => e.stopPropagation()}>
-        <h3>{p.icone} {nom} <button className="x" onClick={onClose}>✕</button></h3>
-        {fait ? (
-          <div style={{ display: 'grid', gap: 10, padding: '10px 2px', fontSize: 13 }}>
-            <div>✓ {t('Le clip est en file de rendu. Il arrivera dans l’onglet Vidéo.')}</div>
-            <div className="flex gap-2">
-              <button className="pill" onClick={() => { onClose(); goVideo() }}>{t('Aller à Vidéo')}</button>
-              <button className="pill tool" onClick={() => { setFait(false); setPhoto(null) }}>{t('Une autre photo')}</button>
+    <div className="dz">
+      <aside ref={panneau} className={`dz-panneau ${options ? 'options-ouvertes' : ''} ${appel ? 'appel' : ''}`} aria-label={famille === 'effet' ? t('Créer un effet') : t('Créer un mouvement de caméra')}>
+        <header className="dz-tete">
+          <h2 className="titre-outil">{titre}</h2>
+          <p>{famille === 'effet' ? t('Une photo, un effet : elle s’anime en un clip viral.') : t('Une photo, un mouvement de caméra : elle devient un plan de cinéma.')}</p>
+        </header>
+
+        <EtapesPanneau prochaine={prochaine} etapes={[
+          { n: 1, label: t('Photo'), valeur: photo?.asset ? t('Photo choisie') : t('Choisir une photo'), fait: !!photo?.asset, icone: 'image',
+            vignette: photo?.asset?.uri ?? photo?.apercu, ouvrir: () => setPicker(true) },
+          { n: 2, label: famille === 'effet' ? t('Effet') : t('Mouvement'), valeur: preset ? nom(preset) : famille === 'effet' ? t('Choisir un effet') : t('Choisir un mouvement'),
+            fait: !!preset, vignette: preset ? urlFixe(preset) : undefined, fixe: true, ouvrir: () => changerOnglet(famille), courant: onglet === famille },
+        ]} />
+
+        {/* le preset et la photo choisis, en grand : l'aperçu joue */}
+        <div className="dz-apercu">
+          <figure>
+            {preset?.apercu
+              ? <video key={preset.id} src={preset.apercu} poster={urlFixe(preset)} muted loop playsInline {...(reduit ? { controls: true, preload: 'none' } : { autoPlay: true })} />
+              : <button type="button" className="dz-apercu-vide" onClick={() => changerOnglet(famille)}>{famille === 'effet' ? t('Choisir un effet') : t('Choisir un mouvement')}</button>}
+            <figcaption>{preset ? nom(preset) : famille === 'effet' ? t('Effet') : t('Mouvement')}</figcaption>
+          </figure>
+          <figure>
+            {photo?.asset || photo?.apercu
+              ? <img key={photo.asset?.id ?? photo.apercu} src={photo.asset?.uri ?? photo.apercu} alt="" />
+              : <button type="button" className="dz-apercu-vide" onClick={() => setPicker(true)}>{t('Choisir une photo')}</button>}
+            <figcaption>{t('Ta photo')}</figcaption>
+          </figure>
+        </div>
+
+        <div className="dz-options" id="presets-options">
+          {options || detail
+            ? <label className="dz-champ">
+                <span>{t('Ce qui se passe pendant le plan (facultatif, en anglais)')}</span>
+                <textarea rows={2} value={detail} maxLength={300} onChange={e => setDetail(e.target.value)} placeholder={t('ex. : elle sourit et remet ses cheveux en place')} />
+              </label>
+            : <button type="button" className="dz-ajout" onClick={() => setOptions(true)}>+ {t('Ce qui se passe pendant le plan (facultatif, en anglais)')}</button>}
+          <div className="dz-champ">
+            <span>{t('Durée')}</span>
+            <div className="dz-segments" role="group" aria-label={t('Durée')}>
+              {durees.map(k => <button key={k} type="button" aria-pressed={duree === k} className={duree === k ? 'on' : ''} onClick={() => setDuree(k)}>{t('{n} s', { n: k })}</button>)}
             </div>
+            {preset && <small className="dz-note">{moteurDe(preset)}</small>}
           </div>
-        ) : (<>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{t('1. Choisis la photo à animer')}</div>
-          <div className="pkgrid" style={{ maxHeight: 300 }}>
-            {photos.map(a => (
-              <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => setPhoto(a)} style={{ outline: photo?.id === a.id ? '3px solid var(--accent)' : undefined }}>
-                <img src={vignetteOf(a)} alt="" loading="lazy" />
+        </div>
+
+        <ActionPanneau id="presets" nbEnCours={new Set(enCours.map(j => j.id)).size} onVoirRendus={onglet !== 'rendus' ? () => changerOnglet('rendus') : undefined}
+          options={options} onOptions={() => setOptions(o => !o)} pret={pret} onLancer={generer}
+          label={occupe ? t('Envoi…') : t('Animer')} detail={`${minutes ? `~${t('{m} min', { m: minutes })} · ` : ''}${t('{n} s', { n: duree })}`}
+          manque={manque} msg={msg} />
+      </aside>
+
+      <section className="dz-galerie" ref={galerie} aria-label={t('Galerie')}>
+        {(onglet === 'camera' || onglet === 'effet') && (
+          <HowItWorks key={h.cle} cleMemoire={`hiw:${h.cle}`} reduit={reduit} onCommencer={commencer}
+            hero={{ ...fichiers.hero, repli: h.repli }} labelHero={t(h.label)} titre={t(h.titre)} texte={t(h.texte)}
+            etapes={h.etapes.map(([ti, tx], i) => ({ titre: t(ti), texte: t(tx), ...(i === 3 ? { ...fichiers.hero, repli: h.repli } : fichiers.etape(i + 1)) }))} />
+        )}
+        <div ref={ancre} className="dz-ancre" aria-hidden />
+        <BarreGalerie<Onglet> onglet={onglet} onOnglet={changerOnglet}
+          onglets={[
+            { cle: 'camera', label: t('Mouvements de caméra'), n: presets.filter(p => p.famille === 'camera').length },
+            ...(presets.some(p => p.famille === 'effet') || etat !== 'pret' ? [{ cle: 'effet' as const, label: t('Effets'), n: presets.filter(p => p.famille === 'effet').length }] : []),
+            { cle: 'clip', label: t('Sur un clip') },
+            { cle: 'rendus', label: t('Rendus'), n: livres.length + enCours.length, enCours: enCours.length },
+          ]}
+          recherche={recherche} onRecherche={onglet === 'camera' || onglet === 'effet' ? setRecherche : undefined}
+          placeholder={onglet === 'effet' ? t('Chercher un effet') : t('Chercher un mouvement')}
+          puces={puces} filtre={filtre} onFiltre={setFiltre} />
+
+        {onglet === 'clip' ? (
+          <div className="dz-grille-outils">
+            {OUTILS_CLIP.map(o => (
+              <button key={o.label} type="button" className="dz-outil" onClick={() => {
+                if (!o.dedie) { useAppStore.getState().updateVideo({ task: 'extend' }); goVideo(); return }
+                useAppStore.setState(st => ({ outilDedie: o.dedie!, navRequest: { section: 'outil', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
+              }}>
+                <span className="dz-outil-media"><ApercuOutil apercu={APERCUS[o.label]} /></span>
+                <span className="dz-outil-texte"><b>{o.label}</b><span>{t(o.texte)}</span></span>
               </button>
             ))}
-            {!photos.length && <div style={{ gridColumn: '1/-1', color: 'var(--faint)', fontSize: 12, padding: 12 }}>{t('rien dans la bibliothèque')}</div>}
           </div>
-          <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-            <input value={detail} onChange={e => setDetail(e.target.value)} maxLength={300} placeholder={t('2. Optionnel : ce qu’elle fait pendant le plan (en anglais)')}
-              className="champ" style={{ fontSize: 12.5 }} />
-            <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12, color: 'var(--muted)' }}>
-              <span>{t('Durée')}</span>
-              {(p.moteur.startsWith('wan21') || p.moteur === 'wan_funcam' ? [3, 4, 5] : [4, 5, 6, 8]).map(k => <button key={k} className={`wtab ${duree === k ? 'on' : ''}`} onClick={() => setDuree(k)}>{k} s</button>)}
-              <span style={{ marginLeft: 8, color: 'var(--faint)' }}>{p.moteur === 'wan_funcam' ? t('Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min') : p.moteur === 'wan21_hq' ? t('Wan 2.1 · LoRA dédiée · muet · ~8 min') : p.moteur === 'wan21' ? t('Wan 2.1 · LoRA dédiée · muet') : p.deuxRendus ? t('LTX-2.5 puis Wan 2.2 · deux rendus, le second finit sur ta photo') : `LTX-2.5 · ${t('avec le son')}${p.lora ? ' · LoRA' : ''}`}</span>
-              <span style={{ flex: 1 }} />
-              <button className="cta" style={{ padding: '9px 16px', flexDirection: 'row' }} disabled={!photo || busy} onClick={() => void go()}>{busy ? '…' : `✨ ${t('Animer')}`}</button>
-            </div>
-            {err && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</div>}
+        ) : onglet === 'rendus' ? (
+          <RendusGalerie enCours={enCours} echecs={echecs} livres={livres} onOpen={onOpen}
+            legende={a => { const r = reglagesDe(a); const p = r && presets.find(x => x.id === r.presetId); return { titre: p ? nom(p) : titre, detail: r ? t('{n} s', { n: r.duree }) : undefined } }}
+            gestes={a => { const r = reglagesDe(a); return <>
+              <button type="button" className="pill" onClick={goVideo}>{t('Aller à Vidéo')}</button>
+              {r && <button type="button" className="pill" disabled={occupe} onClick={() => void lancer(r)}><Ic n="refresh" s={13} />{t('Refaire')}</button>}
+            </> }}
+            vide={<div className="dz-etat"><b>{t('Tes rendus apparaîtront ici.')}</b>
+              <button type="button" className="pill" onClick={() => changerOnglet(famille)}>{famille === 'effet' ? t('Choisir un effet') : t('Choisir un mouvement')}</button></div>} />
+        ) : etat === 'erreur' ? (
+          <div className="dz-etat">
+            <b>{t('Le catalogue des presets ne répond pas.')}</b>
+            <button type="button" className="pill" onClick={charger}>{t('Réessayer')}</button>
           </div>
-        </>)}
-      </div>
+        ) : (
+          <div className="dz-grille" ref={centre.racine}>
+            {etat === 'charge' ? <Squelettes n={10} /> : vus.map(p => (
+              <Carte key={p.id} cle={p.id} titre={nom(p)} detail={p.moteur === 'ltx_hq' ? t('avec le son') : undefined}
+                fixe={urlFixe(p)} video={urlLeger(p)} secours={p.apercu ?? undefined}
+                choisie={preset?.id === p.id} auCentre={centre.cle === p.id} survolPossible={survolPossible} reduit={reduit}
+                onChoisir={() => setChoix(c => ({ ...c, [famille]: p.id }))} />
+            ))}
+            {etat === 'pret' && vus.length === 0 && <Aucun onEffacer={() => { setRecherche(''); setFiltre('tout') }} texte={t('Aucun preset ne correspond.')} />}
+          </div>
+        )}
+      </section>
+
+      <FramePicker open={picker} onClose={() => setPicker(false)} title={t('Choisis la photo à animer')} media="photo" assets={photos}
+        onPickAsset={a => { setPhoto({ asset: a }); setPicker(false) }}
+        onPickUpload={n => { setPhoto({ fichier: n, apercu: `/api/uploads/${encodeURIComponent(n)}` }); setPicker(false) }} />
     </div>
   )
 }

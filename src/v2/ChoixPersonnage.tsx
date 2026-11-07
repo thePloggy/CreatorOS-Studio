@@ -1,11 +1,10 @@
 /* Personnage d'une génération, posé comme un élément du prompt : une pastille
    avec sa photo au-dessus du champ, un clic pour en changer. « Sans
-   personnage » (aucun visage imposé) est réservé au propriétaire du studio. */
+   personnage » : aucun visage imposé (la mention d’âge adulte reste, côté serveur). */
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { SANS_PERSONNAGE } from '../lib/personnage'
 import { t } from '../i18n'
-import { useEdition } from '../lib/proprietaire'
 
 type Perso = { id: string; name: string; avatar?: string | null }
 
@@ -15,13 +14,15 @@ export function usePersonnages() {
   return liste
 }
 
-export function ChoixPersonnage() {
+/** `libelleSans` : le nom affiché sans personnage, et proposé dans la liste (« Visage de la photo » pour un
+ *  carrousel : sans personnage, le visage vient de la photo d'origine). */
+export function ChoixPersonnage({ libelleSans }: { libelleSans?: string } = {}) {
   const liste = usePersonnages()
-  const edition = useEdition()
   const id = useAppStore(s => s.personaId)
   const nom = useAppStore(s => s.personaName)
   const photo = useAppStore(s => s.personaAvatar)
-  const choisir = useAppStore(s => s.choisirPersonnage)
+  // un choix de page : les autres pages et le personnage par défaut du studio ne changent pas
+  const choisir = useAppStore(s => s.choisirPersonnagePage)
   const [ouvert, setOuvert] = useState(false)
   const boite = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -35,15 +36,18 @@ export function ChoixPersonnage() {
   return (
     <div className="elements-prompt" ref={boite}>
       {sans
-        ? <button className="element-ajout" onClick={() => setOuvert(o => !o)}>＋ {t('Personnage')}</button>
+        ? <button className="element-ajout" onClick={() => setOuvert(o => !o)}>{libelleSans ? `👤 ${libelleSans}` : `＋ ${t('Personnage')}`}</button>
         : <span className="element">
             <button onClick={() => setOuvert(o => !o)} title={t('changer de personnage')}>
               {photo ? <img src={photo} alt="" /> : <i />}{nom}
             </button>
-            {edition && <button className="element-x" aria-label={t('retirer le personnage')} onClick={() => prendre(SANS_PERSONNAGE)}>×</button>}
+            {<button className="element-x" aria-label={t('retirer le personnage')} onClick={() => prendre(SANS_PERSONNAGE)}>×</button>}
           </span>}
       {ouvert && (
         <div className="elements-choix">
+          {libelleSans && (
+            <button className={sans ? 'on' : ''} onClick={() => prendre(SANS_PERSONNAGE)}><i /><span>{libelleSans}</span></button>
+          )}
           {liste.map(p => (
             <button key={p.id} className={p.id === id ? 'on' : ''} onClick={() => prendre(p.id)}>
               {p.avatar ? <img src={p.avatar} alt="" /> : <i />}<span>{p.name}</span>

@@ -1,15 +1,21 @@
 /* Gabarit d'un outil : volet de réglages à gauche (source en haut, action en bas), résultats de
    l'outil à droite, rendus en cours compris. Sur téléphone, le volet passe au-dessus. */
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { Asset, Job } from '../types'
 import { t, tServeur } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
-import { AssetCard, JobCard } from './bits'
+import { AssetCard, BatchCard, JobCard, groupLotsPhotos } from './bits'
+import { BatchViewer } from './popups'
 import { FramePicker } from './popups'
+import { HowItWorks, howto as fichiersHowto } from './HowItWorks'
+import { useMouvementReduit } from './Galerie'
 
 export type Etape = { titre: string; texte: string; image?: string }
 
-export function OutilPage({ titre, texte, children, action, jobs, assets, vide, onOpen, etapes, resultat }: {
+/** « Comment ça marche » au gabarit de Dance : montage 16:9 (/danses/howto/<cle>-hero.mp4) et une vidéo par étape. */
+export type HowtoPage = { cle: string; titre: string; texte: string; label: string; repli?: string }
+
+export function OutilPage({ titre, texte, children, action, jobs, assets, vide, onOpen, etapes, resultat, howto, lots }: {
   titre: string
   texte?: string
   children: ReactNode
@@ -24,17 +30,24 @@ export function OutilPage({ titre, texte, children, action, jobs, assets, vide, 
   etapes?: Etape[]
   /** un résultat propre à l'outil, posé au-dessus de l'historique */
   resultat?: ReactNode
+  /** section « Comment ça marche » en tête des résultats (les étapes sont celles de `etapes`) */
+  howto?: HowtoPage
+  /** les rendus d'un même lot (carrousel) tiennent sur une carte, comme sur la page Image */
+  lots?: boolean
 }) {
+  const [lotOuvert, setLotOuvert] = useState<string | null>(null)
+  const reduit = useMouvementReduit()
+  const volet = useRef<HTMLElement | null>(null)
   const s = useAppStore()
   const enCours = jobs ? s.jobs.filter(j => jobs(j) && !['done', 'failed', 'cancelled', 'blocked'].includes(String(j.status))) : []
   const livres = assets ? s.assets.filter(assets).slice(0, 60) : []
   const rien = enCours.length === 0 && livres.length === 0 && !resultat
   const [onglet, setOnglet] = useState<'historique' | 'comment'>('historique')
-  const voirComment = !!etapes && (onglet === 'comment' || rien)
+  const voirComment = !!etapes && !howto && (onglet === 'comment' || rien)
   return (
     <div className="outil-page">
       <div className="vside-place fixe">
-        <aside className="vside outil-volet">
+        <aside ref={volet} className="vside outil-volet">
           <div style={{ display: 'grid', gap: 4 }}>
             <h2 className="titre-outil" style={{ margin: 0 }}>{titre}</h2>
             {texte && <span className="texte-doux" style={{ fontSize: 12.5, lineHeight: 1.45 }}>{texte}</span>}
@@ -44,7 +57,14 @@ export function OutilPage({ titre, texte, children, action, jobs, assets, vide, 
         </aside>
       </div>
       <div className="outil-resultats">
-        {etapes && <div className="outil-onglets" role="tablist">
+        {howto && (() => {
+          const f = fichiersHowto(howto.cle), E = etapes ?? []
+          return <HowItWorks cleMemoire={`hiw:${howto.cle}`} reduit={reduit} labelHero={t(howto.label)} titre={t(howto.titre)} texte={t(howto.texte)}
+            hero={{ ...f.hero, repli: howto.repli }} labelCommencer={t('Commencer')}
+            onCommencer={() => volet.current?.querySelector<HTMLElement>('button:not(:disabled), input, textarea, select')?.focus()}
+            etapes={E.map((e, i) => ({ titre: t(e.titre), texte: t(e.texte), ...(i === E.length - 1 ? { ...f.hero, repli: howto.repli } : { ...f.etape(i + 1), repli: e.image }) }))} />
+        })()}
+        {etapes && !howto && <div className="outil-onglets" role="tablist">
           <button role="tab" aria-selected={!voirComment} className={!voirComment ? 'on' : ''} onClick={() => setOnglet('historique')}>{t('Historique')}</button>
           <button role="tab" aria-selected={voirComment} className={voirComment ? 'on' : ''} onClick={() => setOnglet('comment')}>{t('Comment ça marche')}</button>
         </div>}
@@ -67,10 +87,18 @@ export function OutilPage({ titre, texte, children, action, jobs, assets, vide, 
               {rien ? <div className="outil-vide">{vide ?? t('Tes rendus apparaîtront ici.')}</div>
                 : <div className="outil-grille">
                     {enCours.map(j => <JobCard key={j.id} j={j} />)}
-                    {livres.map(a => <AssetCard key={a.id} a={a} onOpen={x => onOpen?.(x, livres)} />)}
+                    {lots
+                      ? groupLotsPhotos(livres).map(it => it.kind === 'batch'
+                          ? <BatchCard key={`lot-${it.id}`} items={it.items} onOpen={() => setLotOuvert(it.id)} />
+                          : <AssetCard key={it.a.id} a={it.a} onOpen={x => onOpen?.(x, livres)} />)
+                      : livres.map(a => <AssetCard key={a.id} a={a} onOpen={x => onOpen?.(x, livres)} />)}
                   </div>}
             </>}
       </div>
+      {lotOuvert && (() => {
+        const items = livres.filter(a => a.batchId === lotOuvert || (a.batchIds ?? []).includes(lotOuvert))
+        return items.length ? <BatchViewer items={items} onClose={() => setLotOuvert(null)} onOpenAsset={a => { setLotOuvert(null); onOpen?.(a, items) }} /> : null
+      })()}
     </div>
   )
 }
@@ -116,10 +144,11 @@ export function ZoneSource({ media, valeur, onChoix, depot, label }: {
 export function useSuiviOutil(cle: string) {
   const lire = () => { try { return new Set<string>(JSON.parse(localStorage.getItem(`outil:${cle}`) ?? '[]')) } catch { return new Set<string>() } }
   const [ids, setIds] = useState<Set<string>>(lire)
-  const ajouter = (nouveaux: (string | null | undefined)[]) => setIds(prev => {
-    const n = new Set(prev); for (const x of nouveaux) if (x) n.add(x)
+  // écrit tout de suite : un lancement qui fait changer de page (retouche, boucle) est suivi quand même
+  const ajouter = (nouveaux: (string | null | undefined)[]) => {
+    const n = lire(); for (const x of nouveaux) if (x) n.add(x)
     try { localStorage.setItem(`outil:${cle}`, JSON.stringify([...n].slice(-300))) } catch { /* stockage indisponible */ }
-    return n
-  })
+    setIds(n)
+  }
   return { ids, ajouter }
 }

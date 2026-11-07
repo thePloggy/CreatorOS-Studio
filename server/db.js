@@ -522,6 +522,9 @@ export const getFolder = id => db.prepare('SELECT * FROM folders WHERE id = ?').
    payload.batchId (qui reste l'appartenance de création, intouchée). */
 const getPayloadStmt = db.prepare(`SELECT payload FROM jobs WHERE id = ?`)
 const setPayloadStmt = db.prepare(`UPDATE jobs SET payload = ? WHERE id = ?`)
+const setComposedStmt = db.prepare(`UPDATE jobs SET composed_positive = ? WHERE id = ?`)
+/** Prompt écrit au moment du rendu (quand il dépend d'une description de la source). */
+export function setComposedPositive(id, texte) { setComposedStmt.run(String(texte), String(id)) }
 export function setJobBatchId(id, batchId) {
   const row = getPayloadStmt.get(id)
   if (!row) return false

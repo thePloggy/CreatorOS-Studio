@@ -5,6 +5,7 @@
    Tâches : i2v=Créer · motion_pure=Rejouer · extend=Étendre.
    ============================================================ */
 import { LoraStacks, LoraSwitch, loraFamily } from '../components/LoraStacks'
+import { ImportLora } from '../components/ImportLora'
 import { useBriefHistory } from '../components/BriefHistory'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Asset, VideoAspect } from '../types'
@@ -12,7 +13,8 @@ import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
 import { engineInfo, moteurT2v, VIDEO_ENGINES } from '../features/console/video/engines'
 import { ChoixPersonnage } from './ChoixPersonnage'
-import { Ic, rollingEta, fmtDur, SortBar, AssetCard, JobCard, FailCard, failedJobs, SeedPill, JustifiedGrid, ratioOf, MobileSheet, SelectionBar, applyFilters, useConfirm, V2Portal, useExclusiveMenu, type ReviewFilter, type DraftFilter } from './bits'
+import { PrisesViewer } from './Prises'
+import { Ic, rollingEta, fmtDur, SortBar, AssetCard, JobCard, FailCard, failedJobs, SeedPill, JustifiedGrid, ratioOf, MobileSheet, SelectionBar, applyFilters, groupBatches, BatchCard, useConfirm, V2Portal, useExclusiveMenu, type ReviewFilter, type DraftFilter } from './bits'
 import { EnhancerPopup, FramePicker, TriagePopup } from './popups'
 import { getLang, t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -70,6 +72,7 @@ const ASPECTS: VideoAspect[] = ['origine', '9:16', '2:3', '3:4', '1:1', '16:9']
 type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre' | 'stage'
 
 export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
+  const [prises, setPrises] = useState<string | null>(null)
   const edition = useEdition()
   const s = useAppStore()
   const [telephone, setTelephone] = useState(false)
@@ -473,7 +476,10 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         <div className="scrollwrap"><div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
           ...activeJobs.map(j => ({ key: j.id, ratio: 9 / 16, node: <JobCard j={j} queueIds={queueIds} /> })),
-          ...shown.map(a => ({ key: a.id, ratio: ratioOf(a), node:
+          // les prises d'un même lot (× N rendus) se replient en une carte ; le clic ouvre la comparaison
+          ...(selecting ? shown.map(a => ({ kind: 'asset' as const, a })) : groupBatches(shown)).map(g => g.kind === 'batch'
+            ? { key: `lot-${g.id}`, ratio: ratioOf(g.items[0]), node: <BatchCard items={g.items} onOpen={() => setPrises(g.id)} /> }
+            : (a => ({ key: a.id, ratio: ratioOf(a), node:
             <AssetCard a={a} onOpen={x => { if (selecting) { void (selecting === 'still' ? s.pickMotionStill(x.id) : s.pickStartFrame(x.id)); setSelecting(null) } else onOpen(x, shown) }}
               picking={picking} picked={picked.has(a.id)}
               onPick={id => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })}
@@ -490,7 +496,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
                         .then(() => s.hydrate())
                     }}><Ic n="upscale" /></button>
                 )}
-              </>} /> })),
+              </>} /> }))(g.a)),
         ]} /></div></div>
       </div>
 
@@ -500,6 +506,12 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           <button className="ml-auto b2" style={{ padding: '4px 10px' }} onClick={() => setSelecting(null)}>{t('annuler')}</button>
         </div>
       )}
+      {prises && (() => {
+        const items = shown.filter(a => a.batchId === prises || (a.batchIds ?? []).includes(prises))
+        return items.length > 1
+          ? <PrisesViewer items={items} onClose={() => setPrises(null)} onOpenAsset={a => { setPrises(null); onOpen(a, items) }} />
+          : null
+      })()}
       <TriagePopup open={triage} onClose={() => setTriage(false)} assets={s.assets.filter(a => a.mediaType === 'video')} />
       <EnhancerPopup open={enh} onClose={() => setEnh(false)}
         mode="video" engine={tab === 'rejouer' ? 'motion' : v.engine} userPrompt={s.userPrompt}
@@ -596,6 +608,8 @@ function VideoLoraPopup({ open, onClose, engine }: { open: boolean; onClose: () 
         <h3>LoRA — {engine} <button className="x" onClick={onClose}>✕</button></h3>
         <input className="pin" style={{ marginTop: 8 }} placeholder={t('rechercher…')} value={q} onChange={e => setQ(e.target.value)} autoFocus />
         <LoraStacks cle={loraFamily(engine)} picks={picks} apply={items => useAppStore.getState().updateVideo({ videoLoras: items })} />
+        <ImportLora compatible={l => (ENGINE_LORAS[engine] ?? (() => false))({ arch: l.arch ?? '', name: l.name })}
+          onAjout={nom => { if (!picks.some(x => x.name === nom)) toggle(nom) }} />
         <div className="flex flex-col gap-1 mt-2" style={{ maxHeight: '52vh', overflowY: 'auto' }}>
           {usable.map(l => {
             const pick = picks.find(x => x.name === l.name)

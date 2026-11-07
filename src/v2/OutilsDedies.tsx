@@ -13,9 +13,10 @@ import { ANGLES, LORA_ANGLES } from './Viewer'
 
 export type IdOutil = 'inpaint' | 'remove-bg' | 'depth' | 'loop' | 'retouch' | 'remove-objects' | 'change-bg'
   | 'upscale' | 'green-screen' | 'add-sound' | 'smooth' | 'hdr' | 'multi-angle' | 'coverage' | 'next-shot' | 'image-3d'
-  | 'refine-details' | 'day-to-night' | 'deblur' | 'decompression'
+  | 'refine-details' | 'day-to-night' | 'deblur' | 'decompression' | 'try-on' | 'photodump' | 'style-ref'
+  | 'upscale-1080' | 'colorize' | 'restore-clip' | 'water' | 'effets-video'
 
-type Valeurs = { texte: string; texte2: string; alpha: boolean; choix: string }
+export type Valeurs = { texte: string; texte2: string; alpha: boolean; choix: string; second?: Asset }
 type Conf = {
   titre: string; texte: string; media: 'photo' | 'video' | 'choix'
   /** préfixes d'id de job propres à l'outil : tout son historique, même lancé ailleurs */
@@ -29,6 +30,8 @@ type Conf = {
   /** lance le rendu et rend l'id du job (ou rien quand l'outil ouvre un éditeur) */
   lancer?: (a: Asset, v: Valeurs) => Promise<string | null>
   pinceau?: boolean
+  /** une seconde source de la bibliothèque (le vêtement d'un essayage) */
+  second?: { media: 'photo' | 'video'; label: string }
 }
 
 const poster = async (url: string, body: unknown): Promise<string> => {
@@ -58,7 +61,12 @@ async function retouche(a: Asset, consigne: string, angles = false): Promise<str
   } finally { if (angles) useAppStore.setState({ loraPicks: avant }) }
 }
 
-const CONFS: Record<IdOutil, Conf> = {
+const COUVERTURE = [
+  'Pull the camera far back: the same scene as a wide establishing shot of the whole place, the same person smaller in the frame, same lighting and colours.',
+  'Move the camera to the side: the same person in the same place seen from a three-quarter angle, same lighting and colours, the same face and pose.',
+  'Move the camera in: a tight close-up of the same person\'s face and shoulders, the same background out of focus behind, same lighting and colours.',
+]
+export const CONFS: Record<IdOutil, Conf> = {
   'inpaint': { titre: 'Inpaint', texte: 'Peins une zone de la photo et dis ce qui doit y apparaître : le reste ne change pas.', media: 'photo', prefixes: ['inp-'], pinceau: true, bouton: 'Peindre la zone',
     etapes: [{ titre: 'Choisis la photo', texte: 'Dans la bibliothèque, à gauche.' }, { titre: 'Peins la zone', texte: 'Au pinceau, sur ce qui doit changer.' }, { titre: 'Décris le changement', texte: 'En anglais : ce qui doit apparaître dans la zone.' }] },
   'remove-bg': { titre: 'Remove Background', texte: 'Le sujet est gardé, le fond disparaît : un PNG transparent, rien n’est redessiné.', media: 'photo', prefixes: ['transp-'], bouton: 'Retirer le fond',
@@ -99,13 +107,38 @@ const CONFS: Record<IdOutil, Conf> = {
   'decompression': { titre: 'Remove Compression', texte: 'Les blocs et les bandes d’une vidéo trop compressée disparaissent.', media: 'video', prefixes: ['effet-'], bouton: 'Nettoyer la compression',
     etapes: [{ titre: 'Choisis le clip', texte: 'Une vidéo de réseau social ou de messagerie, très compressée.' }, { titre: 'Lance', texte: 'LTX-2.5 et l’IC-LoRA Decompression de Lightricks.' }, { titre: 'Compare', texte: 'Même plan, sans artefacts.' }],
     lancer: a => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'decompression' }) },
+  /* l'entrée « Video Effects » du menu : la galerie d'effets, sans effet présélectionné */
+  'effets-video': { titre: 'Video Effects', texte: 'Un clip, un effet : plus de détail, la nuit, net, sans artefacts, en couleur, restauré ou inondé. Le mouvement ne change pas.', media: 'video', prefixes: ['effet-'], bouton: 'Appliquer l’effet',
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu du studio ou une vidéo de ta bibliothèque.' }, { titre: 'Choisis l’effet', texte: 'Chaque aperçu montre un vrai résultat.' }, { titre: 'Reçois ton clip', texte: 'Il arrive dans Rendus et dans ta bibliothèque.' }] },
+  'colorize': { titre: 'Colorize', texte: 'Un clip en noir et blanc retrouve ses couleurs : peau, tissus, ciel, sans changer un geste (LTX-2.5).', media: 'video', prefixes: ['effet-'], bouton: 'Coloriser le clip',
+    champ: { label: 'Couleurs à imposer (facultatif, en anglais)', placeholder: 'a green satin dress, warm candlelight' },
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un plan en noir et blanc, ou désaturé.' }, { titre: 'Précise une couleur', texte: 'Facultatif : la robe verte, la voiture rouge.' }, { titre: 'Récupère le clip', texte: 'Même plan, en couleurs naturelles.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'colorize', prompt: v.texte.trim() }) },
+  'restore-clip': { titre: 'Restore Footage', texte: 'Une vieille vidéo abîmée (basse définition, sépia, grain, compression) redevient un plan net et en couleur.', media: 'video', prefixes: ['effet-'], bouton: 'Restaurer le clip',
+    champ: { label: 'Époque, lieu (facultatif, en anglais)', placeholder: 'a seaside promenade in the 1960s' },
+    etapes: [{ titre: 'Choisis le clip', texte: 'Une archive, un VHS, une vidéo de réseau très compressée.' }, { titre: 'Précise l’époque', texte: 'Facultatif : l’époque et le lieu guident les couleurs.' }, { titre: 'Récupère le clip', texte: 'Le même plan, net, propre et en couleur.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'restore', prompt: v.texte.trim() }) },
+  'water': { titre: 'Add Water', texte: 'De l’eau entre dans le plan : flaque, inondation, vague. Elle coule autour des gens et des objets, le reste ne bouge pas.', media: 'video', prefixes: ['effet-'], bouton: 'Ajouter l’eau',
+    champ: { label: 'Quelle eau ? (facultatif, en anglais)', placeholder: 'a clear shallow stream braiding around their legs' },
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un plan en extérieur, sol bien visible.' }, { titre: 'Décris l’eau', texte: 'Facultatif : une flaque, une rue inondée, une vague.' }, { titre: 'Récupère le clip', texte: 'Même plan, même mouvement, avec l’eau.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'water', prompt: v.texte.trim() }) },
   'change-bg': { titre: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', media: 'video', bouton: 'Changer le décor',
     champ: { label: 'Nouveau décor (en anglais)', placeholder: 'a sunny beach at golden hour', requis: true },
     champ2: { label: 'Sujet à garder (facultatif)', placeholder: 'person' },
     etapes: [{ titre: 'Choisis le clip', texte: 'Une personne bien détachée du fond.' }, { titre: 'Décris le décor', texte: 'En anglais, le lieu et la lumière.' }, { titre: 'Récupère le clip', texte: 'Le sujet et son geste restent, le décor change autour.' }],
     lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'fond', prompt: v.texte.trim(), cible: v.texte2.trim() || 'person' }) },
-  'upscale': { titre: 'Upscale', texte: 'SeedVR2 monte la photo ou le clip en haute définition sans le redessiner.', media: 'choix', prefixes: ['seedvr-'], bouton: 'Monter en HD',
-    etapes: [{ titre: 'Choisis la photo ou le clip', texte: 'Un rendu du studio ou un fichier ancien.' }, { titre: 'Lance', texte: 'SeedVR2 7B : les détails se resserrent, rien n’est inventé.' }, { titre: 'Compare', texte: 'Le résultat s’ouvre en avant / après.' }],
+  'upscale': { titre: 'Upscale Image', texte: 'SeedVR2 monte la photo en haute définition sans la redessiner.', media: 'photo', prefixes: ['seedvr-'], bouton: 'Monter en HD',
+    etapes: [{ titre: 'Choisis la photo', texte: 'Un rendu du studio ou une photo ancienne.' }, { titre: 'Lance', texte: 'SeedVR2 7B : les détails se resserrent, rien n’est inventé.' }, { titre: 'Compare', texte: 'Le résultat s’ouvre en avant / après.' }],
+    lancer: async a => a.mediaType === 'video'
+      ? poster(`/api/assets/${encodeURIComponent(a.id)}/seedvr`, {})
+      : (async () => {
+          const r = await fetch('/api/restauration', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ media: 'photo', assetId: a.id, nettoyer: false, couleur: false, hd: true }) })
+          const d = await r.json().catch(() => ({})) as { etapes?: { job?: string }[]; error?: string }
+          if (!r.ok) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
+          return d.etapes?.map(e => e.job).find(Boolean) ?? null
+        })() },
+  'upscale-1080': { titre: 'Upscale 1080p', texte: 'SeedVR2 monte le clip en 1080p sans le redessiner.', media: 'video', prefixes: ['seedvr-'], bouton: 'Monter en HD',
+    etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu du studio en 720p ou moins.' }, { titre: 'Lance', texte: 'SeedVR2 7B : les détails se resserrent, rien n’est inventé.' }, { titre: 'Compare', texte: 'Le résultat s’ouvre en avant / après.' }],
     lancer: async a => a.mediaType === 'video'
       ? poster(`/api/assets/${encodeURIComponent(a.id)}/seedvr`, {})
       : (async () => {
@@ -131,19 +164,35 @@ const CONFS: Record<IdOutil, Conf> = {
     lancer: (a, v) => retouche(a, `<sks> ${(ANGLES.find(x => x.id === v.choix) ?? ANGLES[0]).vue}`, true) },
   'coverage': { titre: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', media: 'photo', bouton: 'Lancer les trois plans',
     etapes: [{ titre: 'Choisis la photo', texte: 'Le plan de départ de ta scène.' }, { titre: 'Lance', texte: 'Trois retouches : plan large, ¾ et gros plan.' }, { titre: 'Monte', texte: 'Trois angles cohérents pour couvrir la scène.' }],
-    lancer: async a => { let id: string | null = null; for (const k of ['large', 'd34', 'serre']) id = await retouche(a, `<sks> ${ANGLES.find(x => x.id === k)!.vue}`, true); return id } },
+    /* des consignes de cadrage explicites, sans la LoRA d'angles : sur une scène habitée, elle rendait trois fois
+       presque la même image ; Qwen-Edit seul déplace vraiment la caméra (banc du 07/11) */
+    lancer: async a => { let id: string | null = null; for (const c of COUVERTURE) id = await retouche(a, c); return id } },
   'next-shot': { titre: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', media: 'photo', bouton: 'Imaginer le plan suivant',
     etapes: [{ titre: 'Choisis la photo', texte: 'Le plan où en est ton histoire.' }, { titre: 'Lance', texte: 'Le VLM lit la photo et écrit ce qui se passe juste après.' }, { titre: 'Récupère le plan', texte: 'Même personne, même lieu, même lumière, quelques secondes plus tard.' }],
     lancer: async a => {
       const r = await fetch(`/api/assets/${encodeURIComponent(a.id)}/moment-suivant`, { method: 'POST' })
       const d = await r.json().catch(() => ({})) as { texte?: string; error?: string }
       if (!r.ok || !d.texte) throw new Error(tServeur(d.error) ?? `HTTP ${r.status}`)
-      return retouche(a, `The same person, same outfit, same place and same light, a few seconds later: ${d.texte} Keep the same face and photo style.`)
+      return retouche(a, `The next shot of the same film. ${d.texte} Same person with the same face and outfit, same place, same light and photo style.`)
     } },
   'image-3d': { titre: 'Image to 3D', texte: 'Une photo devient un modèle à faire tourner, à télécharger ou à poser dans la scène 3D.', media: 'photo', prefixes: ['objet3d-'], bouton: 'Créer le modèle 3D',
     champ: { label: 'Objet à garder (en anglais)', placeholder: 'toy robot · red armchair · perfume bottle', requis: true },
     etapes: [{ titre: 'Choisis la photo', texte: 'Un objet bien détaché, entier dans le cadre.' }, { titre: 'Nomme l’objet', texte: 'En anglais : SAM3 le découpe.' }, { titre: 'Récupère le GLB', texte: 'TRELLIS.2 en une minute : à faire tourner, télécharger ou poser dans la scène 3D.' }],
     lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/objet3d`, { cible: v.texte.trim() }) },
+  'try-on': { titre: 'Try-On', texte: 'La personne d’une photo porte le vêtement d’une autre photo : même visage, même pose, même décor.', media: 'photo', prefixes: ['essai-'], bouton: 'Essayer le vêtement',
+    second: { media: 'photo', label: 'Photo du vêtement' },
+    champ: { label: 'Précision (facultatif, en anglais)', placeholder: 'worn open over the shirt' },
+    etapes: [{ titre: 'Choisis la personne', texte: 'Une photo où la tenue se voit bien.' }, { titre: 'Choisis le vêtement', texte: 'Le vêtement seul, à plat ou sur cintre, bien éclairé.' }, { titre: 'Récupère la photo', texte: 'FLUX Klein habille la personne : couleur, tissu et coupe repris.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/essayage`, { vetementId: v.second?.id, consigne: v.texte.trim() || undefined }) },
+  'photodump': { titre: 'Photo Dump', texte: 'Quatre photos du quotidien de la même personne, d’après une seule photo : rue, café, bord de l’eau, selfie.', media: 'photo', prefixes: ['dump-'], bouton: 'Créer le photo dump',
+    champ: { label: 'Lieu (facultatif, en anglais)', placeholder: 'in Tokyo · on a Greek island' },
+    etapes: [{ titre: 'Choisis la photo', texte: 'Le visage et la tenue bien visibles.' }, { titre: 'Choisis le lieu', texte: 'Facultatif : une ville, une île, une saison.' }, { titre: 'Quatre photos', texte: 'Même personne, même tenue, quatre moments du quotidien.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/photodump`, { theme: v.texte.trim() || undefined }) },
+  'style-ref': { titre: 'Style Reference', texte: 'Une image donne le style (trait, palette, matière), ton texte donne la scène : une image neuve, peinte dans ce style.', media: 'photo', prefixes: ['sref-'], bouton: 'Peindre dans ce style',
+    champ: { label: 'La scène à peindre (en anglais)', placeholder: 'an old lighthouse keeper on wet rocks at dusk, holding a lantern', requis: true },
+    choix: { label: 'Format', options: [{ id: '16:9', label: '16:9' }, { id: '9:16', label: '9:16' }, { id: '1:1', label: '1:1' }, { id: '4:5', label: '4:5' }] },
+    etapes: [{ titre: 'Choisis l’image de style', texte: 'Une illustration, une peinture, une BD : seul son style compte.' }, { titre: 'Décris la scène', texte: 'En anglais : qui, où, quoi, quelle lumière.' }, { titre: 'Récupère l’image', texte: 'Krea 2 et sa LoRA de référence de style peignent la scène en quelques secondes.' }],
+    lancer: (a, v) => poster(`/api/assets/${encodeURIComponent(a.id)}/style-reference`, { texte: v.texte.trim(), format: v.choix || '16:9' }) },
   'hdr': { titre: 'HDR Masters', texte: 'HLG, ProRes, EXR ACEScg et ProRes avec alpha.', media: 'video', bouton: '',
     etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu fini.' }, { titre: 'Choisis le master', texte: 'HLG pour les écrans HDR, ProRes ou EXR pour l’étalonnage.' }, { titre: 'Télécharge', texte: 'Le fichier se prépare puis se télécharge.' }] },
 }
@@ -171,7 +220,7 @@ export function OutilDedie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, lis
     setOccupe(false)
   }
   const dejaVu = (jobId: string) => suivi.ids.has(jobId) || !!c.prefixes?.some(p => jobId.startsWith(p))
-  const pret = !!a && (!c.champ?.requis || !!v.texte.trim())
+  const pret = !!a && (!c.champ?.requis || !!v.texte.trim()) && (!c.second || !!v.second)
   return (
     <>
       <OutilPage titre={c.titre} texte={t(c.texte)} etapes={c.etapes} onOpen={onOpen}
@@ -182,6 +231,7 @@ export function OutilDedie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, lis
           <button className={`wtab ${media === 'video' ? 'on' : ''}`} onClick={() => { setMedia('video'); setSource(null) }}>{t('Vidéo')}</button>
         </div>}
         <ZoneSource media={media} valeur={source} onChoix={x => setSource(x?.asset ? { asset: x.asset } : null)} label={t(media === 'video' ? 'Clip de départ' : 'Photo de départ')} />
+        {c.second && <ZoneSource media={c.second.media} valeur={v.second ? { asset: v.second } : null} onChoix={x => setV({ ...v, second: x?.asset })} label={t(c.second.label)} />}
         {c.champ && <label style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t(c.champ.label)}</span>
           <input className="champ" value={v.texte} maxLength={300} placeholder={c.champ.placeholder} onChange={e => setV({ ...v, texte: e.target.value })} /></label>}
         {c.champ2 && <label style={{ display: 'grid', gap: 6 }}><span className="etiquette">{t(c.champ2.label)}</span>

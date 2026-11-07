@@ -281,5 +281,117 @@
   "en": "Watercolour",
   "consigne": "Repaint this photo as a delicate watercolour painting on cold-press paper: transparent washes that bleed into each other, soft blooms, light pencil underdrawing showing through, white paper left for the highlights. Keep exactly the same subject, pose, composition and framing; the whole image, background included, is painted in this style, no photographic texture left anywhere.",
   "famille": "Peinture"
+ },
+ {
+  "id": "etal-vintage",
+  "label": "Pellicule vintage",
+  "en": "Vintage film grade",
+  "consigne": "Apply a warm vintage film colour grade: golden-brown midtones, softly faded blacks, gentle contrast, a hint of green in the shadows and fine natural grain. Do not change the person, the composition or anything else in the image.",
+  "famille": "Retouche et couleur"
+ },
+ {
+  "id": "etal-noir",
+  "label": "Noir froid",
+  "en": "Cold noir grade",
+  "consigne": "Apply a cold noir colour grade: strongly desaturated, deep blue-black shadows, pale cool skin tones, hard contrast and a faint cyan tint in the highlights. Keep the person's face, the framing and every object exactly as they are; only the colours change.",
+  "famille": "Retouche et couleur"
+ },
+ {
+  "id": "etal-pastel",
+  "label": "Pastel doux",
+  "en": "Soft pastel grade",
+  "consigne": "Apply a soft pastel colour grade: lifted shadows, low contrast, airy highlights, colours shifted towards powder pink, mint and pale lavender, natural skin tones. Nothing else in the image changes.",
+  "famille": "Retouche et couleur"
+ },
+ {
+  "id": "etal-nb",
+  "label": "Noir et blanc",
+  "en": "Black and white",
+  "consigne": "Convert the photo to a rich black-and-white image with deep blacks, clean whites, a full range of greys and subtle film grain, as in a fine-art print. Keep the person and the composition unchanged.",
+  "famille": "Retouche et couleur"
+ },
+ {
+  "id": "etal-dore",
+  "label": "Heure dorée",
+  "en": "Golden hour grade",
+  "consigne": "Re-grade the photo as if lit by late golden-hour sun: warm amber highlights, soft honey glow on the skin, gently warm shadows, a little haze. Do not move the light source, do not change the person, pose, framing or background.",
+  "famille": "Retouche et couleur"
+ },
+ {
+  "id": "campagne-sport",
+  "label": "Campagne sport",
+  "en": "Sportswear campaign",
+  "consigne": "Turn this into a sportswear campaign photo of the same person, keeping their exact face, age and features: a plain black athletic top, a light healthy sheen on the skin, low-key studio lighting with a strong rim light, a dark concrete backdrop, a focused look into the lens, editorial composition, no text and no logos.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "campagne-corporate",
+  "label": "Campagne corporate",
+  "en": "Corporate campaign",
+  "consigne": "Turn this into a corporate brand campaign portrait of the same person, keeping their exact face, age and features: a well-cut navy suit or blazer, standing in a bright modern office with glass walls softly blurred behind, natural window light, a confident relaxed smile, waist-up framing, no text and no logos.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "campagne-edito",
+  "label": "Éditorial magazine",
+  "en": "Editorial portrait",
+  "consigne": "Turn this into a fashion magazine editorial portrait of the same person, keeping their exact face, age and features: a tailored monochrome outfit, a seamless coloured paper backdrop, a single large soft light from the side, a poised still pose, three-quarter framing, rich but natural skin texture, no text, no logos and no masthead.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "photo-ugc",
+  "label": "Photo UGC",
+  "en": "UGC product snap",
+  "consigne": "Show the main product of this photo held in one hand from below, in a bright home kitchen, as a casual phone snapshot with slightly tilted framing and natural daylight. The product itself stays exactly the same: same shape, colours, angle and sharp, legible label text. No other text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "produit-geant",
+  "label": "Produit géant",
+  "en": "Giant product",
+  "consigne": "Show the main product of this photo as a giant monument standing among the towers of a city skyline at sunset, tiny people and cars at its base, wide-angle view with realistic scale, shadows and atmospheric haze. Keep the product identical: shape, colours, label and text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Cinéma et mise en scène"
+ },
+ {
+  "id": "macro-produit",
+  "label": "Macro produit",
+  "en": "Product macro",
+  "consigne": "Turn this into an extreme macro photograph of one detail of the main product: its material, edges and reflections fill the frame, 100 mm macro lens, soft diffused light, very shallow depth of field. Keep the product's colours, materials and text exactly as they are. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "macro-nature",
+  "label": "Macro en pleine nature",
+  "en": "Macro in nature",
+  "consigne": "Turn this into an extreme close-up of the main product resting on wet dark stone among moss and fresh leaves, tiny water droplets on its surface, light morning mist, shallow depth of field. Keep the product identical: shape, colours, label and text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "packshot-fin",
+  "label": "Plan final de pub",
+  "en": "Ad end frame",
+  "consigne": "Turn this into the closing frame of a commercial: the main product alone, centred on a smooth dark charcoal gradient background with a soft shadow beneath it, and generous empty space above it for a tagline. Keep the product identical: shape, colours, label and text. Do not add any text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "produit-eclabousse",
+  "label": "Produit éclaboussé",
+  "en": "Splash shot",
+  "consigne": "Turn this into a high-speed studio shot of the main product floating in mid-air with clear water splashing around it, droplets frozen sharp, a clean blue gradient background, crisp studio light. Keep the product identical: shape, colours, label and text; no other text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "produit-pierre",
+  "label": "Pierre mouillée",
+  "en": "Wet stone",
+  "consigne": "Place the main product of this photo on wet black stone with scattered water droplets, a dramatic rim light outlining it and a dark background fading to black. Keep the product exactly unchanged, including its label; no added text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
+ },
+ {
+  "id": "produit-pastel",
+  "label": "Décor pastel",
+  "en": "Pastel set",
+  "consigne": "Place the main product of this photo in a minimalist pastel studio set with simple geometric blocks and a curved backdrop, soft even light and gentle shadows. Keep the product exactly unchanged, including its label; no added text. Keep the product exactly as it is, with its real shape, colours and markings: do not add any label, text, letters or logo.",
+  "famille": "Portrait et produit"
  }
 ]

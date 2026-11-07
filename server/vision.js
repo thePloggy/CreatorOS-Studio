@@ -31,15 +31,17 @@ export async function momentSuivant(absPath) {
     signal: AbortSignal.timeout(180000),
     body: JSON.stringify({
       model: DESC_MODEL(), stream: false, images: [b64],
-      prompt: 'This photo is one shot of a short film. In one English sentence of at most 18 words, describe what the person does a few seconds later: '
-        + 'one ordinary, fully clothed action in the same place, for example turning, walking on, sitting down, looking at something. '
-        + 'Start with a verb in the present tense, third person. Name nobody. No preamble.',
-      options: DESC_OPTS({ num_predict: 60 }),
+      /* le plan SUIVANT, pas la même image : une action ou une expression nettement différente, et un autre cadrage.
+         L'ancienne consigne (« une action ordinaire ») rendait « elle continue à cheval » et la retouche la même photo. */
+      prompt: 'This photo is one shot of a short film. Write the NEXT shot, a few seconds later, in one English sentence of at most 30 words: '
+        + 'what the same person does now (a clearly different, ordinary, fully clothed action or expression) and how the camera frames it '
+        + '(closer or wider, or another angle). It must look clearly different from this frame. Start with the shot size, e.g. "Close-up:" or "Wide shot:". Name nobody. No preamble.',
+      options: DESC_OPTS({ num_predict: 80, temperature: 0.4 }),
       keep_alive: VLM_KEEPALIVE,
     }),
   })
   if (!res.ok) throw new Error(`modèle de vision : HTTP ${res.status}`)
-  return String((await res.json()).response ?? '').trim().replace(/\s+/g, ' ').slice(0, 200)
+  return String((await res.json()).response ?? '').trim().replace(/\s+/g, ' ').slice(0, 260)
 }
 
 /* Description de SCÈNE complète : ce que montre l'image source — action,

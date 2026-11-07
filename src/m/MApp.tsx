@@ -55,6 +55,8 @@ export default function MApp() {
       return s && ['library', 'create', 'studio', 'jobs'].includes(s) ? s : 'library'
     } catch { return 'library' }
   })
+  // hors du Studio, l'espace est la page (Créer, Bibliothèque…) ; le Studio règle ses vues lui-même
+  useEffect(() => { if (space !== 'studio') void useAppStore.getState().entrerPage(`m:${space}`) }, [space])
   useEffect(() => {
     if (space !== 'atelier') { try { localStorage.setItem(LAST_SPACE, space) } catch { /* stockage refusé */ } }
   }, [space])

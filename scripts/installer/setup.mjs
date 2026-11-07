@@ -626,6 +626,84 @@ async function etapePersona() {
 }
 
 /* ============================================================
+   8. Réglages du studio (studio.env)
+   Ce qui bloque d'habitude un usage local, réglé une fois : qui utilise le studio, sur quelle
+   adresse, le filtre de nudité, le modèle local sur la carte, le dossier des LoRA.
+   ============================================================ */
+
+async function choisir(q, options, def = 1) {
+  options.forEach((o, i) => console.log(`      ${gras(String(i + 1))}. ${o}`))
+  if (CHECK || !interactif || OUI) { console.log(`  ${jaune('?')} ${q} ${gris(`${def} (default)`)}`); return def }
+  const r = Number(await demander(q, String(def)))
+  return r >= 1 && r <= options.length ? r : def
+}
+
+async function etapeReglages() {
+  titre('8. Studio settings (studio.env)')
+  const f = path.join(CONFIG.dataDir, 'studio.env')
+  const actuel = {}
+  try { for (const l of fs.readFileSync(f, 'utf8').split('\n')) { const m = /^([A-Z0-9_]+)=(.*)$/.exec(l.trim()); if (m) actuel[m[1]] = m[2] } } catch { /* nouveau fichier */ }
+  if (Object.keys(actuel).length) ok(`${tilde(f)} exists`, Object.keys(actuel).join(', '))
+  if (CHECK) { info('check only: nothing written'); return }
+  if (Object.keys(actuel).length && !(await confirmer('Review these settings now?', false))) return
+  const r = { ...actuel }
+
+  console.log(`\n    ${gras('Who uses this studio?')}`)
+  const usage = await choisir('Choice:', [
+    `Only me, on this machine ${gris('(recommended: everything unlocked — your own photos, LoRA import, voice clone, extensions)')}`,
+    `Shared on a network or the Internet ${gris('(an owner key unlocks everything for you; visitors get the public-demo limits)')}`,
+  ], r.CREATOROS_OWNER_KEY ? 2 : 1)
+  if (usage === 1) delete r.CREATOROS_OWNER_KEY
+  else if (!r.CREATOROS_OWNER_KEY) { r.CREATOROS_OWNER_KEY = (await import('node:crypto')).randomBytes(16).toString('hex'); info(`owner key: ${r.CREATOROS_OWNER_KEY}  (Settings > Owner key, once per browser)`) }
+
+  console.log(`\n    ${gras('Address')}`)
+  const ecoute = await choisir('Choice:', [`This machine only ${gris('(127.0.0.1)')}`, `My local network ${gris('(0.0.0.0 — phones, other computers)')}`], r.CREATOROS_HOST === '0.0.0.0' ? 2 : 1)
+  if (ecoute === 2) r.CREATOROS_HOST = '0.0.0.0'; else delete r.CREATOROS_HOST
+  if (ecoute === 2 && usage === 1) alerte('anyone on your network gets the full studio: pick "Shared" above if that is not what you want')
+
+  console.log(`\n    ${gras('Nudity filter on renders')} ${gris('(NudeNet, CPU: a positive render goes to quarantine)')}`)
+  const filtre = await choisir('Choice:', [`Off ${gris('(nothing is checked after the render)')}`, `On ${gris('(installs NudeNet in its own Python environment)')}`], usage === 2 ? 2 : 1)
+  if (filtre === 2) {
+    const venv = r.CREATOROS_FILTRE_PYTHON ? path.dirname(path.dirname(r.CREATOROS_FILTRE_PYTHON)) : path.join(os.homedir(), 'venvs', 'filtre-images')
+    const py = path.join(venv, 'bin', 'python')
+    if (!fs.existsSync(py)) {
+      info(`creating ${tilde(venv)} and installing nudenet`)
+      try {
+        await executer('python3', ['-m', 'venv', venv])
+        await executer(py, ['-m', 'pip', 'install', '--quiet', 'nudenet'])
+        ok('NudeNet installed')
+      } catch (e) { ko(`NudeNet not installed: ${e.message}`); bilan.manque.push('NudeNet (nudity filter)') }
+    }
+    r.CREATOROS_FILTRE_PYTHON = py
+  } else r.CREATOROS_FILTRE_PYTHON = path.join(os.homedir(), '.creatoros-filtre-coupe', 'python')   // un chemin absent : le filtre se dit indisponible
+
+  console.log(`\n    ${gras('Local LLM (prompt writer, carousel, vision)')}`)
+  const llm = await choisir('Choice:', [
+    `GPU when free, CPU behind a long render ${gris('(fastest; ComfyUI used by this studio only)')}`,
+    `GPU only when ComfyUI has no job from another app ${gris('(ComfyUI shared with another pipeline)')}`,
+    `Always CPU ${gris('(never touches the GPU; slower)')}`,
+  ], r.CREATOROS_LLM_GPU === 'libre' ? 2 : r.CREATOROS_LLM_GPU === '0' ? 3 : 1)
+  if (llm === 1) delete r.CREATOROS_LLM_GPU; else r.CREATOROS_LLM_GPU = llm === 2 ? 'libre' : '0'
+
+  console.log(`\n    ${gras('LoRA folder')} ${gris('(where imported LoRAs go and where the pickers look)')}`)
+  const loras = deplier(await demander('Folder:', tilde(r.CREATOROS_LORAS ?? CONFIG.lorasDir)))
+  if (path.resolve(loras) !== path.resolve(CONFIG.lorasDir)) r.CREATOROS_LORAS = loras; else delete r.CREATOROS_LORAS
+
+  fs.mkdirSync(path.dirname(f), { recursive: true })
+  fs.writeFileSync(f, `# CreatorOS Studio settings (npm run setup). One KEY=value per line; an environment variable wins.\n${Object.entries(r).map(([k, v]) => `${k}=${v}`).join('\n')}\n`, { mode: 0o600 })
+  ok(`written ${tilde(f)}`)
+  bilan.fait.push('studio.env')
+
+  console.log(`\n    ${gras('What this gives you')}`)
+  const lignes = usage === 1
+    ? ['your own photos and clips: upload, edit, animate', 'LoRA import (Extensions > Import LoRA)', 'voice clone, extensions, ComfyUI workflows', 'no render limit']
+    : ['you (with the owner key): everything', 'visitors: studio images only (no photo of a real person), no LoRA import, a render limit per hour']
+  for (const l of lignes) ok(l)
+  info(`nudity filter on renders: ${filtre === 2 ? 'on' : 'off'}`)
+  info('always on in this public edition: the prompt floor that refuses anything about minors and sexual content')
+}
+
+/* ============================================================
    Vérification des URL du manifeste
    ============================================================ */
 
@@ -672,6 +750,7 @@ async function principal() {
   }
   await etapeOllama()
   await etapePersona()
+  await etapeReglages()
 
   titre('Summary')
   if (bilan.fait.length) for (const f of bilan.fait) ok(f)

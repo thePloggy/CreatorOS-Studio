@@ -87,7 +87,8 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
   ) : undefined
 
   return (
-    <OutilPage titre={t('Restaurer')} texte={t('Une vieille photo ou un clip abîmé ressort propre et en HD : rayures et bruit effacés, couleurs rendues si tu veux, détail reconstruit.')}
+    <OutilPage
+      howto={{ cle: 'restaurer', titre: 'Une vieille photo ou un clip abîmé, restauré', texte: 'Rayures, bruit et compression effacés, couleurs rendues, détail reconstruit : en HD, avec le comparateur avant / après.', label: 'Exemple de restauration', repli: '/vitrine/restaurer-b2.webp' }} titre={t('Restaurer')} texte={t('Une vieille photo ou un clip abîmé ressort propre et en HD : rayures et bruit effacés, couleurs rendues si tu veux, détail reconstruit.')}
       jobs={j => suivi.ids.has(j.id)} assets={a => suivi.ids.has(a.jobId)} onOpen={onOpen} resultat={resultat}
       etapes={[
         { titre: 'La source', texte: 'Une photo ou un clip de la bibliothèque ; sur ton studio, aussi un fichier à toi (scan, vieille vidéo, 12 s au plus).' },

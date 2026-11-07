@@ -3,8 +3,11 @@
    Remplacer/Annuler), Éléments (vocabulaires), Picker de frame
    (Générations | Uploads). Tous montés en portail plein écran.
    ============================================================ */
+import { SANS_PERSONNAGE } from '../lib/personnage'
+import { ChoixPersonnage } from './ChoixPersonnage'
 import { nomMedia } from '../lib/nomMedia'
 import { LoraStacks, LoraSwitch } from '../components/LoraStacks'
+import { ImportLora } from '../components/ImportLora'
 import { useEffect, useRef, useState } from 'react'
 import type { Asset, MediaMode } from '../types'
 import { vignetteOf } from '../components/AssetMedia'
@@ -251,6 +254,8 @@ function LoraPickTab({ q }: { q: string }) {
   return (
     <>
     <LoraStacks cle="photo" picks={picks} apply={items => useAppStore.setState({ loraPicks: items })} />
+    <ImportLora compatible={l => l.arch === ARCH_MOTEUR[moteur]}
+      onAjout={nom => useAppStore.setState(st => ({ loraPicks: st.loraPicks.some(x => x.name === nom) ? st.loraPicks : [...st.loraPicks, { name: nom, strength: 1 }] }))} />
     <div className="flex flex-col gap-1 mt-2" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
       {usable.length === 0 && <div className="text-[12px]" style={{ color: 'var(--faint)', padding: 8 }}>{t('Aucune LoRA pour ce moteur : le studio lit chaque fichier et ne propose que celles qui agissent dessus.')}</div>}
       {usable.map(l => {
@@ -489,6 +494,13 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
   const [corr, setCorr] = useState<Corrections>({})
   const [edite, setEdite] = useState<string | null>(null)
   const [extraLoras, setExtraLoras] = useState<{ name: string; strength?: number; trigger?: string }[]>([])
+  /* Le personnage du carrousel est celui de la photo d'origine, jamais le personnage actif par défaut ;
+     une photo sans personnage garde son propre visage (référence Klein, cf. send). */
+  useEffect(() => {
+    const p = asset.personaId
+    if (p && p !== SANS_PERSONNAGE && p !== 'default') void s.choisirPersonnagePage(p)
+    else void s.choisirPersonnagePage(SANS_PERSONNAGE)
+  }, [asset.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setDims(null); setDimsErr(false); setPrep(null); setCorr({}); setEdite(null)
     void fetch('/api/carrousel/fiche', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -585,6 +597,10 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
        variantes : sans elles, les 8 plans perdent le style de l'original. */
     useAppStore.setState({ loraPicks: keep.lora ? extraLoras.map(l => ({
       name: l.name, strength: l.strength ?? 1, trigger: l.trigger ?? '' })) : [] })
+    // sans personnage : la photo d'origine est la seule référence, son visage tient tout le carrousel
+    const refsAvant = useAppStore.getState().references
+    const sansPerso = useAppStore.getState().personaId === SANS_PERSONNAGE
+    if (sansPerso) { useAppStore.setState({ references: [] }); await s.ajouterReference(asset) }
     let done = 0
     for (const [j, v] of variants.slice(1).entries()) {   // onglet « origine » exclu : jamais re-rendu
       if (!v.trim()) continue
@@ -598,6 +614,7 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
       await s.submitJob()
       done++; setProgress(done)
     }
+    if (sansPerso) useAppStore.setState({ references: refsAvant })
     s.setCarouselBatchId(null)
     s.setCarouselLocks(null)
     s.setCarouselPromptRacine(null)
@@ -610,6 +627,13 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
 
   const corps = (<>
         {(phase === 'config' || phase === 'rewriting') && (<>
+          <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+            <span className="hint" style={{ margin: 0 }}>{t('Personnage du carrousel')}</span>
+            <ChoixPersonnage libelleSans={t('Visage de la photo')} />
+            <small className="hint" style={{ margin: 0 }}>{s.personaId === SANS_PERSONNAGE
+              ? t('Aucun personnage : le visage de la photo de départ est repris dans chaque image.')
+              : t('Le personnage choisi remplace la personne de la photo.')}</small>
+          </div>
           <p className="hint">{t('Cadenas fermé = la dimension reste constante dans tout le shooting ; ouvert = le rédacteur en fait ce qu\'il veut. Tu relis les plans avant l\'envoi.')}</p>
           <p className="hint" style={{ marginTop: 0 }}>
             {dims ? t('👁 image lue — voici ce que chaque dimension contient')

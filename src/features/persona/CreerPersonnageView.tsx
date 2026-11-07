@@ -96,7 +96,8 @@ export function CreerPersonnageView() {
     </div>
   ) : undefined
   return (
-    <OutilPage titre={t('Créer un personnage')} texte={t('Décris-le : le studio propose 4 visages, tu choisis, il crée le personnage, sa planche de référence, 12 images et sa LoRA.')}
+    <OutilPage
+      howto={{ cle: 'personnage', titre: 'Ton personnage, du texte à la LoRA', texte: 'Tu le décris, tu choisis un visage parmi quatre : le studio crée sa planche de référence, 12 images et sa LoRA, prêt pour tous les outils.', label: 'Exemple de création de personnage', repli: '/vitrine/v2-personnage.webp' }} titre={t('Créer un personnage')} texte={t('Décris-le : le studio propose 4 visages, tu choisis, il crée le personnage, sa planche de référence, 12 images et sa LoRA.')}
       resultat={resultat}
       jobs={j => historique.ids.has(j.id)} assets={a => !!a.jobId && historique.ids.has(a.jobId)}
       etapes={[

@@ -9,6 +9,7 @@ import { useAppStore } from '../store/useAppStore'
 import { Ic } from './bits'
 import { t, tp } from '../i18n'
 import { PersonaEditeur } from '../components/PersonaEditeur'
+import { MesLoras } from '../v2/ExtensionsView'
 import { PersonaListe } from '../components/PersonaListe'
 import { CreditPersonnage } from '../components/PersonaCredit'
 import { CreateurView } from '../features/createur/CreateurView'
@@ -62,6 +63,9 @@ export function MAtelier({ onBack }: { onBack: () => void }) {
 
         <div className="label">{t('Créateur')}</div>
         <div style={{ marginBottom: 16 }}><CreateurView /></div>
+
+        <div className="label">LoRA</div>
+        <div className="card" style={{ marginBottom: 16 }}><MesLoras /></div>
 
         <div className="label">{t('Bibliothèque')}</div>
         <div className="card">

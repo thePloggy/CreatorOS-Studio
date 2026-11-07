@@ -3,12 +3,23 @@
    Tout est surchargeable par variable d'environnement : aucun chemin
    propre à une machine n'est écrit en dur.
    ============================================================ */
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 const home = os.homedir()
 const repo = path.resolve(import.meta.dirname, '..')
+
+/* Réglages écrits par l'installeur (npm run setup, étape « Studio settings ») : <données>/studio.env, une ligne
+   CLE=valeur par réglage. Une variable déjà définie dans l'environnement garde la priorité. */
+export const FICHIER_REGLAGES = path.join(process.env.CREATOROS_DATA || path.join(home, 'creatoros-data'), 'studio.env')
+try {
+  for (const ligne of fs.readFileSync(FICHIER_REGLAGES, 'utf8').split('\n')) {
+    const m = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$/.exec(ligne)
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2')
+  }
+} catch { /* pas de fichier de réglages : les valeurs par défaut */ }
 const comfyDir = process.env.COMFY_DIR || path.join(home, 'ComfyUI')
 const dataDir = process.env.CREATOROS_DATA || path.join(home, 'creatoros-data')
 

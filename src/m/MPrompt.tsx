@@ -9,6 +9,7 @@
    Éléments : les vocabulaires (tenues, environnements, positions,
    LoRA), insérés SANS écraser le texte existant.
    ============================================================ */
+import { ImportLora } from '../components/ImportLora'
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { Etoile, GarderobeTab } from '../components/Garderobe'
@@ -222,6 +223,8 @@ export function MElements({ onClose }: { onClose: () => void }) {
           <p className="muted" style={{ fontSize: 13 }}>
             {t('Seules les LoRA compatibles avec la recette en cours sont listées.')}
           </p>
+          <ImportLora compatible={l => (s.mode === 'video' ? l.arch === 'h3' : l.arch !== 'h3')}
+            onAjout={nom => { const on = s.mode === 'video' ? s.video.videoLoras.some(x => x.name === nom) : s.loraPicks.some(x => x.name === nom); if (!on) s.toggleLora(nom) }} />
           {compatibleLoras.map(l => {
             const on = s.mode === 'video'
               ? s.video.videoLoras.some(x => x.name === l.name)

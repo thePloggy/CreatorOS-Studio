@@ -3,6 +3,8 @@
    création est une barre flottante par-dessus. Jobs photo en
    placeholders dans la grille.
    ============================================================ */
+import { HowItWorks, howto } from './HowItWorks'
+import { useMouvementReduit } from './Galerie'
 import { useBriefHistory } from '../components/BriefHistory'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -52,7 +54,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const kleinOk = s.personaKlein
   const champPrompt = useRef<HTMLTextAreaElement>(null)
   const mentions = useMentions({ champ: champPrompt, valeur: s.userPrompt, surChange: s.setUserPrompt, surPersona: async id => {
-    await s.choisirPersonnage(id)
+    await s.choisirPersonnagePage(id)
   } })
   const [q, setQ] = useState('')
   /* un SEUL menu contextuel ouvert à la fois */
@@ -76,6 +78,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const failed = failedJobs(s.jobs, false)
   const briefs = useBriefHistory('photo', s.userPrompt, s.setUserPrompt)
   const task = s.photo.task
+  const reduitHowto = useMouvementReduit()
   const isMobile = window.innerWidth < 821
   const queueIds = activeJobs.filter(j => j.status === 'queued').map(j => j.id)
 
@@ -138,7 +141,20 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
           onPurge={purge} q={q} setQ={setQ} onTriage={() => setTriage(true)} />
         {purgeArmed && <div className="px-4 text-[12px]" style={{ color: 'var(--danger)' }}>{t('⚠ re-cliquer pour confirmer la suppression définitive')}</div>}
 
-        <div className="scrollwrap"><div className="masonry"><JustifiedGrid cols={cols} items={[
+        <div className="scrollwrap">
+          {task === 'edit' && (() => {
+            const f = howto('edit')
+            return <div style={{ padding: '0 16px' }}><HowItWorks cleMemoire="hiw:edit" reduit={reduitHowto} labelHero={t('Exemple de retouche par instruction')}
+              titre={t('Décris le changement, le reste ne bouge pas')} texte={t('Une robe rouge, des cheveux blonds, de la neige : une phrase suffit, le visage, la pose et le décor restent.')}
+              hero={{ ...f.hero, repli: '/vitrine/v2-edit-b.webp' }} labelCommencer={t('Commencer')}
+              onCommencer={() => document.querySelector<HTMLTextAreaElement>('.v2 textarea')?.focus()}
+              etapes={[
+                { titre: t('Choisis la photo'), texte: t('Une photo de ta bibliothèque, ou un fichier à toi.'), ...f.etape(1) },
+                { titre: t('Décris le changement'), texte: t('En une phrase : « la robe devient rouge ».'), ...f.etape(2) },
+                { titre: t('Récupère la photo'), texte: t('Qwen-Image-Edit ne touche qu’à ce que tu as demandé.'), ...f.hero, repli: '/vitrine/v2-edit-b.webp' },
+              ]} /></div>
+          })()}
+          <div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
           ...activeJobs.map(j => ({ key: j.id, ratio: (j.width && j.height ? j.width / j.height : 9 / 16),
             node: <JobCard j={j} queueIds={queueIds} /> })),

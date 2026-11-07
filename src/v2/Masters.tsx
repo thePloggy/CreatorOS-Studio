@@ -8,6 +8,8 @@ const FORMATS = [
   { id: 'hlg-hevc', label: 'HLG HEVC', titre: 'H.265 10 bits, Rec.2020 HLG' },
   { id: 'hlg-prores', label: 'HLG ProRes', titre: 'ProRes 422 HQ, Rec.2020 HLG' },
   { id: 'exr', label: 'EXR ACEScg', titre: 'une image EXR linéaire par frame, dans un zip' },
+  { id: 'hlg-etendu', label: 'HLG expanded', titre: 'HEVC 10 bits HLG, hautes lumières étendues au-delà du blanc (expansion SDR → HDR)' },
+  { id: 'exr-etendu', label: 'EXR expanded', titre: 'EXR ACEScg linéaire, hautes lumières étendues jusqu’à ~5× le blanc, dans un zip' },
 ]
 const ALPHA = { id: 'prores-alpha', label: 'ProRes 4444', titre: 'ProRes 4444 avec alpha, pour le montage' }
 

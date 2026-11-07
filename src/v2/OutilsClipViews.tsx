@@ -31,7 +31,8 @@ export function RecadrerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =>
     setOccupe(false)
   }
   return (
-    <OutilPage titre={t('Recadrer')} texte={t('Le clip passe dans un autre format : Wan VACE regarde le clip et génère les bords qui manquent, image par image.')}
+    <OutilPage
+      howto={{ cle: 'recadrer', titre: 'Un clip, tous les formats', texte: '9:16 pour TikTok et Reels, 16:9 pour YouTube, 1:1 pour le fil : les bords manquants sont générés, le clip d’origine reste intact au centre.', label: 'Exemple de recadrage', repli: '/vitrine/recadrer-b.webp' }} titre={t('Recadrer')} texte={t('Le clip passe dans un autre format : Wan VACE regarde le clip et génère les bords qui manquent, image par image.')}
       jobs={j => suivi.ids.has(j.id)} assets={a => suivi.ids.has(a.jobId)} onOpen={onOpen}
       etapes={[
         { titre: 'Le clip', texte: 'Choisis un clip de la bibliothèque, 10 s au plus.', image: '/vitrine/recadrer-a.webp' },
@@ -80,7 +81,8 @@ export function DoublageView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =>
     setOccupe(false)
   }
   return (
-    <OutilPage titre={t('Doublage')} texte={t('Une nouvelle voix sur un clip : les lèvres suivent, la scène et les gestes restent.')}
+    <OutilPage
+      howto={{ cle: 'doublage', titre: 'Une nouvelle voix, les lèvres suivent', texte: 'Écris la réplique ou prends un audio : la bouche est refaite sur la nouvelle voix, la scène et les gestes restent.', label: 'Exemple de doublage', repli: '/vitrine/doublage-b.webp' }} titre={t('Doublage')} texte={t('Une nouvelle voix sur un clip : les lèvres suivent, la scène et les gestes restent.')}
       jobs={j => suivi.ids.has(j.id)} assets={a => suivi.ids.has(a.jobId)} onOpen={onOpen}
       etapes={[
         { titre: 'Le clip', texte: 'Un clip de la bibliothèque où l’on voit le visage.', image: '/vitrine/doublage-a.webp' },

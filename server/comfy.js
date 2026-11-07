@@ -9,6 +9,7 @@
    Injecter dans `wildcard_text` via l'API ne changerait donc RIEN :
    on écrit dans `populated_text` et on bascule `mode` sur « fixed ».
    ============================================================ */
+import { definirClientStudio } from './gpu.js'
 import fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
@@ -1158,6 +1159,8 @@ let ws = null
    L'aperçu est demandé rendu par rendu (`preview_method` dans extra_data), sans
    toucher au lancement de ComfyUI. On garde la dernière image de chaque rendu. */
 const CLIENT_WS = 'creatoros-' + Math.random().toString(36).slice(2, 12)
+// l'arbitrage de la carte reconnaît ainsi les rendus du studio dans la file de ComfyUI (les autres = la production)
+definirClientStudio(CLIENT_WS)
 const apercus = new Map()              // prompt_id → { buf, mime, at }
 let promptEnCours = null
 function noteApercu(data) {

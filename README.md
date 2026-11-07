@@ -12,8 +12,8 @@
 
 Built for the Comfy **#OpenSourceHiggsfield** challenge. Every model is open weights and runs locally: no API call, no credits, nothing leaves the machine.
 
-- **50 functions** across image, video, sound and editing
-- **118 presets**: dances, 3D dance studios, camera moves and effects, transitions, music styles, voices, reel formats
+- **62 functions** across image, video, sound and editing, each with a *How it works* page built from real renders
+- **118 presets**: dances, 3D dance studios, camera moves and effects, transitions, music styles, voices, reel formats, plus **56 looks** (styles, lights, campaign and product looks)
 - **25 built-in recipes**, plus an internal app store: browse and import **262 official ComfyUI workflows** (29 run without downloading anything), or import your own
 - **MCP server** (15 tools) and an agent skill, so Claude or any MCP client can drive the studio
 - **MiniMax H3 ready**: pre-wired, weights supplied by the user (its licence excludes the EU, the UK, South Korea and the US)
@@ -25,6 +25,8 @@ Built for the Comfy **#OpenSourceHiggsfield** challenge. Every model is open wei
 - **Direct, don't prompt.** Block a shot in 3D Scene, film the same moment from a second camera (Re-shoot), draw a sketch and pick one of three interpretations, or fill a shot card (camera, lens, light, film stock) instead of writing a prompt.
 - **Restore.** An old photo or a damaged clip comes back clean and in HD: scratches and noise removed, optional colour (photos and black and white clips), detail rebuilt by SeedVR2, with a before / after slider against the original.
 - **A public demo on a real GPU, with locks.** Anyone can try it live. The demo refuses anything involving a minor and any nudity, accepts visitor photos only when no person is in them (so no deepfake of a real person), keeps the owner's uploads private, every clip is checked automatically (black, frozen or jumping clips are re-shot once), and every render goes through a nudity detector (NudeNet, on the CPU): a positive is moved to a closed quarantine folder, never shown.
+- **Fix a clip in one click.** Refine details, day to night, unblur, remove compression, and now **colorize** a black and white clip, **restore** a damaged archive (a 320×180 sepia scan comes back sharp and in colour) or **add water** to a shot, with the official LTX-2.5 IC-LoRAs. Coverage gives a real wide, three-quarter and close-up of a scene, Next Shot the shot that comes after, Image to 3D a textured turntable.
+- **Your own LoRAs, your own character per page.** Import a LoRA from Extensions → Import LoRA: the studio reads its architecture and offers it with the engine it works on. A character chosen in a page applies to that page only; without one, a carousel keeps the face of its start photo.
 - **Nothing is a black box.** Every render downloads as the exact ComfyUI workflow it ran, with its models and their licences, so you can keep going in ComfyUI.
 
 ## Measured on one card
@@ -51,7 +53,7 @@ Every number below was measured on the author's machine on 3 November 2026: one 
 | Train a character LoRA | ai-toolkit, FLUX.2 Klein | LoRA, 1,200 steps | 30 min | – | – |
 | Train a character LoRA | ai-toolkit, Krea 2 | LoRA, 1,200 steps | 38 min | – | – |
 
-On this machine the local LLM (Ollama) that rewrites prompts and plans reels runs on the CPU (`CREATOROS_LLM_GPU=0`), so it never competes with a render for VRAM; by default it uses the GPU when the card is free.
+The local LLM (Ollama) that rewrites prompts and plans reels uses the GPU when the card is free and falls back to the CPU behind a long render. On a machine whose ComfyUI is shared with another pipeline, `CREATOROS_LLM_GPU=libre` only takes the card when ComfyUI has no job from another client; `CREATOROS_LLM_GPU=0` keeps it on the CPU.
 
 ## What it does
 
@@ -104,13 +106,13 @@ Desktop UI (`src/v2`) and a mobile UI (`src/m`) are served by the same backend; 
 | | |
 |---|---|
 | ![Home](docs/screenshots/home.jpg) | ![Menus](docs/screenshots/menus.jpg) |
-| **Home**: every tool shows a real render; Movie Studio featured | **Menus**: Image, Video, Audio and Extensions, with the names you know and the models behind them |
+| **Home**: every tool shows a real render; Movie Studio featured | **Menus**: Image, Video, Audio and Extensions, a thumbnail for every tool and the models behind them |
 | ![Styles](docs/screenshots/styles.jpg) | ![Character](docs/screenshots/character.jpg) |
-| **Styles**: 36 one-click looks, plus Relight and Expand mosaics | **Characters**: train a LoRA in the UI, profile, identity and voice |
+| **Styles**: 56 one-click looks, plus Relight and Expand mosaics | **Characters**: train a LoRA in the UI, profile, identity and voice |
 | ![One-click reel](docs/screenshots/reel.jpg) | ![Movie Studio](docs/screenshots/cinematic.jpg) |
 | **One-click reel**: brief, shots, clips, edit | **Movie Studio**: a shot card instead of a prompt |
 | ![Product Shot](docs/screenshots/product.jpg) | ![A page per tool](docs/screenshots/tool-page.jpg) |
-| **Product Shot**: packshot, scene, poster, your character with the product, a clip | **A page per tool**: source on the left, how it works and every past render on the right |
+| **Product Shot**: packshot, scene, poster, your character with the product, a clip | **A page per tool**: a *How it works* made of real renders (here Colorize), the effects or your library as a big gallery, a compact panel on the left |
 | ![Camera moves](docs/screenshots/camera-effects.jpg) | ![Library](docs/screenshots/library.jpg) |
 | **Camera Moves & Effects**: pick a move, pick a photo | **Library**: folders, characters, images, videos and audio |
 | ![3D Scene](docs/screenshots/stage.jpg) | ![Viewer](docs/screenshots/viewer.jpg) |
@@ -196,6 +198,14 @@ ComfyUI is expected at `http://127.0.0.1:8188` and Ollama at `http://127.0.0.1:1
 5. **Models**: downloaded into `models/` (or the default folder of your `extra_model_paths.yaml`), with progress and resume. Files are written as `.part` and renamed when complete.
 6. **Ollama**: checks the service and offers `ollama pull` for `CREATOROS_LLM` and `CREATOROS_VLM_DESCRIBE`.
 7. **Character**: optionally creates `<CREATOROS_DATA>/persona.json` from the example.
+8. **Studio settings**: a few questions written once to `<CREATOROS_DATA>/studio.env`, so a local install is never held back by a lock meant for a public demo:
+   - **who uses the studio**: *only me* leaves everything open (your own photos, LoRA import, voice clone, extensions, no render limit); *shared* generates an owner key, and visitors get the public-demo limits;
+   - **address**: this machine only, or your local network;
+   - **nudity filter on renders**: off, or on (installs NudeNet in its own Python environment);
+   - **local LLM**: GPU when free, GPU only when ComfyUI has no job from another app (a ComfyUI shared with another pipeline), or always CPU;
+   - **LoRA folder**.
+
+   The prompt floor that refuses anything about minors and sexual content is always on in this public edition; it is not a setting.
 
 ```bash
 npm run setup -- --check         # report only, change nothing (alias --dry-run)
@@ -215,7 +225,7 @@ Only variants that passed the lab are listed. [docs/LAB.md](docs/LAB.md) gives t
 
 ### Configuration
 
-All settings are environment variables. The main ones:
+All settings are environment variables; the setup wizard writes the usual ones to `<CREATOROS_DATA>/studio.env` (one `KEY=value` per line, read at start; a variable set in the environment wins). The main ones:
 
 | Variable | Default | |
 |---|---|---|
@@ -229,6 +239,8 @@ All settings are environment variables. The main ones:
 | `CREATOROS_LLM` / `CREATOROS_VLM_DESCRIBE` | `mistral-small:latest` / `qwen2.5vl:7b` | |
 | `CREATOROS_PHOTO_ENGINE` | `krea` | `krea` or `klein` |
 | `CREATOROS_OWNER_KEY` | unset | locks the studio for a public demo, see below |
+| `CREATOROS_LLM_GPU` | unset (GPU when free) | `libre`: GPU only when ComfyUI has no job from another client; `0`: always CPU |
+| `CREATOROS_FILTRE_PYTHON` | `~/venvs/filtre-images/bin/python` | Python with `nudenet`, for the nudity filter on renders; absent = filter off |
 | `CREATOROS_VOIX_PYTHON` | `$CREATOROS_DATA/voix-venv/bin/python` | Python with `kokoro` installed, for voice-over and dubbing voices |
 | `CREATOROS_AI_TOOLKIT` | `~/ai-toolkit` | ai-toolkit folder, for character training |
 | `CREATOROS_NOTIF_URL` | unset | [ntfy](https://ntfy.sh) topic URL: the owner is notified when an Internet visitor starts a render, and when one fails or is refused |

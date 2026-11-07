@@ -8,10 +8,11 @@
    dossier ; groupement mensuel partout ; supprimer un dossier ne
    supprime jamais les assets.
    ============================================================ */
+import { BatchViewer } from './popups'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { useAppStore } from '../store/useAppStore'
-import { AssetCard, FolderSortButton, Ic, JustifiedGrid, useProgressif, ratioOf, SelectionBar, useConfirm, V2Portal, useExclusiveMenu, type FolderInfo, matchSearch } from './bits'
+import { AssetCard, BatchCard, groupLotsPhotos, FolderSortButton, Ic, JustifiedGrid, useProgressif, ratioOf, SelectionBar, useConfirm, V2Portal, useExclusiveMenu, type FolderInfo, matchSearch } from './bits'
 import { trierDossiers } from '../lib/folders'
 import { t, tp } from '../i18n'
 import { SANS_PERSONNAGE } from '../lib/personnage'
@@ -62,6 +63,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     const n = new Set(set); if (n.has(v)) n.delete(v); else n.add(v); setter(n)
   }
 
+  const [lotOuvert, setLotOuvert] = useState<string | null>(null)
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return s.assets.filter(a => {
@@ -232,11 +234,14 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
           {groupesVisibles.map(g => (
             <div key={g.label}>
               <div className="mlabel">{g.label}</div>
-              <JustifiedGrid cols={cols} progressif={false} items={g.items.map(a => ({
-                key: a.id, ratio: ratioOf(a),
-                node: <AssetCard a={a} onOpen={x => onOpen(x, shown)}
-                  picking={picked.size > 0} picked={picked.has(a.id)} onPick={togglePick} />,
-              }))} />
+              {/* un carrousel (ou une série de photos) tient sur une carte de lot, comme sur la page Image */}
+              <JustifiedGrid cols={cols} progressif={false} items={groupLotsPhotos(g.items).map(it => it.kind === 'batch'
+                ? { key: `lot-${it.id}`, ratio: 3 / 4, node: <BatchCard items={it.items} onOpen={() => setLotOuvert(it.id)}
+                    picking={picked.size > 0} allPicked={it.items.every(a => picked.has(a.id))}
+                    onPickAll={() => setPicked(p => { const n = new Set(p); const tous = it.items.every(a => n.has(a.id)); for (const a of it.items) { if (tous) n.delete(a.id); else n.add(a.id) } return n })} /> }
+                : { key: it.a.id, ratio: ratioOf(it.a),
+                    node: <AssetCard a={it.a} onOpen={x => onOpen(x, shown)}
+                      picking={picked.size > 0} picked={picked.has(it.a.id)} onPick={togglePick} /> })} />
             </div>
           ))}
           {prog.limite < shown.length && <div ref={prog.sentinelle} style={{ height: 1 }} />}
@@ -244,6 +249,10 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
         </div>
       </div>
 
+      {lotOuvert && (() => {
+        const items = shown.filter(a => a.batchId === lotOuvert || (a.batchIds ?? []).includes(lotOuvert))
+        return items.length ? <BatchViewer items={items} onClose={() => setLotOuvert(null)} onOpenAsset={a => { setLotOuvert(null); onOpen(a, items) }} /> : null
+      })()}
       {fMenu && <FolderRowMenu at={fMenu} folder={folders.find(f => f.id === fMenu.id)}
         onClose={() => setFMenu(null)}
         onChanged={() => { loadFolders(); if (folderId === fMenu.id) setFolderId(null) }} />}

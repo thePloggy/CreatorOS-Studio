@@ -61,7 +61,13 @@ interface AppState {
   /** Relit le personnage actif (nom, photo) — après un changement de personnage. */
   refreshPersona: () => Promise<void>
   /** Personnage des prochains rendus, propre à ce navigateur. */
+  /** Personnage de la page en cours (même effet que choisirPersonnagePage). */
   choisirPersonnage: (id: string) => Promise<void>
+  /** Personnage de la page en cours seulement (sélecteur d'une page, carrousel) ; les autres pages gardent le leur. */
+  choisirPersonnagePage: (id: string) => Promise<void>
+  /** Entrée dans une page : son personnage à elle, sinon celui par défaut du studio. */
+  entrerPage: (page: string) => Promise<void>
+  pageCourante: string
   /** Asset à ouvrir en grande vue (palette ⌘K → galerie). Consommé puis remis à null. */
   focusAssetId: string | null
   setFocusAsset: (id: string | null) => void
@@ -193,7 +199,7 @@ interface AppState {
   /** famille ouverte dans la galerie (Camera Moves ou Effects), demandée par le menu */
   famillePresets: 'camera' | 'effet' | null
   /** onglet ouvert dans Extensions, demandé par le menu */
-  ongletExtensions: 'tout' | 'comfy' | null
+  ongletExtensions: 'tout' | 'comfy' | 'lora' | null
   /** réglage de départ demandé par le menu à la page ouverte (Restore en HD seule, Clone de voix…) */
   demandeOutil: 'hd' | 'cloner' | 'changer' | null
   /** l'outil ouvert dans la page dédiée (section « outil ») */
@@ -471,6 +477,11 @@ function jobFromApi(j: Record<string, unknown>): Job {
    galerie se rechargerait sur un instantané périmé, en concurrence avec
    `hydrate()` qui lit la base. Ce qui vient du serveur doit venir du serveur. */
 let suiviFileLance = false
+/* Le personnage choisi DANS une page, page par page, pour l'onglet (sessionStorage). */
+const CLE_PAGES = 'creatoros.personnagesPages'
+function lirePersonnagesPages(): Record<string, string> { try { return JSON.parse(sessionStorage.getItem(CLE_PAGES) || '{}') } catch { return {} } }
+function ecrirePersonnagesPages(v: Record<string, string>) { try { sessionStorage.setItem(CLE_PAGES, JSON.stringify(v)) } catch { /* stockage indisponible */ } }
+
 export const useAppStore = create<AppState>()(persist((set, get) => {
   // Abonnement unique aux updates du worker (mock ou réel).
   worker.onUpdate((job, asset) => {
@@ -732,9 +743,20 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         if (change) set({ assets: await fetchAssets() })
       } catch { /* hors ligne : on garde l'affichage */ }
     },
-    choisirPersonnage: async id => {
-      retenirPersonnage(id)
+    // l'en-tête et la page Personnages choisissent, eux aussi, pour la page en cours seulement
+    choisirPersonnage: async id => get().choisirPersonnagePage(id),
+    pageCourante: 'accueil',
+    choisirPersonnagePage: async id => {
+      const pages = lirePersonnagesPages(); pages[get().pageCourante] = id; ecrirePersonnagesPages(pages)
+      retenirPersonnage(id, false)
       await get().refreshPersona()
+    },
+    /* Pas de personnage par défaut, pour personne (visiteurs compris) : une page montre tout et n'impose aucun
+       visage, sauf si un personnage y a été choisi. */
+    entrerPage: async page => {
+      set({ pageCourante: page })
+      const id = lirePersonnagesPages()[page] ?? SANS_PERSONNAGE
+      if (id && id !== personnageChoisi()) { retenirPersonnage(id, false); await get().refreshPersona() }
     },
 
     hydrate: async () => {
@@ -1479,6 +1501,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         // une retouche reste rangée sous le personnage de sa photo, pas sous le personnage actif
         personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || s.personaId || 'default',
         ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine, ...(s.references.length ? { references: s.references.map(x => x.file) } : {}) } : {}),
+        // carrousel sans personnage : la première référence est la photo d'origine, son visage est tenu
+        ...(s.carouselBatchId && s.personaId === SANS_PERSONNAGE && s.references.length ? { refVisage: true } : {}),
         register,
         mode: s.mode,
         purpose: 'creative',

@@ -186,6 +186,8 @@ const ADULTE = 'an adult woman in her mid-twenties'
    c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
 const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'moss' || moteur === 'flux3' ? false : moteur === 'krea' ? p.loras.length > 0 : true
 export function identityPreambleFor(id, moteur) {
+  // sans personnage : aucun visage imposé, mais la mention d'âge adulte reste (démo publique comprise)
+  if (id === SANS_PERSONNAGE) return { key: 'persona', file: null, text: 'every person shown is an adult, ' }
   const p = persona(id)
   const age = /\b(adult|\d{2}[- ]?(years?|yo))\b/i.test(p.preamble ?? '') ? null : ADULTE
   const trigger = aLoraPour(p, moteur) ? p.trigger : null

@@ -29,8 +29,24 @@ import { CONFIG } from './config.js'
 /** Au-delà de ce reste estimé, un appel Ollama ne patiente pas derrière le
  *  rendu en cours : il part sur le CPU. */
 const ATTENTE_MAX_MS = 60_000
-/** Arbitrage coupé : CREATOROS_LLM_GPU=0 → tout Ollama sur le CPU. */
-const ACTIF = process.env.CREATOROS_LLM_GPU !== '0'
+/** CREATOROS_LLM_GPU : `0` → tout Ollama sur le CPU ; `libre` → la carte seulement quand ComfyUI n'a aucun
+ *  rendu d'un AUTRE client (ComfyUI partagé avec une production : on ne lui vide jamais la carte en plein
+ *  travail) ; absent → arbitrage complet. */
+const MODE = process.env.CREATOROS_LLM_GPU === '0' ? 'cpu' : process.env.CREATOROS_LLM_GPU === 'libre' ? 'libre' : 'auto'
+const ACTIF = MODE !== 'cpu'
+/** En mode `libre`, Ollama rend vite la carte : une production qui arrive ensuite la retrouve libre. */
+const GARDE_CARTE = MODE === 'libre' ? '2m' : '30m'
+let clientStudio = null
+/** L'identifiant client du studio auprès de ComfyUI : ses rendus à lui sont arbitrés ici. */
+export function definirClientStudio(id) { clientStudio = id }
+/** ComfyUI travaille-t-il pour un autre client (la production) ? En cas de doute : oui. */
+async function comfyPrisAilleurs() {
+  if (MODE !== 'libre') return false
+  try {
+    const q = await (await fetch(`${CONFIG.comfyUrl}/queue`, { signal: AbortSignal.timeout(3000) })).json()
+    return [...(q.queue_running ?? []), ...(q.queue_pending ?? [])].some(e => e?.[3]?.client_id !== clientStudio)
+  } catch { return true }
+}
 
 let occupant = null      // 'comfy' | 'ollama' | null (inconnu au démarrage)
 let actifs = 0           // tâches de l'occupant en cours
@@ -110,7 +126,7 @@ export async function blocOllama(travail, { attendreCarte = false } = {}) {
   if (!ACTIF || dansJob.getStore()) return travail()
   /* `attendreCarte` : un long lot (les captions d'un mois de reels) attend la
      fin du rendu en cours plutôt que de se traîner une heure sur le CPU. */
-  if (!attendreCarte && renduLong()) return dansJob.run('cpu', travail)
+  if ((!attendreCarte && renduLong()) || await comfyPrisAilleurs()) return dansJob.run('cpu', travail)
   await prendre('ollama')
   try { return await dansJob.run('ollama', travail) } finally { rendre() }
 }
@@ -158,10 +174,10 @@ export async function fetchOllama(url, init) {
   if (!ACTIF || bloc === true) return fetchLong(url, init)
   const corps = JSON.parse(init.body)
   const surCpu = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options: { ...corps.options, num_gpu: 0 } }) })
-  if (bloc === 'cpu' || (!bloc && renduLong())) return surCpu()
+  if (bloc === 'cpu' || (!bloc && (renduLong() || await comfyPrisAilleurs()))) return surCpu()
   const options = { ...corps.options }; delete options.num_gpu
   /* Il reste chargé : c'est le prochain rendu qui le videra, s'il arrive. */
-  const surCarte = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options, keep_alive: '30m' }) })
+  const surCarte = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options, keep_alive: GARDE_CARTE }) })
   let res
   if (bloc === 'ollama') res = await surCarte()          // la carte est déjà tenue par le bloc
   else {

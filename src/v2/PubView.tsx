@@ -59,7 +59,8 @@ export function PubView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) => void
     setPacks(p => [...p, d.id!])
   }
   return (
-    <OutilPage titre={t('Pack publicitaire')} texte={t('Ton produit, ton personnage, une mise en scène : packshot, scène, affiche, ton personnage qui présente le produit et un clip.')}
+    <OutilPage
+      howto={{ cle: 'pub', titre: 'Ton produit, toute une campagne', texte: 'Packshot sur fond blanc, mise en scène, affiche, ton personnage qui présente le produit et un clip : un pack complet en une fois.', label: 'Exemple de pack publicitaire', repli: '/vitrine/v2-pack.webp' }} titre={t('Pack publicitaire')} texte={t('Ton produit, ton personnage, une mise en scène : packshot, scène, affiche, ton personnage qui présente le produit et un clip.')}
       jobs={j => suivi.ids.has(j.id)} assets={a => suivi.ids.has(a.jobId)} onOpen={onOpen}
       etapes={[
         { titre: 'Le produit', texte: 'Une photo de la bibliothèque, un fichier, ou quelques mots : Krea en fait un packshot sur fond blanc.', image: '/vitrine/pack.webp' },

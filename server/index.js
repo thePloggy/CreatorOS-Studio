@@ -29,7 +29,7 @@ import { T0_BLOCKLIST, t0Hit } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueueEssayage, enqueuePhotodump, enqueueStyleRef, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -2591,8 +2591,8 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
 /* ---------- dossiers ---------- */
 /* Comme la bibliothèque : les dossiers du personnage ACTIF (?persona=<id> pour un autre). */
 const personaDe = req => String(req.query?.persona ?? '') || decodeURIComponent(String(req.headers['x-personnage'] ?? '')) || personas().active || null
-/** Un rendu sans personnage échappe au préambule d'adulte : le propriétaire seul y a droit. */
-const personnageInterdit = (req, id) => id === SANS_PERSONNAGE && !estProprietaire(req)
+/** Sans personnage, le préambule garde la mention d'âge adulte (persona.js) : ouvert à tous, visiteurs compris. */
+const personnageInterdit = () => false
 // le propriétaire voit tous les dossiers, communs à tous les personnages ; un visiteur, ceux de son personnage
 app.get('/api/folders', async req => ({ folders: store.listFolders(estProprietaire(req) ? undefined : personaDe(req))
   .map(f => ({ id: f.id, name: f.name, createdAt: f.created_at, count: f.count, personaId: f.persona_id ?? null })) }))
@@ -2671,6 +2671,39 @@ app.post('/api/parole', async (req, reply) => {
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, image))
   store.noterInput(image)
   try { return deposerAvecCle(cleComfy(req), () => enqueueParole({ image, audio: voix, texte: req.body?.texte, parentAssetId: a.id, personaId: a.persona_id })) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
+/* ---------- essayage et photodump (cf. jobs.js) ----------
+   Les photos de la bibliothèque sont recopiées dans input/ (LoadImage n'y lit que là). */
+const versInput = (a, prefixe) => {
+  const nom = `${prefixe}_${path.basename(a.filename)}`
+  fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
+  store.noterInput(nom)
+  return nom
+}
+const photoDe = id => { const a = store.getAsset(String(id ?? '')); return a && a.media_type === 'photo' && a.filename ? a : null }
+app.post('/api/assets/:id/essayage', async (req, reply) => {
+  const a = photoDe(req.params.id), v = photoDe(req.body?.vetementId)
+  if (!a) { reply.code(400); return { error: 'choisis la photo de la personne' } }
+  if (!v) { reply.code(400); return { error: 'choisis la photo du vêtement' } }
+  try { return deposerAvecCle(cleComfy(req), () => enqueueEssayage({ personne: versInput(a, 'crs_still'), vetement: versInput(v, 'crs_vetement'),
+    parentAssetId: a.id, personaId: a.persona_id, consigne: typeof req.body?.consigne === 'string' ? req.body.consigne : undefined })) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/assets/:id/photodump', async (req, reply) => {
+  const a = photoDe(req.params.id)
+  if (!a) { reply.code(400); return { error: 'choisis une photo de la bibliothèque' } }
+  try { return deposerAvecCle(cleComfy(req), () => enqueuePhotodump({ personne: versInput(a, 'crs_still'), parentAssetId: a.id, personaId: a.persona_id,
+    theme: typeof req.body?.theme === 'string' ? req.body.theme : undefined })) }
+  catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+
+app.post('/api/assets/:id/style-reference', async (req, reply) => {
+  const a = photoDe(req.params.id)
+  if (!a) { reply.code(400); return { error: 'choisis l’image dont il faut prendre le style' } }
+  try { return deposerAvecCle(cleComfy(req), () => enqueueStyleRef({ reference: versInput(a, 'crs_style'), texte: req.body?.texte,
+    format: String(req.body?.format ?? '16:9'), parentAssetId: a.id, personaId: a.persona_id })) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
@@ -2839,7 +2872,15 @@ await app.register(fastifyStatic, {
 const hasDist = fs.existsSync(path.join(CONFIG.distDir, 'index.html'))
 if (hasDist) {
   // preCompressed : .br/.gz écrits au build (scripts/precompresser.mjs), servis selon Accept-Encoding
-  await app.register(fastifyStatic, { root: CONFIG.distDir, prefix: '/', decorateReply: true, preCompressed: true })
+  /* Cache navigateur : les fichiers du build portent une empreinte (immuables un an) ; les aperçus de la vitrine
+     changent rarement (un jour) ; index.html et le reste sont revérifiés, pour qu'une mise à jour arrive tout de suite. */
+  await app.register(fastifyStatic, { root: CONFIG.distDir, prefix: '/', decorateReply: true, preCompressed: true, cacheControl: false,
+    setHeaders: (res, chemin) => {
+      const rel = path.relative(CONFIG.distDir, chemin).split(path.sep).join('/')
+      res.header('Cache-Control', rel.startsWith('assets/') ? 'public, max-age=31536000, immutable'
+        : rel.startsWith('vitrine/') || rel.startsWith('fonts/') ? 'public, max-age=86400, stale-while-revalidate=604800'
+        : 'no-cache')
+    } })
   // SPA : toute route inconnue hors /api rend l'index (routage côté client).
   app.setNotFoundHandler((req, reply) => {
     // un fichier du build absent (onglet ouvert avant une mise à jour) : 404, le client recharge la page

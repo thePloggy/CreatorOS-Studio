@@ -59,6 +59,12 @@ function abonner(f: () => void) {
   return () => { abonnes.delete(f) }
 }
 
+/** Hors React : ce navigateur peut-il modifier le studio ? (attend la réponse du serveur) */
+export async function editionPossible(): Promise<boolean> {
+  if (!etat) await verifier()
+  return !!etat && (!etat.verrou || etat.proprietaire)
+}
+
 /** État du verrou ; null tant que le serveur n'a pas répondu. */
 export const useVerrou = () => useSyncExternalStore(abonner, () => etat)
 
