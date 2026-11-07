@@ -104,6 +104,8 @@ function normaliser(f, actif) {
     /* LoRA d'identité de la recette FLUX.2 Klein : une LoRA Krea n'agit pas
        sur Klein (autre architecture), d'où une liste à part. */
     lorasKlein: lorasDe(f?.lorasKlein),
+    /* LoRA d'identité de la recette FLUX 3 Image Klein (entraînée sur Klein Base avec ai-toolkit, arch flux3) */
+    lorasFlux3: lorasDe(f?.lorasFlux3),
     videoLoras: lorasDe(f?.videoLoras),
     credit: creditDe(f?.credit),
     garderobe: garderobeDe(f?.garderobe),
@@ -139,7 +141,7 @@ function garderobeDe(g) {
 }
 
 /** LoRA d'identité photo d'un personnage pour un moteur photo donné. */
-export const lorasPhoto = (p, moteur) => (moteur === 'moss' || moteur === 'flux3' ? [] : moteur === 'klein' ? p.lorasKlein : p.loras)
+export const lorasPhoto = (p, moteur) => (moteur === 'moss' ? [] : moteur === 'flux3' ? (p.lorasFlux3 ?? []) : moteur === 'klein' ? p.lorasKlein : p.loras)
 
 function idActif(d) {
   return d.personas.some(p => p.id === d.active) ? d.active : d.personas[0]?.id ?? null
@@ -184,7 +186,7 @@ export function personas() {
 const ADULTE = 'an adult woman in her mid-twenties'
 /* Le mot déclencheur n'a de sens que pour un moteur qui a une LoRA de ce personnage : ailleurs,
    c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
-const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'moss' || moteur === 'flux3' ? false : moteur === 'krea' ? p.loras.length > 0 : true
+const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'flux3' ? (p.lorasFlux3?.length ?? 0) > 0 : moteur === 'moss' ? false : moteur === 'krea' ? p.loras.length > 0 : true
 export function identityPreambleFor(id, moteur) {
   // sans personnage : aucun visage imposé, mais la mention d'âge adulte reste (démo publique comprise)
   if (id === SANS_PERSONNAGE) return { key: 'persona', file: null, text: 'every person shown is an adult, ' }
@@ -203,7 +205,7 @@ export const triggerPrefix = id => { const t = persona(id).trigger; return t ? `
 /** Fichiers de LoRA de TOUS les personnages — pour les distinguer des autres
  *  dans l'inventaire. */
 export const personaLoraNames = () =>
-  new Set(personas().list.flatMap(p => [...p.loras, ...p.lorasKlein, ...p.videoLoras]).map(l => l.name))
+  new Set(personas().list.flatMap(p => [...p.loras, ...p.lorasKlein, ...(p.lorasFlux3 ?? []), ...p.videoLoras]).map(l => l.name))
 
 /** Champs figés par une variable d'environnement (personnage actif) :
  *  l'interface les montre sans les rendre modifiables. */
@@ -240,6 +242,7 @@ export function enregistrer(corps, id) {
     preamble: has('preamble') ? texte(corps.preamble, 600) : a.preamble ?? '',
     loras: has('loras') ? forces(corps.loras) : forces(a.loras),
     lorasKlein: has('lorasKlein') ? forces(corps.lorasKlein) : forces(a.lorasKlein),
+    lorasFlux3: has('lorasFlux3') ? forces(corps.lorasFlux3) : forces(a.lorasFlux3 ?? []),
     videoLoras: has('videoLoras') ? forces(corps.videoLoras) : forces(a.videoLoras),
     /* Crédit verrouillé : une fois renseigné, il ne change plus (la
        provenance d'une LoRA ne bouge pas). Un personnage sans crédit peut en
@@ -262,7 +265,7 @@ export function creer({ name, depuis } = {}) {
   const modele = depuis ? d.personas.find(p => p.id === depuis) : null
   d.personas.push(modele
     ? { ...modele, id, name: nom }
-    : { id, name: nom, trigger: '', description: '', preamble: '', loras: [], lorasKlein: [], videoLoras: [] })
+    : { id, name: nom, trigger: '', description: '', preamble: '', loras: [], lorasKlein: [], lorasFlux3: [], videoLoras: [] })
   d.active = id
   ecrireFichier(d)
   return persona(id)

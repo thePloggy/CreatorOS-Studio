@@ -2362,8 +2362,8 @@ async function runObjet3d(job, t0) {
 }
 
 /* Entraînement d'un personnage (cf. entrainement.js) : LoRA FLUX.2 Klein ajoutée au personnage. */
-export function enqueueEntrainement({ personaId, images, declencheur, pas, essai, moteur = 'klein' }) {
-  if (!aiToolkitPret()) throw new Error('ai-toolkit introuvable : installe-le, ou indique son dossier dans CREATOROS_AI_TOOLKIT')
+export function enqueueEntrainement({ personaId, images, declencheur, pas, essai, moteur = 'klein', legendes = null }) {
+  if (!aiToolkitPret(moteur)) throw new Error(moteur === 'flux3' ? 'ai-toolkit pour FLUX 3 introuvable : installe-le dans ~/ai-toolkit-flux3, ou indique son dossier dans CREATOROS_AI_TOOLKIT_FLUX3' : 'ai-toolkit introuvable : installe-le, ou indique son dossier dans CREATOROS_AI_TOOLKIT')
   if (!moteurEntrainementPret(moteur)) throw new Error(`entraînement ${MOTEURS_ENTRAINEMENT[moteur]?.nom ?? moteur} indisponible sur ce studio`)
   if (images.length < (essai ? 1 : 8)) throw new Error('choisis au moins 8 images du personnage')
   const d = String(declencheur ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
@@ -2372,7 +2372,7 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
   const n = Math.min(3000, Math.max(essai ? 10 : 600, Number(pas) || 1500))
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId, register: 'sfw', mode: 'photo', purpose: 'creative', recipeId: 'entrainement@v1', workflowFile: null,
-    seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai, entrainementMoteur: moteur,
+    seed: 1, op: 'entrainement', sourceImage: null, entrainementImages: images.slice(0, 30), entrainementDeclencheur: d, entrainementPas: n, entrainementEssai: !!essai, entrainementMoteur: moteur, entrainementLegendes: Array.isArray(legendes) ? legendes.slice(0, 30).map(x => String(x ?? '').slice(0, 600)) : null,
     parentAssetId: null, userPrompt: `LoRA ${MOTEURS_ENTRAINEMENT[moteur].nom} · ${d} · ${n} steps · ${Math.min(30, images.length)} images`, userDirectives: null, composedPositive: null, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: dureeEstimeeMs(moteur, n),
   }
@@ -2386,7 +2386,7 @@ async function runEntrainement(job, t0) {
   current = { jobId: job.id, promptId: null }
   await comfy.freeMemory().catch(() => {})
   const moteur = job.entrainementMoteur ?? 'klein'
-  const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas, moteur })
+  const prep = preparerEntrainement({ id: job.id, images: job.entrainementImages, declencheur: job.entrainementDeclencheur, pas: job.entrainementPas, moteur, legendes: job.entrainementLegendes ?? null })
   let dernier = 0
   avancementEntrainements.set(job.id, { pas: 0, total: job.entrainementPas, debut: Date.now() })
   const lora = await entrainer({ ...prep, id: job.id, pas: job.entrainementPas }, n => {
@@ -2397,8 +2397,8 @@ async function runEntrainement(job, t0) {
   fs.copyFileSync(lora, path.join(CONFIG.lorasDir, nom))
   if (!job.entrainementEssai) {
     const p = persona(job.personaId)
-    const champ = moteur === 'krea' ? 'loras' : 'lorasKlein'
-    enregistrerPersona({ [champ]: [...p[champ].filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
+    const champ = moteur === 'krea' ? 'loras' : moteur === 'flux3' ? 'lorasFlux3' : 'lorasKlein'
+    enregistrerPersona({ [champ]: [...(p[champ] ?? []).filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
   }
   console.log(`[job ${job.id}] LoRA ${nom} prête${job.entrainementEssai ? ' (essai, non attachée)' : ', ajoutée au personnage'}`)
   store.markFinished(job.id, Date.now() - t0)

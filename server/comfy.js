@@ -1480,7 +1480,9 @@ function loraProbe(file) {
            d'attention `attn.gate` + `wk`, tours `txtfusion`). */
         const meta = parsed.__metadata__ || {}
         const decl = `${meta['modelspec.architecture'] ?? ''} ${meta.ss_base_model_version ?? ''} ${meta.ss_sd_model_name ?? ''}`.toLowerCase()
-        if (/krea/.test(decl) || keys.some(k => /(^|\.)txtfusion\.|blocks[._]\d+[._]attn[._]gate/.test(k))) probe.arch = 'krea2'
+        // FLUX 3 Image Klein (ai-toolkit : ss_base_model_version flux3, blocs content_mode_blocks)
+        if (/flux[._-]?3/.test(decl) || keys.some(k => /content_mode_blocks\./.test(k))) probe.arch = 'flux3'
+        else if (/krea/.test(decl) || keys.some(k => /(^|\.)txtfusion\.|blocks[._]\d+[._]attn[._]gate/.test(k))) probe.arch = 'krea2'
         else if (/klein|flux[._-]?2/.test(decl)) probe.arch = 'flux2'
         else if (keys.some(k => /^diffusion_model\.layers\.\d+\.(attention|feed_forward)/.test(k))) probe.arch = 'zimage'
         else if (keys.some(k => k.startsWith('lora_unet_double_blocks'))) probe.arch = 'flux1'

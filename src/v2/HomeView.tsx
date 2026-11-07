@@ -4,10 +4,39 @@
    ============================================================ */
 import { useState } from 'react'
 import { t } from '../i18n'
-import { Pastille } from './bits'
+import { Ic, Pastille } from './bits'
+import { VERSION_HOWTO } from './HowItWorks'
 import { APERCUS, ApercuOutil, BANDEAU_CINEMA, BANDEAU_RESTORE, BANDEAU_REEL, BANDEAU_STAGE, pucesDe, type Apercu } from './Apercus'
 import type { Asset } from '../types'
 import { ChoixMedia, GROUPES, useOuvrirOutil, type ActionOutil, type Section } from './Navigation'
+
+/* sous-titre gris sous le titre de chaque famille d'outils */
+const SOUS: Record<string, string> = {
+  Image: 'Créer, retoucher, restaurer et mettre en scène une photo.',
+  'Vidéo': 'Animer une photo, réaliser un plan, modifier et finir un clip.',
+  Son: 'Musique, voix et bruitages calés sur l’image.',
+  Extensions: 'Modèles, LoRA et workflows en plus, installés sur ta machine.',
+}
+
+/* accès rapide : les outils qu'on ouvre le plus, en tuiles compactes à icône */
+const RAPIDES: [string, Parameters<typeof Ic>[0]['n']][] = [
+  ['Text to Image', 'image'], ['Image to Video', 'camera'], ['Dance', 'play'], ['One-click Reel', 'film'], ['Product Shot', 'tag'], ['Music Studio', 'sound'],
+]
+
+/* bloc vedette entre deux familles : média d'un côté, texte et bouton de l'autre */
+function Vedette({ surtitre, titre, texte, bouton, media, inverse, onOuvrir }: { surtitre: string; titre: string; texte: string; bouton: string; media: React.ReactNode; inverse?: boolean; onOuvrir: () => void }) {
+  return (
+    <section className={`home-vedette maille lueur ${inverse ? 'inverse' : ''}`}>
+      <button type="button" className="home-vedette-media" onClick={onOuvrir} aria-label={titre}>{media}</button>
+      <div className="home-vedette-texte">
+        <span className="dz-howto-surtitre">{surtitre}</span>
+        <h3>{titre}</h3>
+        <p>{texte}</p>
+        <button type="button" className="cta home-vedette-cta" onClick={onOuvrir}><span className="cta-libelle">{bouton}<Ic n="sparkle" s={15} /></span></button>
+      </div>
+    </section>
+  )
+}
 
 type Cible = 'reel' | 'presets' | 'parole' | 'montage' | 'image' | 'video' | 'assets' | 'stage' | 'reshoot' | 'cinema' | 'restaurer'
 
@@ -15,6 +44,8 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
   const { ouvrir, choix, fermerChoix } = useOuvrirOutil(aller)
   const [groupe, setGroupe] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
+  const [deplies, setDeplies] = useState<Set<string>>(new Set())
+  const PLI = 10
   const BANDEAUX: { cible: Cible; titre: string; texte: string; apercu: Apercu }[] = [
     { cible: 'cinema', titre: 'Movie Studio', texte: t('Boîtier, objectif, lumière, pellicule : une fiche de plan, et la scène se joue comme au cinéma.'), apercu: BANDEAU_CINEMA },
     { cible: 'stage', titre: t('Scène 3D'), texte: t('Place tes formes, pose ta caméra : le plan fini suit la mise en scène.'), apercu: BANDEAU_STAGE },
@@ -32,7 +63,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
         <div className="bandeaux">
           {BANDEAUX.map((b, i) => i === 0 ? (
             // l'outil vedette : nom, réglages et texte posés sur l'image, sur un dégradé noir
-            <button key={b.titre} onClick={() => go(b.cible)} className="bandeau bandeau-vedette">
+            <button key={b.titre} onClick={() => go(b.cible)} className="bandeau bandeau-vedette lueur">
               <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>
               <span className="vedette-texte">
                 <i>{t('À la une')}</i>
@@ -50,16 +81,32 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
             </button>
           ))}
         </div>
+        <div className="home-rapides">
+          {RAPIDES.map(([label, ic]) => {
+            const o = GROUPES.flatMap(g => g.outils).find(x => x.label === label)
+            return o && <button key={label} type="button" className="home-rapide" onClick={() => ouvrir(o)}>
+              <span className="home-rapide-ic"><Ic n={ic} s={17} /></span><b>{t(label)}</b><span>{t(o.texte)}</span>
+            </button>
+          })}
+        </div>
         <div className="flex gap-2 items-center flex-wrap">
           <input value={cherche} onChange={e => setCherche(e.target.value)} placeholder={t('Chercher un outil')} className="cherche-outil" />
           <button className={`wtab ${!groupe ? 'on' : ''}`} onClick={() => setGroupe(null)}>{t('Tout')}</button>
           {GROUPES.map(g => <button key={g.titre} className={`wtab ${groupe === g.titre ? 'on' : ''}`} onClick={() => setGroupe(g.titre)}>{t(g.titre)}</button>)}
         </div>
-        {groupes.map(g => (
-          <div key={g.titre} style={{ display: 'grid', gap: 12 }}>
-            <b style={{ fontSize: 20, fontWeight: 800 }}>{t(g.titre)}</b>
+        {groupes.map((g, gi) => (
+          <div key={g.titre} style={{ display: 'grid', gap: 28 }}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div className="section-tete">
+              <h3>{t(g.titre)}</h3>
+              {SOUS[g.titre] && <p>{t(SOUS[g.titre])}</p>}
+            </div>
+            {(() => {
+              // deux rangées, puis un fondu et « Voir tout » (sauf recherche ou famille filtrée)
+              const plie = !mot && !groupe && g.outils.length > PLI && !deplies.has(g.titre)
+              return <div className={`section-grille ${plie ? 'pliee' : ''}`}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>
-              {g.outils.map(o => (
+              {(plie ? g.outils.slice(0, PLI) : g.outils).map(o => (
                 <button key={o.label} onClick={() => ouvrir(o)} className="carte-outil">
                   <span className="carte-image"><ApercuOutil apercu={APERCUS[o.label]} />{o.pastille && <i><Pastille k={o.pastille} /></i>}</span>
                   <b>{t(o.label)}</b>
@@ -68,8 +115,37 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
                 </button>
               ))}
             </div>
+            {plie && <div className="voir-tout-fondu"><button type="button" className="voir-tout" onClick={() => setDeplies(d => new Set(d).add(g.titre))}>
+              {t('Voir les {n} outils', { n: g.outils.length })}<Ic n="chevron" s={13} /></button></div>}
+              </div>
+            })()}
+          </div>
+          {!mot && !groupe && gi === 0 && <Vedette surtitre="Movie Studio" titre={t('Une fiche de plan. Une séquence.')} bouton={t('Ouvrir Movie Studio')}
+            texte={t('Trois plans fixes, un clip entre deux images, un préquel devant, un séquel derrière : une séquence de film d’un seul tenant, avec ton personnage.')}
+            media={<video src={`/danses/howto/cinema-hero.mp4?v=${VERSION_HOWTO}`} poster={`/danses/howto/cinema-hero.jpg?v=${VERSION_HOWTO}`} muted loop playsInline autoPlay preload="none" />}
+            onOuvrir={() => go('cinema')} />}
+          {!mot && !groupe && gi === 1 && (() => {
+            const o = GROUPES.flatMap(x => x.outils).find(x => x.label === 'Dance')
+            return o && <Vedette inverse surtitre="Dance" titre={t('Ton personnage danse')} bouton={t('Choisir une danse')}
+              texte={t('Une photo, une danse du catalogue, un studio : le mouvement est repris geste pour geste, le visage et la tenue restent les siens.')}
+              media={<video src="/danses/hero-montage.mp4?v=20261106" poster="/danses/hero-montage.jpg?v=20261106" muted loop playsInline autoPlay preload="none" />} onOuvrir={() => ouvrir(o)} />
+          })()}
           </div>
         ))}
+        {!mot && !groupe && <section className="home-nuage">
+          <h3>{t('Tous les outils')}</h3>
+          <div>{GROUPES.flatMap(g => g.outils).filter((o, i, l) => l.findIndex(x => x.label === o.label) === i).map(o => (
+            <button key={o.label} type="button" onClick={() => ouvrir(o)}>{t(o.label)}</button>
+          ))}</div>
+        </section>}
+        {!mot && !groupe && <footer className="home-pied">
+          <div className="home-pied-marque"><b>CreatorOS</b><span>{t('Un studio photo, vidéo, danse, musique et voix, sur un seul GPU, chez toi.')}</span>
+            <a href="https://github.com/thePloggy/CreatorOS-Studio" target="_blank" rel="noopener noreferrer"><Ic n="link" s={14} />{t('Installer depuis GitHub')}</a></div>
+          {GROUPES.map(g => (
+            <div key={g.titre} className="home-pied-col"><span>{t(g.titre)}</span>
+              {g.outils.slice(0, 8).map(o => <button key={o.label} type="button" onClick={() => ouvrir(o)}>{t(o.label)}</button>)}</div>
+          ))}
+        </footer>}
         <ChoixMedia choix={choix} onClose={fermerChoix} onPick={onPick} />
       </div>
     </div>

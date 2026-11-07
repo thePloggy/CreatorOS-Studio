@@ -261,7 +261,7 @@ const personaPublique = (id) => {
   const p = persona(id)
   const actif = id === undefined || id === personas().active
   return { id: p.id, name: p.name || null, trigger: p.trigger, description: p.description,
-    preamble: p.preamble, loras: p.loras, lorasKlein: p.lorasKlein, videoLoras: p.videoLoras, credit: p.credit, garderobe: p.garderobe, voix: p.voix ?? null, figes: actif ? champsFiges() : [],
+    preamble: p.preamble, loras: p.loras, lorasKlein: p.lorasKlein, lorasFlux3: p.lorasFlux3 ?? [], videoLoras: p.videoLoras, credit: p.credit, garderobe: p.garderobe, voix: p.voix ?? null, figes: actif ? champsFiges() : [],
     active: actif, avatar: avatarMeta(p.id).url,
     configured: Boolean(p.name || p.trigger || p.loras.length) }
 }
@@ -2147,9 +2147,9 @@ app.post('/api/personas/:id/entrainer', async (req, reply) => {
   const ids = Array.isArray(req.body?.assets) ? req.body.assets.slice(0, 30) : []
   const images = ids.map(i => store.getAsset(String(i))).filter(a => a && a.media_type === 'photo').map(a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))).filter(f => fs.existsSync(f))
   // un ou plusieurs moteurs : un entraînement par moteur, à la suite dans la file
-  const moteurs = (Array.isArray(req.body?.moteurs) ? req.body.moteurs : [req.body?.moteur ?? 'klein']).map(String).filter((m, i, l) => l.indexOf(m) === i).slice(0, 2)
+  const moteurs = (Array.isArray(req.body?.moteurs) ? req.body.moteurs : [req.body?.moteur ?? 'klein']).map(String).filter((m, i, l) => l.indexOf(m) === i).slice(0, 3)
   try {
-    const jobIds = moteurs.map(moteur => enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true, moteur }).id)
+    const jobIds = moteurs.map(moteur => enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true, moteur, legendes: Array.isArray(req.body?.legendes) ? req.body.legendes : null }).id)
     return { jobId: jobIds[0], jobIds }
   }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }

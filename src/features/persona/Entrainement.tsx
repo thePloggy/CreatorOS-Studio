@@ -1,4 +1,4 @@
-/* Entraîner le personnage : une LoRA par moteur coché (FLUX.2 Klein, Krea 2), apprise sur ses images de la bibliothèque.
+/* Entraîner le personnage : une LoRA par moteur coché (FLUX.2 Klein, Krea 2, FLUX 3 Klein), apprise sur ses images de la bibliothèque.
    Réservé au propriétaire du studio ; le GPU y est occupé une demi-heure environ par moteur. */
 import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../../i18n'
@@ -101,7 +101,7 @@ export function Entrainement() {
               <li>{t('on décrit une adulte et on choisit un visage parmi quatre ;')}</li>
               <li>{t('le studio dessine sa planche de référence (face, profil, dos) ;')}</li>
               <li>{t('puis douze photos d’elle, dans des lieux et des lumières différents ;')}</li>
-              <li>{t('une LoRA d’identité est entraînée sur FLUX.2 Klein et/ou Krea 2, environ une demi-heure par moteur.')}</li>
+              <li>{t('une LoRA d’identité est entraînée sur chaque moteur coché (FLUX.2 Klein, Krea 2, FLUX 3 Klein), environ une demi-heure par moteur.')}</li>
             </ol>
             <span className="texte-doux">{t('L’entraînement occupe la carte graphique du studio longtemps : il est réservé au propriétaire. Chez toi, c’est un clic. Les personnages ci-dessus sont prêts : choisis-en un, puis va dans Image ou Video.')}</span>
           </div>

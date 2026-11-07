@@ -2,24 +2,28 @@
    @ dans le prompt : taper « @jes » propose les personnages et les
    éléments (tenues, lieux, poses, styles). Un personnage devient le personnage
    actif et le mot disparaît ; un élément est remplacé par son texte.
+   / en début de mot : les commandes de la page (préréglages, Enhancer, Éléments…).
    ============================================================ */
 import { useEffect, useMemo, useState, type KeyboardEvent, type RefObject } from 'react'
 import { EL_GROUPS } from './popups'
 import { t } from '../i18n'
 
-interface Choix { id: string; label: string; groupe: string; texte: string | null; persona?: string }
+interface Choix { id: string; label: string; groupe: string; texte: string | null; persona?: string; action?: () => void; aide?: string }
+export interface Commande { id: string; label: string; aide?: string; texte?: string; action?: () => void; groupe?: string }
 
 /** Le mot en @ que l'on est en train de taper, juste avant le curseur. */
 function motEnCours(valeur: string, curseur: number) {
-  const m = /(^|\s)@([\p{L}\p{N}_-]*)$/u.exec(valeur.slice(0, curseur))
-  return m ? { debut: curseur - m[2].length - 1, q: m[2].toLowerCase() } : null
+  const m = /(^|\s)([@/])([\p{L}\p{N}_-]*)$/u.exec(valeur.slice(0, curseur))
+  return m ? { debut: curseur - m[3].length - 1, q: m[3].toLowerCase(), signe: m[2] as '@' | '/' } : null
 }
 
-export function useMentions({ champ, valeur, surChange, surPersona }: {
+export function useMentions({ champ, valeur, surChange, surPersona, commandes = [] }: {
   champ: RefObject<HTMLTextAreaElement | null>; valeur: string
   surChange: (v: string) => void; surPersona: (id: string) => Promise<void>
+  /** commandes proposées après « / » */
+  commandes?: Commande[]
 }) {
-  const [mot, setMot] = useState<{ debut: number; q: string } | null>(null)
+  const [mot, setMot] = useState<{ debut: number; q: string; signe: '@' | '/' } | null>(null)
   const [i, setI] = useState(0)
   const [persos, setPersos] = useState<Choix[]>([])
   useEffect(() => {
@@ -28,12 +32,14 @@ export function useMentions({ champ, valeur, surChange, surPersona }: {
         id: `p-${p.id}`, label: p.name || p.id, groupe: 'Personnage', texte: null, persona: p.id }))))
       .catch(() => { /* la liste reste vide : les éléments restent proposés */ })
   }, [])
-  const liste = useMemo(() => {
+  const liste = useMemo((): Choix[] => {
     if (!mot) return []
+    if (mot.signe === '/') return commandes.filter(c => `${c.label} ${c.aide ?? ''}`.toLowerCase().includes(mot.q)).slice(0, 8)
+      .map(c => ({ id: `c-${c.id}`, label: c.label, groupe: c.groupe ?? (c.action ? 'Action' : 'Préréglage'), texte: c.texte ?? null, action: c.action, aide: c.aide }))
     const elems = EL_GROUPS.flatMap(g => g.items().filter(x => x.prompt).map(x => ({
       id: `${g.key}-${x.id}`, label: x.label, groupe: g.label as string, texte: x.prompt })))
     return [...persos, ...elems].filter(c => c.label.toLowerCase().includes(mot.q)).slice(0, 8)
-  }, [mot, persos])
+  }, [mot, persos, commandes])
   useEffect(() => { setI(0) }, [mot?.q])
 
   const lire = () => { const c = champ.current; setMot(c ? motEnCours(c.value, c.selectionStart) : null) }
@@ -43,6 +49,7 @@ export function useMentions({ champ, valeur, surChange, surPersona }: {
     surChange(`${valeur.slice(0, mot.debut)}${c.texte ?? ''}${valeur.slice(fin)}`.replace(/\s{2,}/g, ' '))
     setMot(null)
     if (c.persona) void surPersona(c.persona)
+    c.action?.()
   }
   /** Rend true quand la touche a servi à la liste. */
   const touche = (e: KeyboardEvent) => {
@@ -54,13 +61,16 @@ export function useMentions({ champ, valeur, surChange, surPersona }: {
     return false
   }
   const panneau = liste.length > 0 && (
-    <div className="flex flex-col mt-1" style={{ background: 'var(--panel, #15161a)', border: '1px solid var(--line, #2a2d35)', borderRadius: 10, overflow: 'hidden' }}>
+    <div className="mentions-menu" role="listbox" aria-label={mot?.signe === '/' ? t('Commandes') : t('Personnages et éléments')}>
       {liste.map((c, n) => (
-        <button key={c.id} type="button" className="text-left text-[12px]" onMouseDown={e => { e.preventDefault(); choisir(c) }}
-          style={{ padding: '6px 10px', background: n === i ? 'rgba(242,77,138,.16)' : 'transparent', color: 'var(--text)' }}>
-          {c.label} <small style={{ color: 'var(--faint)' }}>{t(c.groupe)}</small>
+        <button key={c.id} type="button" role="option" aria-selected={n === i} className={n === i ? 'on' : ''}
+          onMouseDown={e => { e.preventDefault(); choisir(c) }} onMouseEnter={() => setI(n)}>
+          <span className="mentions-signe">{mot?.signe}</span>
+          <span className="mentions-nom">{c.label}{c.aide && <small>{c.aide}</small>}</span>
+          <em>{t(c.groupe)}</em>
         </button>
       ))}
+      <div className="mentions-aide">{t('↑ ↓ pour choisir · Entrée pour valider · Échap pour fermer')}</div>
     </div>
   )
   return { lire, touche, panneau }

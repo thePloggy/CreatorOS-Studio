@@ -114,21 +114,24 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
             réécriture surprend, la première question est de savoir si l'image
             a été bien lue — ça ne se corrige pas au même endroit qu'une
             consigne mal suivie. */}
-        {tenue && (
-          <div className="pres">
-            <span className="tag">{t('tenue verrouillée')}</span>
-            {tenue.text ?? t('aucun vêtement détecté dans la still — rien n\'a été inséré')}
-          </div>
+        {/* trace de la réécriture : les étapes défilent pendant le travail, puis se replient en une ligne */}
+        {busy && (
+          <ol className="trace-etapes" aria-live="polite">
+            {(anchorFile || anchorUri) && <li className={elapsed * 1000 < readRolling('v2_compose_ms', 30000) * 0.4 ? 'en-cours' : 'faite'}>
+              <span className={elapsed * 1000 < readRolling('v2_compose_ms', 30000) * 0.4 ? 'scintille' : ''}>{t('Lecture de l’image par le VLM')}</span></li>}
+            {(!(anchorFile || anchorUri) || elapsed * 1000 >= readRolling('v2_compose_ms', 30000) * 0.4) && <li className="en-cours"><span className="scintille">{t('Réécriture du brief par le LLM local')}</span></li>}
+          </ol>
         )}
-        {seen && (
-          <details className="pres">
-            <summary className="tag" style={{ cursor: 'pointer' }}>{t('ce que le VLM a vu dans la still')}</summary>
-            <div style={{ marginTop: 6, opacity: 0.85 }}>{seen}</div>
+        {result && (seen || tenue) && (
+          <details className="trace-pli">
+            <summary><Ic n="chevron" s={12} />{t('Réécrit en {meta}', { meta })}</summary>
+            {tenue && <div className="trace-bloc"><b>{t('tenue verrouillée')}</b>{tenue.text ?? t('aucun vêtement détecté dans la still — rien n\'a été inséré')}</div>}
+            {seen && <div className="trace-bloc"><b>{t('ce que le VLM a vu dans la still')}</b>{seen}</div>}
           </details>
         )}
         {result && (
           <div className="pres">
-            <span className="tag">{t('résultat — {meta}', { meta })}</span>
+            <span className="tag">{(seen || tenue) ? t('prompt réécrit') : t('résultat — {meta}', { meta })}</span>
             {result}
           </div>
         )}

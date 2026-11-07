@@ -44,6 +44,7 @@ interface AppState {
   personaKlein: boolean
   /** le personnage a une LoRA Krea : sans elle, Krea ne tient pas son visage */
   personaKrea: boolean
+  personaFlux3: boolean
   /** Le personnage actif a-t-il une LoRA vidéo ? Le texte → vidéo peut alors le montrer. */
   personaVideo: boolean
   /** La LoRA vidéo du personnage est une LoRA Wan (texte → vidéo sur Wan T2V). */
@@ -503,6 +504,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     personaId: null,
     personaKlein: false,
     personaKrea: true,
+    personaFlux3: false,
     personaVideo: false,
     personaVideoWan: false,
     personaCredit: null,
@@ -732,13 +734,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     refreshPersona: async () => {
       try {
         const choisi = personnageChoisi()
-        const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]; loras?: unknown[]
+        const p = await (await fetch(`/api/persona${choisi ? `?id=${encodeURIComponent(choisi)}` : ''}`)).json() as { id?: string; name?: string | null; avatar?: string | null; lorasKlein?: unknown[]; lorasFlux3?: unknown[]; loras?: unknown[]
           videoLoras?: unknown[]; credit?: PersonaCredit | null; garderobe?: Garderobe; voix?: string | null }
         set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE, personaVoix: p.voix ?? null })
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
         // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
-        set({ personaKlein: klein, personaKrea: Boolean(p.loras?.length) || p.id === SANS_PERSONNAGE })
+        set({ personaKlein: klein, personaKrea: Boolean(p.loras?.length) || p.id === SANS_PERSONNAGE, personaFlux3: Boolean(p.lorasFlux3?.length) })
         set({ personaName: p.id === SANS_PERSONNAGE ? t('Sans personnage') : p.name?.trim() || t('Personnage'), personaAvatar: p.id === SANS_PERSONNAGE ? null : p.avatar ?? null, personaId: p.id ?? null })
         if (change) set({ assets: await fetchAssets() })
       } catch { /* hors ligne : on garde l'affichage */ }

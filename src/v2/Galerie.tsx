@@ -132,6 +132,16 @@ export function Aucun({ texte, onEffacer }: { texte: string; onEffacer: () => vo
 
 /* Barre de la galerie : onglets (avec compteurs), recherche, puces de filtre. */
 export type OngletGalerie<K extends string> = { cle: K; label: string; n?: number; enCours?: number }
+/* une icône par onglet, devinée de sa clé : la galerie de l'outil, la bibliothèque, les rendus */
+function iconeOnglet(cle: string): Parameters<typeof Ic>[0]['n'] {
+  if (cle === 'rendus') return 'folder'
+  if (cle === 'biblio') return 'image'
+  if (/effet/.test(cle)) return 'sparkle'
+  if (/danse|mouvement|move/.test(cle)) return 'play'
+  if (/camera/.test(cle)) return 'camera'
+  return 'grid'
+}
+
 export function BarreGalerie<K extends string>({ onglets, onglet, onOnglet, recherche, onRecherche, placeholder, puces, filtre, onFiltre }: {
   onglets: OngletGalerie<K>[]; onglet: K; onOnglet: (k: K) => void
   recherche?: string; onRecherche?: (v: string) => void; placeholder?: string
@@ -142,7 +152,7 @@ export function BarreGalerie<K extends string>({ onglets, onglet, onOnglet, rech
       <div className="dz-onglets" role="tablist" aria-label={t('Galerie')}>
         {onglets.map(o => (
           <button key={o.cle} type="button" role="tab" aria-selected={onglet === o.cle} className={onglet === o.cle ? 'on' : ''} onClick={() => onOnglet(o.cle)}>
-            {o.label}{!!o.n && <small>{o.n}</small>}{!!o.enCours && <i className="dz-point" aria-label={t('{n} en cours', { n: o.enCours })} />}
+            <Ic n={iconeOnglet(String(o.cle))} s={14} />{o.label}{!!o.n && <small>{o.n}</small>}{!!o.enCours && <i className="dz-point" aria-label={t('{n} en cours', { n: o.enCours })} />}
           </button>
         ))}
       </div>
@@ -249,10 +259,12 @@ export function ActionPanneau({ id, nbEnCours, onVoirRendus, options, onOptions,
         </button>
       )}
       <div className="dz-action-ligne">
+        {onVoirRendus && <button type="button" className="dz-carre" onClick={onVoirRendus} title={t('Voir les rendus')} aria-label={t('Voir les rendus')}>
+          <Ic n="folder" s={18} />{nbEnCours > 0 && <i>{nbEnCours}</i>}</button>}
         {avecOptions && <button type="button" className="dz-options-bouton" aria-expanded={options} aria-controls={`${id}-options`} aria-label={t('Options')} title={t('Options')}
           onClick={onOptions}><Ic n="dots" s={16} /></button>}
         <button type="button" className="cta" disabled={!pret} onClick={onLancer} aria-describedby={manque ? `${id}-manque` : undefined}>
-          {label} {detail && <small>{detail}</small>}
+          <span className="cta-libelle">{label}<Ic n="sparkle" s={15} /></span> {detail && <small>{detail}</small>}
         </button>
       </div>
       {msg ? <span className="texte-erreur" role="alert">{msg}</span>

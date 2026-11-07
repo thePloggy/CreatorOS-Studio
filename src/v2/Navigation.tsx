@@ -186,13 +186,12 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
     <div ref={racine} className="flex gap-0.5 items-center" style={{ position: 'relative' }} onMouseLeave={() => setOuvert(null)}>
       {MENUS.map(m => (
         <div key={m.titre} onMouseEnter={() => setOuvert(m.titre)}>
-          <button aria-expanded={ouvert === m.titre} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]" onClick={() => {
+          <button aria-expanded={ouvert === m.titre} className={`nav-lien ${ouvert === m.titre ? 'ouvert' : ''} ${actif(m) ? 'actif' : ''}`} onClick={() => {
               // un clic sur la famille ouvre son outil principal (le survol montre le menu)
               const o = m.defaut ? outils(m).find(x => x.label === m.defaut) : null
               setOuvert(null)
               if (o) ouvrir(o)
-            }}
-            style={{ background: ouvert === m.titre || actif(m) ? 'var(--lv3)' : 'transparent', color: ouvert === m.titre || actif(m) ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            }}>
             {t(m.titre)}
           </button>
           {ouvert === m.titre && (

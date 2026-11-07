@@ -7,8 +7,12 @@ import os from 'node:os'
 import { spawn } from 'node:child_process'
 import { CONFIG } from './config.js'
 
-export const dossierAiToolkit = () => process.env.CREATOROS_AI_TOOLKIT || path.join(os.homedir(), 'ai-toolkit')
-export const aiToolkitPret = () => fs.existsSync(path.join(dossierAiToolkit(), 'run.py'))
+/* Un ai-toolkit par moteur : FLUX 3 demande une version récente (arch flux3), installée à part pour ne
+   pas toucher celle qui entraîne Klein et Krea. */
+export const dossierAiToolkit = (moteur) => moteur === 'flux3'
+  ? (process.env.CREATOROS_AI_TOOLKIT_FLUX3 || path.join(os.homedir(), 'ai-toolkit-flux3'))
+  : (process.env.CREATOROS_AI_TOOLKIT || path.join(os.homedir(), 'ai-toolkit'))
+export const aiToolkitPret = (moteur) => fs.existsSync(path.join(dossierAiToolkit(moteur), 'run.py'))
 /* Poids bruts de Krea 2 (l'entraînement ne se fait pas sur la version turbo) : variable
    CREATOROS_KREA2_RAW, sinon les dossiers de modèles de ComfyUI (extra_model_paths.yaml compris). */
 function poidsKrea2() {
@@ -24,14 +28,17 @@ function poidsKrea2() {
 export const MOTEURS_ENTRAINEMENT = {
   klein: { nom: 'FLUX.2 Klein', secParPas: 1.5, preparationS: 180, modele: () => ({ arch: 'flux2_klein_9b', chemin: 'black-forest-labs/FLUX.2-klein-base-9B' }) },
   krea: { nom: 'Krea 2', secParPas: 2.7, preparationS: 240, modele: () => { const f = poidsKrea2(); return f ? { arch: 'krea2', chemin: f } : null } },
+  /* FLUX 3 Image Klein : appris sur Klein Base (licence FLUX Kommunity acceptée sur Hugging Face), appliqué
+     au modèle distillé du studio. 5,6 milliards de paramètres : il tient en bf16, sans quantification. */
+  flux3: { nom: 'FLUX 3 Klein', secParPas: 2, preparationS: 300, modele: () => ({ arch: 'flux3', chemin: 'black-forest-labs/flux-3-image-klein-base', sansQuantif: true }) },
 }
-export const moteurEntrainementPret = m => !!MOTEURS_ENTRAINEMENT[m] && aiToolkitPret() && !!MOTEURS_ENTRAINEMENT[m].modele()
+export const moteurEntrainementPret = m => !!MOTEURS_ENTRAINEMENT[m] && aiToolkitPret(m) && !!MOTEURS_ENTRAINEMENT[m].modele()
 export const dureeEstimeeMs = (moteur, pas) => { const m = MOTEURS_ENTRAINEMENT[moteur] ?? MOTEURS_ENTRAINEMENT.klein; return Math.round((pas * m.secParPas + m.preparationS) * 1000) }
 
-const pythonAiToolkit = () => [path.join(dossierAiToolkit(), 'venv', 'bin', 'python'), path.join(dossierAiToolkit(), '.venv', 'bin', 'python')].find(f => fs.existsSync(f)) ?? 'python3'
+const pythonAiToolkit = (moteur) => [path.join(dossierAiToolkit(moteur), 'venv', 'bin', 'python'), path.join(dossierAiToolkit(moteur), '.venv', 'bin', 'python')].find(f => fs.existsSync(f)) ?? 'python3'
 
 /** Prépare le jeu d'images et la configuration ; renvoie le chemin du yaml. */
-export function preparerEntrainement({ id, images, declencheur, pas, moteur = 'klein' }) {
+export function preparerEntrainement({ id, images, declencheur, pas, moteur = 'klein', legendes = null }) {
   const modele = MOTEURS_ENTRAINEMENT[moteur]?.modele()
   if (!modele) throw new Error(`entraînement ${moteur} indisponible sur ce studio`)
   const racine = path.join(CONFIG.dataDir, 'entrainements', id)
@@ -40,7 +47,9 @@ export function preparerEntrainement({ id, images, declencheur, pas, moteur = 'k
   images.forEach((f, i) => {
     const ext = path.extname(f) || '.png'
     fs.copyFileSync(f, path.join(ds, `${String(i).padStart(3, '0')}${ext}`))
-    fs.writeFileSync(path.join(ds, `${String(i).padStart(3, '0')}.txt`), `${declencheur}, photo of ${declencheur}`)
+    // légende détaillée si fournie (le modèle sépare alors le visage du cadrage, de la tenue et de la lumière)
+    const l = Array.isArray(legendes) && typeof legendes[i] === 'string' && legendes[i].trim() ? legendes[i].trim().slice(0, 600) : null
+    fs.writeFileSync(path.join(ds, `${String(i).padStart(3, '0')}.txt`), l ? (l.toLowerCase().includes(declencheur) ? l : `${declencheur}, ${l}`) : `${declencheur}, photo of ${declencheur}`)
   })
   const yaml = `job: extension
 config:
@@ -73,13 +82,13 @@ config:
       model:
         arch: ${modele.arch}
         name_or_path: "${modele.chemin}"
-        quantize: true
+        quantize: ${modele.sansQuantif ? 'false' : 'true'}
         quantize_te: true
-        qtype: qfloat8
+        ${modele.sansQuantif ? 'qtype_te: qfloat8' : 'qtype: qfloat8'}
 `
   const f = path.join(racine, 'config.yaml')
   fs.writeFileSync(f, yaml)
-  return { config: f, sortie: path.join(racine, 'sortie', id) }
+  return { config: f, sortie: path.join(racine, 'sortie', id), moteur }
 }
 
 /** Lance ai-toolkit ; `progres(n, total)` suit les pas. Résout avec le chemin de la LoRA. */
@@ -91,9 +100,9 @@ export function arreterEntrainement(id) {
   try { process.kill(-p.pid, 'SIGTERM') } catch { try { p.kill('SIGTERM') } catch { /* déjà fini */ } }
   return true
 }
-export function entrainer({ id, config, sortie, pas }, progres) {
+export function entrainer({ id, config, sortie, pas, moteur }, progres) {
   return new Promise((ok, ko) => {
-    const p = spawn(pythonAiToolkit(), ['run.py', config], { cwd: dossierAiToolkit(), env: { ...process.env, PYTHONUNBUFFERED: '1' }, detached: true })
+    const p = spawn(pythonAiToolkit(moteur), ['run.py', config], { cwd: dossierAiToolkit(moteur), env: { ...process.env, PYTHONUNBUFFERED: '1' }, detached: true })
     if (id) processus.set(id, p)
     let reste = ''
     const lire = b => {

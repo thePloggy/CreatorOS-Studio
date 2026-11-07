@@ -8,18 +8,68 @@
    lumières. Les prises sont des rendus photo ordinaires : elles arrivent
    dans la bibliothèque et s'animent comme les autres.
    ============================================================ */
-import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
 import { useAppStore } from '../store/useAppStore'
-import { JobCard, PHOTO_SIZES } from './bits'
+import { Ic, JobCard, PHOTO_SIZES } from './bits'
+import { FramePicker } from './popups'
 import { t } from '../i18n'
 import { ChoixPersonnage } from './ChoixPersonnage'
+import { HowItWorks, VERSION_HOWTO, howto, type SegmentFrise } from './HowItWorks'
+import { useRef } from 'react'
 import {
   BALAYAGE, BOITIERS, DEPARTS, ETALONNAGES, FICHE_DEFAUT, FOCALES, LOOKS, LUMIERES, OPTIQUES, OUVERTURES, PELLICULES, PLANS,
   composerFiche, couleursDominantes, type Fiche, type Opt,
 } from '../data/cinema'
+
+/* Séquences phares de l'en-tête : une par thème, la première d'entre elles par défaut.
+   Chaque séquence est une vraie chaîne du studio : trois plans fixes, un clip, un préquel, un séquel. */
+const v = (f: string) => `/danses/howto/${f}?v=${VERSION_HOWTO}`
+const SEQUENCES: { id: string; label: string; video: string; affiche: string }[] = [
+  { id: 'superheros', label: 'Super-héros', video: v('cinema-hero.mp4'), affiche: v('cinema-hero.jpg') },
+]
+/* frises des étapes : durées réelles des morceaux de la séquence super-héros (s) */
+const FRISES_CINE: (SegmentFrise[] | undefined)[] = [
+  undefined,
+  [{ label: 'Clip Wan', duree: 3.04, neuf: true, debut: 'Image 2', fin: 'Image 3' }],
+  [{ label: 'Préquel', duree: 3.04, neuf: true, debut: 'Image 1', fin: '1re image du clip' }, { label: 'Clip', duree: 3.04 }],
+  [{ label: 'Préquel', duree: 3.04 }, { label: 'Clip', duree: 3.04 }, { label: 'Séquel', duree: 5.04, neuf: true, debut: 'Dernière image' }],
+]
+const ETAPES_CINE: [string, string][] = [
+  ['Trois plans fixes', 'La fiche de plan rend les images clés de la séquence : même héroïne, même lumière, même étalonnage.'],
+  ['Un clip entre deux images', 'Wan part de la 2e image et arrive pile sur la 3e : elle se déroule et plonge vers l’avenue.'],
+  ['Le préquel', 'Il part de la 1re image et arrive sur le début du clip : il se place devant, sans couture.'],
+  ['Le séquel', 'Il repart de la dernière image : 11 s d’un seul tenant, son compris.'],
+]
+
+/* En-tête : la moitié de l'écran, les séquences phares en fondu, un sélecteur de thème. */
+function EnTeteCinema({ onCommencer, onComment }: { onCommencer: () => void; onComment: () => void }) {
+  const [i, setI] = useState(0)
+  const reduit = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  return (
+    <section className="cine-entete" aria-label="Movie Studio">
+      {SEQUENCES.map((q, k) => (
+        reduit ? <img key={q.id} src={q.affiche} alt="" className={k === i ? 'on' : ''} />
+          : <video key={q.id} src={k === i ? q.video : undefined} poster={q.affiche} muted loop playsInline autoPlay className={k === i ? 'on' : ''}
+            onEnded={() => setI(n => (n + 1) % SEQUENCES.length)} />
+      ))}
+      <div className="cine-entete-texte">
+        <span className="dz-howto-surtitre">{t('Movie Studio')}</span>
+        <h1>{t('Une fiche de plan. Une séquence.')}</h1>
+        <p>{t('Boîtier, optique, lumière, pellicule : tu règles le plan comme sur un tournage, puis la scène se prolonge en préquel et en séquel.')}</p>
+        <span className="puces-sous">{['35 mm', 'f/2.8', t('Clair-obscur'), t('Pellicule 500T')].map(x => <em key={x}>{x}</em>)}</span>
+        <div className="dz-howto-boutons">
+          <button type="button" className="dz-howto-cta" onClick={onCommencer}>{t('Commencer')}<Ic n="chevron" s={14} /></button>
+          <button type="button" className="dz-howto-cta2" onClick={onComment}><Ic n="help" s={14} />{t('Comment ça marche')}</button>
+        </div>
+      </div>
+      {SEQUENCES.length > 1 && <div className="cine-entete-themes" role="tablist" aria-label={t('Séquences')}>
+        {SEQUENCES.map((q, k) => <button key={q.id} type="button" role="tab" aria-selected={k === i} className={k === i ? 'on' : ''} onClick={() => setI(k)}>{t(q.label)}</button>)}
+      </div>}
+    </section>
+  )
+}
 
 const CLE_FICHE = 'creatoros.cinema.fiche'
 const CLE_PRISES = 'creatoros.cinema.prises'
@@ -28,6 +78,9 @@ const ecrireJSON = (k: string, v: unknown) => { try { localStorage.setItem(k, JS
 const FORMATS = ['9:16', '2:3', '1:1', '3:2', '16:9']
 
 export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
+  const ficheRef = useRef<HTMLDivElement>(null)
+  const [comment, setComment] = useState(false)
+  const reduitCine = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   const s = useAppStore()
   const [f, setF] = useState<Fiche>(() => ({ ...FICHE_DEFAUT, ...lireJSON<Partial<Fiche>>(CLE_FICHE, {}) }))
   const [ligne, setLigne] = useState<string | null>(null)
@@ -95,7 +148,19 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto vue-page" style={{ padding: '22px 28px' }}>
-      <div className="cine" style={{ maxWidth: 1240, margin: '0 auto' }}>
+      {comment ? (
+        <div className="cine-entete cine-entete-comment maille">
+          <button type="button" className="cine-retour" onClick={() => setComment(false)}><Ic n="x" s={14} />{t('Fermer')}</button>
+          <HowItWorks etapesSeules cleMemoire="hiw:cinema-jamais" reduit={reduitCine} labelHero={t('Séquence super-héros')}
+            titre={t('De la première image à la séquence')} texte={t('Une fiche de plan rend les images clés ; Wan les relie, le préquel se place devant, le séquel continue la scène. Voici la chaîne de la séquence super-héros, étape par étape.')}
+            hero={{ ...howto('cinema').hero, video: v('cinema-hero.mp4'), affiche: v('cinema-hero.jpg') }}
+            etapes={ETAPES_CINE.map(([ti, te], k) => ({ titre: t(ti), texte: t(te), ...howto('cinema').etape(k + 1), frise: FRISES_CINE[k]?.map(x => ({ ...x, label: t(x.label), debut: x.debut && t(x.debut), fin: x.fin && t(x.fin) })) }))}
+            onCommencer={() => { setComment(false); ficheRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} />
+        </div>
+      ) : (
+        <EnTeteCinema onCommencer={() => ficheRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} onComment={() => setComment(true)} />
+      )}
+      <div ref={ficheRef} className="cine" style={{ maxWidth: 1240, margin: '0 auto', scrollMarginTop: 16 }}>
         <div>
           <h2 className="titre-outil">{t('Studio ciné')}</h2>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t('Règle le plan comme sur un tournage — caméra, optique, lumière, pellicule, étalonnage. {nom} joue la scène.', { nom: s.personaName })}</div>
@@ -174,20 +239,10 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
           </div>
         </div>
       </div>
-      {choixPalette && (
-        <div className="pop" onClick={() => setChoixPalette(false)}>
-          <div className="pbox" style={{ width: 'min(860px,94%)' }} onClick={e => e.stopPropagation()}>
-            <h3>{t('Palette depuis une photo')} <button className="x" onClick={() => setChoixPalette(false)}>✕</button></h3>
-            <div className="pkgrid" style={{ maxHeight: 420 }}>
-              {s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected').slice(0, 120).map(a => (
-                <button key={a.id} className="pk" aria-label={nomMedia(a)} onClick={() => { void couleursDominantes(a.uri).then(p => maj({ palette: p })); setChoixPalette(false) }}>
-                  <img src={a.uri} alt="" loading="lazy" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* toutes les photos de la bibliothèque, et les photos importées */}
+      <FramePicker open={choixPalette} onClose={() => setChoixPalette(false)} assets={s.assets} title={t('Palette depuis une photo')}
+        onPickAsset={a => { void couleursDominantes(a.uri).then(p => maj({ palette: p })) }}
+        onPickUpload={n => { void couleursDominantes(`/api/uploads/${encodeURIComponent(n)}`).then(p => maj({ palette: p })) }} />
     </div>
   )
 }

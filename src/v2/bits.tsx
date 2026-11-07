@@ -34,6 +34,14 @@ const IC: Record<string, React.ReactNode> = {
   play: <path d="M7 4.5l12 7.5-12 7.5V4.5z" />,
   upload: <><path d="M12 15V4" /><path d="M7 9l5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>,
+  loop: <><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>,
+  brush: <><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08" /><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z" /></>,
+  sparkle: <path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" />,
+  film: <><rect x="2" y="2" width="20" height="20" rx="2.2" /><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5" /></>,
+  texte: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></>,
+  debut: <><path d="M5 4v16" /><path d="M9 6l10 6-10 6z" /></>,
+  fin: <><path d="M19 4v16" /><path d="M5 6l10 6-10 6z" /></>,
   extend: <><path d="M4 5v14" /><path d="M9 12h11" /><path d="M16 8l4 4-4 4" /></>,
   upscale: <><rect x="4" y="10" width="10" height="10" rx="2" /><path d="M13 4h7v7" /><path d="M20 4l-7 7" /></>,
   dice: <><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.2" cy="8.2" r="1.4" fill="currentColor" stroke="none" /><circle cx="15.8" cy="8.2" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="8.2" cy="15.8" r="1.4" fill="currentColor" stroke="none" /><circle cx="15.8" cy="15.8" r="1.4" fill="currentColor" stroke="none" /></>,
@@ -476,6 +484,20 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
 }
 
 /* ---------- placeholder de job en file / rendu ---------- */
+/* Jauge en anneau : part utilisée d'une ressource (VRAM, quota). Orange au-delà de 75 %, rouge au-delà de 90 %. */
+export function Anneau({ pct, taille = 18, titre }: { pct: number; taille?: number; titre?: string }) {
+  const p = Math.max(0, Math.min(100, pct)), r = (taille - 4) / 2, c = 2 * Math.PI * r
+  const couleur = p >= 90 ? 'var(--danger)' : p >= 75 ? 'var(--attention)' : 'url(#anneau-grad)'
+  return (
+    <svg className="anneau" width={taille} height={taille} viewBox={`0 0 ${taille} ${taille}`} role="img" aria-label={titre ?? `${Math.round(p)} %`}>
+      <defs><linearGradient id="anneau-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffab5e" /><stop offset=".5" stopColor="#ff655b" /><stop offset="1" stopColor="#b44bd8" /></linearGradient></defs>
+      <circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke="var(--lv4)" strokeWidth="3" />
+      <circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={couleur} strokeWidth="3" strokeLinecap="round"
+        strokeDasharray={`${(p / 100) * c} ${c}`} transform={`rotate(-90 ${taille / 2} ${taille / 2})`} style={{ transition: 'stroke-dasharray .6s ease-out' }} />
+    </svg>
+  )
+}
+
 export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   // la file est commune : annuler et réordonner sont réservés au propriétaire
   const proprio = useEdition()
@@ -568,9 +590,9 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
       {active && j.apercu && (
         <img src={`/api/jobs/${encodeURIComponent(j.id)}/apercu?t=${j.apercu}`} alt="" aria-hidden
           onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: .55, filter: 'blur(1px)', pointerEvents: 'none' }} />
+          className="apercu-revele" style={{ '--p': String(Math.max(pct, 4) / 100) } as React.CSSProperties} />
       )}
-      <div className="jbody" style={active && j.apercu ? { position: 'relative', background: 'linear-gradient(180deg, rgba(12,13,16,.72), rgba(12,13,16,.25) 45%, rgba(12,13,16,.8))' } : undefined}>
+      <div className={`jbody ${active && j.apercu ? 'sur-apercu' : ''}`}>
         <div className="jtop">
           <span className="pill9">{j.mode === 'video' ? (j.videoEngine ?? 'video') : (j.recipeId?.split('@')[0] ?? 'photo')}</span>
           {j.videoDraft && <span className="pill9 draft">{t('brouillon')}</span>}
@@ -581,7 +603,7 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
           style={{ position: 'absolute', top: 8, right: 8 }}
           onClick={e => { e.stopPropagation(); void cancel(j.id) }}><Ic n="x" /></button>}
         {lent && <div className="jlent" title={t('Bien plus long que les derniers rendus de cette recette. Cause fréquente : mémoire vidéo saturée (un autre programme sur la carte, ou un modèle resté chargé).')}>{t('anormalement lent — mémoire vidéo saturée ?')}</div>}
-        <div className="eta">{finition ? `${t('finition')} · ${eta}` : active ? `${t(j.phase ?? 'rendu')} · ${eta}` : attente(j) ?? `${t('en file')} · ${eta}`}</div>
+        <div className={`eta ${active || finition ? 'scintille' : ''}`}>{finition ? `${t('finition')} · ${eta}` : active ? `${t(j.phase ?? 'rendu')} · ${eta}` : attente(j) ?? `${t('en file')} · ${eta}`}</div>
         <div className="pbar"><i style={{ width: `${finition ? 97 : active ? Math.max(pct, 4) : 0}%` }} /></div>
       </div>
     </div>

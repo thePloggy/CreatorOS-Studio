@@ -16,7 +16,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useTelemetry } from '../components/shell/useTelemetry'
 import { VoyantMachine } from './Diagnostic'
 import { QuotaDemo } from '../components/QuotaDemo'
-import { Ic } from './bits'
+import { Ic, Anneau } from './bits'
 import { Parcours, parcoursDejaVu } from '../components/Parcours'
 import { t } from '../i18n'
 import { MenusOutils, type ActionOutil, type Section } from './Navigation'
@@ -78,14 +78,14 @@ function Telemetry() {
     {/* version courte, toujours là : charge du GPU et mémoire vidéo */}
     <div className="flex min-[1800px]:hidden items-center gap-1.5 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
       GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b>
-      <span style={{ color: 'var(--faint)' }}>·</span> VRAM <TBar pct={vramPct} />
+      <span style={{ color: 'var(--faint)' }}>·</span> VRAM <Anneau pct={vramPct} titre={t('mémoire vidéo : {n} %', { n: Math.round(vramPct) })} />
     </div>
     <div className="hidden min-[1800px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
       title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
       {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
       <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
       {dot}
-      <span style={cell}>VRAM <TBar pct={vramPct} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{vramGb} {t('Go')}</b></span>
+      <span style={cell}>VRAM <Anneau pct={vramPct} titre={t('mémoire vidéo : {n} %', { n: Math.round(vramPct) })} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{vramGb} {t('Go')}</b></span>
       {dot}
       <span style={{ color: g.temp >= 80 ? 'var(--attention)' : undefined }}>{g.temp}°</span>
       {tel.cpu.util != null && <span className="hidden min-[1900px]:flex items-center">{dot}<span style={cell}>CPU <TBar pct={tel.cpu.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{tel.cpu.util} %</b></span></span>}
@@ -186,20 +186,17 @@ export default function V2App() {
         </span>
         <nav className="flex gap-0.5 ml-2 items-center">
           {([['accueil', 'Accueil'], ['assets', 'Bibliothèque'], ['persona', 'Personnages']] as [Section, string][]).map(([k, label]) => (
-            <button key={k} className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
-              style={{ background: section === k ? 'var(--lv3)' : 'transparent', color: section === k ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            <button key={k} className={`nav-lien ${section === k ? 'actif' : ''}`}
               onClick={() => { useAppStore.setState({ stageOuvert: false }); setSection(k) }}>{t(label)}</button>
           ))}
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 6px' }} />
           <MenusOutils section={section} aller={setSection} onPick={(a, action) => setFocus({ a, list: [a], action })} />
           <span style={{ width: 1, height: 18, background: 'var(--lv3)', margin: '0 10px' }} />
           <button
-            className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
-            style={{ background: section === 'config' ? 'var(--lv3)' : 'transparent', color: section === 'config' ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
+            className={`nav-lien ${section === 'config' ? 'actif' : ''}`}
             onClick={() => setSection('config')}>{t('Paramètres')}</button>
           <button
-            className="px-2.5 py-1.5 rounded-[9px] text-[12.5px]"
-            style={{ background: section === 'createur' ? 'var(--lv3)' : 'transparent', color: section === 'createur' ? 'var(--text)' : 'var(--muted)', border: 0, cursor: 'pointer' }}
+            className={`nav-lien ${section === 'createur' ? 'actif' : ''}`}
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
         <div className="ml-auto flex items-center gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>

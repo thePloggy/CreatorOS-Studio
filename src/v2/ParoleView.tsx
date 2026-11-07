@@ -3,6 +3,7 @@
    personnage dit le texte, lèvres calées sur l'audio (InfiniteTalk, Wan 2.1).
    Le rendu passe par la file ordinaire et arrive dans l'onglet Vidéo.
    ============================================================ */
+import { VoixOrbe } from './VoixOrbe'
 import { Ic } from './bits'
 import { nomMedia } from '../lib/nomMedia'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -23,7 +24,8 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [fait, setFait] = useState<string | null>(null)
-  const [enreg, setEnreg] = useState<{ rec: MediaRecorder; t0: number } | null>(null)
+  const [enreg, setEnreg] = useState<{ rec: MediaRecorder; t0: number; flux: MediaStream } | null>(null)
+  const [envoiVoix, setEnvoiVoix] = useState(false)
   const [secondes, setSecondes] = useState(0)
   const morceaux = useRef<Blob[]>([])
   /* Réplique écrite : LTX-2.5 fait la voix et les lèvres d'un coup, sans fichier audio.
@@ -61,11 +63,12 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
   }, [enreg])
 
   const deposer = async (b: Blob, type: string) => {
-    setErr(null)
+    setErr(null); setEnvoiVoix(true)
     try {
       const r = await json(await fetch('/api/parole/voix', { method: 'POST', headers: { 'Content-Type': type }, body: b }))
       setVoix({ fichier: r.fichier, duree: r.duree, url: URL.createObjectURL(b) })
     } catch (e) { setErr(String((e as Error).message)) }
+    setEnvoiVoix(false)
   }
   const micro = async () => {
     if (enreg) { enreg.rec.stop(); return }
@@ -83,7 +86,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
       }
       rec.start()
       setSecondes(0)
-      setEnreg({ rec, t0: Date.now() })
+      setEnreg({ rec, t0: Date.now(), flux })
     } catch { setErr(t('micro indisponible : autorise-le dans le navigateur, ou dépose un fichier audio')) }
   }
   const lancer = async () => {
@@ -166,7 +169,8 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
           </>}
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
             {!edition && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
-            {edition && <><button className={`pill ${enreg ? 'used' : ''}`} onClick={() => void micro()}>{enreg ? `■ ${t('Arrêter')} · ${secondes.toFixed(1)} s` : `🎙 ${t('Enregistrer au micro')}`}</button>
+            {edition && <><button className={`pill ${enreg ? 'used' : ''}`} onClick={() => void micro()}>{enreg ? <><Ic n="x" s={13} /> {t('Arrêter')} · {secondes.toFixed(1)} s</> : <><Ic n="sound" s={13} /> {t('Enregistrer au micro')}</>}</button>
+            {(enreg || envoiVoix) && <VoixOrbe flux={enreg?.flux ?? null} etat={enreg ? 'ecoute' : 'envoi'} />}
             <label className="pill tool" style={{ cursor: 'pointer' }}><Ic n="upload" s={13} /> {t('déposer un fichier audio')}
               <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) void deposer(f, f.type || 'audio/mpeg'); e.target.value = '' }} />
             </label></>}

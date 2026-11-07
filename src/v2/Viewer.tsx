@@ -17,6 +17,7 @@ import { resumeControle } from '../lib/controle'
 import { trierDossiers } from '../lib/folders'
 import { FolderMenu, Ic, lancerFinition, useConfirm, useExclusiveMenu, useVideoArretee } from './bits'
 import { createPortal } from 'react-dom'
+import { PointEtDemande } from './PointEtDemande'
 import { CarouselPopup } from './popups'
 import { AvantApres } from '../components/AvantApres'
 import { Pinceau } from '../components/Pinceau'
@@ -61,19 +62,23 @@ function Copiable({ texte, children }: { texte: string; children: React.ReactNod
    retouche. */
 function PromptCard({ titre, texte, hauteur }: { titre: string; texte: string; hauteur: number }) {
   const [fait, copier] = useCopie()
+  const [tout, setTout] = useState(false)
+  const long = texte.length > 260
   return (
-    <div className="rounded-xl p-3" style={{ background: 'var(--lv2)' }}>
-      <h4 className="text-[12px] uppercase tracking-wider flex items-center" style={{ color: 'var(--faint)' }}>
-        {titre}
-        <button className={`copier-btn ml-auto text-[12px] normal-case tracking-normal ${fait ? 'fait' : ''}`}
-          onClick={() => copier(texte)}>
-          <span className="lbl-a">{t('copier')}</span><span className="lbl-b">{t('copié !')}</span>
+    <div className="vfiche">
+      <div className="vfiche-tete">
+        <Ic n="texte" s={14} /><span>{titre}</span>
+        <button className={`vfiche-copier copier-btn ${fait ? 'fait' : ''}`} onClick={() => copier(texte)}>
+          <Ic n="copy" s={12} /><span className="lbl-a">{t('copier')}</span><span className="lbl-b">{t('copié !')}</span>
         </button>
-      </h4>
-      <div className="mt-2 text-[12px] overflow-y-auto"
-        style={{ color: 'var(--muted)', lineHeight: 1.55, maxHeight: hauteur, whiteSpace: 'pre-wrap' }}>
+      </div>
+      <div className={`vfiche-corps vfiche-texte ${long && !tout ? 'coupe' : ''}`}
+        style={{ maxHeight: tout ? hauteur * 3 : hauteur }}>
         {texte}
       </div>
+      {long && <button className="vfiche-voir" onClick={() => setTout(v => !v)}>
+        {tout ? t('Réduire') : t('Voir tout')} <span style={{ display: 'inline-flex', transform: tout ? 'rotate(180deg)' : undefined }}><Ic n="chevron" s={12} /></span>
+      </button>}
     </div>
   )
 }
@@ -87,8 +92,8 @@ export interface LoraLigne { node: string; name: string; label: string; strength
 
 function PileLoras({ loras, charge }: { loras: LoraLigne[] | null; charge: boolean }) {
   return (
-    <div className="rounded-xl p-3 text-[12px]" style={{ background: 'var(--lv2)' }}>
-      <h4 className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--faint)' }}>{t('LoRA appliquées')}</h4>
+    <div className="vfiche text-[12px]">
+      <div className="vfiche-tete"><Ic n="graphe" s={14} /><span>{t('LoRA appliquées')}</span></div>
       {charge && !loras && <div className="mt-2" style={{ color: 'var(--faint)' }}>…</div>}
       {loras && loras.length === 0 && <div className="mt-2" style={{ color: 'var(--faint)' }}>{t('aucune')}</div>}
       {loras?.map(l => (
@@ -266,7 +271,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   // un effet vidéo (Refine Details, Day to Night, Unblur…, Remove Objects) aussi : on vient voir la différence
   useEffect(() => { setCompare(['seedvr2', 'ltx_effet', 'ltx_cleanplate'].includes(String(asset.videoEngine)) || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
   const [pinceau, setPinceau] = useState(action === 'pinceau' && asset.mediaType === 'photo')
+  const [pointer, setPointer] = useState(false)
+  useEffect(() => { setPointer(false) }, [asset.id])
   const [editer, setEditer] = useState(action === 'retouche' || action === 'detour' || action === 'retirer' || action === 'fond')
+  const [details, setDetails] = useState(true)
   const [plusOuvert, setPlusOuvert] = useState(action === 'looks')
   const [finMsg, setFinMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   useEffect(() => { setFinMsg(null) }, [asset.id])
@@ -416,6 +424,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
         <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
         <button className="absolute top-3 left-3 z-10 b2" onClick={onClose}>{t('‹ retour')}</button>
+        {asset.mediaType === 'photo' && !(parent && compare) && (
+          <button className={`absolute bottom-3 left-3 z-10 b2 ${pointer ? 'point-bouton-on' : ''}`} onClick={() => setPointer(v => !v)}
+            title={t('clique sur un point de l’image et dis ce qui doit y changer')}>
+            <Ic n={pointer ? 'x' : 'edit'} s={14} />{pointer ? t('Annuler le pointage') : t('Pointer pour retoucher')}</button>
+        )}
         {nav.index >= 0 && (
           <span className="absolute top-4 left-1/2 -translate-x-1/2 pill9">{nav.index + 1} / {nav.total} · ← →</span>
         )}
@@ -429,7 +442,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           : asset.mediaType === 'video'
           ? <video ref={videoArretee} data-lecture-active src={asset.uri} controls autoPlay loop playsInline className="relative max-h-[92vh] max-w-[86%] rounded-[12px]" style={{ boxShadow: 'var(--sh-media)' }}
               onLoadedMetadata={e => { const el = e.target as HTMLVideoElement; setClip({ w: el.videoWidth, h: el.videoHeight, dur: el.duration }) }} />
-          : <img src={asset.uri} alt="" className="relative max-h-[92vh] max-w-[86%] rounded-[12px] object-contain" style={{ boxShadow: 'var(--sh-media)' }} />}
+          : <PointEtDemande asset={asset} actif={pointer} onFin={() => setPointer(false)} className="relative max-h-[92vh] rounded-[12px] object-contain" style={{ boxShadow: 'var(--sh-media)', maxWidth: '100%' }} />}
         <AssetNavArrows {...nav} />
       </div>
 
@@ -493,11 +506,16 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           <PromptCard titre={t('Prompt initial (avant Enhancer)')} texte={p.initialBrief} hauteur={90} />
         )}
         {p.promptVision && (
-          <PromptCard titre={t('👁 Vision VLM de la still')} texte={p.promptVision} hauteur={110} />
+          <PromptCard titre={t('Vision VLM de la still')} texte={p.promptVision} hauteur={110} />
         )}
         <PromptCard titre={p.promptVision || p.initialBrief ? t('Prompt composé (envoyé au moteur)') : t('Prompt composé')}
           texte={p.composedPositive || p.userPrompt || '—'} hauteur={130} />
-        <div className="rounded-xl p-3 text-[12px]" style={{ background: 'var(--lv2)' }}>
+        <div className="vfiche text-[12px]">
+          <button className="vfiche-tete vfiche-pli" onClick={() => setDetails(v => !v)} aria-expanded={details}>
+            <Ic n="info" s={14} /><span>{t('Détails')}</span>
+            <span className="vfiche-chevron" style={{ transform: details ? 'rotate(180deg)' : undefined }}><Ic n="chevron" s={13} /></span>
+          </button>
+          {details && <div className="vfiche-corps">
           {([
             ['Recette', p.recipeId || '—'],
             /* La seed sert à rejouer un rendu : elle doit être lisible ET
@@ -537,43 +555,44 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           <div className="flex gap-3 items-center mt-1">
             <button className="text-[12px]" style={{ color: 'var(--muted)', background: 'none', border: 0, cursor: 'pointer' }} onClick={() => void loadProv()}>{t('provenance complète…')}</button>
             <button className="text-[12px]" style={{ color: 'var(--muted)', background: 'none', border: 0, cursor: 'pointer' }}
-              title={t('Le graphe exact de ce rendu, à glisser dans ComfyUI')} onClick={() => void telechargerGraphe()}>{t('⤓ workflow ComfyUI')}</button>
+              title={t('Le graphe exact de ce rendu, à glisser dans ComfyUI')} onClick={() => void telechargerGraphe()}>{t('workflow ComfyUI')}</button>
           </div>
           {modeles && <div className="mt-1 text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
             {modeles.length ? modeles.map(m => <div key={m.fichier}>{m.fichier.replace(/\.(safetensors|gguf)$/, '')} · {m.licence ?? t('licence : voir la fiche du modèle')}</div>) : t('aucun modèle nommé dans ce graphe')}
           </div>}
           {prov && <pre className="mt-1 text-[12px] max-h-[120px] overflow-auto" style={{ color: 'var(--faint)' }}>{prov}</pre>}
+          </div>}
         </div>
         <PileLoras loras={loras} charge />
         <div className="flex gap-1.5">
           {proprio && <button className="b2 flex-1" style={{ color: 'var(--positif)', background: asset.reviewStatus === 'approved' ? 'var(--positif-doux)' : undefined }}
-            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'approved' ? 'pending' : 'approved')}>{t('♥ Valider')}</button>}
+            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'approved' ? 'pending' : 'approved')}><Ic n="heart" s={14} />{t('Valider')}</button>}
           {proprio && <button className="b2 flex-1" style={{ color: 'var(--danger)', background: asset.reviewStatus === 'rejected' ? 'var(--danger-doux)' : undefined }}
-            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'rejected' ? 'pending' : 'rejected')}>{t('✕ Refuser')}</button>}
+            onClick={() => s.reviewAsset(asset.id, asset.reviewStatus === 'rejected' ? 'pending' : 'rejected')}><Ic n="x" s={14} />{t('Refuser')}</button>}
           <button className="b2 flex-1" disabled={asset.reviewStatus !== 'approved'}
             style={{ opacity: asset.reviewStatus === 'approved' ? 1 : .4 }}
-            onClick={() => s.toggleExportReady(asset.id)}>⇪ Export{asset.exportReady ? ' ✓' : ''}</button>
+            onClick={() => s.toggleExportReady(asset.id)}><Ic n={asset.exportReady ? 'check' : 'upload'} s={14} />Export</button>
         </div>
 
         {String(asset.jobId).startsWith('stage-') && <button className="b2" onClick={() => void rouvrirStage()}>{t('Ouvrir dans la scène 3D')}</button>}
         <div className="mt-auto flex flex-col gap-1.5">
           {asset.mediaType === 'photo' && (
-            <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}
-              onClick={() => { void s.animateFrom(asset); onClose(); goVideo() }}>{t('▶ Animer (i2v)')}</button>
+            <button className="cta" style={{ padding: '13px', flexDirection: 'row', gap: 8 }}
+              onClick={() => { void s.animateFrom(asset); onClose(); goVideo() }}><Ic n="camera" s={16} />{t('Animer (i2v)')}</button>
           )}
           {asset.mediaType === 'photo' && (
             <button className="b2" title={t('la photo sert de départ et d’arrivée : le clip tourne sans saute')}
-              onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}>{t('∞ Boucle')}</button>
+              onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}><Ic n="loop" s={14} />{t('Boucle')}</button>
           )}
           {asset.mediaType === 'video' && (<>
-            <button className="cta" style={{ padding: '13px', flexDirection: 'row' }}
-              onClick={() => { s.updateVideo({ task: 'extend' }); void s.pickExtendClip(asset.id); onClose(); goVideo() }}>{t('⧉ Étendre')}</button>
-            <button className="b2" onClick={() => setEditer(true)} title={t('au pinceau ou au prompt')}>{t('✎ Éditer')}</button>
+            <button className="cta" style={{ padding: '13px', flexDirection: 'row', gap: 8 }}
+              onClick={() => { s.updateVideo({ task: 'extend' }); void s.pickExtendClip(asset.id); onClose(); goVideo() }}><Ic n="extend" s={16} />{t('Étendre')}</button>
+            <button className="b2" onClick={() => setEditer(true)} title={t('au pinceau ou au prompt')}><Ic n="edit" s={14} />{t('Éditer')}</button>
             <div className="flex gap-1.5">
               {!asset.withAudio && <button className="b2 flex-1" title={t('générer une piste d’ambiance (LTX-2.5) calée sur les images, sans voix ni musique')}
-                onClick={() => void finition('foley')}>{t('♪ Ajouter le son')}</button>}
+                onClick={() => void finition('foley')}><Ic n="sound" s={14} />{t('Ajouter le son')}</button>}
               {asset.postOp !== 'interpolate' && <button className="b2 flex-1" title={t('RIFE ×2 : double les images, le mouvement devient plus fluide')}
-                onClick={() => void finition('interpolate')}>{t('≈ Fluidité 48 i/s')}</button>}
+                onClick={() => void finition('interpolate')}><Ic n="wave" s={14} />{t('Fluidité 48 i/s')}</button>}
             </div>
           </>)}
           {/* « Utiliser dans… » : ce média ouvre une autre section, déjà choisi comme source */}
@@ -585,7 +604,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => { s.utiliserDans('presets', asset); onClose() }}>{t('Caméra & effets')}</button>
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => { s.utiliserDans('parole', asset); onClose() }}>{t('Avatar parlant')}</button>
             </>}
-            {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => { s.utiliserDans('reshoot', asset); onClose() }}>{t('🎥 Re-shoot')}</button>}
+            {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => { s.utiliserDans('reshoot', asset); onClose() }}>{t('Re-shoot')}</button>}
             {asset.mediaType === 'video' && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} title={t('SeedVR2 : le clip monte en 1080p, le mouvement ne change pas')} onClick={() => void nettete()}>{t('Netteté 1080p')}</button>}
             {netteMsg && <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{netteMsg}</span>}
           </div>
@@ -602,8 +621,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             <button className="pill" style={{ position: 'absolute', top: 16, right: 16 }} onClick={() => setVoir3d(false)}>{t('fermer')}</button></div>, document.body)}
           {finMsg && <div className="text-[12px]" style={{ color: finMsg.ok ? 'var(--positif)' : 'var(--danger)' }}>{finMsg.txt}</div>}
           {asset.mediaType === 'photo' && <details className="plus" open={plusOuvert} onToggle={e => setPlusOuvert(e.currentTarget.open)}><summary>{t('Plus…')}</summary><div>
-            <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}>{t('✎ Éditer (retouche)')}</button>
-            <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}>{t('🖌 Pinceau')}</button>
+            <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}><Ic n="edit" s={14} />{t('Éditer (retouche)')}</button>
+            <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}><Ic n="brush" s={14} />{t('Pinceau')}</button>
             {/* Looks en un clic : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setVoirLooks(v => !v)}>{t('Look')} {voirLooks ? '▴' : `▾ ${LOOKS.length}`}</button>
@@ -653,15 +672,15 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           </div></details>}
           <div className="flex gap-1.5">
             {asset.mediaType === 'photo' && (<>
-              <button className="b2 flex-1" onClick={() => { void s.pickStartFrame(asset.id); onClose(); goVideo() }}>{t('Frame départ')}</button>
-              <button className="b2 flex-1" onClick={() => { void s.pickEndFrame(asset.id); onClose(); goVideo() }}>{t('Frame fin')}</button>
+              <button className="b2 flex-1" onClick={() => { void s.pickStartFrame(asset.id); onClose(); goVideo() }}><Ic n="debut" s={14} />{t('Frame départ')}</button>
+              <button className="b2 flex-1" onClick={() => { void s.pickEndFrame(asset.id); onClose(); goVideo() }}><Ic n="fin" s={14} />{t('Frame fin')}</button>
             </>)}
           </div>
           <div className="flex gap-1.5">
-            <button className="b2 flex-1" onClick={() => { s.cloneFrom(asset); onClose(); (asset.mediaType === 'video' ? goVideo : goImage)() }}>{t('⧉ Cloner')}</button>
+            <button className="b2 flex-1" onClick={() => { s.cloneFrom(asset); onClose(); (asset.mediaType === 'video' ? goVideo : goImage)() }}><Ic n="copy" s={14} />{t('Cloner')}</button>
             {asset.jobId && !asset.postOp && <button className="b2 flex-1" title={t('mêmes réglages, nouvelle graine')}
-              onClick={() => void s.encoreUne(asset).then(e => setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: t('encore une : en file') }))}>{t('🎲 Encore une')}</button>}
-            <a className="b2 flex-1 text-center" href={asset.uri} download style={{ textDecoration: 'none' }}>{t('⤓ Télécharger')}</a>
+              onClick={() => void s.encoreUne(asset).then(e => setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: t('encore une : en file') }))}><Ic n="dice" s={14} />{t('Encore une')}</button>}
+            <a className="b2 flex-1 text-center" href={asset.uri} download style={{ textDecoration: 'none' }}><Ic n="download" s={14} />{t('Télécharger')}</a>
             <button className="b2" style={{ flex: '0 0 44px' }} title={t('plus…')} onPointerDown={e => e.stopPropagation()}
               onClick={e => {
                 if (menu) { setMenu(null); return }

@@ -55,7 +55,14 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const champPrompt = useRef<HTMLTextAreaElement>(null)
   const mentions = useMentions({ champ: champPrompt, valeur: s.userPrompt, surChange: s.setUserPrompt, surPersona: async id => {
     await s.choisirPersonnagePage(id)
-  } })
+  }, commandes: [
+    // « / » : les préréglages remplacent ou complètent le prompt, les actions ouvrent leur fenêtre
+    ...PRESETS_REF.map(p => ({ id: p.id, label: t(p.label), aide: t(p.aide), groupe: 'Préréglage',
+      action: () => { s.setUserPrompt(p.ajout && s.userPrompt.trim() ? `${s.userPrompt.replace(/\s*\/\S*$/, '').trim()} ${p.texte}` : p.texte); if (!s.references.length) setRefPick(true) } })),
+    { id: 'enhancer', label: 'Enhancer', aide: t('le LLM local réécrit le brief'), action: () => setEnh(true) },
+    { id: 'elements', label: t('Éléments'), aide: t('tenues, lieux, poses, styles'), action: () => setElm(true) },
+    { id: 'references', label: t('Images de référence'), aide: t('jusqu’à 6 images, FLUX.2 Klein'), action: () => setRefPick(true) },
+  ] })
   const [q, setQ] = useState('')
   /* un SEUL menu contextuel ouvert à la fois */
   const [ilotMenu, setIlotMenu] = useState<{ kind: 'dims'; x: number; bottom: number } | null>(null)
@@ -206,10 +213,10 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                   <button className={`spill ${moteur === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
                     title={refs ? bloque : t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
                   <button className={`spill ${moteur === 'flux3' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('flux3')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
-                    title={refs ? bloque : t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>FLUX 3 Klein</button>
+                    title={refs ? bloque : s.personaFlux3 ? t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; LoRA d’identité de {nom} appliquée', { nom: s.personaName }) : t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; {nom} n’a pas de LoRA FLUX 3 : son visage n’est pas tenu', { nom: s.personaName })}>FLUX 3 Klein</button>
                   {refs && s.photoEngine !== 'klein' && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
                   {!refs && moteur === 'krea' && !s.personaKrea && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein', { nom: s.personaName })}</span>}
-                  {!refs && (moteur === 'moss' || moteur === 'flux3') && (s.personaKrea || s.personaKlein) && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{moteur} ne tient pas le visage de {nom}', { moteur: moteur === 'moss' ? 'MOSS' : 'FLUX 3', nom: s.personaName })}</span>}
+                  {!refs && (moteur === 'moss' || (moteur === 'flux3' && !s.personaFlux3)) && (s.personaKrea || s.personaKlein) && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{moteur} ne tient pas le visage de {nom}', { moteur: moteur === 'moss' ? 'MOSS' : 'FLUX 3', nom: s.personaName })}</span>}
                 </>)
               })()}
               {s.photoEngine === 'klein' && !kleinOk && (
@@ -264,7 +271,6 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               <span>{t('FLUX.2 Klein, nomme-les dans le prompt')}</span>
             </div>
           )}
-          {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px', alignSelf: 'flex-start' }} onClick={() => setRefPick(true)}><Ic n="image" s={13} /> {t('Images de référence')}</button>}
           {task !== 'edit' && (
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               {t('Préréglages')}
@@ -274,7 +280,11 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               ))}
             </div>
           )}
-          <ChoixPersonnage />
+          {/* personnage et images de référence sur une seule ligne : l'îlot gagne une rangée */}
+          <div className="flex gap-1.5 items-center flex-wrap">
+            {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setRefPick(true)}><Ic n="image" s={13} /> {t('Images de référence')}</button>}
+            <ChoixPersonnage />
+          </div>
           <textarea ref={champPrompt}
             // une photo de la bibliothèque glissée ici devient une référence
             onDragOver={e => { if (e.dataTransfer.types.includes('text/asset-id')) e.preventDefault() }}

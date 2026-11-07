@@ -2,11 +2,12 @@
    personnage), cloner une voix, changer la voix d'un audio ou d'un clip, et rattacher une voix
    à chaque personnage CreatorOS (champ voix du personnage, repris par le reel et l'avatar parlant).
    Clonage, changement et rattachement sont réservés au propriétaire du studio. */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { nomMedia } from '../lib/nomMedia'
 import { useAppStore } from '../store/useAppStore'
+import { Ic } from './bits'
 import { Ecouter, urlEchantillonVoix, urlMusique } from './Ecouter'
 
 type Mode = 'dire' | 'cloner' | 'changer' | 'personnages'
@@ -34,12 +35,27 @@ const libelleVoix = (id: string | null | undefined, voix: Voix[]) =>
 /** Choix d'une voix : studio, puis voix clonées (propriétaire), puis voix des personnages. */
 function SelectVoix({ valeur, onChange, voix, clones, persos }: { valeur: string; onChange: (v: string) => void; voix: Voix[]; clones: Voix[]; persos?: Perso[] }) {
   const avecVoix = (persos ?? []).filter(p => p.voix)
+  // écouter la voix choisie : un échantillon court, rendu une fois par le serveur
+  const ecoute = useRef<HTMLAudioElement | null>(null)
+  const [joue, setJoue] = useState(false)
+  const id = valeur.startsWith('perso:') ? (persos ?? []).find(p => `perso:${p.id}` === valeur)?.voix ?? '' : valeur
+  const ecouter = () => {
+    if (joue) { ecoute.current?.pause(); setJoue(false); return }
+    if (!id || id.startsWith('clone:')) return
+    const a = new Audio(`/api/voix/${encodeURIComponent(id)}/echantillon`); ecoute.current = a
+    a.onended = () => setJoue(false); a.onerror = () => setJoue(false)
+    setJoue(true); void a.play().catch(() => setJoue(false))
+  }
   return (
+    <span style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 0, flex: 1 }}>
     <select className="champ" value={valeur} onChange={e => onChange(e.target.value)} aria-label={t('Voix')} style={{ minWidth: 0, flex: 1 }}>
-      <optgroup label={t('Voix du studio')}>{voix.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}</optgroup>
-      {clones.length > 0 && <optgroup label={t('Voix clonée (extrait de ta bibliothèque audio)')}>{clones.map(v => <option key={v.id} value={v.id}>{nomCourt(v.nom)}</option>)}</optgroup>}
-      {avecVoix.length > 0 && <optgroup label={t('Voix des personnages')}>{avecVoix.map(p => <option key={p.id} value={`perso:${p.id}`}>{p.name} ({libelleVoix(p.voix, voix)})</option>)}</optgroup>}
-    </select>
+        <optgroup label={t('Voix du studio')}>{voix.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}</optgroup>
+        {clones.length > 0 && <optgroup label={t('Voix clonée (extrait de ta bibliothèque audio)')}>{clones.map(v => <option key={v.id} value={v.id}>{nomCourt(v.nom)}</option>)}</optgroup>}
+        {avecVoix.length > 0 && <optgroup label={t('Voix des personnages')}>{avecVoix.map(p => <option key={p.id} value={`perso:${p.id}`}>{p.name} ({libelleVoix(p.voix, voix)})</option>)}</optgroup>}
+      </select>
+        <button type="button" className={`pill ${joue ? 'used' : ''}`} onClick={ecouter} disabled={!id || id.startsWith('clone:')}
+        title={t('écouter un court échantillon de cette voix')} aria-label={t('Écouter la voix')}><Ic n={joue ? 'x' : 'play'} s={12} /> {joue ? t('Stop') : t('Écouter')}</button>
+    </span>
   )
 }
 

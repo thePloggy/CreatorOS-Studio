@@ -18,7 +18,7 @@ import { personnageChoisi, SANS_PERSONNAGE } from '../lib/personnage'
 interface LoraRef { name: string; strength: number }
 interface Persona {
   id?: string; name: string | null; trigger: string; description: string; preamble?: string
-  loras: LoraRef[]; lorasKlein?: LoraRef[]; videoLoras: LoraRef[]; figes?: string[]; voix?: string | null
+  loras: LoraRef[]; lorasKlein?: LoraRef[]; lorasFlux3?: LoraRef[]; videoLoras: LoraRef[]; figes?: string[]; voix?: string | null
 }
 interface LoraDispo { name: string; arch?: string; bytes?: number | null }
 
@@ -146,8 +146,10 @@ export function PersonaEditeur() {
         liste={p.loras} dispo={dispo} garde={a => a === 'krea2' || a === 'inconnue'} onChange={l => maj({ loras: l })} />
       <ListeLoras titre={t('LoRA d’identité — photo FLUX.2 Klein')} aide={t('Empilées sur les rendus photo FLUX.2 Klein. Une LoRA Krea n’agit pas sur Klein : il faut une LoRA entraînée sur Klein.')}
         liste={p.lorasKlein ?? []} dispo={dispo} garde={a => a === 'flux2' || a === 'inconnue'} onChange={l => maj({ lorasKlein: l })} />
+      <ListeLoras titre={t('LoRA d’identité — photo FLUX 3 Klein')} aide={t('Empilées sur les rendus photo FLUX 3 Klein. Entraîne-la depuis « Entraîner ce personnage » en cochant FLUX 3.')}
+        liste={p.lorasFlux3 ?? []} dispo={dispo} garde={a => a === 'flux3' || a === 'inconnue'} onChange={l => maj({ lorasFlux3: l })} />
       <ListeLoras titre={t('LoRA d’identité — vidéo')} aide={t('Empilées sur les rendus image-vers-vidéo, avec le mot déclencheur. Une LoRA n’agit que sur le moteur pour lequel elle a été entraînée (une LoRA Wan ne fait rien sur LTX).')}
-        liste={p.videoLoras} dispo={dispo} garde={a => !['krea2', 'flux2', 'flux1', 'zimage'].includes(a)} onChange={l => maj({ videoLoras: l })} />
+        liste={p.videoLoras} dispo={dispo} garde={a => !['krea2', 'flux2', 'flux3', 'flux1', 'zimage'].includes(a)} onChange={l => maj({ videoLoras: l })} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18 }}>
         {edition ? <>
           <button style={{ ...bouton, background: modifie ? 'rgba(234,78,137,0.35)' : bouton.background, fontWeight: 600 }}
