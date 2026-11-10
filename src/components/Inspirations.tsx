@@ -1,7 +1,7 @@
-/* Inspirations : une rangée de prompts tout faits, chacun avec le rendu qu'il a donné ici. Un clic charge le prompt,
-   le personnage et, en vidéo, la photo de départ. Les prompts viennent des workflows officiels de ComfyUI
-   (comfyui-workflow-templates, MIT), adaptés au personnage, ou de nos propres rendus ; chaque carte dit d'où.
-   Commun à Image, Vidéo (desktop) et Créer (mobile) : seules les classes CSS changent. */
+/* Inspirations: a row of ready-made prompts, each with the render it produced here. A click loads the prompt,
+   the character and, for video, the start photo. Prompts come from the official ComfyUI workflows
+   (comfyui-workflow-templates, MIT), adapted to the character, or from our own renders; each card says which.
+   Shared by Image, Video (desktop) and Create (mobile): only the CSS classes differ. */
 import { useAppStore } from '../store/useAppStore'
 import { t } from '../i18n'
 import { SANS_PERSONNAGE } from '../lib/personnage'
@@ -9,13 +9,13 @@ import INSPIRATIONS from '../v2/inspirations.json'
 
 export type Inspiration = {
   id: string; mode: 'photo' | 'video'; titre: string; prompt: string; perso: string
-  /** fichiers livrés avec le studio (/inspirations/…) ; pour une vidéo, depart = clé de sa photo de départ */
+  /** files shipped with the studio (/inspirations/…); for a video, depart = key of its start photo */
   uri: string; affiche?: string; depart?: string
-  /** d'où vient le prompt : nom du workflow officiel ComfyUI, ou « creatoros » */
+  /** prompt origin: official ComfyUI workflow name, or "creatoros" */
   source: string
-  /** format du rendu (un des formats photo du studio) ; la vidéo garde celui de sa photo de départ */
+  /** render format (one of the studio's photo formats); a video keeps its start photo's format */
   format: string
-  /** vidéo : moteur et durée du rendu montré, pour que le clic le refasse à l'identique */
+  /** video: engine and duration of the shown render, so a click reproduces it exactly */
   moteur?: string; secondes?: number
 }
 const FORMATS: Record<string, [number, number]> = {
@@ -25,8 +25,8 @@ const TOUTES = INSPIRATIONS as Inspiration[]
 
 const sourceLisible = (s: string) => s === 'creatoros' ? t('rendu CreatorOS') : t('prompt : workflow ComfyUI « {nom} »', { nom: s })
 
-/* Personnages de cette installation : sur une installation GitHub, Mila ou Zoelexx n'existent pas ;
-   la carte charge alors son prompt sans personnage plutôt qu'un visage au hasard. */
+/* Characters of this install: on a GitHub install, Mila or Zoelexx do not exist;
+   the card then loads its prompt without a character rather than a random face. */
 let personnages: Promise<Set<string>> | null = null
 const lirePersonnages = () => personnages ??= fetch('/api/personas').then(r => r.json())
   .then((d: { personas?: { id: string }[] }) => new Set((d.personas ?? []).map(p => p.id))).catch(() => new Set<string>())

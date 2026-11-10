@@ -1,5 +1,5 @@
-/* Masters : HLG, ProRes, EXR ACEScg, et ProRes 4444 pour un clip à fond transparent.
-   Fabriqués sur le CPU ; le lien de téléchargement apparaît quand le fichier est prêt. */
+/* Masters: HLG, ProRes, EXR ACEScg, and ProRes 4444 for a clip with a transparent background.
+   Built on the CPU; the download link appears when the file is ready. */
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'

@@ -1,4 +1,4 @@
-/* Textes partagés (barre du haut, sélecteur de langue). */
+/* Shared texts (top bar, language selector). */
 export const commun: Record<string, string> = {
   'Langue de l’interface': 'Interface language',
   'Comfy Cloud — générer avec ta clé': 'Comfy Cloud — generate with your key',

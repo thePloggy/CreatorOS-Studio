@@ -1,11 +1,11 @@
-/* Restaurer : une photo ou un clip abîmé (vieux, flou, rayé, délavé) ressort propre et en HD.
-     photo : 1. retouche par instruction (Qwen-Image-Edit) — rayures, poussière, bruit, zones passées,
-                et la couleur si on la demande — sans toucher aux visages ni au cadrage ;
-             2. agrandissement SeedVR2 (modèle de restauration) qui reconstruit le détail fin.
-     clip  : SeedVR2 vidéo, image par image avec cohérence temporelle ; avec la couleur, la 1re image
-             est d'abord restaurée et colorisée (Qwen-Image-Edit), puis Wan 2.2 Fun VACE colorise tout
-             le clip d'après elle, et SeedVR2 le passe en HD.
-   La source vient de la bibliothèque, ou d'un fichier envoyé, photo ou clip (réservé au propriétaire sur la démo). */
+/* Restore: a damaged photo or clip (old, blurry, scratched, faded) comes out clean and HD.
+     photo: 1. instruction edit (Qwen-Image-Edit): scratches, dust, noise, faded areas,
+               and color if requested, without touching faces or framing;
+            2. SeedVR2 upscale (restoration model) rebuilding fine detail.
+     clip:  SeedVR2 video, frame by frame with temporal consistency; with color, the 1st frame
+            is first restored and colorized (Qwen-Image-Edit), then Wan 2.2 Fun VACE colorizes the
+            whole clip from it, and SeedVR2 upscales it to HD.
+   The source comes from the library, or an uploaded photo or clip (owner only on the demo). */
 import fs from 'node:fs'
 import path from 'node:path'
 import { CONFIG } from './config.js'
@@ -16,7 +16,7 @@ import { SANS_PERSONNAGE } from './persona.js'
 
 const suivis = new Map()
 
-/** Consigne de retouche : ce qu'on répare, et tout ce qui ne doit pas changer. */
+/** Edit instruction: what to repair, and everything that must not change. */
 export function consigneRestauration({ nettoyer, couleur }) {
   const parts = []
   if (nettoyer) parts.push('Restore this old, damaged photograph: remove scratches, dust, spots, stains, tears, creases, film grain and noise, repair faded or missing areas, fix the exposure and the contrast, and make it crisp and clean.')
@@ -25,8 +25,8 @@ export function consigneRestauration({ nettoyer, couleur }) {
   return parts.join(' ')
 }
 
-/** Clip stabilisé sans zoom (vid.stab en deux passes) : les bords laissés vides restent noirs, et une
- *  vidéo-masque (blanc = image d'origine) dit à VACE où les reconstruire. Les deux dans input/ ; null si échec. */
+/** Stabilized clip without zoom (two-pass vid.stab): empty borders stay black, and a
+ *  mask video (white = original image) tells VACE where to rebuild them. Both in input/; null on failure. */
 function stabiliser(src, origine) {
   const base = path.basename(src).replace(/^crs_(stab|restv)_/, '').replace(/\.[^.]+$/, '')
   const nom = `crs_stab_${base}.mp4`, masque = `crs_stabmasque_${base}.mp4`
@@ -45,16 +45,16 @@ function stabiliser(src, origine) {
   return { nom, masque }
 }
 
-/** Lance une restauration. `fichier` est un nom du dossier d'entrée de ComfyUI (photo déposée ou copiée). */
+/** Starts a restoration. `fichier` is a name in ComfyUI's input folder (uploaded or copied photo). */
 export function lancerRestauration({ media, fichier, asset, nettoyer = true, couleur = false, hd = true, stabilite = false }) {
   const id = `rest-${Date.now().toString(36)}`
-  // l'image d'origine, pour le comparateur avant / après
+  // the original image, for the before / after comparator
   const avant = fichier ? `/api/uploads/${encodeURIComponent(fichier)}` : asset?.uri ?? null
   const base = { id, media, avant, nettoyer: !!nettoyer, couleur: !!couleur, hd: !!hd, edition: null, hdJob: null, debut: Date.now(), parentAssetId: asset?.id ?? null }
   if (media === 'video') {
     if (!asset && !fichier) throw new Error('choisis un clip')
     let masque = null
-    // stabilisation d'abord : la couleur et la HD travaillent ensuite sur une image calme
+    // stabilization first: color and HD then work on a steady image
     if (stabilite) {
       const src = asset ? path.join(CONFIG.mediaDir, path.basename(asset.filename ?? asset.uri)) : path.join(CONFIG.comfyInput, fichier)
       const st = stabiliser(src, asset ? 'genere' : (store.origineInput(fichier) ?? 'upload'))
@@ -62,7 +62,7 @@ export function lancerRestauration({ media, fichier, asset, nettoyer = true, cou
       fichier = st.nom; masque = st.masque; asset = null
     }
     if (couleur) {
-      // le clip dans input/, puis sa 1re image restaurée et colorisée : elle donnera les couleurs du clip
+      // the clip in input/, then its restored and colorized 1st frame: it provides the clip colors
       let clip = fichier
       if (asset) {
         clip = `crs_restv_${path.basename(asset.filename ?? asset.uri)}`
@@ -79,7 +79,7 @@ export function lancerRestauration({ media, fichier, asset, nettoyer = true, cou
       return etatRestauration(id)
     }
     if (masque) {
-      // stabilisé sans couleur : VACE reconstruit les bords vides, puis la HD
+      // stabilized without color: VACE rebuilds the empty borders, then HD
       const j = enqueueColorisationVideo({ source: fichier, masque, bordsSeuls: true, parentAssetId: base.parentAssetId, origineUri: avant })
       suivis.set(id, { ...base, bords: true, couleurJob: j.id })
       return etatRestauration(id)
@@ -119,13 +119,13 @@ export function etatRestauration(id) {
   return { id, media: r.media, avant: r.avant, etapes, fini: !!fin, uri: fin?.uri ?? null, assetId: fin?.id ?? null, echec }
 }
 
-// la retouche finie, l'agrandissement repart de son résultat
+// once the edit is done, the upscale starts from its result
 setInterval(() => {
   for (const r of suivis.values()) {
     if (Date.now() - r.debut > 86400_000) { suivis.delete(r.id); continue }
     if (r.media === 'video' && (r.couleur || r.bords)) {
       try {
-        // 1re image colorisée → colorisation du clip
+        // colorized 1st frame → clip colorization
         if (!r.couleurJob && statut(r.edition) === 'done') {
           const a = premierAsset(r.edition)
           if (!a) continue
@@ -134,7 +134,7 @@ setInterval(() => {
           store.noterInput(ref)
           r.couleurJob = enqueueColorisationVideo({ source: r.clip, reference: ref, masque: r.masque, parentAssetId: r.parentAssetId, origineUri: r.avant }).id
         }
-        // clip colorisé → HD
+        // colorized clip → HD
         if (r.couleurJob && !r.hdJob && statut(r.couleurJob) === 'done') {
           const a = premierAsset(r.couleurJob)
           if (a) r.hdJob = enqueueSeedvr({ source: path.basename(a.filename), parentAssetId: a.id, personaId: SANS_PERSONNAGE, origineUri: r.avant }).id

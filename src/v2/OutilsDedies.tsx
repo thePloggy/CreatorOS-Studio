@@ -1,6 +1,6 @@
-/* Pages dédiées des outils d'un seul geste : à gauche le média de départ et les réglages, à droite
-   « Comment ça marche » et l'historique de tous les rendus de l'outil (repérés par le préfixe de
-   leur job, ou suivis depuis ce navigateur quand l'outil partage sa recette avec un autre). */
+/* Dedicated pages for one-step tools: source media and settings on the left; on the right
+   "How it works" and the history of all the tool's renders (identified by their job id
+   prefix, or tracked from this browser when the tool shares its recipe with another one). */
 import { useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'
@@ -19,7 +19,7 @@ export type IdOutil = 'inpaint' | 'remove-bg' | 'depth' | 'loop' | 'retouch' | '
 export type Valeurs = { texte: string; texte2: string; alpha: boolean; choix: string; second?: Asset }
 type Conf = {
   titre: string; texte: string; media: 'photo' | 'video' | 'choix'
-  /** préfixes d'id de job propres à l'outil : tout son historique, même lancé ailleurs */
+  /** job id prefixes specific to the tool: its full history, even when launched elsewhere */
   prefixes?: string[]
   etapes: Etape[]
   champ?: { label: string; placeholder: string; requis?: boolean }
@@ -27,10 +27,10 @@ type Conf = {
   alpha?: boolean
   choix?: { label: string; options: { id: string; label: string }[] }
   bouton: string
-  /** lance le rendu et rend l'id du job (ou rien quand l'outil ouvre un éditeur) */
+  /** launches the render and returns the job id (or nothing when the tool opens an editor) */
   lancer?: (a: Asset, v: Valeurs) => Promise<string | null>
   pinceau?: boolean
-  /** une seconde source de la bibliothèque (le vêtement d'un essayage) */
+  /** a second source from the library (the garment for a try-on) */
   second?: { media: 'photo' | 'video'; label: string }
 }
 
@@ -46,7 +46,7 @@ const finition = async (a: Asset, op: 'foley' | 'interpolate', prompt?: string) 
   return useAppStore.getState().jobs[0]?.id ?? null
 }
 
-/* Retouche Qwen-Image-Edit d'une photo, sans quitter la page ; avec la LoRA d'angles si demandé. */
+/* Qwen-Image-Edit retouch of a photo, in place; with the angles LoRA when requested. */
 async function retouche(a: Asset, consigne: string, angles = false): Promise<string | null> {
   const st = useAppStore.getState()
   const avant = st.loraPicks
@@ -107,7 +107,7 @@ export const CONFS: Record<IdOutil, Conf> = {
   'decompression': { titre: 'Remove Compression', texte: 'Les blocs et les bandes d’une vidéo trop compressée disparaissent.', media: 'video', prefixes: ['effet-'], bouton: 'Nettoyer la compression',
     etapes: [{ titre: 'Choisis le clip', texte: 'Une vidéo de réseau social ou de messagerie, très compressée.' }, { titre: 'Lance', texte: 'LTX-2.5 et l’IC-LoRA Decompression de Lightricks.' }, { titre: 'Compare', texte: 'Même plan, sans artefacts.' }],
     lancer: a => poster(`/api/assets/${encodeURIComponent(a.id)}/edit-video`, { mode: 'effet', effet: 'decompression' }) },
-  /* l'entrée « Video Effects » du menu : la galerie d'effets, sans effet présélectionné */
+  /* the menu's "Video Effects" entry: the effects gallery, no effect preselected */
   'effets-video': { titre: 'Video Effects', texte: 'Un clip, un effet : plus de détail, la nuit, net, sans artefacts, en couleur, restauré ou inondé. Le mouvement ne change pas.', media: 'video', prefixes: ['effet-'], bouton: 'Appliquer l’effet',
     etapes: [{ titre: 'Choisis le clip', texte: 'Un rendu du studio ou une vidéo de ta bibliothèque.' }, { titre: 'Choisis l’effet', texte: 'Chaque aperçu montre un vrai résultat.' }, { titre: 'Reçois ton clip', texte: 'Il arrive dans Rendus et dans ta bibliothèque.' }] },
   'colorize': { titre: 'Colorize', texte: 'Un clip en noir et blanc retrouve ses couleurs : peau, tissus, ciel, sans changer un geste (LTX-2.5).', media: 'video', prefixes: ['effet-'], bouton: 'Coloriser le clip',
@@ -164,8 +164,8 @@ export const CONFS: Record<IdOutil, Conf> = {
     lancer: (a, v) => retouche(a, `<sks> ${(ANGLES.find(x => x.id === v.choix) ?? ANGLES[0]).vue}`, true) },
   'coverage': { titre: 'Coverage', texte: 'Trois plans de la même scène en un clic : large, trois-quarts et serré.', media: 'photo', bouton: 'Lancer les trois plans',
     etapes: [{ titre: 'Choisis la photo', texte: 'Le plan de départ de ta scène.' }, { titre: 'Lance', texte: 'Trois retouches : plan large, ¾ et gros plan.' }, { titre: 'Monte', texte: 'Trois angles cohérents pour couvrir la scène.' }],
-    /* des consignes de cadrage explicites, sans la LoRA d'angles : sur une scène habitée, elle rendait trois fois
-       presque la même image ; Qwen-Edit seul déplace vraiment la caméra (banc du 07/11) */
+    /* explicit framing instructions without the angles LoRA: on a scene with people the LoRA
+       gives near-identical images; Qwen-Edit alone actually moves the camera */
     lancer: async a => { let id: string | null = null; for (const c of COUVERTURE) id = await retouche(a, c); return id } },
   'next-shot': { titre: 'Next Shot', texte: 'Le plan d’après : la même personne, au même endroit, quelques secondes plus tard.', media: 'photo', bouton: 'Imaginer le plan suivant',
     etapes: [{ titre: 'Choisis la photo', texte: 'Le plan où en est ton histoire.' }, { titre: 'Lance', texte: 'Le VLM lit la photo et écrit ce qui se passe juste après.' }, { titre: 'Récupère le plan', texte: 'Même personne, même lieu, même lumière, quelques secondes plus tard.' }],

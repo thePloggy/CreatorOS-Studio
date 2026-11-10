@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Stage : rend la maquette grise d'une scène décrite par des nombres.
+"""Stage: renders the grey clay mock-up of a scene described by numbers.
 
-Entrée : un JSON {largeur, hauteur, images, objets, camera}. Sortie : un MP4 de maquette.
-Aucun fichier du visiteur n'entre ici : rien que des nombres, relus et bornés par le serveur.
-Repère en mètres : sol y = 0, x à droite, z vers la caméra.
+Input: a JSON {largeur, hauteur, images, objets, camera}. Output: a mock-up MP4.
+No visitor file enters here: only numbers, validated and clamped by the server.
+Axes in metres: floor y = 0, x to the right, z towards the camera.
 """
 import json
 import math
@@ -20,7 +20,7 @@ FACES = [(0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (
 
 
 def boite(cx, y0, cz, l, h, p, rot=0.0):
-    """Les 6 faces d'une boîte posée à y0, tournée de rot degrés autour de la verticale."""
+    """The 6 faces of a box resting at y0, rotated rot degrees around the vertical."""
     a = math.radians(rot)
     c, s = math.cos(a), math.sin(a)
     coins = []
@@ -32,7 +32,7 @@ def boite(cx, y0, cz, l, h, p, rot=0.0):
 
 
 def silhouette(o):
-    """Un mannequin en blocs : jambes, buste, bras, tête, à l'échelle de sa hauteur."""
+    """A block mannequin: legs, torso, arms, head, scaled to its height."""
     h, x, z, r = o['h'], o['x'], o['z'], o.get('rot', 0.0)
     a = math.radians(r)
     c, s = math.cos(a), math.sin(a)
@@ -49,7 +49,7 @@ def silhouette(o):
 
 
 def lire_glb(chemin):
-    """Sommets et triangles d'un GLB (toutes ses primitives), sans transformation de nœud."""
+    """Vertices and triangles of a GLB (all primitives), without node transforms."""
     with open(chemin, 'rb') as fichier:
         b = fichier.read()
     if b[:4] != b'glTF':
@@ -84,7 +84,7 @@ def lire_glb(chemin):
 
 
 def simplifier(v, f, cases=96):
-    """Regroupe les sommets dans une grille : une maquette n'a pas besoin de 200 000 triangles."""
+    """Clusters vertices on a grid: a mock-up does not need 200,000 triangles."""
     bas, haut = v.min(axis=0), v.max(axis=0)
     pas = max((haut - bas).max() / cases, 1e-6)
     cle = np.floor((v - bas) / pas).astype(np.int64)
@@ -100,7 +100,7 @@ def simplifier(v, f, cases=96):
 
 
 def modele(o):
-    """Un GLB posé au sol, centré, mis à la hauteur demandée et tourné autour de la verticale."""
+    """A GLB placed on the floor, centred, scaled to the requested height and rotated around the vertical."""
     v, f = lire_glb(o['fichier'])
     v, f = simplifier(v, f)
     v = v.copy()
@@ -112,7 +112,7 @@ def modele(o):
     v[:, 0], v[:, 2] = o['x'] + x * c + z * s, o['z'] - x * s + z * c
     v[:, 1] += o.get('y', 0.0)
     t = v[f]
-    return list(np.concatenate([t, t[:, 2:3]], axis=1))     # triangles écrits en quads : même chemin que les boîtes
+    return list(np.concatenate([t, t[:, 2:3]], axis=1))     # triangles written as quads: same path as boxes
 
 
 def sol():
@@ -163,7 +163,7 @@ def image(scene, cam, W, H):
 
 
 def camera_a(cles, t, lineaire=False):
-    """Interpolation douce entre les poses de caméra (t de 0 à 1)."""
+    """Smooth interpolation between camera poses (t from 0 to 1)."""
     if t <= cles[0]['t']:
         return cles[0]
     for a, b in zip(cles, cles[1:]):

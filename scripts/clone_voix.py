@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Voix clonée : Chatterbox (Resemble AI, MIT) dit un texte anglais avec le timbre d'un extrait
-de référence (5 à 20 s). La sortie porte le filigrane audio Perth du modèle.
-Usage : clone_voix.py <texte> <reference.wav|mp3> <sortie.wav>"""
+"""Voice clone: Chatterbox (Resemble AI, MIT) speaks English text with the timbre of a
+reference clip (5 to 20 s). The output carries the model's Perth audio watermark.
+Usage: clone_voix.py <texte> <reference.wav|mp3> <sortie.wav>"""
 import sys
 
 import torch
@@ -9,7 +9,7 @@ import torchaudio as ta
 from chatterbox.tts import ChatterboxTTS
 
 texte, reference, sortie = sys.argv[1], sys.argv[2], sys.argv[3]
-# la carte peut être prise entière par ComfyUI : repli sur le processeur, plus lent mais sûr
+# ComfyUI may hold the whole GPU: fall back to CPU, slower but safe
 try:
     modele = ChatterboxTTS.from_pretrained(device='cuda') if torch.cuda.is_available() else ChatterboxTTS.from_pretrained(device='cpu')
 except (RuntimeError, torch.cuda.OutOfMemoryError):

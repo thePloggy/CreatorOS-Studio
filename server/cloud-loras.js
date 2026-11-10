@@ -1,26 +1,24 @@
 /* ============================================================
-   LoRA des personnages sur Comfy Cloud — import en un clic.
+   Character LoRAs on Comfy Cloud: one-click import.
 
-   Un rendu envoyé à Comfy Cloud avec la clé du visiteur charge les LoRA
-   d'identité PAR LEUR NOM DE FICHIER. Comfy Cloud ne les a pas dans son
-   catalogue : il faut les importer dans le compte du visiteur. Comfy Cloud
-   sait télécharger lui-même depuis Civitai (POST /api/assets/download), en
-   tâche de fond suivie par GET /api/tasks/{id} : rien ne transite par ce
-   serveur.
+   A render sent to Comfy Cloud with the visitor's key loads identity LoRAs
+   BY FILE NAME. Comfy Cloud does not have them in its catalog, so they are
+   imported into the visitor's account. Comfy Cloud downloads from Civitai
+   itself (POST /api/assets/download), as a background task tracked by
+   GET /api/tasks/{id}: nothing goes through this server.
 
-   La source de chaque fichier est dans workflows/cloud.json (`loras` : nom
-   de fichier → version Civitai). Le nom importé est celui que Civitai donne
-   au fichier, le même que dans le dossier loras/ local : les recettes n'ont
-   rien à renommer.
+   Each file's source is in workflows/cloud.json (`loras`: file name ->
+   Civitai version). The imported name is the one Civitai gives the file,
+   the same as in the local loras/ folder, so recipes need no renaming.
 
-   La clé du visiteur sert à l'appel et n'est jamais écrite ni journalisée.
+   The visitor's key is used for the call and never stored or logged.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
 import { CONFIG } from './config.js'
 import { personas } from './persona.js'
 
-/* Hôte de l'API Comfy Cloud ; surchargé pour les tests (faux serveur local). */
+/* Comfy Cloud API host; overridden in tests (fake local server). */
 const API = (process.env.COMFY_CLOUD_API || 'https://cloud.comfy.org').replace(/\/+$/, '')
 
 function table() {
@@ -37,7 +35,7 @@ async function appel(cle, methode, chemin, corps) {
   })
   const texte = await r.text()
   let json = null
-  try { json = texte ? JSON.parse(texte) : null } catch { /* corps non JSON */ }
+  try { json = texte ? JSON.parse(texte) : null } catch { /* non-JSON body */ }
   if (!r.ok) {
     const msg = json?.message || json?.error?.message || json?.error || texte.slice(0, 200) || `HTTP ${r.status}`
     const e = new Error(r.status === 401 || r.status === 403
@@ -48,7 +46,7 @@ async function appel(cle, methode, chemin, corps) {
   return json
 }
 
-/** Noms des LoRA déjà présentes dans le compte du visiteur. */
+/** Names of LoRAs already in the visitor's account. */
 async function presentes(cle) {
   const noms = new Set()
   for (let offset = 0; offset < 5000; offset += 500) {
@@ -60,7 +58,7 @@ async function presentes(cle) {
   return noms
 }
 
-/** LoRA photo des personnages (Krea 2 et Klein), avec leur source. */
+/** Character photo LoRAs (Krea 2 and Klein), with their source. */
 function lorasDesPersonnages() {
   const { loras: src = {}, renommer = {} } = table()
   const out = []
@@ -72,13 +70,13 @@ function lorasDesPersonnages() {
   return out
 }
 
-/** État : pour chaque LoRA de personnage, présente sur le compte ou non. */
+/** Status: for each character LoRA, whether it is in the account. */
 export async function etatCloud(cle) {
   const noms = await presentes(cle)
   return { loras: lorasDesPersonnages().map(l => ({ ...l, present: noms.has(l.cloudName) })) }
 }
 
-/** Lance l'import des LoRA absentes (toutes, ou celles d'un personnage). */
+/** Starts importing missing LoRAs (all, or those of one character). */
 export async function importerCloud(cle, { persona } = {}) {
   const noms = await presentes(cle)
   const cibles = lorasDesPersonnages().filter(l => !noms.has(l.cloudName) && (!persona || l.persona === persona))
@@ -99,7 +97,7 @@ export async function importerCloud(cle, { persona } = {}) {
   return { lances: resultats }
 }
 
-/** Suivi d'une tâche d'import. */
+/** Status of an import task. */
 export async function tacheCloud(cle, id) {
   if (!/^[0-9a-f-]{8,64}$/i.test(String(id))) { const e = new Error('identifiant de tâche invalide'); e.statusCode = 400; throw e }
   const d = await appel(cle, 'GET', `/api/tasks/${id}`)

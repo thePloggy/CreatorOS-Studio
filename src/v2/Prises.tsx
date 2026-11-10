@@ -1,7 +1,7 @@
-/* Prises : les clips d'un même lot (× N rendus lancés ensemble) comparés côte à côte.
-   Toutes les prises jouent en même temps, calées sur la même horloge : on voit tout de suite
-   laquelle a le meilleur mouvement. On garde la meilleure (les autres passent en refusées),
-   on en garde plusieurs, ou on les ouvre une à une dans la visionneuse. */
+/* Takes: clips from the same batch (× N renders launched together) compared side by side.
+   All takes play at once on the same clock, to spot the best motion.
+   Keep the best (the others are marked rejected), keep several,
+   or open them one by one in the viewer. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Asset } from '../types'
@@ -24,7 +24,7 @@ export function PrisesViewer({ items, onClose, onOpenAsset }: {
   const cols = n <= 3 ? n : n === 4 ? 2 : 3
 
   const tous = useCallback((f: (v: HTMLVideoElement) => void) => { vids.current.forEach(v => { if (v) f(v) }) }, [])
-  // la première prise donne l'horloge ; les autres sont recalées dès qu'elles dérivent
+  // the first take drives the clock; the others are resynced when they drift
   useEffect(() => {
     let id = 0
     const tic = () => {

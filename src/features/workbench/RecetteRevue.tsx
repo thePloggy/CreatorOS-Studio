@@ -1,7 +1,7 @@
-/* Revue d'une recette : ce que l'interface pilote dans ce graphe, ce
-   qui est déclaré dans le fichier voisin `<recette>.pilotage.json`, ce qui
-   reste figé, et ce qui manque sur la machine. Lecture seule : aucun rendu,
-   aucune écriture. Source : GET /api/workflows/:file/revue. */
+/* Recipe review: what the UI drives in this graph, what is declared in the
+   sibling `<recipe>.pilotage.json` file, what stays fixed, and what is
+   missing on the machine. Read-only: no render, no write.
+   Source: GET /api/workflows/:file/revue. */
 import { useState } from 'react'
 import { t, tp, tServeur } from '../../i18n'
 

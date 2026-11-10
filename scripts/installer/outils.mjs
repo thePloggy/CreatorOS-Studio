@@ -1,9 +1,9 @@
 /* ============================================================
-   Outils de l'assistant d'installation : affichage, commandes, détection,
-   chemins de modèles de ComfyUI, téléchargements avec reprise.
+   Setup wizard helpers: display, commands, detection, ComfyUI
+   model paths, resumable downloads.
 
-   Rien ici n'installe quoi que ce soit de lui-même : setup.mjs décide, et
-   demande avant chaque étape.
+   Nothing here installs anything on its own: setup.mjs decides and
+   asks before each step.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -12,7 +12,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-/* ---------- affichage ---------- */
+/* ---------- display ---------- */
 
 const couleur = process.stdout.isTTY && !process.env.NO_COLOR
 const teinte = code => s => couleur ? `\x1b[${code}m${s}\x1b[0m` : String(s)
@@ -35,25 +35,25 @@ export const octets = n => {
 export const tilde = p => p.startsWith(os.homedir() + path.sep) ? '~' + p.slice(os.homedir().length) : p
 export const deplier = p => p === '~' ? os.homedir() : p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p
 
-/* ---------- commandes ---------- */
+/* ---------- commands ---------- */
 
-/** Chemin d'un exécutable dans le PATH, ou null. Sans shell : rien à échapper. */
+/** Path of an executable on PATH, or null. No shell: nothing to escape. */
 export function trouver(cmd) {
   for (const dir of (process.env.PATH || '').split(path.delimiter)) {
     if (!dir) continue
     const p = path.join(dir, cmd)
-    try { fs.accessSync(p, fs.constants.X_OK); if (fs.statSync(p).isFile()) return p } catch { /* suivant */ }
+    try { fs.accessSync(p, fs.constants.X_OK); if (fs.statSync(p).isFile()) return p } catch { /* next */ }
   }
   return null
 }
 
-/** Exécution capturée, bornée dans le temps — pour la détection seulement. */
+/** Captured, time-bounded execution, for detection only. */
 export function lire(cmd, args, timeout = 20_000) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', timeout, maxBuffer: 16 << 20 })
   return { code: r.error ? -1 : r.status, out: String(r.stdout ?? ''), err: String(r.stderr ?? r.error?.message ?? '') }
 }
 
-/** Exécution visible (sortie dans le terminal) — pour les étapes d'installation. */
+/** Visible execution (output in the terminal), for install steps. */
 export function executer(cmd, args, opts = {}) {
   console.log(gris(`    $ ${[cmd, ...args].join(' ')}`))
   return new Promise((resolve, reject) => {
@@ -67,7 +67,7 @@ export function executer(cmd, args, opts = {}) {
 
 export const estComfy = d => !!d && fs.existsSync(path.join(d, 'main.py')) && fs.existsSync(path.join(d, 'comfy'))
 
-/** Le Python du venv de ComfyUI : COMFY_PYTHON, sinon venv/ ou .venv/. */
+/** ComfyUI's venv Python: COMFY_PYTHON, else venv/ or .venv/. */
 export function pythonDeComfy(dir) {
   if (process.env.COMFY_PYTHON) return process.env.COMFY_PYTHON
   for (const v of ['venv', '.venv']) {
@@ -77,8 +77,8 @@ export function pythonDeComfy(dir) {
   return null
 }
 
-/* Dossiers par défaut de folder_paths : certaines clés regroupent deux
-   dossiers historiques (unet/ et diffusion_models/, clip/ et text_encoders/). */
+/* folder_paths default folders: some keys group two legacy folders
+   (unet/ and diffusion_models/, clip/ and text_encoders/). */
 const ALIAS = {
   diffusion_models: ['diffusion_models', 'unet'],
   unet: ['unet', 'diffusion_models'],
@@ -86,9 +86,9 @@ const ALIAS = {
   clip: ['clip', 'text_encoders'],
 }
 
-/* Lecture minimale d'extra_model_paths.yaml — juste la forme que ComfyUI
-   documente : des sections, une base_path, des clés à une valeur ou à bloc
-   « | » (une ligne par dossier). Pas de dépendance YAML pour si peu. */
+/* Minimal extra_model_paths.yaml reader, for the shape ComfyUI documents:
+   sections, a base_path, keys with a single value or a "|" block
+   (one line per folder). No YAML dependency. */
 export function lireExtraPaths(comfyDir) {
   const f = path.join(comfyDir, 'extra_model_paths.yaml')
   if (!fs.existsSync(f)) return []
@@ -122,7 +122,7 @@ export function lireExtraPaths(comfyDir) {
   return sections
 }
 
-/** Tous les dossiers où ComfyUI cherche une clé folder_paths. */
+/** All folders where ComfyUI looks up a folder_paths key. */
 export function dossiersDe(cle, comfyDir, extra) {
   const cles = ALIAS[cle] ?? [cle]
   const out = cles.map(k => path.join(comfyDir, 'models', k))
@@ -130,17 +130,17 @@ export function dossiersDe(cle, comfyDir, extra) {
   return [...new Set(out)]
 }
 
-/** Où écrire un fichier neuf : le dossier is_default d'extra_model_paths
-    s'il déclare la clé (c'est là que ComfyUI range ses propres
-    téléchargements), sinon models/<clé>/. */
+/** Where to write a new file: extra_model_paths' is_default folder if it
+    declares the key (where ComfyUI stores its own downloads), else
+    models/<key>/. */
 export function destinationDe(cle, comfyDir, extra) {
   const def = extra.find(s => s.defaut && s.cles[cle]?.length)
   return def ? def.cles[cle][0] : path.join(comfyDir, 'models', cle)
 }
 
-/* ---------- disque ---------- */
+/* ---------- disk ---------- */
 
-/** Espace libre (octets) sur le système de fichiers qui portera `p`. */
+/** Free space (bytes) on the filesystem that will hold `p`. */
 export function espaceLibre(p) {
   let d = path.resolve(p)
   while (!fs.existsSync(d) && path.dirname(d) !== d) d = path.dirname(d)
@@ -148,13 +148,13 @@ export function espaceLibre(p) {
   catch { return { libre: NaN, dev: null, ancre: d } }
 }
 
-/* ---------- réseau ---------- */
+/* ---------- network ---------- */
 
 const UA = 'creatoros-studio-setup'
 
-/* Requête qui suit les redirections À LA MAIN : le jeton Hugging Face ne
-   part que vers huggingface.co, jamais vers le CDN où l'on est redirigé
-   (l'URL signée s'y suffit). Le jeton ne figure ni dans l'URL ni à l'écran. */
+/* Request that follows redirects MANUALLY: the Hugging Face token is only
+   sent to huggingface.co, never to the CDN it redirects to (the signed URL
+   is enough there). The token never appears in the URL or on screen. */
 export async function requete(url, { method = 'GET', headers = {}, signal } = {}) {
   let u = new URL(url)
   for (let saut = 0; saut < 10; saut++) {
@@ -171,16 +171,16 @@ export async function requete(url, { method = 'GET', headers = {}, signal } = {}
   throw new Error('too many redirects')
 }
 
-/** Taille annoncée d'une URL Hugging Face sans rien télécharger (HEAD, sans
-    jeton). Le 302 de huggingface.co porte X-Linked-Size. */
+/** Advertised size of a Hugging Face URL without downloading (HEAD, no
+    token). huggingface.co's 302 carries X-Linked-Size. */
 export async function sonder(url) {
   const r = await fetch(url, { method: 'HEAD', redirect: 'manual', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) })
   const taille = Number(r.headers.get('x-linked-size') ?? r.headers.get('content-length'))
   return { statut: r.status, taille: Number.isFinite(taille) ? taille : null, erreur: r.headers.get('x-error-code') }
 }
 
-/** Taille d'un fichier d'un dépôt à accès accepté, lue sur l'API publique
-    (la liste des fichiers reste lisible sans jeton). */
+/** Size of a file in a gated repo, read from the public API
+    (the file list stays readable without a token). */
 export async function tailleParApi(url) {
   const m = new URL(url).pathname.match(/^\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/)
   if (!m) return null
@@ -193,10 +193,9 @@ export async function tailleParApi(url) {
   return e ? (e.lfs?.size ?? e.size) : null
 }
 
-/* Téléchargement avec reprise : on écrit dans <fichier>.part et l'on
-   reprend par en-tête Range là où l'on s'était arrêté (Ctrl+C compris).
-   Le fichier n'apparaît sous son vrai nom qu'une fois complet : ComfyUI ne
-   voit jamais un modèle tronqué. */
+/* Resumable download: writes to <file>.part and resumes with a Range
+   header where it stopped (Ctrl+C included). The file gets its real name
+   only once complete, so ComfyUI never sees a truncated model. */
 export async function telecharger(url, dest, attendu) {
   fs.mkdirSync(path.dirname(dest), { recursive: true })
   const part = dest + '.part'
@@ -213,10 +212,10 @@ export async function telecharger(url, dest, attendu) {
   }
   if (r.status === 416 && attendu && deja === attendu) { fs.renameSync(part, dest); return }
   if (r.status !== 200 && r.status !== 206) throw new Error(`HTTP ${r.status}`)
-  if (r.status === 200 && deja) deja = 0          // Range ignoré : on repart de zéro
-  /* La taille qui fait foi est celle du serveur (Content-Range sur une
-     reprise, Content-Length sinon) : si le dépôt a republié le fichier, le
-     manifeste a vieilli, pas le téléchargement. */
+  if (r.status === 200 && deja) deja = 0          // Range ignored: restart from zero
+  /* The authoritative size is the server's (Content-Range on a resume,
+     Content-Length otherwise): if the repo republished the file, the
+     manifest is stale, not the download. */
   const annonce = r.status === 206
     ? Number(r.headers.get('content-range')?.split('/')[1])
     : Number(r.headers.get('content-length'))

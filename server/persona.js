@@ -1,9 +1,8 @@
 /* ============================================================
-   Personnages — les sujets récurrents des rendus, CONFIGURABLES.
+   Characters: the recurring, CONFIGURABLE subjects of renders.
 
-   Une seule source : `persona.json` dans le dossier de données
-   (CONFIG.personaFile). Il tient une LISTE de personnages et l'identifiant
-   de celui qui est actif :
+   Single source: `persona.json` in the data folder (CONFIG.personaFile).
+   It holds a LIST of characters and the id of the active one:
 
      {
        "active": "ava",
@@ -20,20 +19,19 @@
        ]
      }
 
-   L'ancienne forme (un seul personnage à la racine du fichier) est lue comme
-   une liste d'un élément, et réécrite sous la nouvelle forme au premier
-   enregistrement.
+   The legacy form (a single character at the file root) is read as a
+   one-item list and rewritten in the list form on the next save.
 
-   Chaque job retient l'identifiant du personnage actif AU DÉPÔT : changer de
-   personnage pendant qu'un rendu attend dans la file ne change pas ce rendu.
+   Each job keeps the id of the character active WHEN QUEUED: switching
+   character while a render waits in the queue does not change that render.
 
-   Variables (s'appliquent au personnage actif) : CREATOROS_PERSONA_NAME,
+   Variables (apply to the active character): CREATOROS_PERSONA_NAME,
    CREATOROS_PERSONA_TRIGGER, CREATOROS_PERSONA_DESCRIPTION,
    CREATOROS_PERSONA_PREAMBLE, CREATOROS_PERSONA_LORAS
-   (« fichier[:force],fichier[:force] »).
+   ("file[:strength],file[:strength]").
 
-   Le fichier est relu quand son mtime change : modifier un personnage ne
-   demande pas de redémarrage.
+   The file is reread when its mtime changes: editing a character needs no
+   restart.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,7 +39,7 @@ import { CONFIG } from './config.js'
 
 let cache = { mtime: null, data: null }
 
-/** `"a.safetensors:0.8,b.safetensors"` ou tableau → [{ name, strength }]. */
+/** `"a.safetensors:0.8,b.safetensors"` or array → [{ name, strength }]. */
 function lorasDe(v) {
   const brut = Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : []
   return brut.map(l => {
@@ -56,14 +54,14 @@ function lorasDe(v) {
 const slug = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40)
 
-/** Fichier brut → { active, personas: [brut…] }, quelle que soit sa forme. */
+/** Raw file → { active, personas: [raw…] }, whatever its form. */
 function normaliserFichier(f) {
   if (Array.isArray(f?.personas)) {
     const personas = f.personas.filter(p => p && typeof p === 'object')
       .map(p => ({ ...p, id: slug(p.id) || slug(p.name) || 'default' }))
     return { active: slug(f.active) || personas[0]?.id || null, personas }
   }
-  // ancienne forme : un personnage à la racine (ou fichier vide)
+  // legacy form: one character at the root (or empty file)
   if (!f || !Object.keys(f).length) return { active: null, personas: [] }
   const id = slug(f.id) || slug(f.name) || 'default'
   return { active: id, personas: [{ ...f, id }] }
@@ -71,7 +69,7 @@ function normaliserFichier(f) {
 
 function lireFichier() {
   let st = null
-  try { st = fs.statSync(CONFIG.personaFile) } catch { /* pas de fichier : aucun personnage */ }
+  try { st = fs.statSync(CONFIG.personaFile) } catch { /* no file: no character */ }
   if (!st) { cache = { mtime: null, data: { active: null, personas: [] } }; return structuredClone(cache.data) }
   if (cache.mtime === st.mtimeMs && cache.data) return structuredClone(cache.data)
   let brut = {}
@@ -81,8 +79,8 @@ function lireFichier() {
   return structuredClone(cache.data)
 }
 
-/** Écriture atomique : un fichier à moitié écrit rendrait une liste vide au
- *  prochain job. */
+/** Atomic write: a half-written file would yield an empty list for the
+ *  next job. */
 function ecrireFichier(data) {
   fs.mkdirSync(path.dirname(CONFIG.personaFile), { recursive: true })
   const tmp = `${CONFIG.personaFile}.tmp`
@@ -101,10 +99,10 @@ function normaliser(f, actif) {
     description: txt('CREATOROS_PERSONA_DESCRIPTION', f?.description),
     preamble: txt('CREATOROS_PERSONA_PREAMBLE', f?.preamble),
     loras: lorasDe(env.CREATOROS_PERSONA_LORAS ?? f?.loras),
-    /* LoRA d'identité de la recette FLUX.2 Klein : une LoRA Krea n'agit pas
-       sur Klein (autre architecture), d'où une liste à part. */
+    /* Identity LoRAs for the FLUX.2 Klein recipe: a Krea LoRA does not work
+       on Klein (different architecture), hence a separate list. */
     lorasKlein: lorasDe(f?.lorasKlein),
-    /* LoRA d'identité de la recette FLUX 3 Image Klein (entraînée sur Klein Base avec ai-toolkit, arch flux3) */
+    /* Identity LoRAs for the FLUX 3 Image Klein recipe (trained on Klein Base with ai-toolkit, arch flux3) */
     lorasFlux3: lorasDe(f?.lorasFlux3),
     videoLoras: lorasDe(f?.videoLoras),
     credit: creditDe(f?.credit),
@@ -113,15 +111,15 @@ function normaliser(f, actif) {
   }
 }
 
-/* Voix du personnage : une voix du studio (Kokoro, ex. « af_heart ») ou « clone:<extrait> », un
-   extrait de la bibliothèque audio pour la voix clonée du propriétaire. Reel et avatar parlant la prennent. */
+/* Character voice: a studio voice (Kokoro, e.g. "af_heart") or "clone:<clip>", a clip from the
+   audio library for the owner's cloned voice. Used by reels and talking avatars. */
 export function voixDe(v) {
   const x = String(v ?? '').trim()
   return /^[a-z]{2}_[a-z]+$/.test(x) || /^clone:[\w.-]{1,120}$/.test(x) ? x : null
 }
 
-/* Crédit du personnage (auteur de la LoRA, page, licence) : affiché sur sa
-   carte — les licences Civitai demandent souvent de nommer l'auteur. */
+/* Character credit (LoRA author, page, license): shown on its card,
+   since Civitai licenses often require naming the author. */
 function creditDe(c) {
   if (!c || typeof c !== 'object') return null
   const v = k => String(c[k] ?? '').trim().slice(0, 200)
@@ -130,8 +128,8 @@ function creditDe(c) {
   return out.auteur || out.url || out.licence ? out : null
 }
 
-/* Garde-robe : les éléments (tenues, lieux) favoris du personnage, par id de
-   vocabulaire, plus des lignes libres. Elle revient en tête des Éléments. */
+/* Wardrobe: the character's favorite elements (outfits, places), by
+   vocabulary id, plus free lines. Shown at the top of Elements. */
 function garderobeDe(g) {
   const ids = xs => (Array.isArray(xs) ? xs : []).map(x => String(x).slice(0, 80)).filter(Boolean).slice(0, 200)
   const perso = (Array.isArray(g?.perso) ? g.perso : [])
@@ -140,19 +138,19 @@ function garderobeDe(g) {
   return { tenues: ids(g?.tenues), lieux: ids(g?.lieux), perso }
 }
 
-/** LoRA d'identité photo d'un personnage pour un moteur photo donné. */
+/** A character's photo identity LoRAs for a given photo engine. */
 export const lorasPhoto = (p, moteur) => (moteur === 'moss' ? [] : moteur === 'flux3' ? (p.lorasFlux3 ?? []) : moteur === 'klein' ? p.lorasKlein : p.loras)
 
 function idActif(d) {
   return d.personas.some(p => p.id === d.active) ? d.active : d.personas[0]?.id ?? null
 }
 
-/** Identifiant du personnage actif (null : aucun personnage configuré). */
+/** Active character id (null: no character configured). */
 export const activeId = () => idActif(lireFichier())
 
-/** Un personnage, normalisé. Sans `id` : l'actif. Un id inconnu (personnage
- *  supprimé depuis le dépôt du job) rend un personnage vide, pas l'actif : un
- *  rendu ne prend jamais l'identité d'un autre. Jamais d'exception. */
+/** A normalized character. Without `id`: the active one. An unknown id
+ *  (character deleted after the job was queued) yields an empty character, not
+ *  the active one: a render never takes another identity. Never throws. */
 export function persona(id) {
   const d = lireFichier(), actif = idActif(d)
   const cible = id === undefined || id === null ? actif : id
@@ -160,59 +158,56 @@ export function persona(id) {
   return normaliser(f ?? { id: cible ?? 'default' }, cible === actif)
 }
 
-/** Rendu sans identité imposée : ni LoRA, ni mot déclencheur, ni préambule. */
+/** Render with no imposed identity: no LoRA, no trigger word, no preamble. */
 export const SANS_PERSONNAGE = 'aucun'
 
-/** Personnage demandé par un dépôt s'il existe, sinon l'actif : un client
- *  peut lancer un rendu pour un autre personnage sans changer l'actif. */
+/** Character requested by a submission if it exists, else the active one:
+ *  a client can render for another character without changing the active one. */
 export function personaDuDepot(id) {
   if (id === SANS_PERSONNAGE) return id
   return typeof id === 'string' && lireFichier().personas.some(p => p.id === id) ? id : persona().id
 }
 
-/** Tous les personnages, normalisés, et l'actif. */
+/** All characters, normalized, and the active one. */
 export function personas() {
   const d = lireFichier(), actif = idActif(d)
   return { active: actif, list: d.personas.map(p => normaliser(p, p.id === actif)) }
 }
 
-/** Préambule d'identité préfixé au prompt de scène : mot déclencheur puis
- *  description fixe. `null` quand le personnage n'en a pas — l'injection ne
- *  signale alors rien (cf. comfy.injectJob). La clé publiée en provenance dit
- *  d'où vient le texte. */
-/* Ancre d'âge : un prompt qui ne nomme personne (« mustard raincoat, rainy street »)
-   a donné une silhouette d'enfant sur un personnage sans préambule. Tous les personnages
-   du studio sont des femmes adultes : chaque rendu le dit, sauf si le préambule donne un âge. */
+/** Identity preamble prefixed to the scene prompt: trigger word then fixed
+ *  description. `null` when the character has none; injection then reports
+ *  nothing (see comfy.injectJob). The provenance key says where the text comes from. */
+/* Age anchor: all studio characters are adult women, so every render states
+   it unless the preamble gives an age (a prompt naming no one can otherwise yield a child figure). */
 const ADULTE = 'an adult woman in her mid-twenties'
-/* Le mot déclencheur n'a de sens que pour un moteur qui a une LoRA de ce personnage : ailleurs,
-   c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
+/* The trigger word only makes sense for an engine with a LoRA of this character; elsewhere
+   it is an unknown word that skews the output. `moteur` absent: trigger kept. */
 const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'flux3' ? (p.lorasFlux3?.length ?? 0) > 0 : moteur === 'moss' ? false : moteur === 'krea' ? p.loras.length > 0 : true
-/* Un prompt qui parle de quelqu'un (femme, homme, enfant, foule, portrait, il/elle…). */
+/* A prompt that mentions someone (woman, man, child, crowd, portrait, he/she…). */
 export const HUMAIN = /\b(wom[ae]n|m[ae]n|girls?|boys?|persons?|people|she|he|her|him|his|lad(y|ies)|guys?|child(ren)?|kids?|crowds?|someone|models?|dancers?|riders?|characters?|portraits?|faces?|bod(y|ies)|couples?|famil(y|ies)|femmes?|hommes?|filles?|garçons?|personnes?|gens|elle|il|enfants?|foule)\b/i
 export function identityPreambleFor(id, moteur, texte) {
-  /* Sans personnage : aucun visage imposé. La mention d'âge adulte reste quand le prompt parle de quelqu'un (démo
-     publique comprise) ; sans personne dans le prompt, elle ferait apparaître des gens (« every person shown… » a mis
-     trois promeneurs dans un paysage de neige vide, 08/11). */
+  /* No character: no imposed face. The adult-age mention stays when the prompt mentions someone (public
+     demo included); with nobody in the prompt it would make people appear. */
   if (id === SANS_PERSONNAGE) return typeof texte === 'string' && !HUMAIN.test(texte) ? null : { key: 'persona', file: null, text: 'every person shown is an adult, ' }
   const p = persona(id)
   const age = /\b(adult|\d{2}[- ]?(years?|yo))\b/i.test(p.preamble ?? '') ? null : ADULTE
   const trigger = aLoraPour(p, moteur) ? p.trigger : null
-  // la mention d'âge adulte reste dès que le personnage a un mot déclencheur ou une description, même si le mot est retiré
+  // the adult-age mention stays as soon as the character has a trigger word or description, even if the word is removed
   const text = [trigger, p.preamble, p.trigger || p.preamble ? age : null].filter(Boolean).join(', ')
   return text ? { key: 'persona', file: null, text: `${text}, ` } : null
 }
 
-/** Préfixe court (mot déclencheur seul) pour les recettes qui ne prennent
- *  pas le préambule complet (retouche vidéo). Vide sans personnage. */
+/** Short prefix (trigger word only) for recipes that do not take the full
+ *  preamble (video edit). Empty without a character. */
 export const triggerPrefix = id => { const t = persona(id).trigger; return t ? `${t}, ` : '' }
 
-/** Fichiers de LoRA de TOUS les personnages — pour les distinguer des autres
- *  dans l'inventaire. */
+/** LoRA files of ALL characters, to tell them apart from others in the
+ *  inventory. */
 export const personaLoraNames = () =>
   new Set(personas().list.flatMap(p => [...p.loras, ...p.lorasKlein, ...(p.lorasFlux3 ?? []), ...p.videoLoras]).map(l => l.name))
 
-/** Champs figés par une variable d'environnement (personnage actif) :
- *  l'interface les montre sans les rendre modifiables. */
+/** Fields locked by an environment variable (active character): the UI
+ *  shows them read-only. */
 export function champsFiges() {
   const e = process.env
   return ['name', 'trigger', 'description', 'preamble', 'loras']
@@ -222,8 +217,8 @@ export function champsFiges() {
 const texte = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, max)
 const forces = v => lorasDe(v).map(l => ({ name: l.name, strength: Math.min(2, Math.max(0, l.strength)) }))
 
-/** Écrit un personnage depuis l'éditeur. Sans `id` : l'actif (créé s'il n'en
- *  existe aucun). Un champ absent du corps garde sa valeur. */
+/** Writes a character from the editor. Without `id`: the active one (created
+ *  if none exists). A field absent from the body keeps its value. */
 export function enregistrer(corps, id) {
   const d = lireFichier()
   const cible = id ?? idActif(d)
@@ -248,9 +243,8 @@ export function enregistrer(corps, id) {
     lorasKlein: has('lorasKlein') ? forces(corps.lorasKlein) : forces(a.lorasKlein),
     lorasFlux3: has('lorasFlux3') ? forces(corps.lorasFlux3) : forces(a.lorasFlux3 ?? []),
     videoLoras: has('videoLoras') ? forces(corps.videoLoras) : forces(a.videoLoras),
-    /* Crédit verrouillé : une fois renseigné, il ne change plus (la
-       provenance d'une LoRA ne bouge pas). Un personnage sans crédit peut en
-       recevoir un, une fois. */
+    /* Locked credit: once set, it does not change (a LoRA's provenance is
+       fixed). A character without credit can receive one, once. */
     credit: creditDe(a.credit) ?? (has('credit') ? creditDe(corps.credit) : null),
     garderobe: has('garderobe') ? garderobeDe(corps.garderobe) : garderobeDe(a.garderobe),
     voix: has('voix') ? voixDe(corps.voix) : voixDe(a.voix),
@@ -259,7 +253,7 @@ export function enregistrer(corps, id) {
   return persona(d.personas[i].id)
 }
 
-/** Nouveau personnage (vide, ou copie d'un existant). Devient l'actif. */
+/** New character (empty, or a copy of an existing one). Becomes active. */
 export function creer({ name, depuis } = {}) {
   const d = lireFichier()
   const nom = texte(name, 60) || 'Nouveau personnage'
@@ -275,7 +269,7 @@ export function creer({ name, depuis } = {}) {
   return persona(id)
 }
 
-/** Rend un personnage actif. Faux si l'id est inconnu. */
+/** Makes a character active. False if the id is unknown. */
 export function activer(id) {
   const d = lireFichier()
   if (!d.personas.some(p => p.id === id)) return false
@@ -284,8 +278,8 @@ export function activer(id) {
   return true
 }
 
-/** Supprime un personnage (ses rendus restent dans la bibliothèque, ses LoRA
- *  dans le dossier de ComfyUI). Le dernier ne se supprime pas. */
+/** Deletes a character (its renders stay in the library, its LoRAs in
+ *  the ComfyUI folder). The last one cannot be deleted. */
 export function supprimer(id) {
   const d = lireFichier()
   if (d.personas.length <= 1) return { ok: false, error: 'le dernier personnage ne se supprime pas' }

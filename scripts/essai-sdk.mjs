@@ -1,5 +1,5 @@
-/* Essai du transport Comfy SDK : une image envoyée, recopiée par un graphe
-   minimal (LoadImage → SaveImage), puis rapatriée. Sans GPU.
+/* Comfy SDK transport test: uploads an image, copies it through a minimal
+   graph (LoadImage → SaveImage), downloads the result. No GPU needed.
    COMFY_BASE_URL=http://127.0.0.1:8189 node scripts/essai-sdk.mjs image.png sortie.png */
 import { Comfy } from '@comfyorg/sdk'
 const [src, dst] = process.argv.slice(2)

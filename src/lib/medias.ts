@@ -1,5 +1,5 @@
-/* Registre des lecteurs audio et vidéo créés dans la page. Un lecteur retiré de la page
-   peut continuer de jouer (Safari) : couperOrphelins() arrête tout ce qui n'est plus affiché. */
+/* Registry of audio and video players created in the page. A player removed from the page
+   can keep playing (Safari): couperOrphelins() stops everything no longer displayed. */
 const lecteurs = new Set<WeakRef<HTMLMediaElement>>()
 
 export function suivreLecteurs() {
@@ -17,6 +17,6 @@ export function couperOrphelins() {
     if (!m) { lecteurs.delete(r); continue }
     if (m.isConnected) continue
     lecteurs.delete(r)
-    if (!m.paused) { try { m.pause() } catch { /* déjà libéré */ } }
+    if (!m.paused) { try { m.pause() } catch { /* already released */ } }
   }
 }

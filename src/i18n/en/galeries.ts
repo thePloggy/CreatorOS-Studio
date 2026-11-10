@@ -1,10 +1,10 @@
-/* Pages galerie (Camera Moves, Effects, Styles, Relight, effets vidéo…) : panneau, galerie, « Comment ça marche ». */
+/* Gallery pages (Camera Moves, Effects, Styles, Relight, video effects…): panel, gallery, "How it works". */
 export const galeries: Record<string, string> = {
-  // commun
+  // shared
   'Photo choisie': 'Photo selected',
   'Ta photo': 'Your photo',
   'Sur un clip': 'On a clip',
-  // Camera Moves et Effects
+  // Camera Moves and Effects
   'Créer un effet': 'Create an effect',
   'Créer un mouvement de caméra': 'Create a camera move',
   'Une photo, un effet : elle s’anime en un clip viral.': 'One photo, one effect: it comes alive as a viral clip.',
@@ -77,7 +77,7 @@ export const galeries: Record<string, string> = {
   'Fenêtre, studio, néons ou bougie : le même instant, rééclairé, et rien d’autre ne bouge.': 'Window, studio, neon or candlelight. The same moment, relit, and nothing else moves.',
   'Choisis la lumière': 'Pick the light',
   'Chaque vignette montre l’éclairage ; au survol, la photo d’origine revient.': 'Each tile shows the lighting. Hover to see the original photo.',
-  // effets vidéo, Multi-Angle, Seamless Loop, Smooth Motion
+  // video effects, Multi-Angle, Seamless Loop, Smooth Motion
   'Aucun clip dans ta bibliothèque pour l’instant.': 'No clips in your library yet.',
   'Aucune photo dans ta bibliothèque pour l’instant.': 'No photos in your library yet.',
   'Chercher un clip': 'Search clips',
@@ -121,7 +121,7 @@ export const galeries: Record<string, string> = {
   'RIFE invente l’image entre deux images : même durée, deux fois plus d’images, plus de saccades.': 'RIFE creates the frame between every two frames: same length, twice the frames, no more stutter.',
   'Un clip à 24 images par seconde ou moins, pris dans ta bibliothèque.': 'A clip at 24 frames per second or less, from your library.',
   'Même plan, à 48 images par seconde, dans Rendus et ta bibliothèque.': 'The same shot at 48 frames per second, in Renders and your library.',
-  // Try-On et Photo Dump
+  // Try-On and Photo Dump
   'Exemple d’essayage': 'Try-on example',
   'Ta personne porte le vêtement d’une autre photo': 'Your person wears the garment from another photo',
   'Une photo de la personne, une photo du vêtement seul : couleur, tissu et coupe sont repris, le visage, la pose et le décor restent.': 'One photo of the person, one of the garment on its own. Colour, fabric and cut carry over; face, pose and setting stay.',

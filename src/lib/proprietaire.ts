@@ -1,12 +1,11 @@
 /* ============================================================
-   Clé du propriétaire du studio (démo publique).
+   Studio owner key (public demo).
 
-   Quand le serveur a une clé (CREATOROS_OWNER_KEY), la page Créateur, les
-   personnages, la garde-robe, les recettes et les prompts ne s'écrivent
-   qu'avec elle. Le propriétaire la saisit une fois dans Paramètres ; elle
-   reste dans CE navigateur et part en en-tête X-Owner-Key sur les écritures
-   (POST / PUT / PATCH / DELETE de même origine vers /api/). Le visiteur, lui,
-   voit ces écrans en lecture seule.
+   When the server has a key (CREATOROS_OWNER_KEY), the Creator page,
+   characters, wardrobe, recipes and prompts can only be written with it.
+   The owner enters it once in Settings; it stays in THIS browser and is
+   sent in the X-Owner-Key header on writes (same-origin POST / PUT /
+   PATCH / DELETE to /api/). Visitors see these screens read-only.
    ============================================================ */
 import { useSyncExternalStore } from 'react'
 
@@ -16,11 +15,11 @@ export function lireCleProprietaire(): string | null {
   try { return localStorage.getItem(CLE) || null } catch { return null }
 }
 export function ecrireCleProprietaire(v: string | null) {
-  try { if (v) localStorage.setItem(CLE, v); else localStorage.removeItem(CLE) } catch { /* stockage indisponible */ }
+  try { if (v) localStorage.setItem(CLE, v); else localStorage.removeItem(CLE) } catch { /* storage unavailable */ }
   void verifier()
 }
 
-/** Ajoute l'en-tête aux écritures de même origine vers /api/ (et aux lectures réservées) — une seule fois, au démarrage. */
+/** Adds the header to same-origin writes to /api/ (and to restricted reads) — install once, at startup. */
 export function brancherCleProprietaire() {
   const origine = window.fetch.bind(window)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -29,7 +28,7 @@ export function brancherCleProprietaire() {
     const methode = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const memeOrigine = url.startsWith('/') || url.startsWith(window.location.origin)
     const chemin = memeOrigine ? new URL(url, window.location.origin).pathname : ''
-    // les écritures, plus les lectures réservées au propriétaire (visiteurs du jour, chemins du serveur)
+    // writes, plus owner-only reads (daily visitors, server paths)
     const lectureReservee = chemin === '/api/visites' || chemin === '/api/health' || chemin === '/api/uploads' || chemin === '/api/quota' || chemin.startsWith('/api/corbeille')
     if (cle && (lectureReservee || (methode !== 'GET' && methode !== 'HEAD')) && chemin.startsWith('/api/')) {
       const h = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
@@ -40,7 +39,7 @@ export function brancherCleProprietaire() {
   }
 }
 
-/* ---------- état partagé : studio verrouillé ? ce navigateur a-t-il la clé ? ---------- */
+/* ---------- shared state: is the studio locked? does this browser have the key? ---------- */
 interface Etat { verrou: boolean; proprietaire: boolean }
 let etat: Etat | null = null
 const abonnes = new Set<() => void>()
@@ -59,17 +58,17 @@ function abonner(f: () => void) {
   return () => { abonnes.delete(f) }
 }
 
-/** Hors React : ce navigateur peut-il modifier le studio ? (attend la réponse du serveur) */
+/** Outside React: can this browser edit the studio? (waits for the server response) */
 export async function editionPossible(): Promise<boolean> {
   if (!etat) await verifier()
   return !!etat && (!etat.verrou || etat.proprietaire)
 }
 
-/** État du verrou ; null tant que le serveur n'a pas répondu. */
+/** Lock state; null until the server has responded. */
 export const useVerrou = () => useSyncExternalStore(abonner, () => etat)
 
-/** Ce navigateur peut-il modifier le studio ? Faux tant que la réponse n'est pas
- *  arrivée : un visiteur ne voit jamais passer de bouton d'édition. */
+/** Can this browser edit the studio? False until the response arrives,
+ *  so a visitor never sees an edit button flash. */
 export function useEdition(): boolean {
   const e = useVerrou()
   return !!e && (!e.verrou || e.proprietaire)

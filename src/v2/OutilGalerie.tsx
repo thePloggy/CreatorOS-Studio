@@ -1,8 +1,8 @@
-/* Pages galerie des outils d'un seul geste : effets vidéo (Refine Details, Day to Night, Unblur, Remove
-   Compression), Multi-Angle, Seamless Loop, Smooth Motion, Try-On, Photo Dump et Style Reference. Même gabarit que Danse : « Comment ça marche »
-   en tête, une grande galerie (les effets, tes clips ou tes photos de la bibliothèque, tes rendus), un panneau
-   compact à étapes numérotées. Le lancement est celui de la page d'outil (CONFS) : mêmes appels, mêmes
-   paramètres. */
+/* Gallery pages for one-step tools: video effects (Refine Details, Day to Night, Unblur, Remove
+   Compression), Multi-Angle, Seamless Loop, Smooth Motion, Try-On, Photo Dump and Style Reference. Same layout as Dance: "How it works"
+   on top, a large gallery (effects, your library clips or photos, your renders), a compact
+   panel with numbered steps. Launching reuses the tool page config (CONFS): same calls, same
+   parameters. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -18,7 +18,7 @@ import { HowItWorks, howto } from './HowItWorks'
 import { Pinceau } from '../components/Pinceau'
 import { Masters } from './Masters'
 
-/** Les outils servis par cette page, et la page « Comment ça marche » de chacun. */
+/** Tools served by this page, and the "How it works" page of each. */
 export const OUTILS_GALERIE: Partial<Record<IdOutil, Page>> = {}
 type Page = string
 const EFFETS: IdOutil[] = ['refine-details', 'day-to-night', 'deblur', 'decompression', 'colorize', 'restore-clip', 'water']
@@ -27,7 +27,7 @@ OUTILS_GALERIE['effets-video'] = 'fx'
 OUTILS_GALERIE['multi-angle'] = 'angles'; OUTILS_GALERIE['loop'] = 'loop'; OUTILS_GALERIE['smooth'] = 'smooth'
 OUTILS_GALERIE['try-on'] = 'tryon'; OUTILS_GALERIE['photodump'] = 'dump'; OUTILS_GALERIE['style-ref'] = 'sref'
 
-/* Les quatre effets vidéo : vrais rendus de la vitrine (image fixe, puis le clip au survol). */
+/* The four video effects: real showcase renders (still image, clip on hover). */
 const V = (n: string) => `/vitrine/${n}`
 const APERCU_EFFET: Record<string, { fixe: string; video: string; avant: string; apres: string }> = {
   'refine-details': { fixe: V('v2-fx-fin.webp'), video: V('v2-fx-fin.mp4'), avant: 'Lisse', apres: 'Détaillé' },
@@ -38,24 +38,24 @@ const APERCU_EFFET: Record<string, { fixe: string; video: string; avant: string;
   'restore-clip': { fixe: V('v2-fx-restaure.webp'), video: V('v2-fx-restaure.mp4'), avant: 'Archive', apres: 'Restauré' },
   'water': { fixe: V('v2-fx-eau.webp'), video: V('v2-fx-eau.mp4'), avant: 'Sec', apres: 'Inondé' },
 }
-/* Video Effects : la page prend le titre et le montage de l'effet choisi. */
+/* Video Effects: the page takes the title and showreel of the chosen effect. */
 const HERO_EFFET: Partial<Record<IdOutil, string>> = {
   'refine-details': 'Plus de matière, le même mouvement', 'day-to-night': 'Le même plan, la nuit', 'deblur': 'Un plan flou redevient net',
   'decompression': 'Une vidéo propre, sans artefacts', 'colorize': 'Le noir et blanc retrouve ses couleurs', 'restore-clip': 'Une vieille vidéo, restaurée',
   'water': 'De l’eau dans ton plan',
 }
 
-/* Pour Seamless Loop : des mouvements qui reviennent à leur point de départ, à reprendre d'un clic. */
+/* For Seamless Loop: motions that return to their starting point, one click to reuse. */
 const IDEES_BOUCLE = ['her hair moves in the wind', 'candles flicker softly', 'waves roll in and out', 'steam rises from the cup']
-/* Pour Photo Dump : des lieux à reprendre d'un clic. */
+/* For Photo Dump: locations, one click to reuse. */
 const IDEES_LIEU = ['in Tokyo', 'on a Greek island', 'in Paris in autumn', 'in New York', 'on a ski trip', 'in Bali']
-/* Pour Style Reference : des scènes à peindre dans le style choisi. */
+/* For Style Reference: scenes to paint in the chosen style. */
 const IDEES_SCENE = ['an old lighthouse keeper on wet rocks at dusk', 'a cyclist racing through a rainy neon street', 'a fox reading under a cherry tree',
   'a fishing village at sunrise', 'a girl and her dog on a rooftop at night', 'a busy market in the mountains']
 
 type Onglet = 'effets' | 'biblio' | 'rendus'
 type Reglages = { outil: IdOutil; assetId: string; v: Omit<Valeurs, 'second'> & { secondId?: string } }
-/* Try-On : ce que choisit un clic dans la bibliothèque, la personne ou le vêtement. */
+/* Try-On: what a library click selects, the person or the garment. */
 type Cible = 'personne' | 'vetement'
 
 const PAGES: Record<string, { titre: string; texte: string; media: 'photo' | 'video'; cle: string; repli: string; label: string
@@ -90,7 +90,7 @@ const PAGES: Record<string, { titre: string; texte: string; media: 'photo' | 'vi
     etapes: [['Choisis une image de style', 'Une illustration, une peinture, une BD : seul son style compte.'], ['Décris la scène', 'En anglais : qui, où, quoi, quelle lumière.'], ['Récupère l’image', 'Elle arrive dans Rendus et dans ta bibliothèque.']] },
 }
 
-/* Les autres outils d'un seul geste : même gabarit, réglages tirés de leur fiche (CONFS). */
+/* The other one-step tools: same layout, settings taken from their config (CONFS). */
 const GENERIQUES: Partial<Record<IdOutil, { heroTitre: string; heroTexte: string; repli: string; label: string }>> = {
   'inpaint': { heroTitre: 'Change une zone, garde tout le reste', heroTexte: 'Peins la zone au pinceau et décris ce qui doit y apparaître : le reste de la photo ne bouge pas.', repli: V('look-a.webp'), label: 'Exemple de retouche d’une zone' },
   'remove-bg': { heroTitre: 'Le sujet, sans le fond', heroTexte: 'SAM3 découpe la personne ou l’objet : un PNG transparent, prêt pour une affiche ou un montage.', repli: V('look-a.webp'), label: 'Exemple de fond retiré' },
@@ -123,11 +123,11 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
   const reduit = useMouvementReduit()
   const survolPossible = useSurvolPossible()
   const outilsPage = page === 'fx' ? EFFETS : [id]
-  // un suivi par outil (le même que sa page d'outil) : l'historique reste commun
+  // one tracker per tool (same as its tool page); history stays shared
   const o = (i: number) => `dedie-${outilsPage[i] ?? outilsPage[0]}`
   const suivis = [useSuiviOutil(o(0)), useSuiviOutil(o(1)), useSuiviOutil(o(2)), useSuiviOutil(o(3)), useSuiviOutil(o(4)), useSuiviOutil(o(5)), useSuiviOutil(o(6)), useSuiviOutil(o(7))]
   const memoire = useMemo(() => memoireReglages<Reglages>(`galerie:${page}:reglages`), [page])
-  // depuis l'entrée « Video Effects » : aucun effet choisi d'avance
+  // from the "Video Effects" entry: no effect preselected
   const depart: IdOutil = id === 'effets-video' ? 'refine-details' : id
   const [outil, setOutil] = useState<IdOutil>(depart)
   const c = CONFS[outil]
@@ -136,9 +136,9 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
   const [source, setSource] = useState<Asset | null>(null)
   const [cible, setCible] = useState<Cible>('personne')
   const [v, setV] = useState<Valeurs>({ texte: '', texte2: '', alpha: false, choix: CONFS[depart].choix?.options[0]?.id ?? '' })
-  // arrivé depuis le menu par un effet précis : il est déjà choisi
+  // opened from the menu via a specific effect: it is preselected
   const [choixFait, setChoixFait] = useState(page === 'fx' && id !== 'effets-video')
-  // Video Effects : titre, texte et montage de l'effet choisi
+  // Video Effects: title, text and showreel of the chosen effect
   const P = page === 'fx' && choixFait ? { ...P0, titre: CONFS[outil].titre, texte: CONFS[outil].texte, cle: `fx-${outil}`, repli: APERCU_EFFET[outil]?.fixe ?? P0.repli,
     heroTitre: HERO_EFFET[outil] ?? P0.heroTitre, heroTexte: CONFS[outil].texte } : P0
   const [options, setOptions] = useState(false)
@@ -182,7 +182,7 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
     setOccupe(false)
   }
 
-  // les rendus de la page : suivis depuis ce navigateur, ou portant le préfixe de l'outil
+  // the page's renders: tracked from this browser, or carrying the tool's prefix
   const prefixes = outilsPage.flatMap(o => CONFS[o].prefixes ?? [])
   const dejaVu = (jobId: string) => suivis.some(x => x.ids.has(jobId)) || prefixes.some(p => jobId.startsWith(p))
   const enCours = s.jobs.filter(j => dejaVu(j.id) && STATUTS_ACTIFS.includes(j.status))
@@ -190,9 +190,9 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
   const livres = s.assets.filter(a => a.jobId && dejaVu(String(a.jobId))).slice(0, 60)
   const photos = P.media === 'photo'
 
-  // la bibliothèque : tes clips ou tes photos, les plus récents d'abord
+  // the library: your clips or photos, newest first
   const q = recherche.trim().toLowerCase()
-  // toute la bibliothèque (la recherche porte sur tout) ; les cartes arrivent par paquets de 160 au fil du défilement
+  // whole library (search covers everything); cards load in batches of 160 while scrolling
   const biblio = useMemo(() => s.assets.filter(a => a.mediaType === P.media && !a.modele3d && a.reviewStatus !== 'rejected')
     .sort((x, y) => y.createdAt - x.createdAt), [s.assets, P.media])
   const [nbBiblio, setNbBiblio] = useState(160)
@@ -217,7 +217,7 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
     : page === 'fx' && !choixFait ? t('Choisis un effet dans la galerie.')
     : texteRequis && !v.texte.trim() ? (page === 'sref' ? t('Décris la scène, en anglais.') : page === 'loop' ? t('Décris le mouvement, en anglais.') : t(c.champ!.label)) : null
   const prochaine = !source ? 1 : (page === 'fx' && !choixFait) || (texteRequis && !v.texte.trim()) || (tryon && !v.second) ? 2 : 0
-  // le hero suit l'effet choisi ; les vidéos d'étapes sont celles de la page
+  // the hero follows the chosen effect; step videos are the page's own
   const fichiers = { hero: howto(P.cle).hero, etape: howto(P0.cle).etape }
   const libelleBiblio = P.media === 'video' ? t('Tes clips') : t('Tes photos')
 
@@ -252,7 +252,7 @@ export function OutilGalerie({ id, onOpen }: { id: IdOutil; onOpen: (a: Asset, l
 
   const choisirSource = (a: Asset) => {
     if (tryon) {
-      // une même photo ne sert pas aux deux rôles
+      // the same photo cannot fill both roles
       if (cible === 'vetement') { if (a.id === source?.id) return; setV({ ...v, second: a }); if (!source) setCible('personne'); return }
       if (a.id === v.second?.id) return
       setSource(a); if (!v.second) setCible('vetement')

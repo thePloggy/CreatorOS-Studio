@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* ============================================================
-   Ligne de commande du studio : ce que fait l'interface, depuis un
-   terminal ou un agent de code. Parle à un studio lancé (npm start).
-   --json rend une ligne JSON par résultat, pour qu'un agent la lise.
+   Studio command line: what the UI does, from a terminal or a
+   coding agent. Talks to a running studio (npm start).
+   --json prints one JSON line per result, for agents to parse.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -11,7 +11,7 @@ import { client } from './client.mjs'
 const argv = process.argv.slice(2)
 const opt = n => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : undefined }
 const flag = n => argv.includes(`--${n}`)
-// options à valeur : leur valeur n'est pas un argument positionnel
+// options that take a value: that value is not a positional argument
 const A_VALEUR = new Set(['character', 'size', 'out', 'engine', 'seconds', 'shots', 'lang', 'n'])
 const positionnels = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && A_VALEUR.has(argv[i - 1].slice(2))))
 const [cmd, ...args] = positionnels

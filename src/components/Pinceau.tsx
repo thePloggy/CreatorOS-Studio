@@ -1,8 +1,8 @@
-/* Retouche au pinceau — on peint la zone à refaire, on dit ce qui doit s'y trouver,
-   et seule cette zone est régénérée : le reste de l'image revient au pixel près.
-   Le masque est peint à la définition de l'image (pas à celle de l'écran).
-   Vidéo : on peint sur la PREMIÈRE image du clip ; la zone est suivie d'image en image
-   (ou reste fixe dans le cadre, au choix). */
+/* Brush retouch: paint the zone to redo, say what should be there, and only
+   that zone is regenerated; the rest of the image comes back pixel-exact.
+   The mask is painted at the image resolution (not the screen's).
+   Video: paint on the FIRST frame of the clip; the zone is tracked frame by frame
+   (or stays fixed in the frame, as chosen). */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Asset } from '../types'
@@ -17,12 +17,12 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
   const video = asset.mediaType === 'video'
   const [suivi, setSuivi] = useState(true)
   const [pret, setPret] = useState(false)
-  const [taille, setTaille] = useState(60)          // diamètre, en pixels d'image
+  const [taille, setTaille] = useState(60)          // diameter, in image pixels
   const [gomme, setGomme] = useState(false)
   const [prompt, setPrompt] = useState('')
-  /* À 75-80 % une photo garde sa couleur (pull crème resté crème),
-     à 95 % elle change. Une vidéo, même à 100 %, garde le vêtement : la retouche
-     vidéo corrige, elle ne remplace pas — 75 % suffit et abîme moins. */
+  /* At 75-80 % a photo keeps its colour, at 95 % it changes. A video keeps
+     the garment even at 100 %: video retouch corrects rather than replaces,
+     so 75 % is enough and degrades less. */
   const [force, setForce] = useState(video ? 0.75 : 0.9)
   const [peint, setPeint] = useState(false)
   const [envoi, setEnvoi] = useState(false)
@@ -31,14 +31,14 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
   const dernier = useRef<{ x: number; y: number } | null>(null)
   const pile = useRef<ImageData[]>([])
   const adopter = useAppStore(s => s.adoptServerJob)
-  /* Poser un objet : une photo de la bibliothèque et son nom, collés dans la zone suivie. */
+  /* Place an object: a library photo and its name, pasted into the tracked zone. */
   const photos = useAppStore(s => s.assets).filter(a => a.mediaType === 'photo').slice(0, 24)
   const [objet, setObjet] = useState<string | null>(null)
   const [objetNom, setObjetNom] = useState('')
   const [loin, setLoin] = useState(false)
   const [poser, setPoser] = useState(false)
-  /* Téléphone : image en haut, réglages dessous (le panneau de 320 px à droite
-     ne tient pas sur un écran étroit). Le pinceau suit le doigt (pointer events). */
+  /* Phone: image on top, settings below (the 320 px right panel does not fit
+     a narrow screen). The brush follows the finger (pointer events). */
   const [etroit, setEtroit] = useState(() => window.innerWidth < 760)
   useEffect(() => {
     const r = () => setEtroit(window.innerWidth < 760)
@@ -106,7 +106,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
     if (!prompt.trim()) { setMsg(t('Décris ce qui doit apparaître dans la zone peinte.')); return }
     setEnvoi(true); setMsg(null)
     try {
-      // masque blanc sur noir, opaque, à la définition de l'image
+      // white-on-black mask, opaque, at image resolution
       const m = document.createElement('canvas'); m.width = c.width; m.height = c.height
       const ctx = m.getContext('2d')!
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, m.width, m.height)
@@ -195,7 +195,7 @@ export function Pinceau({ asset, onClose }: { asset: Asset; onClose: () => void 
     </div>, document.body)
 }
 
-/** La toile porte-t-elle au moins un trait ? */
+/** Does the canvas hold at least one stroke? */
 function contient(c: HTMLCanvasElement) {
   const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
   for (let i = 3; i < d.length; i += 16) if (d[i] > 40) return true

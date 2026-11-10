@@ -1,22 +1,22 @@
 /* ============================================================
-   Dépôt d'une photo par un visiteur de la démo publique.
+   Photo upload by a visitor of the public demo.
 
-   Seulement des photos SANS personne humaine : objets, produits, décors,
-   animaux, matières. Une photo où l'on voit une personne, un visage, un corps,
-   un enfant ou une main (photographiés ou dessinés) est refusée : aucun outil
-   du studio ne peut alors retoucher une personne réelle.
+   Only photos WITHOUT a human: objects, products, sets, animals,
+   materials. A photo showing a person, face, body, child or hand
+   (photographed or drawn) is refused, so no studio tool can edit a
+   real person.
 
-   Chaque dépôt :
-   - image seulement (png, jpeg, webp), 12 Mio au plus, 6 par heure et par visiteur ;
-   - réencodé en PNG sans métadonnées (EXIF, position GPS) et ramené à 2048 px ;
-   - lu par deux contrôles, sur le processeur, l'un après l'autre :
-     GroundingDINO + YuNet (scripts/depot_sans_personne.py, Python de ComfyUI)
-     et NudeNet en mode « personne » (scripts/filtre_images.py --personne) ;
-     sans contrôle disponible, le dépôt est refusé ;
-   - accepté : rangé dans input/ avec l'origine « depot-visiteur » ;
-   - refusé : DÉPLACÉ dans le dossier de quarantaine du jour (chmod 700), jamais
-     servi ni réutilisé.
-   Tout est noté dans depots-visiteurs.json, que la surveillance horaire relit.
+   Each upload:
+   - image only (png, jpeg, webp), 12 MiB max, 6 per hour per visitor;
+   - re-encoded as PNG without metadata (EXIF, GPS) and scaled to 2048 px;
+   - read by two CPU checks, one after the other:
+     GroundingDINO + YuNet (scripts/depot_sans_personne.py, ComfyUI Python)
+     and NudeNet in "person" mode (scripts/filtre_images.py --personne);
+     if no check is available, the upload is refused;
+   - accepted: stored in input/ with origin "depot-visiteur";
+   - refused: MOVED to the day's quarantine folder (chmod 700), never
+     served or reused.
+   Everything is logged in depots-visiteurs.json, re-read by the hourly monitor.
    ============================================================ */
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -48,7 +48,7 @@ const empreinte = req => {
   const ip = String(req.headers['x-forwarded-for'] ?? req.ip ?? '').split(',')[0].trim()
   return crypto.createHash('sha256').update(`${sel.valeur}|${ip}`).digest('hex').slice(0, 16)
 }
-const recents = new Map()   // empreinte → horodatages de l'heure écoulée
+const recents = new Map()   // fingerprint -> timestamps within the last hour
 
 function journaliser(e) {
   let l = []
@@ -57,7 +57,7 @@ function journaliser(e) {
   fs.writeFileSync(JOURNAL, JSON.stringify(l.slice(0, 500), null, 1))
 }
 
-// un contrôle à la fois : GroundingDINO occupe plusieurs cœurs une quinzaine de secondes
+// one check at a time: GroundingDINO uses several cores for about fifteen seconds
 let file = Promise.resolve()
 const enFile = f => { const p = file.then(f, f); file = p.catch(() => {}); return p }
 
@@ -80,7 +80,7 @@ async function controler(png) {
   return raisons
 }
 
-/** POST /api/upload sans la clé du propriétaire. */
+/** POST /api/upload without the owner key. */
 export async function depotVisiteur(req, reply) {
   const type = String(req.headers['content-type'] ?? '').split(';')[0]
   if (!TYPES_DEPOT[type]) { reply.code(415); return { error: 'sur la démo publique, seules les photos (png, jpeg, webp) se déposent' } }
@@ -99,7 +99,7 @@ export async function depotVisiteur(req, reply) {
   const png = path.join(ATTENTE, `${base}.png`)
   fs.writeFileSync(brut, buf, { mode: 0o600 })
   try {
-    // PNG sans métadonnées, 2048 px au plus : la position GPS d'un téléphone ne reste pas sur le serveur
+    // PNG without metadata, 2048 px max: a phone's GPS position does not stay on the server
     await run('ffmpeg', ['-nostdin', '-loglevel', 'error', '-y', '-i', brut, '-map_metadata', '-1', '-frames:v', '1',
       '-vf', "scale='min(2048,iw)':'min(2048,ih)':force_original_aspect_ratio=decrease", png], { timeout: 60_000 })
   } catch (e) {

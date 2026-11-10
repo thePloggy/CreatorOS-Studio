@@ -1,10 +1,10 @@
 /* ============================================================
-   Page Créateur : qui a fait CreatorOS — nom, présentation, lien du site,
-   autres liens et quelques informations. Lecture d'abord ; « Modifier »
-   ouvre le formulaire. Enregistré côté serveur (createur.json).
-   Titre, présentation et informations existent en français et en anglais :
-   la page montre la langue de l'interface, l'autre si celle-ci est vide.
-   Styles en ligne, couleurs héritées : partagé bureau et mobile.
+   Creator page: who made CreatorOS — name, bio, website link,
+   other links and some details. Read view first; "Modifier" opens
+   the form. Stored on the server (createur.json).
+   Title, bio and details exist in French and English: the page
+   shows the interface language, falling back to the other if empty.
+   Inline styles, inherited colors: shared by desktop and mobile.
    ============================================================ */
 import { useEffect, useState } from 'react'
 import { t, getLang, tServeur } from '../../i18n'
@@ -15,7 +15,7 @@ interface Lien { label: string; url: string }
 interface Info { k: string; v: string; kEn?: string; vEn?: string }
 export interface Createur { nom: string; titre: string; titreEn?: string; bio: string; bioEn?: string; site: string; liens: Lien[]; infos: Info[] }
 const VIDE: Createur = { nom: '', titre: '', titreEn: '', bio: '', bioEn: '', site: '', liens: [], infos: [] }
-/* langue de l'interface, repli sur l'autre version */
+/* interface language, falling back to the other version */
 const choisir = (fr: string, en?: string) => (getLang() === 'en' ? en || fr : fr || en || '')
 
 const champ: React.CSSProperties = {

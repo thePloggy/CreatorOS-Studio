@@ -1,13 +1,13 @@
 /* ============================================================
-   CreatorOS mobile — shell.
+   CreatorOS mobile: shell.
 
-   Quatre espaces (Bibliothèque · Créer · Studio · Jobs) + l'atelier derrière
-   l'avatar. Chaque espace garde son état ; passer de l'un à l'autre ne
-   perd jamais le travail en cours.
+   Four spaces (Library · Create · Studio · Jobs) + the workshop behind
+   the avatar. Each space keeps its state; switching never loses work
+   in progress.
 
-   Le métier n'est PAS réécrit : tout passe par le store partagé avec le
-   desktop (src/store/useAppStore). Cette couche est une présentation
-   tactile, pas un second produit.
+   Business logic is NOT rewritten: everything goes through the store
+   shared with desktop (src/store/useAppStore). This layer is a touch
+   presentation, not a second product.
    ============================================================ */
 import { BandeauGithub } from '../components/BandeauGithub'
 import { PersonaMenu } from '../components/PersonaMenu'
@@ -43,11 +43,11 @@ const SPACES: [Space, string, 'library' | 'create' | 'studio' | 'jobs'][] = [
 const LAST_SPACE = 'm.space'
 
 export default function MApp() {
-  /* Premier lancement : Bibliothèque. Lancements suivants : le dernier
-     espace visité. L'atelier n'est jamais restauré — on n'ouvre
-     pas l'application sur ses réglages. */
+  /* First launch: Library. Later launches: the last visited space.
+     The workshop is never restored: the app does not open on its
+     settings. */
   const [space, setSpace] = useState<Space>(() => {
-    // un lien partagé (?s=reel, ?s=image…) ouvre l'espace correspondant, avant le dernier visité
+    // a shared link (?s=reel, ?s=image…) opens the matching space, ahead of the last visited one
     const lien = lienMobile()
     if (lien) return lien.space
     try {
@@ -55,22 +55,22 @@ export default function MApp() {
       return s && ['library', 'create', 'studio', 'jobs'].includes(s) ? s : 'library'
     } catch { return 'library' }
   })
-  // hors du Studio, l'espace est la page (Créer, Bibliothèque…) ; le Studio règle ses vues lui-même
+  // outside the Studio, the space is the page (Create, Library…); the Studio manages its own views
   useEffect(() => { if (space !== 'studio') void useAppStore.getState().entrerPage(`m:${space}`) }, [space])
   useEffect(() => {
-    if (space !== 'atelier') { try { localStorage.setItem(LAST_SPACE, space) } catch { /* stockage refusé */ } }
+    if (space !== 'atelier') { try { localStorage.setItem(LAST_SPACE, space) } catch { /* storage refused */ } }
   }, [space])
 
   const s = useAppStore()
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
   useEffect(() => { void s.hydrate(); const m = lienMobile()?.mode; if (m) s.setMode(m) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  /* L'OS décharge l'application dès que l'écran s'éteint : sans ça, un
-     prompt en cours de rédaction disparaît entre deux consultations. */
+  /* The OS unloads the app as soon as the screen turns off: without this,
+     a prompt being written disappears between visits. */
   useDraftPersistence()
 
-  /* Demande de navigation posée par le store (Cloner, Animer, Retoucher,
-     Prolonger) : sur mobile, « image » comme « vidéo » mènent au même
-     espace — c'est l'onglet Image/Vidéo du formulaire qui les distingue. */
+  /* Navigation request set by the store (Clone, Animate, Retouch,
+     Extend): on mobile, "image" and "video" lead to the same space;
+     the form's Image/Video tab tells them apart. */
   const navNonce = s.navRequest?.nonce ?? 0
   useEffect(() => {
     if (!navNonce) return
@@ -81,9 +81,9 @@ export default function MApp() {
   const active = s.jobs.filter(j => STATUTS_ACTIFS.includes(j.status)).length
   useTabTitle()
 
-  /* Hauteur RÉELLE de la capsule reportée en variable CSS : la place
-     réservée sous le contenu doit correspondre à ce qui est mesuré, pas à
-     une constante (la police système et le zoom texte la font varier). */
+  /* REAL height of the capsule exposed as a CSS variable: the space
+     reserved below the content must match the measured height, not a
+     constant (system font and text zoom change it). */
   const navRef = useRef<HTMLElement>(null)
   useLayoutEffect(() => {
     const el = navRef.current
@@ -98,9 +98,9 @@ export default function MApp() {
     return () => ro.disconnect()
   }, [])
 
-  /* Clavier ouvert : la capsule flottante se retrouverait POSÉE SUR le
-     clavier, au-dessus du champ en cours de saisie. On la masque tant que
-     l'utilisateur écrit — `Terminé` reste dans le formulaire. */
+  /* Keyboard open: the floating capsule would sit ON the keyboard,
+     above the field being edited. It is hidden while the user types;
+     `Done` stays in the form. */
   const [typing, setTyping] = useState(false)
   useEffect(() => {
     const isField = (t: EventTarget | null) =>
@@ -137,8 +137,8 @@ export default function MApp() {
       <UndoDelete bottom={104} />
       <RenderIsland visible={space !== 'jobs'} top={58} onOpen={() => setSpace('library')} />
 
-      {/* capsule Liquid Glass — libellés permanents, état actif lisible même
-          sans flou ni animation */}
+      {/* glass capsule: permanent labels, active state readable even
+          without blur or animation */}
       <nav className="nav" ref={navRef} hidden={typing}
         style={typing ? { display: 'none' } : undefined} aria-label={t('navigation principale')}>
         {SPACES.map(([k, label, icon]) => (

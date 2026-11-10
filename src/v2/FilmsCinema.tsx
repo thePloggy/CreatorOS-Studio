@@ -1,7 +1,7 @@
-/* Films de Movie Studio : sous le hero, une rangée de films déjà tournés. Un clic recharge tout le film — la fiche
-   de l'étape 1, ses prises (stills) et la table de montage (images clés à leur instant, actions, personnage, clip).
-   Les quatre films du studio sont livrés avec lui ; chaque plan envoyé depuis la table s'ajoute devant eux
-   (gardés dans ce navigateur, comme le reste de Movie Studio). */
+/* Movie Studio films: below the hero, a row of already shot films. A click reloads the whole film: the step 1
+   sheet, its takes (stills) and the timeline (keyframes at their time, actions, character, clip).
+   The four studio films ship with it; each shot sent from the timeline is added before them
+   (kept in this browser, like the rest of Movie Studio). */
 import { useAppStore } from '../store/useAppStore'
 import { STATUTS_ACTIFS } from '../types'
 import { t } from '../i18n'
@@ -14,9 +14,9 @@ import FILMS_STUDIO from './filmsCinema.json'
 export type StillFilm = { id: string; uri: string }
 export type Film = {
   id: string; nom: string; fiche: Partial<Fiche>; prises: StillFilm[]; table: Etat
-  /** fond de carte des films du studio (petits clips en boucle) */
+  /** card background for studio films (short looping clips) */
   video?: string; affiche?: string
-  /** films envoyés depuis la table : date d'envoi */
+  /** films sent from the timeline: send date */
   date?: number
 }
 
@@ -31,14 +31,14 @@ export function ajouterFilm(f: Film) {
   try {
     localStorage.setItem(CLE_FILMS, JSON.stringify([f, ...lireFilms().filter(x => x.id !== f.id)].slice(0, 24)))
     window.dispatchEvent(new Event('cine:films'))
-  } catch { /* stockage indisponible */ }
+  } catch { /* storage unavailable */ }
 }
 function retirerFilm(id: string) {
   localStorage.setItem(CLE_FILMS, JSON.stringify(lireFilms().filter(x => x.id !== id)))
   window.dispatchEvent(new Event('cine:films'))
 }
 
-/** Nom d'un film envoyé : le début de sa première action, sinon « Nouveau film ». */
+/** Name of a sent film: the start of its first action, otherwise "New film". */
 export function nomDeFilm(table: Etat): string {
   const a = (table.actions.find(x => x?.trim()) ?? '').trim().replace(/[.,;:].*$/, '')
   if (!a) return t('Nouveau film')
@@ -56,7 +56,7 @@ export function FilmsCinema({ films, onCharger, reduit }: { films: Film[]; onCha
       </div>
       <div className="cine-films-rangee">
         {films.map(f => {
-          // le fond : le petit clip du studio, ou le plan rendu, ou à défaut sa première image clé
+          // background: the studio's short clip, or the rendered shot, or failing that its first keyframe
           const clip = f.video ? v(f.video) : s.assets.find(a => a.jobId === f.table.rendu?.jobId && a.mediaType === 'video')?.uri ?? f.table.rendu?.uri
           const affiche = f.affiche ? v(f.affiche) : f.table.cles[0]?.uri
           const enCours = !f.video && s.jobs.some(j => j.id === f.table.rendu?.jobId && STATUTS_ACTIFS.includes(j.status))

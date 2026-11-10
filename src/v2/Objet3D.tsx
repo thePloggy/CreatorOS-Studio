@@ -1,5 +1,5 @@
-/* Objet 3D : le GLB de TRELLIS.2 en vrai, à faire tourner à la souris.
-   Chargé à la demande : three.js ne pèse que sur ceux qui ouvrent la vue. */
+/* 3D object: the TRELLIS.2 GLB, rotatable with the mouse.
+   Lazy-loaded so three.js only costs those who open the view. */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -22,7 +22,7 @@ export default function Objet3D({ url }: { url: string }) {
     orbite.enableDamping = true; orbite.autoRotate = true; orbite.autoRotateSpeed = 1.6
     new GLTFLoader().load(url, g => {
       const b = new THREE.Box3().setFromObject(g.scene), c = b.getCenter(new THREE.Vector3()), t = b.getSize(new THREE.Vector3()).length()
-      // couleurs peintes sur les sommets : sans métal, sinon l'éclairage les tache de reflets
+      // vertex colors: non-metallic, otherwise lighting adds reflection spots
       g.scene.traverse(n => { const m = (n as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m?.isMeshStandardMaterial) { m.metalness = 0; m.roughness = 0.75 } })
       g.scene.position.sub(c); scene.add(g.scene)
       cam.position.set(0, t * 0.25, t * 2.1); orbite.target.set(0, 0, 0)

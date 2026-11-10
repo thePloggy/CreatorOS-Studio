@@ -1,5 +1,5 @@
-/* Modèles optionnels : MiniMax H3. Le studio ne fournit pas ses poids (licence) ;
-   le propriétaire d'une installation locale les envoie ici, fichier par fichier. */
+/* Optional models: MiniMax H3. The studio does not ship its weights (license);
+   the owner of a local install uploads them here, file by file. */
 import { useEffect, useState } from 'react'
 import { t } from '../../i18n'
 import { lireCleProprietaire, useEdition } from '../../lib/proprietaire'

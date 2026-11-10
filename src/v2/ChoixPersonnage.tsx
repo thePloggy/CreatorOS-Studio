@@ -1,6 +1,6 @@
-/* Personnage d'une génération, posé comme un élément du prompt : une pastille
-   avec sa photo au-dessus du champ, un clic pour en changer. « Sans
-   personnage » : aucun visage imposé (la mention d’âge adulte reste, côté serveur). */
+/* Character for a generation, shown as part of the prompt: a chip with its photo
+   above the field, click to change it. "No character": no face imposed (the
+   adult-age mention is still added server-side). */
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { SANS_PERSONNAGE } from '../lib/personnage'
@@ -14,14 +14,14 @@ export function usePersonnages() {
   return liste
 }
 
-/** `libelleSans` : le nom affiché sans personnage, et proposé dans la liste (« Visage de la photo » pour un
- *  carrousel : sans personnage, le visage vient de la photo d'origine). */
+/** `libelleSans`: the label shown for no character, also offered in the list ("Face from the photo" for a
+ *  carousel: without a character, the face comes from the source photo). */
 export function ChoixPersonnage({ libelleSans }: { libelleSans?: string } = {}) {
   const liste = usePersonnages()
   const id = useAppStore(s => s.personaId)
   const nom = useAppStore(s => s.personaName)
   const photo = useAppStore(s => s.personaAvatar)
-  // un choix de page : les autres pages et le personnage par défaut du studio ne changent pas
+  // page-scoped choice: other pages and the studio default character are unchanged
   const choisir = useAppStore(s => s.choisirPersonnagePage)
   const [ouvert, setOuvert] = useState(false)
   const boite = useRef<HTMLDivElement>(null)

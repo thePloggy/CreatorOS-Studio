@@ -1,7 +1,7 @@
 /* ============================================================
-   Configuration du backend CreatorOS.
-   Tout est surchargeable par variable d'environnement : aucun chemin
-   propre à une machine n'est écrit en dur.
+   CreatorOS backend configuration.
+   Everything can be overridden by environment variable: no
+   machine-specific path is hard-coded.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -11,19 +11,19 @@ import { execFileSync } from 'node:child_process'
 const home = os.homedir()
 const repo = path.resolve(import.meta.dirname, '..')
 
-/* Réglages écrits par l'installeur (npm run setup, étape « Studio settings ») : <données>/studio.env, une ligne
-   CLE=valeur par réglage. Une variable déjà définie dans l'environnement garde la priorité. */
+/* Settings written by the installer (npm run setup, "Studio settings" step): <data>/studio.env, one
+   KEY=value line per setting. A variable already set in the environment takes priority. */
 export const FICHIER_REGLAGES = path.join(process.env.CREATOROS_DATA || path.join(home, 'creatoros-data'), 'studio.env')
 try {
   for (const ligne of fs.readFileSync(FICHIER_REGLAGES, 'utf8').split('\n')) {
     const m = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$/.exec(ligne)
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2')
   }
-} catch { /* pas de fichier de réglages : les valeurs par défaut */ }
+} catch { /* no settings file: defaults */ }
 const comfyDir = process.env.COMFY_DIR || path.join(home, 'ComfyUI')
 const dataDir = process.env.CREATOROS_DATA || path.join(home, 'creatoros-data')
 
-/** VRAM de la première carte NVIDIA de cette machine, en Go (0 si inconnue). Lue une fois. */
+/** VRAM of this machine's first NVIDIA card, in GB (0 if unknown). Read once. */
 let vramLue
 function vramLocaleGo() {
   if (vramLue === undefined) {
@@ -36,102 +36,97 @@ function vramLocaleGo() {
 }
 
 export const CONFIG = {
-  /* Serveur HTTP — boucle locale par défaut. Pour l'ouvrir au réseau, poser
-     CREATOROS_HOST=0.0.0.0 derrière un proxy de son choix. */
+  /* HTTP server, loopback by default. To expose it to the network, set
+     CREATOROS_HOST=0.0.0.0 behind a proxy of your choice. */
   port: Number(process.env.CREATOROS_PORT || 8787),
   host: process.env.CREATOROS_HOST || '127.0.0.1',
 
-  /* ComfyUI local. `comfyDir` sert à retrouver ses dossiers et son Python. */
+  /* Local ComfyUI. `comfyDir` is used to find its folders and its Python. */
   comfyUrl: process.env.COMFY_URL || 'http://127.0.0.1:8188',
   comfyDir,
   comfyOutput: process.env.COMFY_OUTPUT || path.join(comfyDir, 'output'),
-  /* Dossier `input/` de ComfyUI : destination des images déposées par
-     l'opérateur pour une recette d'édition. Un nœud LoadImage ne sait lire
-     que là — d'où un vrai dépôt de fichier, et pas une URL d'objet. */
+  /* ComfyUI `input/` folder: destination of images uploaded for an edit
+     recipe. A LoadImage node can only read from there, hence a real file
+     upload rather than an object URL. */
   comfyInput: process.env.COMFY_INPUT || path.join(comfyDir, 'input'),
-  /* Python du venv de ComfyUI : sert aux scripts annexes (gravure des
-     captions) et au diagnostic. */
+  /* ComfyUI venv Python: used by helper scripts (caption burning) and
+     the diagnostic. */
   comfyPython: process.env.COMFY_PYTHON || path.join(comfyDir, 'venv/bin/python'),
 
-  /* Dossier des LoRA — sert à établir la liste offerte au front et à
-     classer chaque fichier par architecture (lecture d'en-tête). */
+  /* LoRA folder: used to build the list offered to the front end and to
+     classify each file by architecture (header read). */
   lorasDir: process.env.CREATOROS_LORAS || path.join(comfyDir, 'models/loras'),
 
-  /* Patch ControlNet Z-Image (Fun-CN Union), chargé par ModelPatchLoader.
-     Vit dans models/model_patches/ et non models/controlnet/ : c'est un
-     patch de modèle, pas un ControlNet au sens des nœuds standards. */
+  /* Z-Image ControlNet patch (Fun-CN Union), loaded by ModelPatchLoader.
+     Lives in models/model_patches/, not models/controlnet/: it is a model
+     patch, not a ControlNet in the standard node sense. */
   controlNetPatch: process.env.CREATOROS_CN_PATCH
     || 'Z-Image-Turbo-Fun-Controlnet-Union.safetensors',
 
-  /* Textes de façonnage — system prompts du réécriveur, couches moteur.
-     Hors du code À DESSEIN : ce sont eux qui décident de ce que le modèle
-     rend, ils changent plus souvent qu'une recette et doivent être
-     modifiables sans déploiement. Lus à CHAQUE job. */
+  /* Shaping texts: rewriter system prompts, engine layers. Kept outside the
+     code on purpose so they can be edited without a deploy. Read on EVERY job. */
   promptsDir: process.env.CREATOROS_PROMPTS || path.join(repo, 'prompts'),
 
-  /* Workflows au format API — source de vérité des recettes. */
+  /* API-format workflows: source of truth for recipes. */
   workflowsDir: process.env.CREATOROS_WORKFLOWS || path.join(repo, 'workflows'),
-  // Fichiers wildcard *.txt : la source des items « 🎲 au hasard »,
-  // tirés côté serveur avec la seed du job (server/wildcards.js).
+  // Wildcard *.txt files: source of the "🎲 random" items,
+  // drawn server-side with the job seed (server/wildcards.js).
   wildcardsDir: process.env.CREATOROS_WILDCARDS || path.join(dataDir, 'wildcards'),
   defaultWorkflow: process.env.CREATOROS_WORKFLOW || 'PROD_gen_krea_sfw.json',
-  /* Moteur photo par défaut : Krea 2 ('krea') ou FLUX.2 Klein 9B ('klein').
-     Un job peut demander l'autre (job.photoEngine). Une seule source : le
-     réécriveur, le carrousel et les recettes lisent tous cette valeur. */
+  /* Default photo engine: Krea 2 ('krea') or FLUX.2 Klein 9B ('klein').
+     A job can request the other (job.photoEngine). Single source: the
+     rewriter, the carousel and the recipes all read this value. */
   photoEngine: ['krea', 'klein'].includes((process.env.CREATOROS_PHOTO_ENGINE || '').trim().toLowerCase())
     ? process.env.CREATOROS_PHOTO_ENGINE.trim().toLowerCase()
-    // Krea 2 pèse 13 Go : sous 14 Go de VRAM, Klein (allégé en 4B, cf. allege.js) le remplace
+    // Krea 2 weighs 13 GB: below 14 GB of VRAM, Klein (lightened to 4B, see allege.js) replaces it
     : vramLocaleGo() && vramLocaleGo() < 14 || [8, 12].includes(Number(process.env.CREATOROS_VRAM)) ? 'klein' : 'krea',
 
-  /* Données persistantes — HORS du dépôt git : ni images ni base n'ont à
-     s'y trouver. */
+  /* Persistent data, OUTSIDE the git repo. */
   dataDir,
-  /* Persona : `persona.json` dans le dossier de données (cf. server/persona.js). */
+  /* Persona: `persona.json` in the data directory (see server/persona.js). */
   personaFile: process.env.CREATOROS_PERSONA_FILE || path.join(dataDir, 'persona.json'),
-  /* Livraisons (vidéos à caption gravée). */
+  /* Deliveries (videos with burned captions). */
   exportsDir: process.env.CREATOROS_EXPORTS || path.join(dataDir, 'exports'),
 
-  /* Front compilé (npm run build). */
+  /* Built front end (npm run build). */
   distDir: path.join(repo, 'dist'),
 
-  /* Ollama réécrit le prompt AVANT la diffusion, sur le même GPU.
-     Un LLM de ~20 Gio et un modèle de diffusion de ~20 Gio résidents en même
-     temps sur une carte de 32 Gio = CUDA OOM. On force donc keep_alive=0 :
-     le LLM se décharge dès sa réponse. CREATOROS_OLLAMA_UNLOAD=0 pour
-     retrouver le comportement du template (keep_alive 5 min). */
+  /* Ollama rewrites the prompt BEFORE diffusion, on the same GPU. A ~20 GiB LLM
+     and a ~20 GiB diffusion model resident together on a 32 GiB card = CUDA
+     OOM, so keep_alive=0 is forced: the LLM unloads right after replying.
+     CREATOROS_OLLAMA_UNLOAD=0 restores the default (keep_alive 5 min). */
   ollamaUnload: process.env.CREATOROS_OLLAMA_UNLOAD !== '0',
 
-  /* Réécriture de prompt — Ollama (cf. server/composer.js). */
+  /* Prompt rewriting via Ollama (see server/composer.js). */
   ollamaUrl: process.env.OLLAMA_URL || 'http://127.0.0.1:11434',
-  /* VLM de DESCRIPTION (describeScene / describeOutfit / carrousel). Servi en
-     CPU par défaut : aucune concurrence VRAM avec ComfyUI. */
+  /* DESCRIPTION VLM (describeScene / describeOutfit / carousel). Served on
+     CPU by default: no VRAM contention with ComfyUI. */
   visionDescribeModel: process.env.CREATOROS_VLM_DESCRIBE || 'qwen2.5vl:7b',
   visionDescribeCpu: process.env.CREATOROS_VLM_DESCRIBE_GPU !== '1',
-  /* Un seul registre (SFW) : un seul rédacteur. Clé conservée pour
-     /api/health, qui expose la table. */
+  /* A single register (SFW): a single writer. Key kept for /api/health,
+     which exposes the table. */
   composerModels: {
     sfw: process.env.CREATOROS_LLM || 'mistral-small:latest',
   },
-  /* Sur CPU une réécriture prend 20 à 60 s selon le modèle. La marge couvre
-     un premier appel qui doit charger le modèle depuis le disque. */
+  /* On CPU a rewrite takes 20 to 60 s depending on the model. The margin
+     covers a first call that must load the model from disk. */
   composerTimeoutMs: Number(process.env.CREATOROS_LLM_TIMEOUT || 240000),
 
-  /* Garde-fou : un job qui dépasse ça est marqué en échec, pas laissé pendre.
-     120 min : un long rendu motion peut légitimement dépasser l'heure. Ce
-     délai est un détecteur d'INACTIVITÉ (il ne court que prompt ni running
-     ni pending), donc large sans risque. */
+  /* Safeguard: a job exceeding this is marked failed instead of hanging.
+     120 min: a long motion render can legitimately exceed an hour. This is
+     an INACTIVITY timeout (runs only while the prompt is neither running nor
+     pending), so it can be generous. */
   jobTimeoutMs: Number(process.env.CREATOROS_JOB_TIMEOUT_MS || 120 * 60 * 1000),
 
-  /* Clé du propriétaire (démo publique). Posée, elle verrouille ce qui décrit
-     le studio — page Créateur, personnages et garde-robe, LoRA, photos de
-     profil, recettes et prompts : sans l'en-tête X-Owner-Key exact, ces
-     écritures répondent 403. Absente, rien n'est verrouillé (installation
-     locale, un seul utilisateur). */
+  /* Owner key (public demo). When set, it locks what describes the studio
+     (Creator page, characters and wardrobe, LoRAs, profile photos, recipes
+     and prompts): without the exact X-Owner-Key header, these writes return
+     403. When unset, nothing is locked (local single-user install). */
   cleProprietaire: (process.env.CREATOROS_OWNER_KEY || '').trim() || null,
-  /* Mode adulte (installation locale, un seul utilisateur) : la génération à partir d'un texte n'est plus
-     filtrée sur le contenu sexuel. Jamais avec une clé propriétaire (studio partagé), jamais sur le plancher
-     « mineurs », jamais quand un rendu part d'une photo importée (cf. jobs.js). */
-  // jamais sur la démo publique : il faut l'installation locale, sans clé propriétaire, écoutant sur cette machine seulement
+  /* Adult mode (local single-user install): text-to-image generation is not filtered for sexual
+     content. Never with an owner key (shared studio), never below the "minors" floor, never
+     when a render starts from an imported photo (see jobs.js). */
+  // never on the public demo: requires a local install, no owner key, listening on this machine only
   contenuAdulte: process.env.CREATOROS_CONTENU_ADULTE === '1' && !(process.env.CREATOROS_OWNER_KEY || '').trim()
     && ['127.0.0.1', 'localhost', '::1'].includes(process.env.CREATOROS_HOST || '127.0.0.1'),
 }

@@ -1,22 +1,22 @@
 /* ============================================================
-   Workflow de l'éditeur ComfyUI (nœuds, liens, sous-graphes, widgets) →
-   format API (ce que POST /prompt exécute).
+   ComfyUI editor workflow (nodes, links, subgraphs, widgets) ->
+   API format (what POST /prompt runs).
 
-   - Les valeurs des widgets sont rangées par position dans widgets_values ;
-     l'ordre des entrées vient d'object_info (requises puis optionnelles), et
-     un entier « seed » suivi d'un contrôle (randomize, fixed…) occupe deux places.
-   - Sous-graphes : chaque instance est dépliée, ses nœuds prennent l'id
-     « instance:nœud ». Une entrée du sous-graphe non branchée laisse au nœud
-     intérieur sa propre valeur.
-   - Nœuds coupés (mode 2) : retirés. Nœuds contournés (mode 4) : retirés, leurs
-     consommateurs reçoivent l'entrée du même type.
-   - Nœuds d'interface (Reroute, PrimitiveNode, notes) : traversés ou retirés.
+   - Widget values are stored by position in widgets_values; input order
+     comes from object_info (required then optional), and an integer "seed"
+     followed by a control (randomize, fixed...) takes two slots.
+   - Subgraphs: each instance is expanded, its nodes get the id
+     "instance:node". An unconnected subgraph input leaves the inner node
+     its own value.
+   - Muted nodes (mode 2): removed. Bypassed nodes (mode 4): removed, their
+     consumers get the input of the same type.
+   - UI nodes (Reroute, PrimitiveNode, notes): passed through or removed.
    ============================================================ */
 
 const MUET = 2, CONTOURNE = 4
 const ENTREE_SG = -10, SORTIE_SG = -20
 const INTERFACE = new Set(['Note', 'MarkdownNote', 'Reroute', 'PrimitiveNode'])
-// nœuds d'affichage dans l'éditeur, sans rien à rendre ici
+// editor-only display nodes, nothing to render here
 const AFFICHAGE = new Set(['ImageCompare', 'PreviewAny', 'Preview3D', 'Preview3DAdvanced'])
 const TYPES_WIDGET = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
 
@@ -25,8 +25,8 @@ const estWidget = (type, opts) => Array.isArray(type) || type === DYN || opts.so
   || (TYPES_WIDGET.has(type) && !opts.forceInput) || ['COLOR', 'BOUNDING_BOXES'].includes(type)
 const aControle = (type, nom, opts) => !!opts.control_after_generate || (type === 'INT' && /(^|\.)(noise_)?seed$/.test(nom))
 
-/** Range widgets_values (positionnel) dans inputs, en suivant object_info ; une liste dynamique
- *  (COMFY_DYNAMICCOMBO_V3) insère après elle les widgets de l'option choisie, nommés « liste.widget ». */
+/** Maps widgets_values (positional) into inputs following object_info; a dynamic list
+ *  (COMFY_DYNAMICCOMBO_V3) inserts the chosen option's widgets after it, named "list.widget". */
 function rangerWidgets(spec, valeurs, inputs, prefixe = '', pos = { k: 0 }) {
   for (const groupe of ['required', 'optional']) {
     for (const [nomBrut, s] of Object.entries(spec?.[groupe] ?? {})) {
@@ -45,7 +45,7 @@ function rangerWidgets(spec, valeurs, inputs, prefixe = '', pos = { k: 0 }) {
   }
 }
 
-/** Liste des noms de widgets (sans les sous-widgets dynamiques) : pour widgets_values en objet. */
+/** Widget names (without dynamic sub-widgets): for widgets_values given as an object. */
 export function widgetsDe(classe, objetInfo) {
   const def = objetInfo[classe]
   if (!def) return null
@@ -57,7 +57,7 @@ export function widgetsDe(classe, objetInfo) {
 
 const lienObjet = l => Array.isArray(l) ? { id: l[0], origin_id: l[1], origin_slot: l[2], target_id: l[3], target_slot: l[4], type: l[5] } : l
 
-/** Convertit ; renvoie { graphe, ignores } ou lève une erreur lisible. */
+/** Converts; returns { graphe, ignores } or throws a readable error. */
 export function versApi(w, objetInfo) {
   const sousGraphes = new Map((w.definitions?.subgraphs ?? []).map(s => [s.id, s]))
   const graphe = {}
@@ -71,7 +71,7 @@ export function versApi(w, objetInfo) {
     }
   }
 
-  /** Ce qui sort de (nœud, slot) dans une portée : [idApi, slot], { valeur }, ou undefined. */
+  /** Output of (node, slot) in a scope: [apiId, slot], { valeur }, or undefined. */
   function origine(p, idNoeud, slot, type) {
     if (idNoeud === ENTREE_SG) return p.entrees[slot]?.()
     const n = p.noeuds.get(idNoeud)
@@ -104,13 +104,13 @@ export function versApi(w, objetInfo) {
   function deplier(p, inst, sg) {
     const cle = `${p.prefixe}${inst.id}`
     if (deplies.has(cle)) return deplies.get(cle)
-    // valeurs des widgets de l'instance : une par entrée du sous-graphe, dans l'ordre de ses entrées
+    // instance widget values: one per subgraph input, in input order
     const wv = Array.isArray(inst.widgets_values) ? inst.widgets_values : []
     const entrees = (sg.inputs ?? []).map((si, k) => () => {
       const e = (inst.inputs ?? []).find(i => i.name === si.name)
       if (e?.link != null) return entreeDe(p, inst, e)
       if (wv.length === (sg.inputs ?? []).length && wv[k] !== undefined) return { valeur: wv[k] }
-      // sans valeur sur l'instance : celle du widget intérieur que cette entrée promeut
+      // no value on the instance: use the inner widget this input promotes
       for (const l of (sg.links ?? []).map(lienObjet)) {
         if (l.origin_id !== ENTREE_SG || l.origin_slot !== k) continue
         const cible = (sg.nodes ?? []).find(x => x.id === l.target_id)
@@ -150,7 +150,7 @@ export function versApi(w, objetInfo) {
 
   emettre(portee(w.nodes ?? [], w.links ?? [], '', [], null))
 
-  // widgets apparus après l'écriture du workflow : leur valeur par défaut
+  // widgets added after the workflow was written: their default value
   for (const n of Object.values(graphe))
     for (const [nom, sp] of Object.entries(objetInfo[n.class_type]?.input?.required ?? {})) {
       if (nom in n.inputs) continue
@@ -160,21 +160,21 @@ export function versApi(w, objetInfo) {
       else if (Array.isArray(type) && type.length) n.inputs[nom] = type[0]
       else if (Array.isArray(opts.options) && opts.options.length) n.inputs[nom] = typeof opts.options[0] === 'object' ? opts.options[0].key : opts.options[0]
     }
-  // retire les liens vers des nœuds qui n'ont pas été émis (classe inconnue)
+  // remove links to nodes that were not emitted (unknown class)
   for (const n of Object.values(graphe))
     for (const [k, v] of Object.entries(n.inputs))
       if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && !(v[0] in graphe)) delete n.inputs[k]
   return { graphe, ignores: [...ignores] }
 }
 
-/** Entrées requises absentes, par nœud : le graphe ne passerait pas la validation de ComfyUI. */
+/** Missing required inputs per node: the graph would fail ComfyUI validation. */
 export function entreesManquantes(graphe, objetInfo) {
   const manques = []
   for (const [id, n] of Object.entries(graphe)) {
     const req = objetInfo[n.class_type]?.input?.required ?? {}
     for (const [nom, sp] of Object.entries(req)) {
       const type = Array.isArray(sp) ? sp[0] : sp
-      // entrées qui grandissent (images.image_1…) : présentes sous leurs noms dérivés
+      // growing inputs (images.image_1...): present under their derived names
       if (type === 'COMFY_AUTOGROW_V3') continue
       if (!(nom in n.inputs)) manques.push(`${n.class_type}#${id}.${nom}`)
     }

@@ -1,7 +1,7 @@
 /* ============================================================
-   CreatorOS mobile — design system.
-   Portée : tout est scopé `.m`, pour cohabiter avec la v2 desktop
-   sans qu'aucune règle ne fuite d'un monde à l'autre.
+   CreatorOS mobile: design system.
+   Everything is scoped under `.m` to coexist with the desktop v2
+   without any rule leaking between them.
    ============================================================ */
 
 .m {
@@ -10,7 +10,7 @@
   --card: #1c1e23;
   --card-2: #23262c;
   --line: #303239;
-  /* texte */
+  /* text */
   --tx: #f5f5f7;
   --tx2: #a7aab5;
   --tx3: #6f7380;
@@ -19,13 +19,13 @@
   --acc-soft: #f24d8a26;
   --acc-tx: #ffd3e8;
   --grad: linear-gradient(94deg, #ff9345 0%, #f24d8a 52%, #9b5cf0 100%);
-  /* sémantique */
+  /* semantic */
   --ok: #3ddc97;
   --warn: #ffb020;
   --ko: #ff5470;
-  /* échelle d'espacement : 4 / 8 / 12 / 16 / 24 */
+  /* spacing scale: 4 / 8 / 12 / 16 / 24 */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px;
-  --pad: 16px;              /* marge latérale */
+  --pad: 16px;              /* side margin */
   --r-card: 16px;
   --r-field: 14px;
 
@@ -33,10 +33,10 @@
   color: var(--tx);
   font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* hauteur DYNAMIQUE : la barre d'URL de Safari change la hauteur visible,
-     100vh la fige sur la valeur haute et le bas du contenu passe dessous.
-     `vh` d'abord comme REPLI : un Safari sans `dvh` (iOS < 15.4) ignorerait
-     la seconde déclaration et se retrouverait sans hauteur du tout. */
+  /* DYNAMIC height: Safari's URL bar changes the visible height, and
+     100vh pins it to the tall value so the bottom of the content goes under it.
+     `vh` first as a FALLBACK: a Safari without `dvh` (iOS < 15.4) ignores
+     the second declaration and would otherwise have no height at all. */
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -49,30 +49,29 @@
 .m button, .m input, .m textarea, .m select { font: inherit; color: inherit; }
 .m button { background: none; border: 0; cursor: pointer; }
 
-/* `touch-action: manipulation` sur TOUTE commande tactile.
-   Sans lui, Safari iOS attend de savoir si le tap est un double-tap (zoom)
-   avant de livrer le `click`, et annule ce click au moindre glissement du
-   doigt — d'où des boutons qui « ne réagissent pas » alors qu'ils marchent
-   à la souris. `manipulation` supprime cette attente et ne garde que le
-   défilement et le pincement.
-   Le `-webkit-tap-highlight-color` évite en prime le flash gris d'iOS. */
+/* `touch-action: manipulation` on EVERY touch control.
+   Without it, iOS Safari waits to know whether the tap is a double-tap (zoom)
+   before delivering `click`, and cancels the click on the slightest finger
+   movement, so buttons seem unresponsive. `manipulation` removes that wait
+   and keeps only scrolling and pinching.
+   `-webkit-tap-highlight-color` also removes iOS's grey flash. */
 .m button, .m a, .m [role="button"], .m [role="switch"], .m .tile, .m label {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* cibles tactiles : 44 px de confort (WCAG 2.2 AA exige 24) */
+/* touch targets: 44 px for comfort (WCAG 2.2 AA requires 24) */
 .m button, .m [role="button"], .m a { min-height: 44px; }
-.m .tap-sm { min-height: 36px; }     /* dérogation explicite, zone étendue par padding */
+.m .tap-sm { min-height: 36px; }     /* explicit exception, area extended by padding */
 
-/* Boutons à ICÔNE SEULE : sans largeur minimale, la cible ne fait que celle
-   du pictogramme — 24 px — et on rate le bouton au pouce. La hauteur seule ne
-   suffit pas : il faut les deux dimensions. */
+/* ICON-ONLY buttons: without a minimum width the target is only the
+   pictogram's 24 px and is easy to miss with a thumb. Height alone is
+   not enough: both dimensions are needed. */
 .m .vtop button, .m .htitle .row button, .m .iconbtn {
   min-width: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* ---------- en-tête ---------- */
+/* ---------- header ---------- */
 .m .top {
   flex: none; display: flex; align-items: center; gap: var(--s2); min-width: 0;
   padding: var(--s3) var(--pad) var(--s2);
@@ -90,23 +89,23 @@
   background: #8a6a52; display: grid; place-items: center; font-size: 13px; font-weight: 600;
 }
 
-/* ---------- titre d'espace ---------- */
+/* ---------- space title ---------- */
 .m .htitle { padding: var(--s2) var(--pad) 0; flex: none; }
 .m .htitle h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
 .m .htitle p { margin: 2px 0 0; color: var(--tx2); font-size: 15px; }
 .m .htitle .row { display: flex; align-items: flex-start; gap: var(--s3); }
 .m .htitle .row button { flex: none; }
 
-/* ---------- zone défilante ---------- */
+/* ---------- scroll area ---------- */
 .m .scroll {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: var(--s3) var(--pad) 0;
-  /* place réservée sous le contenu : hauteur de la capsule + safe area.
-     Sans ça le dernier élément reste sous la barre, inatteignable. */
+  /* space reserved below the content: capsule height + safe area.
+     Otherwise the last item stays under the bar, unreachable. */
   padding-bottom: calc(var(--navh, 82px) + env(safe-area-inset-bottom, 0px) + var(--s6));
 }
 
-/* ---------- segments (Tout/Images/Vidéos, Image/Vidéo) ---------- */
+/* ---------- segments (All/Images/Videos, Image/Video) ---------- */
 .m .seg {
   display: flex; background: var(--card); border-radius: var(--r-field); padding: 4px;
   gap: 4px; width: 100%;
@@ -118,7 +117,7 @@
 .m .seg button.on { background: var(--card-2); color: var(--tx); font-weight: 500; }
 .m .seg.acc button.on { background: var(--acc-soft); color: var(--acc-tx); }
 
-/* ---------- grandes commandes (Générer / Retoucher / Remplacer) ---------- */
+/* ---------- large controls (Generate / Retouch / Replace) ---------- */
 .m .ops { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); }
 .m .ops button {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -131,19 +130,19 @@
 }
 .m .ophint { margin: var(--s2) 0 0; color: var(--tx2); font-size: 14px; }
 
-/* ---------- champs ---------- */
+/* ---------- fields ---------- */
 .m .label { font-size: 15px; font-weight: 500; margin: var(--s4) 0 var(--s2); }
 .m .field, .m textarea.field {
   width: 100%; background: var(--card); border: 1px solid var(--line);
   border-radius: var(--r-field); padding: 13px 14px;
-  /* 16px minimum : en dessous, iOS zoome sur le champ au focus. */
+  /* 16px minimum: below that, iOS zooms into the field on focus. */
   font-size: 16px; color: var(--tx); resize: vertical;
 }
 .m textarea.field { min-height: 116px; line-height: 1.45; }
 .m .field::placeholder { color: var(--tx3); }
 .m .field:focus-visible, .m button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
-/* ---------- cartes / listes ---------- */
+/* ---------- cards / lists ---------- */
 .m .card { background: var(--card); border-radius: var(--r-card); padding: var(--s3); }
 .m .rowbtn {
   display: flex; align-items: center; gap: var(--s3); width: 100%;
@@ -154,7 +153,7 @@
 .m .rowbtn small { color: var(--tx2); font-size: 13px; }
 .m .sep { height: 1px; background: var(--line); margin: var(--s3) 0; }
 
-/* ---------- grille de médias ---------- */
+/* ---------- media grid ---------- */
 .m .grid { display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr); gap: var(--s2); }
 .m .tile {
   position: relative; border-radius: var(--r-card); overflow: hidden;
@@ -184,14 +183,13 @@
 .m .tile .pick.on { background: var(--acc); border-color: var(--acc); }
 .m .tile.picked { outline: 2px solid var(--acc); outline-offset: -2px; }
 
-/* ---------- bandeau vers Jobs ---------- */
+/* ---------- Jobs banner ---------- */
 .m .jobbar {
   display: flex; align-items: center; gap: var(--s3); width: 100%;
   background: var(--card); border-radius: var(--r-card); padding: 14px var(--s3);
 }
-/* Spinner AUTONOME : il sert dans le bandeau Jobs, mais aussi dans les
-   feuilles (réécriture, carrousel). Le limiter à `.jobbar` le laissait sans
-   style partout ailleurs — un simple rond invisible. */
+/* STANDALONE spinner: used in the Jobs banner and also in sheets
+   (rewrite, carousel), so it is not scoped to `.jobbar`. */
 .m .spin {
   width: 22px; height: 22px; border-radius: 999px; flex: none; display: block;
   border: 2px solid var(--tx3); border-top-color: var(--acc); animation: mspin 1s linear infinite;
@@ -209,7 +207,7 @@
 .m .cta small { font-weight: 400; opacity: .85; font-size: 14px; }
 .m .ctawrap { padding: var(--s4) 0 var(--s2); }
 
-/* ---------- barre d'outils bas de formulaire ---------- */
+/* ---------- form bottom toolbar ---------- */
 .m .tools { display: flex; gap: var(--s2); }
 .m .tools button {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--s2);
@@ -222,7 +220,7 @@
 .m .stepper button[disabled] { color: var(--tx3); }
 .m .stepper span { min-width: 44px; text-align: center; font-size: 16px; font-weight: 600; }
 
-/* ---------- interrupteur ---------- */
+/* ---------- toggle ---------- */
 .m .tgl { display: flex; align-items: center; gap: var(--s3); width: 100%; background: var(--card); border-radius: var(--r-card); padding: 13px var(--s3); }
 .m .tgl .txt { text-align: left; flex: 1; }
 .m .tgl .txt b { display: block; font-size: 15px; font-weight: 500; }
@@ -232,17 +230,17 @@
 .m .tgl.on .sw { background: var(--acc); }
 .m .tgl.on .sw::after { left: 23px; background: #fff; }
 
-/* ---------- feuille modale (sélecteurs) ---------- */
-/* `.m.sheetwrap` autant que `.m .sheetwrap` : le portail porte les DEUX
-   classes sur le même élément — un sélecteur purement descendant laissait la
-   feuille sans aucun style, présente dans le DOM mais invisible. */
-/* Plans de l'application, du fond vers la surface :
-     50  capsule de navigation
-     55  barre d'actions de sélection
-     70  visionneuse (plein écran)
-     90  FEUILLES modales — au-dessus de TOUT, y compris de la visionneuse.
-   À 60, une feuille ouverte depuis la visionneuse s'afficherait DERRIÈRE
-   elle, invisible. */
+/* ---------- modal sheet (pickers) ---------- */
+/* `.m.sheetwrap` as well as `.m .sheetwrap`: the portal carries BOTH
+   classes on the same element, so a purely descendant selector would
+   leave the sheet unstyled and invisible. */
+/* App layers, from back to front:
+     50  navigation capsule
+     55  selection action bar
+     70  viewer (full screen)
+     90  modal SHEETS, above EVERYTHING, including the viewer.
+   At 60, a sheet opened from the viewer would render BEHIND it,
+   invisible. */
 .m .sheetwrap, .m.sheetwrap { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; justify-content: flex-end; }
 .m .sheetwrap .veil, .m.sheetwrap .veil { position: absolute; inset: 0; background: rgba(6,7,9,.6); }
 .m .sheet {
@@ -262,7 +260,7 @@
 .m .sheet .opt:last-child { border-bottom: 0; }
 .m .sheet .opt .ck { margin-left: auto; color: var(--acc); font-size: 17px; }
 
-/* ---------- navigation Liquid Glass ---------- */
+/* ---------- glass navigation bar ---------- */
 .m .nav {
   position: fixed; left: var(--pad); right: var(--pad);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
@@ -273,7 +271,7 @@
   -webkit-backdrop-filter: blur(22px) saturate(175%);
   box-shadow: 0 10px 34px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.14);
 }
-/* repli si le flou n'est pas disponible : surface opaque, jamais transparente */
+/* fallback when blur is unavailable: opaque surface, never transparent */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .m .nav { background: #262730; }
 }
@@ -295,7 +293,7 @@
   min-width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; padding: 0 5px;
 }
 
-/* ---------- barre d'actions de sélection ---------- */
+/* ---------- selection action bar ---------- */
 .m .selbar {
   position: fixed; left: var(--pad); right: var(--pad);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
@@ -305,12 +303,12 @@
 }
 .m .selbar button { flex: 1; border-radius: 14px; background: var(--card-2); font-size: 14px; padding: 12px 4px; }
 
-/* ---------- visionneuse ---------- */
+/* ---------- viewer ---------- */
 .m .viewer, .m.viewer { position: fixed; inset: 0; z-index: 70; background: #06070a; display: flex; flex-direction: column; }
-/* Les enfants sont ciblés SANS passer par `.viewer` : celui-ci porte aussi la
-   classe `.m` (portail), donc `.m .viewer .act` ne matcherait pas — les
-   boutons du bas se retrouvaient sans aucun style. Ces classes n'existent que
-   dans la visionneuse, le sélecteur simple est sans ambiguïté. */
+/* Children are targeted WITHOUT going through `.viewer`: it also carries
+   the `.m` class (portal), so `.m .viewer .act` would not match.
+   These classes only exist in the viewer, so the simple selector is
+   unambiguous. */
 .m .vtop, .m .vbot {
   flex: none; display: flex; align-items: center; gap: var(--s2); padding: var(--s3) var(--pad);
 }
@@ -337,20 +335,20 @@
 .m .secttl b { font-size: 15px; font-weight: 500; color: var(--tx2); }
 .m .secttl span { margin-left: auto; color: var(--tx3); font-size: 14px; }
 
-/* ---------- divers ---------- */
+/* ---------- misc ---------- */
 .m .muted { color: var(--tx2); }
 .m .empty { text-align: center; color: var(--tx2); padding: var(--s6) var(--s4); font-size: 15px; }
 .m .err { color: var(--ko); font-size: 14px; margin-top: var(--s2); }
 .m .chipline { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .m .chip {
   background: var(--card); border-radius: 999px; padding: 11px 15px; font-size: 14px;
-  /* 44 px comme les autres cibles : 44-48 de confort, et une
-     puce reste une commande à part entière. */
+  /* 44 px like the other targets: 44-48 for comfort, and a chip is
+     a control in its own right. */
   color: var(--tx2); min-height: 44px; display: inline-flex; align-items: center; gap: 6px;
 }
 .m .chip.on { background: var(--acc-soft); color: var(--acc-tx); }
 
-/* mouvement réduit : plus aucune translation ni animation imposée */
+/* reduced motion: no forced translation or animation */
 @media (prefers-reduced-motion: reduce) {
   .m *, .m *::before, .m *::after {
     animation-duration: .001ms !important; animation-iteration-count: 1 !important;
@@ -358,9 +356,9 @@
   }
 }
 
-/* Chargement d'une dimension du carrousel — même rôle que sur le desktop :
-   le VLM met ~20 s à lire l'image, et une case vide ne dit pas si la dimension
-   est vide ou si elle arrive. */
+/* Carousel dimension loading, same role as on desktop: the VLM takes
+   ~20 s to read the image, and an empty box does not say whether the
+   dimension is empty or still coming. */
 .dimload { display: block; margin-top: 4px; }
 .dimload i { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12);
   animation: dimpulse 1.15s ease-in-out infinite; }
@@ -368,7 +366,7 @@
 @keyframes dimpulse { 0%, 100% { opacity: .35 } 50% { opacity: .85 } }
 @media (prefers-reduced-motion: reduce) { .dimload i { animation: none; opacity: .5 } }
 
-/* ---------- espace Studio : les vues du bureau dans un conteneur .v2 ---------- */
+/* ---------- Studio space: desktop views in a .v2 container ---------- */
 .m .mstudio { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
 .m .mstudio-onglets {
   display: flex; gap: var(--s2); padding: var(--s2) var(--pad); overflow-x: auto; flex: none;
@@ -384,12 +382,12 @@
   flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding-bottom: calc(var(--navh, 82px) + env(safe-area-inset-bottom, 0px));
 }
-/* marges du bureau ramenées à celles du téléphone (styles en ligne : !important) */
+/* desktop margins reduced to phone margins (inline styles: !important) */
 .m .mstudio .vue-page { padding: var(--s3) var(--pad) var(--s4) !important; flex: none; overflow: visible; }
 .m .mstudio .vue-page [style*="display: grid"] > * { min-width: 0; }
 .m .mstudio .vue-page .pill { white-space: normal; text-align: left; }
 .m .mstudio .carte-reel { grid-template-columns: minmax(0, 1fr) !important; }
-/* montage : la liste des projets au-dessus, l'éditeur dessous */
+/* editing: project list on top, editor below */
 .m .mstudio .mt-racine { flex-direction: column; }
 .m .mstudio .mt-projets { width: auto !important; border-right: 0 !important; border-bottom: 1px solid var(--lv2); max-height: 32vh; }
 .m .mstudio .vue-page [style*="minmax(170px"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
@@ -398,7 +396,7 @@
 .m .mstudio .mt-apercu { height: 62vh; flex: none; }
 .m .mstudio .mt-inspecteur { width: auto !important; border-left: 0 !important; border-top: 1px solid var(--lv2); overflow: visible !important; }
 
-/* Inspirations (Créer) : prompts tout faits avec leur rendu */
+/* Inspirations (Create): ready-made prompts with their render */
 .m .m-insp { margin: 6px 0 14px; }
 .m .m-insp .insp-tete { display: grid; gap: 2px; margin-bottom: 8px; }
 .m .m-insp .insp-tete h2 { font-size: 14px; font-weight: 700; margin: 0; }

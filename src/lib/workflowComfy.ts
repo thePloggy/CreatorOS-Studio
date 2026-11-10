@@ -1,4 +1,4 @@
-/** Télécharge le graphe API ComfyUI exact d'un rendu (à glisser dans ComfyUI). Renvoie les modèles qu'il utilise. */
+/** Downloads the exact ComfyUI API graph of a render (to drop into ComfyUI). Returns the models it uses. */
 export async function telechargerWorkflow(assetId: string): Promise<{ fichier: string; licence: string | null }[] | null> {
   const r = await fetch(`/api/assets/${encodeURIComponent(assetId)}/workflow`)
   if (!r.ok) return null

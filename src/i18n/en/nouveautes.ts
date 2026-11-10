@@ -1,5 +1,5 @@
-/* Textes : comparateur, encore une, finitions (son,
-   fluidité), garde-robe, crédits, page Créateur, parcours guidé. */
+/* Texts: comparator, one more, finishing (sound,
+   smoothness), wardrobe, credits, Creator page, guided tour. */
 export const nouveautes: Record<string, string> = {
   'Pour la sécurité de tous, l’import de LoRA est coupé sur cette démo publique. Installe le studio chez toi pour importer tes propres LoRA.': 'For safety reasons, LoRA upload is disabled on this public demo. Install the studio on your own machine to import your own LoRAs.',
   'Installer CreatorOS Studio': 'Install CreatorOS Studio',
@@ -247,7 +247,7 @@ export const nouveautes: Record<string, string> = {
   'Ce qui se passe avant…': 'What happens before…',
   'prequel : choisir Wan (LTX ne sait pas arriver sur une frame de fin)': 'prequel: pick Wan (LTX can’t land on an end frame)',
   '1re frame du clip en cours de préparation — choisir une vidéo à précéder': 'clip’s first frame is being prepared — pick a video to precede',
-  // Montage
+  // Editing
   'Ajouter des plans': 'Add shots',
   'ajouter une musique…': 'add a music track…',
   'ajouter un plan': 'add a shot',
@@ -314,7 +314,7 @@ export const nouveautes: Record<string, string> = {
   'Entrée ou Espace : lecture / pause': 'Enter or Space: play / pause',
   'plan {n}': 'shot {n}',
   'la musique s’entend à l’export': 'music plays in the export',
-  // Reel en un clic
+  // One-click reel
   'Reel en un clic': 'One-click reel',
   'Décris la scène : {nom} est photographiée plan par plan, chaque plan est animé avec le son, puis le reel est monté avec fondus, accroche et musique.': 'Describe the scene: {nom} is photographed shot by shot, each shot is animated with sound, then the reel is edited with fades, a hook and music.',
   'Le lieu, l’ambiance, ce qui se passe…': 'The place, the mood, what happens…',

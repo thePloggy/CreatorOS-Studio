@@ -1,4 +1,4 @@
-/* Lumière : la même photo, un autre éclairage. */
+/* Relight: same photo, different lighting. */
 export const GARDE = 'Only the light changes: keep the same place and background, the same subject, face, pose, outfit and framing.'
 export const LUMIERES = [
   { id: 'gauche', label: 'Par la gauche', consigne: `Relight the photo with a strong directional key light coming from the left: bright, crisp light on the left side of the subject and deep, well-defined shadows falling to the right, high contrast, dramatic chiaroscuro modelling, the background darker. ${GARDE}` },
@@ -12,5 +12,5 @@ export const LUMIERES = [
   { id: 'nuit', label: 'Nuit', consigne: `Turn the same scene into night time: only the light and the sky change. Soft cool moonlight, a deep blue night sky, and warm light only from sources that already belong in this place. Keep exactly the same place, background, subject, pose, outfit and framing; add no buildings, no city, no new objects.` },
   { id: 'coucher', label: 'Couchant de feu', consigne: `Change the sky and light to a dramatic burning orange and crimson sunset. Keep the person, pose, outfit and framing unchanged.` },
 ]
-/* Agrandir : la photo élargie à un format, les bords inventés (Qwen-Image-Edit). */
+/* Expand: photo widened to an aspect ratio, edges generated (Qwen-Image-Edit). */
 export const FORMATS = ['16:9', '9:16', '4:5', '1:1', '+30%']

@@ -1,8 +1,8 @@
 /* ============================================================
-   Lecture d'image par VLM local (Ollama) : description de scène,
-   décomposition en dimensions (carrousel) et relevé de la tenue.
-   La description est toujours une ENTRÉE du réécriveur, jamais un
-   prompt de diffusion : les gardes code en aval s'appliquent inchangées.
+   Image reading by local VLM (Ollama): scene description, breakdown into
+   dimensions (carousel) and outfit extraction.
+   The description is always an INPUT to the rewriter, never a diffusion
+   prompt: downstream code guards apply unchanged.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -11,19 +11,18 @@ import { execFileSync } from 'node:child_process'
 import { CONFIG } from './config.js'
 import { fetchOllama } from './gpu.js'
 
-/* Le VLM est déchargé après chaque appel en production — la RAM doit revenir
-   à ComfyUI. Pendant une campagne de tests, des dizaines de rechargements
-   coûtent cher : CREATOROS_VLM_KEEPALIVE='10m' le garde chaud sans toucher
-   au défaut. */
+/* The VLM is unloaded after each call in production so RAM returns to
+   ComfyUI. CREATOROS_VLM_KEEPALIVE='10m' keeps it warm (e.g. during test
+   runs) without changing the default. */
 const VLM_KEEPALIVE = process.env.CREATOROS_VLM_KEEPALIVE || 0
 
-/* Options communes : le CPU évite toute concurrence VRAM avec ComfyUI (règle
-   du composeur), la température 0 rend la description reproductible. */
+/* Shared options: CPU avoids any VRAM contention with ComfyUI (composer
+   rule), temperature 0 makes the description reproducible. */
 const DESC_MODEL = () => CONFIG.visionDescribeModel
 const DESC_OPTS = extra => ({ temperature: 0, ...(CONFIG.visionDescribeCpu ? { num_gpu: 0 } : {}), ...extra })
 
-/* Next beat : le moment qui suit cette photo, en une consigne de retouche. Même lieu,
-   même tenue, un geste ordinaire ; le texte repasse par le filtre avant de servir. */
+/* Next beat: the moment after this photo, as one edit instruction. Same place,
+   same outfit, an ordinary gesture; the text goes through the filter again before use. */
 export async function momentSuivant(absPath) {
   const b64 = fs.readFileSync(absPath).toString('base64')
   const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
@@ -31,8 +30,7 @@ export async function momentSuivant(absPath) {
     signal: AbortSignal.timeout(180000),
     body: JSON.stringify({
       model: DESC_MODEL(), stream: false, images: [b64],
-      /* le plan SUIVANT, pas la même image : une action ou une expression nettement différente, et un autre cadrage.
-         L'ancienne consigne (« une action ordinaire ») rendait « elle continue à cheval » et la retouche la même photo. */
+      /* the NEXT shot, not the same image: a clearly different action or expression, and a different framing. */
       prompt: 'This photo is one shot of a short film. Write the NEXT shot, a few seconds later, in one English sentence of at most 30 words: '
         + 'what the same person does now (a clearly different, ordinary, fully clothed action or expression) and how the camera frames it '
         + '(closer or wider, or another angle). It must look clearly different from this frame. Start with the shot size, e.g. "Close-up:" or "Wide shot:". Name nobody. No preamble.',
@@ -44,9 +42,8 @@ export async function momentSuivant(absPath) {
   return String((await res.json()).response ?? '').trim().replace(/\s+/g, ' ').slice(0, 260)
 }
 
-/* Description de SCÈNE complète : ce que montre l'image source — action,
-   lieu, tenue, ambiance — pour que le LLM comprenne le concept même sur un
-   prompt court. */
+/* Full SCENE description: what the source image shows (action, place,
+   outfit, mood) so the LLM grasps the concept even from a short prompt. */
 export async function describeScene(absPath) {
   let b64
   try { b64 = fs.readFileSync(absPath).toString('base64') } catch { return null }
@@ -71,22 +68,20 @@ export async function describeScene(absPath) {
 }
 
 /* ============================================================
-   DÉCOMPOSITION EN DIMENSIONS — la base du carrousel « shooting ».
+   BREAKDOWN INTO DIMENSIONS: the basis of the "shooting" carousel.
 
-   Une image d'ancrage ne vaut pas comme description globale : ce qu'on veut,
-   c'est pouvoir GARDER une dimension et faire varier les autres. Pose cochée
-   et rien d'autre : « debout les bras en l'air » devient la constante, et le
-   lot la décline à Chantilly nue, en cuisine en robe noire, en jogging dans un
-   avion. Tenue et lieu cochés : la robe et la cuisine tiennent, le reste bouge.
+   The goal is to KEEP one dimension and vary the others. Only pose checked:
+   the pose is the constant and the batch varies place and outfit. Outfit and
+   place checked: those hold, the rest varies.
 
-   Deux étapes, parce qu'aucun modèle ne fait bien les deux : le VLM DÉCRIT,
-   le rédacteur à température 0 TRIE (il classe sans dériver).
+   Two steps, because no model does both well: the VLM DESCRIBES, the
+   writer at temperature 0 SORTS (classifies without drifting).
    ============================================================ */
 export async function decomposeScene(absPath) {
   let b64
   try { b64 = fs.readFileSync(absPath).toString('base64') } catch { return null }
-  /* 1) description RICHE — plus longue que describeScene, parce qu'on va la
-        découper : ce qui manque ici manquera dans toutes les dimensions. */
+  /* 1) RICH description, longer than describeScene because it gets split:
+        what is missing here will be missing from every dimension. */
   let brut = null
   try {
     const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
@@ -115,9 +110,9 @@ export async function decomposeScene(absPath) {
   } catch { brut = null }
   if (!brut || brut.length < 30) return null
 
-  /* 2) tri en JSON. Le VLM respecte souvent le format demandé — on essaie
-        d'abord de lire ses propres étiquettes, et on n'appelle le trieur que
-        si elles manquent. Un appel LLM évité est 15 s de gagnées. */
+  /* 2) sort into JSON. The VLM often follows the requested format, so its
+        own labels are read first, and the sorter is only called if they are
+        missing (saves an LLM call). */
   const direct = {}
   for (const [clef, mot] of [['outfit', 'OUTFIT'], ['pose', 'POSE'], ['location', 'LOCATION'], ['props', 'PROPS'], ['style', 'STYLE']]) {
     const m = brut.match(new RegExp(`${mot}\\s*:\\s*([^\\n]+)`, 'i'))
@@ -165,24 +160,21 @@ export async function describeOutfit(absPath) {
       signal: AbortSignal.timeout(180000),
       body: JSON.stringify({
         model: DESC_MODEL(), stream: false, images: [b64],
-        /* Le VLM légende TOUT par défaut (cheveux, peau, décor) : laissé libre
-           il rend « …, black hair, braided hair, tiled floor, evening sky »,
-           ce qui décrirait l'identité et figerait le décor dans les variantes
-           du carrousel. D'où la consigne négative
-           explicite — doublée d'un filtre code plus bas (une garde textuelle
-           seule ne tient pas). */
+        /* By default the VLM captions EVERYTHING (hair, skin, setting), which would
+           describe identity and freeze the setting in carousel variants. Hence the
+           explicit negative instruction, backed by a code filter below (a text
+           guard alone does not hold). */
         prompt: 'List ONLY the garments she is wearing, as a comma-separated list usable in an image prompt '
           + '(no sentence, no subject, no preamble): garment types with their exact colors and materials. '
           + 'Use the form: <colour> <material> <garment>, <colour> <material> <garment>. '
-          /* « white shirt » est ambigu pour un modèle d'image : il rend un
-             t-shirt. Une chemise doit se dire « button-up shirt ». */
+          /* "white shirt" is ambiguous for an image model: it renders a t-shirt.
+             A shirt must be called "button-up shirt". */
           + 'Name the PRECISE garment type, never a generic one: say "button-up shirt", "blouse", "t-shirt", '
           + '"tank top", "camisole", "crop top", "polo shirt" — never just "shirt" or "top". For each garment add '
           + 'the details that distinguish it: collar or no collar, buttons or no buttons, sleeve length, and how '
           + 'it is worn (tucked in, tied at the front, open, buttoned up). '
-          /* AUCUN exemple concret ici : le VLM le recopie tel quel. Avec
-             « light-wash denim shorts » en exemple, il le rend mot pour mot sur une
-             photo N&B dont le short est blanc à cordon. Même piège que les MARKERS du composeur. */
+          /* NO concrete example here: the VLM copies it verbatim into its output.
+             Same trap as the composer's MARKERS. */
           + 'Do NOT mention her hair, skin, body, jewellery, the background, the floor, the sky, the lighting or the camera. '
           + 'If no garment is visible, answer with the single word: none.',
         options: DESC_OPTS({ num_predict: 90 }),
@@ -196,11 +188,10 @@ export async function describeOutfit(absPath) {
   } catch { return null }
 }
 
-/* Garde CODE de l'ancre tenue : ne survivent que les segments qui nomment
-   VRAIMENT un vêtement. Tout le reste (cheveux, peau, bijoux, décor, anatomie)
-   est jeté — c'est ce que le VLM ajoute spontanément et c'est précisément ce
-   que l'ancre ne doit pas figer. Nu ⇒ null : l'appelant garde alors la tenue
-   textuelle du prompt plutôt qu'une liste anatomique. */
+/* CODE guard for the outfit anchor: only segments that REALLY name a garment
+   survive. Everything else (hair, skin, jewelry, setting, anatomy) is dropped,
+   since that is what the VLM adds and what the anchor must not freeze.
+   Nude ⇒ null: the caller then keeps the prompt's text outfit. */
 const GARMENT = new RegExp('\\b(' + [
   'top|shirt|blouse|t-shirt|tee|tank|camisole|crop|sweater|jumper|cardigan|hoodie|sweatshirt',
   'dress|gown|robe|kimono|kaftan|bodysuit|leotard|romper|jumpsuit|onesie',
@@ -216,17 +207,17 @@ export function filterOutfit(raw) {
   const txt = String(raw || '').trim()
   if (!txt || AUCUN_VETEMENT.test(txt)) return null
   const kept = txt
-    .replace(/^[^:]{0,40}:\s*/, '')          // « Outfit: … » éventuel
+    .replace(/^[^:]{0,40}:\s*/, '')          // optional "Outfit: …"
     .split(/\s*,\s*|\s*;\s*|\n+/)
     .map(x => x.trim().replace(/\.$/, ''))
     .filter(x => x && x.length < 60 && GARMENT.test(x)
-      // « barefoot » matche 'foot' de rien, mais dit l'ABSENCE de chaussure
+      // "barefoot" matches 'foot' but expresses the ABSENCE of shoes
       && !/\bbarefoot\b/i.test(x))
-  /* Dédup par SOUS-ENSEMBLE DE MOTS : le VLM répète souvent la même pièce en
-     deux niveaux de détail (« white ribbed tank top » ET « white tank top »).
-     L'inclusion de chaîne ne les rapproche pas (« ribbed » s'intercale) : on
-     compare les mots. Le segment dont tous les mots sont déjà couverts par un
-     autre, plus précis, est redondant. L'ordre d'origine est conservé. */
+  /* Dedup by WORD SUBSET: the VLM often repeats the same piece at two levels
+     of detail ("white ribbed tank top" AND "white tank top"). String inclusion
+     misses them ("ribbed" sits in between), so words are compared. A segment
+     whose words are all covered by another, more precise one is redundant.
+     Original order is preserved. */
   const uniq = [...new Set(kept)]
   const words = x => new Set(x.toLowerCase().split(/\s+/).filter(Boolean))
   const final = uniq.filter((x, i) => {
@@ -234,21 +225,20 @@ export function filterOutfit(raw) {
     return !uniq.some((y, j) => {
       if (i === j) return false
       const wy = words(y)
-      if (wy.size <= wx.size) return false       // y doit être plus précis
+      if (wy.size <= wx.size) return false       // y must be more precise
       return [...wx].every(w => wy.has(w))
     })
   })
-  /* Une pièce par PARTIE DU CORPS. Raisonner par type de vêtement ne suffit
-     pas : le VLM nomme la même chemise « button-up shirt », « blouse »,
-     « camisole » et « crop top », qui sont quatre types mais
-     un seul haut — le réécriveur en habillerait le sujet de quatre couches.
-     Pour chaque partie on garde la formulation la PLUS détaillée. */
+  /* One piece per BODY PART. Reasoning by garment type is not enough: the VLM
+     names the same shirt "button-up shirt", "blouse", "camisole" and "crop top",
+     four types but one top, and the rewriter would dress the subject in four
+     layers. For each part, the MOST detailed wording is kept. */
   const PARTIES = [
     ['robe', /\b(dress|gown|jumpsuit|romper|bodysuit|swimsuit|robe|kimono)\b/i],
     ['haut', /\b(shirt|blouse|t-?shirt|tank|camisole|cami|top|sweater|hoodie|cardigan|jacket|coat|blazer)\b/i],
     ['bas', /\b(skirt|shorts|pants|trousers|jeans|leggings|tights)\b/i],
-    /* Bas de jambe et chaussures séparés : des bas et des talons coexistent,
-       les confondre en ferait perdre un. */
+    /* Legwear and shoes are separate: stockings and heels coexist, merging
+       them would drop one. */
     ['jambes', /\b(socks|stockings|tights)\b/i],
     ['pieds', /\b(shoes|heels|boots|sneakers|sandals)\b/i],
     ['accessoire', /\b(scarf|belt|hat|cap|gloves)\b/i],
@@ -260,15 +250,15 @@ export function filterOutfit(raw) {
     const vu = best.get(partie)
     if (!vu || seg.split(/\s+/).length > vu.split(/\s+/).length) best.set(partie, seg)
   }
-  /* Ordre stable et lisible : ce qu'on voit d'abord en premier. */
+  /* Stable, readable order: what is seen first comes first. */
   const ordre = ['robe', 'haut', 'bas', 'jambes', 'pieds', 'accessoire']
   const out = ordre.filter(k => best.has(k)).map(k => best.get(k)).join(', ')
   return out.length > 8 ? out : null
 }
 
-/* Analyse d'un clip pour les réseaux : des mesures (durée, format, son, coupes, netteté du
-   début) et une lecture du modèle de vision sur 4 images (accroche, sujet, lisibilité).
-   C'est une estimation de qualité, pas une prédiction de vues. */
+/* Clip analysis for social media: measurements (duration, format, audio, cuts, sharpness
+   of the opening) and a vision-model read of 4 frames (hook, subject, readability).
+   A quality estimate, not a view-count prediction. */
 export async function analyserClip(absPath, langue = 'fr') {
   const sonde = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type,width,height', '-of', 'json', absPath], { encoding: 'utf8' }))
   const duree = Number(sonde.format?.duration) || 0
@@ -279,7 +269,7 @@ export async function analyserClip(absPath, langue = 'fr') {
     const o = execFileSync('ffmpeg', ['-hide_banner', '-i', absPath, '-vf', "select='gt(scene,0.35)',showinfo", '-an', '-f', 'null', '-'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     coupes = (o.match(/pts_time/g) ?? []).length
   } catch (e) { coupes = (String(e.stderr ?? '').match(/pts_time/g) ?? []).length }
-  // mesures objectives : netteté (blurdetect, plus haut = plus flou), mouvement moyen entre images, luminosité et contraste
+  // objective measurements: sharpness (blurdetect, higher = blurrier), mean motion between frames, brightness and contrast
   const objectif = { flou: null, mouvement: null, lumiere: null, contraste: null }
   try {
     const o = execFileSync('ffmpeg', ['-hide_banner', '-v', 'error', '-i', absPath, '-vf', "fps=4,scale=640:-2,blurdetect,signalstats,metadata=print:file=-", '-an', '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 64 << 20 })
@@ -289,7 +279,7 @@ export async function analyserClip(absPath, langue = 'fr') {
     const hi = moy(/lavfi\.signalstats\.YHIGH=([0-9.]+)/g), lo = moy(/lavfi\.signalstats\.YLOW=([0-9.]+)/g)
     objectif.contraste = hi != null && lo != null ? hi - lo : null
     objectif.mouvement = moy(/lavfi\.signalstats\.YDIF=([0-9.]+)/g)
-  } catch { /* mesures indisponibles : l'avis du modèle seul */ }
+  } catch { /* measurements unavailable: the model's opinion alone */ }
   const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'analyse-'))
   const instants = [0.3, 1.2, duree * 0.5, Math.max(0.3, duree - 0.4)]
   const images = instants.map((t, i) => { const f = path.join(dossier, `${i}.jpg`); execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(t), '-i', absPath, '-frames:v', '1', '-vf', 'scale=512:-2', f]); return fs.readFileSync(f).toString('base64') })
@@ -317,7 +307,7 @@ export async function analyserClip(absPath, langue = 'fr') {
     ...(duree > 4 && coupes === 0 ? ['Un seul plan de plus de 4 s : une coupe ou un mouvement de caméra relance l’attention.'] : []),
   ]
   const notes = { accroche: note('hook'), sujet: note('subject'), image: note('visual'), histoire: note('story') }
-  // les mesures plafonnent l'avis du modèle : un clip flou, sombre, terne ou figé ne peut pas être bien noté
+  // measurements cap the model's score: a blurry, dark, dull or static clip cannot score well
   const plafond = (k, max) => { notes[k] = Math.max(1, Math.min(notes[k], max)) }
   if (objectif.flou != null && objectif.flou > 8) plafond('image', objectif.flou > 11 ? 4 : 6)
   if (objectif.lumiere != null && (objectif.lumiere < 35 || objectif.lumiere > 215)) plafond('image', 5)

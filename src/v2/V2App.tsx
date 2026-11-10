@@ -1,6 +1,6 @@
 /* ============================================================
-   CreatorOS Studio — shell desktop : sections Assets · Image ·
-   Vidéo · Personnage · Paramètres, bibliothèque au cœur.
+   CreatorOS Studio — desktop shell: Assets · Image ·
+   Video · Character · Settings sections, library at the core.
    ============================================================ */
 import { OutilDedie } from './OutilsDedies'
 import { OUTILS_GALERIE, OutilGalerie } from './OutilGalerie'
@@ -25,7 +25,7 @@ import { couperOrphelins } from '../lib/medias'
 import { installerDansEcran } from '../lib/dansEcran'
 installerDansEcran()
 
-/* Un écran se charge quand on l'ouvre : la démo n'envoie pas tout le studio à chaque visite. */
+/* Screens are lazy-loaded when opened, so the demo does not ship the whole studio on each visit. */
 const ImageView = lazy(() => import('./ImageView').then(m => ({ default: m.ImageView })))
 const MontageView = lazy(() => import('./MontageView').then(m => ({ default: m.MontageView })))
 const ReelView = lazy(() => import('./ReelView').then(m => ({ default: m.ReelView })))
@@ -55,8 +55,8 @@ const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => 
 const CreateurView = lazy(() => import('../features/createur/CreateurView').then(m => ({ default: m.CreateurView })))
 
 
-/** GPU · VRAM · CPU · RAM en anneaux, températures GPU et CPU (relevé toutes les 5 s).
- *  Version courte : anneaux et températures ; écran large : valeurs à côté des anneaux et nom de la carte. */
+/** GPU · VRAM · CPU · RAM as rings, GPU and CPU temperatures (polled every 5 s).
+ *  Compact: rings and temperatures; wide screen: values next to the rings and the card name. */
 function Telemetry() {
   const tel = useTelemetry()
   if (!tel?.gpu) return null
@@ -88,7 +88,7 @@ function Telemetry() {
 }
 
 const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
-// l'outil d'une page dédiée et la famille de Camera Moves / Effects viennent aussi de l'adresse
+// a dedicated page's tool and the Camera Moves / Effects family also come from the URL
 {
   const q = new URLSearchParams(window.location.search)
   if (q.get('o')) useAppStore.setState({ outilDedie: q.get('o') as never })
@@ -96,7 +96,7 @@ const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 're
 }
 
 export default function V2App() {
-  /* deep-link : ?s=video|persona|config (défaut image). */
+  /* deep-link: ?s=video|persona|config (default image). */
   const initial = (new URLSearchParams(window.location.search).get('s') as Section) || 'accueil'
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
@@ -107,12 +107,12 @@ export default function V2App() {
   const [parcours, setParcours] = useState(() => !parcoursDejaVu())
 
   useEffect(() => { void s.hydrate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // chaque page a son personnage (choisi dans la page), sinon celui par défaut du studio
+  // each page has its own character (chosen in the page), otherwise the studio default
   const outilCourant = useAppStore(st => st.outilDedie)
   useEffect(() => { void useAppStore.getState().entrerPage(section === 'outil' ? `outil:${outilCourant}` : section) }, [section, outilCourant])
 
-  /* Chaque page a sa vraie adresse (?s=section, &o=outil pour une page d'outil) : ⌘R recharge la même page, et le bouton Retour du navigateur revient
-     à la page d'avant. */
+  /* Each page has its own URL (?s=section, &o=tool for a tool page): reload keeps the same page, and browser Back returns
+     to the previous page. */
   const depuisHistorique = useRef(false)
   useEffect(() => {
     const q = new URLSearchParams()
@@ -137,13 +137,12 @@ export default function V2App() {
     return () => window.removeEventListener('popstate', lire)
   }, [])
 
-  /* asset re-résolu à chaque render : la revue change reviewStatus, la
-     visionneuse doit voir la version fraîche (sinon les boutons mentent).
-     La liste de navigation est CELLE de la grille filtrée au moment du clic
-     (les flèches restent dans le filtre). */
+  /* Asset re-resolved on each render: review changes reviewStatus and
+     the viewer must see the fresh version. The navigation list is the
+     filtered grid's list at click time (arrows stay within the filter). */
   const focusFresh = focus ? s.assets.find(a => a.id === focus.a.id) ?? null : null
-  /* Changement de page ou de média : tout son resté en lecture s'arrête (un clip détaché, une écoute),
-     sauf la vidéo de la visionneuse ouverte. */
+  /* On page or media change, stop any audio still playing (detached clip, preview),
+     except the open viewer's video. */
   useEffect(() => {
     const h = window.setTimeout(() => {
       document.querySelectorAll<HTMLMediaElement>('video, audio').forEach(m => { if (!m.muted && !m.paused && !m.hasAttribute('data-lecture-active')) m.pause() })
@@ -156,9 +155,9 @@ export default function V2App() {
     () => (focus ? focus.list.map(x => s.assets.find(a => a.id === x.id) ?? x) : []),
     [s.assets, focus])
 
-  /* Clone depuis n'importe quelle section (Assets, visionneuse…) : le store
-     pose une demande de navigation, le shell l'exécute — la console où
-     atterrissent les réglages devient visible d'elle-même. */
+  /* Clone from any section (Assets, viewer…): the store posts a
+     navigation request and the shell executes it, so the console
+     receiving the settings becomes visible. */
   const navNonce = s.navRequest?.nonce ?? 0
   useEffect(() => {
     const target = useAppStore.getState().navRequest?.section
@@ -170,7 +169,7 @@ export default function V2App() {
 
   return (
     <div className="v2 h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      {/* ---------- barre du haut (couche basse) ---------- */}
+      {/* ---------- top bar (lower layer) ---------- */}
       <h1 className="sr-only">CreatorOS Studio</h1>
       <BandeauGithub />
       <header className="flex items-center gap-3 px-4 flex-none" style={{ background: '#0a0b0d', height: 62, paddingBottom: 12 }}>
@@ -204,14 +203,13 @@ export default function V2App() {
         </div>
       </header>
 
-      {/* ---------- section active (couche haute) ---------- */}
-      {/* PAS d'overflow-y ici : les vues scrollent en interne (.scrollwrap,
-          sidebars) — un scroll global créait un micro-défilement de tout le
-          contenu hors header. */}
+      {/* ---------- active section (upper layer) ---------- */}
+      {/* No overflow-y here: views scroll internally (.scrollwrap,
+          sidebars); a global scroll would shift all content below the header. */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden"
-        /* Ceinture+bretelles : un conteneur overflow-hidden reste scrollable
-           PROGRAMMATIQUEMENT (focus d'un input hors-champ, scrollIntoView) :
-           tout scroll résiduel est annulé, la barre de tri reste sous le header. */
+        /* An overflow-hidden container can still be scrolled
+           programmatically (focusing an off-screen input, scrollIntoView):
+           any residual scroll is reset so the sort bar stays under the header. */
         onScroll={e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}>
         <Suspense fallback={null}>
         {section === 'image' && <ImageView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}

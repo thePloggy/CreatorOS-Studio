@@ -1,21 +1,21 @@
-/* Lecteur avec forme d'onde : le fichier est décodé par le navigateur (Web Audio, decodeAudioData),
-   réduit à quelques centaines de pics et dessiné sur un canvas. Un clic sur l'onde place la tête de
-   lecture ; un seul son joue à la fois dans le studio. Le décodage n'a lieu que quand le lecteur
-   arrive à l'écran, et une seule fois par fichier. */
+/* Waveform player: the file is decoded by the browser (Web Audio, decodeAudioData),
+   reduced to a few hundred peaks and drawn on a canvas. Clicking the waveform seeks;
+   only one sound plays at a time in the studio. Decoding happens only once the player
+   is on screen, and once per file. */
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 
 const NB_PICS = 240
 const cache = new Map<string, Promise<Float32Array | null>>()
 
-/** Pics normalisés (0..1) d'un fichier audio, mis en cache par adresse. */
+/** Normalized peaks (0..1) of an audio file, cached by URL. */
 function pics(src: string): Promise<Float32Array | null> {
   let p = cache.get(src)
   if (!p) {
     p = (async () => {
       try {
         const buf = await (await fetch(src)).arrayBuffer()
-        // contexte hors ligne : décoder ne demande aucun geste de l'utilisateur ni de sortie son
+        // offline context: decoding needs no user gesture and no audio output
         const ctx = new OfflineAudioContext(1, 1, 44100)
         const audio = await ctx.decodeAudioData(buf)
         const canaux = Array.from({ length: Math.min(2, audio.numberOfChannels) }, (_, c) => audio.getChannelData(c))
@@ -25,7 +25,7 @@ function pics(src: string): Promise<Float32Array | null> {
         for (let i = 0; i < NB_PICS; i++) {
           let m = 0
           const debut = i * pas, fin = Math.min(audio.length, debut + pas)
-          // un échantillon sur 8 suffit au dessin
+          // one sample out of 8 is enough for drawing
           for (const d of canaux) for (let k = debut; k < fin; k += 8) { const v = Math.abs(d[k]); if (v > m) m = v }
           out[i] = m; if (m > max) max = m
         }
@@ -51,7 +51,7 @@ export function LecteurOnde({ src, duree, compact }: { src: string; duree?: numb
   const [total, setTotal] = useState(duree ?? 0)
   const [largeur, setLargeur] = useState(0)
 
-  // décodage quand le lecteur devient visible
+  // decode when the player becomes visible
   useEffect(() => {
     const el = boite.current
     if (!el) return
@@ -72,7 +72,7 @@ export function LecteurOnde({ src, duree, compact }: { src: string; duree?: numb
     return () => ro.disconnect()
   }, [])
 
-  // dessin : barres, la partie déjà lue en couleur d'accent
+  // drawing: bars, the played part in accent color
   useEffect(() => {
     const c = toile.current
     if (!c || !largeur) return

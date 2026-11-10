@@ -1,8 +1,8 @@
-/* Danse : la personne d'une photo danse une danse du catalogue dans un studio en 3D.
-   Mise en page : la galerie (danses, studios, rendus) occupe la largeur ; un panneau de création compact
-   reste visible (colonne à gauche sur bureau, barre en bas sur téléphone) avec les trois choix, les options
-   et le bouton. La danse (capture de mouvement) est jouée par un mannequin dans le studio, caméra qui
-   l'accompagne ; LTX en fait une vraie vidéo, puis le Swap redessine la danseuse d'après la photo. */
+/* Dance: the person in a photo performs a catalog dance in a 3D studio.
+   Layout: the gallery (dances, studios, renders) spans the width; a compact creation panel
+   stays visible (left column on desktop, bottom bar on mobile) with the three choices, options
+   and the button. The dance (motion capture) is played by a mannequin in the studio with a
+   following camera; LTX turns it into a real video, then Swap redraws the dancer from the photo. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset, Job } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -20,7 +20,7 @@ interface Studio { id: string; nom: string; v?: number }
 type Onglet = 'danses' | 'studios' | 'rendus'
 type Reglages = { slug: string; assetId: string; decor: string; suivi: boolean; scene?: string }
 
-/* Styles de danse, déduits du nom de la danse (le premier motif qui correspond l'emporte). */
+/* Dance styles, inferred from the dance name (first matching pattern wins). */
 const STYLES_DANSE: { id: string; label: string; motif: RegExp }[] = [
   { id: 'hiphop', label: 'Hip-hop', motif: /hip.?hop|bboy|moonwalk|shuffl/i },
   { id: 'latin', label: 'Latino', motif: /salsa|samba|rumba/i },
@@ -31,7 +31,7 @@ const STYLES_DANSE: { id: string; label: string; motif: RegExp }[] = [
 const styleDe = (d: Danse) => STYLES_DANSE.find(s => s.motif.test(d.titre))?.id ?? 'libre'
 const LIBRE = { id: 'libre', label: 'Freestyle' }
 
-/* Familles de studios, par identifiant ; un studio inconnu reste visible sous « Tout ». */
+/* Studio families, by id; an unknown studio stays visible under "All". */
 const FAMILLES_STUDIO: { id: string; label: string; ids: string[] }[] = [
   { id: 'scene', label: 'Scènes', ids: ['opera', 'concert', 'cabaret', 'bal', 'studio-danse'] },
   { id: 'ville', label: 'Rue et ville', ids: ['ruelle', 'tokyo', 'paris', 'parking', 'basket', 'metro'] },
@@ -45,7 +45,7 @@ const ETAPES = [
   { titre: 'Le rendu', texte: 'La scène devient une vraie vidéo, et ton personnage est repeint sur le mannequin d’après la photo.', image: '/vitrine/danse/etape3.webp' },
 ]
 
-/* « Comment ça marche » : le montage en grand, puis les quatre étapes (vidéos de curseur dans la vraie page). */
+/* "How it works": the large montage, then the four steps (cursor videos in the real page). */
 const urlHowto = (f: string) => `/danses/${f}?v=20261106`
 const ETAPES_HOWTO = [
   { titre: 'Choisis ta photo', texte: 'Une photo en pied de ton personnage, prise dans ta bibliothèque.', fichier: 'howto-1-photo' },
@@ -58,13 +58,13 @@ const urlDanse = (d: Danse, ext: 'webp' | 'mp4' | 'boucle') => ext === 'boucle' 
 const urlStudio = (x: Studio, grand = false) => `/danses/studio-${x.id}${grand ? '-grand' : ''}.webp?v=${x.v ?? 0}`
 const secondes = (d: Danse) => d.secondes ? t('{n} s', { n: Math.round(d.secondes) }) : ''
 
-/* Réglages de chaque lancement, gardés dans le navigateur pour « Refaire » et la légende du rendu. */
+/* Settings of each launch, kept in the browser for "Redo" and the render caption. */
 const CLE_REGLAGES = 'danse:reglages'
 const lireReglages = (): Record<string, Reglages> => { try { return JSON.parse(localStorage.getItem(CLE_REGLAGES) ?? '{}') } catch { return {} } }
 function noterReglages(id: string, r: Reglages) {
   const tout = lireReglages(); tout[id] = r
   const cles = Object.keys(tout); for (const k of cles.slice(0, Math.max(0, cles.length - 200))) delete tout[k]
-  try { localStorage.setItem(CLE_REGLAGES, JSON.stringify(tout)) } catch { /* stockage indisponible */ }
+  try { localStorage.setItem(CLE_REGLAGES, JSON.stringify(tout)) } catch { /* storage unavailable */ }
 }
 const CLE_CHOIX = 'danse:choix'
 const lireChoix = (): { slug?: string; studio?: string } => { try { return JSON.parse(localStorage.getItem(CLE_CHOIX) ?? '{}') } catch { return {} } }
@@ -102,17 +102,17 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
       .catch(() => setEtat('erreur'))
   }
   useEffect(charger, [])
-  useEffect(() => { try { localStorage.setItem(CLE_CHOIX, JSON.stringify({ slug: choix, studio })) } catch { /* stockage indisponible */ } }, [choix, studio])
+  useEffect(() => { try { localStorage.setItem(CLE_CHOIX, JSON.stringify({ slug: choix, studio })) } catch { /* storage unavailable */ } }, [choix, studio])
 
   const danse = danses.find(d => d.slug === choix) ?? null
   const leStudio = studios.find(x => x.id === studio) ?? null
-  // changer d'onglet ramène en haut de la galerie, sous « Comment ça marche » (jamais au-dessus)
+  // switching tab scrolls to the top of the gallery, below "How it works" (never above)
   const changerOnglet = (o: Onglet) => {
     setOnglet(o); setFiltre('tout'); setRecherche('')
     const g = galerie.current; const haut = o === 'rendus' ? 0 : ancre.current?.offsetTop ?? 0
     if (g && g.scrollTop > haut) g.scrollTo({ top: haut })
   }
-  // « Commencer » : la galerie et le panneau de création à l'écran, la prochaine étape à faire mise en avant
+  // "Start": gallery and creation panel on screen, next step to do highlighted
   const commencer = () => {
     ancre.current?.scrollIntoView({ behavior: reduit ? 'auto' : 'smooth', block: 'start' })
     const cible = panneau.current?.querySelector<HTMLElement>('.dz-etape.prochaine') ?? panneau.current?.querySelector<HTMLElement>('.dz-action .cta:not(:disabled)')
@@ -120,8 +120,8 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
     setAppel(true); window.setTimeout(() => setAppel(false), 1600)
   }
 
-  /* La danse est jouée en 3D dans le studio choisi (le décor bouge avec la caméra), puis la danseuse est
-     redessinée d'après la photo : de la photo, seuls la personne et sa tenue comptent. */
+  /* The dance is played in 3D in the chosen studio (the set moves with the camera), then the dancer is
+     redrawn from the photo: only the person and their outfit are taken from the photo. */
   const lancer = async (r: Reglages) => {
     setOccupe(true); setMsg(null)
     try {
@@ -138,7 +138,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
   const pret = !!choix && !!source?.asset && !occupe
   const generer = () => { if (choix && source?.asset) void lancer({ slug: choix, assetId: source.asset.id, decor: studio, suivi: suiviVisage, scene: scene.trim() || undefined }) }
 
-  // le rendu en deux passes : la scène (danse3d-…) puis le Swap (danse3d-…-swap) ; seul le résultat final s'affiche
+  // two-pass render: the scene (danse3d-…) then the Swap (danse3d-…-swap); only the final result is shown
   const baseDe = (id: string) => id.replace(/-swap$/, '')
   const suiviDe = (id: string) => suivi.ids.has(baseDe(id))
   const enCours = s.jobs.filter(j => suiviDe(j.id) && STATUTS_ACTIFS.includes(j.status))
@@ -146,7 +146,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
   const livres = s.assets.filter(a => a.jobId && String(a.jobId).endsWith('-swap') && suiviDe(String(a.jobId))).slice(0, 60)
   const nbEnCours = new Set(enCours.map(j => baseDe(j.id))).size
 
-  // la galerie de l'onglet, filtrée par style et par recherche
+  // the tab's gallery, filtered by style and search
   const q = recherche.trim().toLowerCase()
   const dansesVues = useMemo(() => danses.filter(d => (filtre === 'tout' || styleDe(d) === filtre) && (!q || d.titre.toLowerCase().includes(q))), [danses, filtre, q])
   const studiosVus = useMemo(() => studios.filter(x => (filtre === 'tout' || FAMILLES_STUDIO.find(f => f.id === filtre)?.ids.includes(x.id))
@@ -179,7 +179,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
 
         <EtapesPanneau etapes={etapes} prochaine={prochaine} />
 
-        {/* la danse et le studio choisis, en grand : la danse joue, le studio s'anime */}
+        {/* the chosen dance and studio, large: the dance plays, the studio animates */}
         <div className="dz-apercu">
           <figure>
             {danse
@@ -198,7 +198,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
         </div>
 
         <div className="dz-options" id="dz-options">
-          {/* la description du pas reste repliée tant qu'elle est vide : le bouton garde sa place à l'écran */}
+          {/* the step description stays collapsed while empty so the button keeps its position */}
           {options || scene
             ? <label className="dz-champ">
                 <span>{t('Le pas, en quelques mots (facultatif, en anglais)')}</span>
@@ -279,7 +279,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
   )
 }
 
-/* Les rendus de la page : en cours (progression), en échec (reprise), puis livrés (lecture et gestes). */
+/* The page's renders: in progress (progress), failed (retry), then delivered (playback and actions). */
 function Rendus({ enCours, echecs, livres, reglages, danses, studios, occupe, onOpen, goMontage, refaire }: {
   enCours: Job[]
   echecs: Job[]

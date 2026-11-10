@@ -1,10 +1,9 @@
-/* Découpage par plans d'une vidéo de mouvement.
-   Une source MONTÉE (plusieurs plans) rendue d'un seul bloc lisse les coupes :
-   une coupe qui tombe au milieu d'une fenêtre de contexte fait fondre deux plans
-   l'un dans l'autre. Rendue plan par plan, chaque coupe de la source reste une
-   coupe franche.
-   Ce module repère les coupes, écrit un fichier par plan dans input/ de ComfyUI,
-   et recolle les rendus quand le dernier plan est livré. */
+/* Shot splitting for a motion video.
+   An EDITED source (several shots) rendered in one block smooths the cuts: a
+   cut inside a context window blends two shots. Rendered shot by shot, each
+   source cut stays a hard cut.
+   This module detects cuts, writes one file per shot into ComfyUI's input/,
+   and stitches the renders back when the last shot is delivered. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -13,20 +12,19 @@ import { CONFIG } from './config.js'
 const run = (cmd, args, opts = {}) => new Promise((ok, ko) =>
   execFile(cmd, args, { timeout: 600_000, ...opts }, (e, out) => e ? ko(e) : ok(out)))
 
-/* Un plan plus court que ça n'est pas rendu à part : WanAnimate veut au moins
-   9 images à 16 i/s, et un plan d'une demi-seconde est le plus souvent un flash
-   ou un fondu que la détection a pris pour une coupe. */
+/* Shots shorter than this are not rendered separately: WanAnimate needs at least
+   9 frames at 16 fps, and a half-second shot is usually a flash or fade
+   detected as a cut. */
 const PLAN_MIN_S = 1.0
-/* Marge d'images figées ajoutée en fin de plan : la chaîne arrondit la longueur
-   à 4n+1 et coupe la première image de la retouche, un plan de 6 s revenait avec
-   jusqu'à 0,3 s de moins (34,8 s livrées pour 36,3 s). Le rendu couvre
-   ainsi la durée du plan, et le recollage coupe à la durée exacte. */
+/* Frozen padding frames added at the end of each shot: the chain rounds the length
+   to 4n+1 and drops the first frame of the edit, so the render would come back
+   short. The render thus covers the shot duration, and stitching trims to the exact length. */
 const MARGE_S = 0.5
 const L = 64, H = 112
 
 const mediane = t => { const s = [...t].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0 }
 
-/** Écart moyen d'une image à la suivante, sur une vignette grise. */
+/** Mean difference from one frame to the next, on a grayscale thumbnail. */
 async function ecarts(fichier) {
   const brut = await run('ffmpeg', ['-v', 'error', '-i', fichier, '-vf', `scale=${L}:${H},format=gray`,
     '-f', 'rawvideo', '-'], { encoding: 'buffer', maxBuffer: 1 << 29 })
@@ -40,10 +38,9 @@ async function ecarts(fichier) {
   return { n, d }
 }
 
-/** Coupes d'une vidéo : première image de chaque nouveau plan, et cadence.
- *  Une coupe est un écart isolé, fort dans l'absolu ET devant ses voisins — un
- *  panoramique rapide donne des écarts forts mais soutenus, pas un pic seul.
- *  ffmpeg `select=scene` ratait une coupe cachée dans un panoramique. */
+/** Cuts of a video: first frame of each new shot, and frame rate.
+ *  A cut is an isolated difference, strong in absolute terms AND relative to its
+ *  neighbors: a fast pan gives strong but sustained differences, not a single peak. */
 export async function detecterCoupes(fichier) {
   const info = (await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate',
     '-of', 'csv=p=0', fichier], { encoding: 'utf8' })).trim().split('/').map(Number)
@@ -55,7 +52,7 @@ export async function detecterCoupes(fichier) {
     if (d[i] < 16) continue
     const voisins = [...d.slice(Math.max(0, i - 8), i), ...d.slice(i + 1, i + 9)]
     if (d[i] < 3 * Math.max(1, mediane(voisins))) continue
-    if (voisins.some(v => v > d[i])) continue            // le pic, pas son épaule
+    if (voisins.some(v => v > d[i])) continue            // the peak, not its shoulder
     const image = i + 1
     if ((image - dernier) / fps < PLAN_MIN_S || (n - image) / fps < PLAN_MIN_S) continue
     coupes.push(image); dernier = image
@@ -63,8 +60,8 @@ export async function detecterCoupes(fichier) {
   return { coupes, images: n, fps }
 }
 
-/** Écrit un fichier par plan dans input/ et rend leur liste. Une vidéo d'un seul
- *  plan rend `null` : rien à découper, le job part tel quel. */
+/** Writes one file per shot into input/ and returns the list. A single-shot
+ *  video returns `null`: nothing to split, the job runs as is. */
 export async function decouper(driver) {
   const src = path.join(CONFIG.comfyInput, path.basename(driver))
   if (!fs.existsSync(src)) return null
@@ -89,9 +86,9 @@ export async function decouper(driver) {
 const dureeDe = async f => Number((await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f],
   { encoding: 'utf8' })).trim())
 
-/** Recolle des plans rendus, chacun ramené à la durée exacte de son plan source
- *  (coupé s'il déborde, très légèrement ralenti s'il manque quelques images).
- *  `plans` : [{ fichier (chemin complet), seconds }] dans l'ordre du montage. */
+/** Stitches rendered shots, each brought to the exact duration of its source shot
+ *  (trimmed if too long, very slightly slowed if a few frames short).
+ *  `plans`: [{ fichier (full path), seconds }] in edit order. */
 export async function recoller(plans, sortie) {
   const args = ['-y', '-v', 'error'], f = []
   for (const [i, p] of plans.entries()) {

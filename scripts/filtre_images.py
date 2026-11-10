@@ -1,11 +1,11 @@
-"""Filtre de nudité des rendus (NudeNet, MIT, CPU).
+"""Nudity filter for renders (NudeNet, MIT, CPU).
 
-Usage : filtre_images.py FICHIER [FICHIER...]
-Une image est lue telle quelle ; une vidéo est lue à raison d'une image par
-seconde (plus la première et la dernière). Pour chaque fichier, une ligne JSON :
+Usage: filtre_images.py FICHIER [FICHIER...]
+An image is read as is; a video is sampled at one frame per second
+(plus the first and last). One JSON line per file:
   {"fichier", "positif", "score", "classe", "images"}
-« positif » = une partie intime découverte détectée au-dessus du seuil sur au
-moins une image. Les parties couvertes (maillot, sous-vêtement) ne comptent pas.
+"positif" = an exposed intimate part detected above threshold on at
+least one frame. Covered parts (swimwear, underwear) do not count.
 """
 import json
 import os
@@ -15,8 +15,8 @@ import tempfile
 
 from nudenet import NudeDetector
 
-# classes qui rendent un rendu positif, avec leur seuil ; en dessous, maillots de bain et
-# combinaisons moulantes sortaient en faux positifs (scores mesurés de 0,48 à 0,72)
+# classes that make a render positive, with their threshold; lower thresholds flag
+# swimwear and tight bodysuits as false positives
 SEUILS = {
     'FEMALE_GENITALIA_EXPOSED': 0.6,
     'MALE_GENITALIA_EXPOSED': 0.6,
@@ -39,7 +39,7 @@ def images_de(fichier, dossier):
     return sorted(os.path.join(dossier, f) for f in os.listdir(dossier) if f.endswith('.jpg'))
 
 
-# --personne : toute partie du corps humain, découverte ou non (dépôt des visiteurs)
+# --personne: any human body part, exposed or not (visitor uploads)
 SEUIL_PERSONNE = 0.4
 
 
@@ -63,7 +63,7 @@ def main():
                             res['score'], res['classe'] = round(float(o['score']), 3), o['class']
                         if o['score'] >= seuil:
                             res['positif'] = True
-        except Exception as e:  # un fichier illisible ne bloque pas les autres
+        except Exception as e:  # an unreadable file does not block the others
             res['erreur'] = str(e)[:200]
         print(json.dumps(res), flush=True)
 

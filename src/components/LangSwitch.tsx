@@ -1,4 +1,4 @@
-/* Bascule FR / EN de l'interface (barre du haut, bureau et mobile). */
+/* FR / EN UI language toggle (top bar, desktop and mobile). */
 import { setLang, t, useLang } from '../i18n'
 
 export function LangSwitch({ style }: { style?: React.CSSProperties }) {

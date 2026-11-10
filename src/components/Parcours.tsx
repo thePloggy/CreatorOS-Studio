@@ -1,10 +1,10 @@
 /* ============================================================
-   Parcours guidé de la démo : 4 étapes au premier passage (rouvrable par
-   le bouton « ? »). Personnage → image (avec des exemples de scènes à
-   essayer) → vidéo (depuis une image ou un texte) → finitions et partage.
-   Les exemples remplissent le prompt et ouvrent Image : rien ne part en
-   rendu sans un clic de la personne.
-   Styles en ligne : partagé bureau et mobile.
+   Guided demo tour: 4 steps on first visit (reopenable with the "?"
+   button). Character → image (with sample scenes to try) → video
+   (from an image or text) → finishing and sharing.
+   Samples fill the prompt and open Image: nothing is rendered without
+   a click from the person.
+   Inline styles: shared desktop and mobile.
    ============================================================ */
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -13,10 +13,10 @@ import { t } from '../i18n'
 
 const CLE = 'creatoros-parcours-vu'
 export const parcoursDejaVu = () => { try { return localStorage.getItem(CLE) === '1' } catch { return true } }
-const marquerVu = () => { try { localStorage.setItem(CLE, '1') } catch { /* stockage refusé */ } }
+const marquerVu = () => { try { localStorage.setItem(CLE, '1') } catch { /* storage refused */ } }
 
-/* Mêmes scènes que les exemples de la démo (scripts/demo/scenes.mjs) : le
-   personnage change, la scène reste. */
+/* Same scenes as the demo samples (scripts/demo/scenes.mjs): the
+   character changes, the scene stays. */
 const EXEMPLES = [
   { titre: 'Café à Paris', prompt: 'sitting at a small café terrace on a Paris cobblestone street in the morning, wearing a loose white linen shirt and light beige trousers, holding a cup of coffee, candid smile, natural light, travel photo' },
   { titre: 'Plage au couchant', prompt: 'walking barefoot along the shoreline at golden hour, wearing a flowing white summer dress, hair moving in the wind, waves behind her, warm sunset light, travel photo' },
@@ -27,7 +27,7 @@ const EXEMPLES = [
 const btn: React.CSSProperties = { padding: '8px 14px', borderRadius: 10, border: 0, font: 'inherit', fontSize: 13, cursor: 'pointer', background: '#24262c', color: '#e8e9ec' }
 const btnMain: React.CSSProperties = { ...btn, background: 'linear-gradient(90deg,#f24d8a,#a855f7)', color: '#fff', fontWeight: 600 }
 
-/** `aller` : ouvre une section de l'application (image, vidéo, personnage, paramètres). */
+/** `aller`: opens an app section (image, video, character, settings). */
 export function Parcours({ onClose, aller }: { onClose: () => void; aller: (s: 'image' | 'video' | 'persona' | 'config') => void }) {
   const [etape, setEtape] = useState(0)
   const nom = useAppStore(s => s.personaName)

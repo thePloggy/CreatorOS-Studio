@@ -1,6 +1,6 @@
-/* Traductions anglaises — zone « bureau_visionneuse ». Clé = texte français exact passé à t(). */
+/* English translations — "bureau_visionneuse" area. Key = exact French text passed to t(). */
 export const bureau_visionneuse: Record<string, string> = {
-  /* ---------- communs à la zone ---------- */
+  /* ---------- shared within the area ---------- */
   'Annuler': 'Cancel',
   'Fermer': 'Close',
   'Retour': 'Back',
@@ -20,7 +20,7 @@ export const bureau_visionneuse: Record<string, string> = {
   'Style': 'Style',
   'Recette': 'Recipe',
 
-  /* ---------- popups : Enhancer ---------- */
+  /* ---------- popups: Enhancer ---------- */
   'moteur : {engine}': 'engine: {engine}',
   'mode : retouche': 'mode: retouch',
   '👁 image lue': '👁 image read',
@@ -39,7 +39,7 @@ export const bureau_visionneuse: Record<string, string> = {
   '✦ Composer': '✦ Compose',
   'Remplacer le prompt': 'Replace prompt',
 
-  /* ---------- popups : Éléments / Composition ---------- */
+  /* ---------- popups: Elements / Composition ---------- */
   '@ Éléments': '@ Elements',
   'Tenues': 'Outfits',
   'Environnements': 'Environments',
@@ -59,17 +59,17 @@ export const bureau_visionneuse: Record<string, string> = {
   'Vider': 'Clear',
   'Insérer la composition': 'Insert composition',
 
-  /* ---------- popups : sélecteur de frame ---------- */
+  /* ---------- popups: frame picker ---------- */
   'Générations': 'Generations',
   'Uploads': 'Uploads',
   'aucun upload': 'no uploads',
 
-  /* ---------- popups : triage ---------- */
+  /* ---------- popups: triage ---------- */
   '‹ terminé': '‹ done',
   'reste {n} · ♥ {ok}, ✕ {ko}': '{n} left · ♥ {ok}, ✕ {ko}',
   'Tout est trié ✓': 'All sorted ✓',
 
-  /* ---------- popups : carrousel ---------- */
+  /* ---------- popups: carousel ---------- */
   'décoche au moins un élément (décoché = varie)': 'unlock at least one element (unlocked = varies)',
   'réponse illisible du serveur': 'unreadable server response',
   'aucune variante produite': 'no variant produced',
@@ -101,7 +101,7 @@ export const bureau_visionneuse: Record<string, string> = {
   'Envoyer les {n} variantes': 'Send the {n} variants',
   'envoi {done}/{total}': 'sending {done}/{total}',
 
-  /* ---------- popups : vue d'un lot ---------- */
+  /* ---------- popups: batch view ---------- */
   'Lot — {n} rendus': 'Batch — {n} renders',
   '{n} à revoir': '{n} to review',
   'Type': 'Type',
@@ -117,7 +117,7 @@ export const bureau_visionneuse: Record<string, string> = {
   'Tout refuser': 'Reject all',
   'Tout télécharger': 'Download all',
 
-  /* ---------- visionneuse ---------- */
+  /* ---------- viewer ---------- */
   'LoRA appliquées': 'Applied LoRAs',
   'ajoutée par le job, pas par la recette': 'added by the job, not by the recipe',
   'Caption (texte gravé)': 'Caption (burned-in text)',
@@ -157,7 +157,7 @@ export const bureau_visionneuse: Record<string, string> = {
   '⚠ Confirmer la suppression': '⚠ Confirm deletion',
   'Supprimer': 'Delete',
 
-  /* ---------- vue Vidéo ---------- */
+  /* ---------- Video view ---------- */
   'Créer': 'Create',
   'Rejouer': 'Replay',
   'Étendre': 'Extend',
@@ -211,7 +211,7 @@ export const bureau_visionneuse: Record<string, string> = {
   '{n} empilée': '{n} stacked',
   '{n} empilées': '{n} stacked',
 
-  /* ---------- moteurs vidéo (features/console/video/engines.ts) ---------- */
+  /* ---------- video engines (features/console/video/engines.ts) ---------- */
   'image la plus propre — le plan qui doit tenir en grand': 'cleanest image — for the shot that has to hold up large',
   'avec le son, rapide — 896×1600 en plusieurs passes': 'with sound, fast — 896×1600 in several passes',
   '0,4 MP (480×848 en 9:16)': '0.4 MP (480×848 at 9:16)',

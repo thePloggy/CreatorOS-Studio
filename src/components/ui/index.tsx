@@ -1,15 +1,15 @@
 /* ============================================================
-   Design system — primitives UI.
-   Variants via cva, tokens depuis index.css.
-   Tout composant d'écran DOIT passer par ces primitives pour
-   garantir cohérence visuelle et ergonomie.
+   Design system: UI primitives.
+   Variants via cva, tokens from index.css.
+   Every screen component MUST use these primitives for visual
+   and ergonomic consistency.
    ============================================================ */
 import { type ReactNode, type ComponentProps, useState, useRef, useEffect } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 import { t } from '../../i18n'
 
-/* ---------- SectionTitle : intertitre de colonne ---------- */
+/* ---------- SectionTitle: column subheading ---------- */
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn('text-[12px] uppercase tracking-[0.09em] text-faint font-bold mb-2', className)}>
@@ -42,7 +42,7 @@ export function Button({ className, variant, size, ...props }:
   return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />
 }
 
-/* ---------- Field : label + contrôle ---------- */
+/* ---------- Field: label + control ---------- */
 export function Field({ label, hint, children }: { label: ReactNode; hint?: string; children: ReactNode }) {
   return (
     <div className="mt-2">
@@ -81,7 +81,7 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   )
 }
 
-/* ---------- Segmented : choix exclusifs, couches audio ---------- */
+/* ---------- Segmented: exclusive choices, audio layers ---------- */
 export interface SegmentedOption<T extends string> { value: T; label: string; dotClass?: string }
 export function Segmented<T extends string>({ options, value, onChange }: {
   options: SegmentedOption<T>[]; value: T | null; onChange: (v: T) => void
@@ -108,26 +108,26 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 /* ---------- Accordion ---------- */
 export function Accordion({ title, summary, defaultOpen = false, children, contrib, badge, tone, lock, onToggleLock }: {
   title: string; summary?: string; defaultOpen?: boolean; children: ReactNode
-  /** Ce que la section écrit dans le prompt (« 1er — tête du prompt »). */
+  /** What the section writes into the prompt ("1st — head of the prompt"). */
   contrib?: string
-  /** Badge d'état (INERTE, TRAÇABILITÉ…). */
+  /** Status badge (INERTE, TRAÇABILITÉ…). */
   badge?: string
-  /** 'amber' encadre la carte en ambre (ce qui n'agit pas). */
+  /** 'amber' outlines the card in amber (things that have no effect). */
   tone?: 'amber'
-  /** Verrou de carrousel : true = fermé (valeur fixe), false = ouvert (varie
-   *  par image). Non fourni ⇒ pas de verrou affiché. */
+  /** Carousel lock: true = locked (fixed value), false = open (varies
+   *  per image). Not provided ⇒ no lock shown. */
   lock?: boolean
   onToggleLock?: () => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  // `overflow-hidden` seulement fermé : ouvert, il rognerait le menu
-  // déroulant du Combobox, qui déborde sous le champ.
+  // `overflow-hidden` only when closed: when open it would clip the
+  // Combobox dropdown, which overflows below the field.
   return (
     <div className={cn('border rounded-ctl mb-2',
       tone === 'amber' ? 'border-[#3d3018] bg-[#12100b]' : open ? 'border-border2 bg-surface2' : 'border-border bg-surface2',
       !open && 'overflow-hidden')}>
-      {/* Rangée en-tête : verrou (bouton distinct) + zone repliable.
-          Deux boutons FRÈRES, jamais imbriqués. */}
+      {/* Header row: lock (separate button) + collapsible area.
+          Two SIBLING buttons, never nested. */}
       <div className="flex items-stretch">
         {onToggleLock && (
           <button onClick={onToggleLock} type="button"
@@ -157,14 +157,14 @@ export function Accordion({ title, summary, defaultOpen = false, children, contr
   )
 }
 
-/* ---------- Combobox : autocomplete (tenues, environnements…) ---------- */
+/* ---------- Combobox: autocomplete (outfits, environments…) ---------- */
 export interface ComboItem { id: string; label: string; tags: string[] }
 export function Combobox({ items, onPick, placeholder, selectedId }: {
   items: ComboItem[]
   onPick: (id: string) => void
   placeholder?: string
-  /** Item courant — coché dans la liste. Sans lui, un menu de 40 entrées
-   *  n'indique pas ce qui est déjà sélectionné. */
+  /** Current item, ticked in the list. Without it, a 40-entry menu
+   *  does not show what is already selected. */
   selectedId?: string
 }) {
   const [q, setQ] = useState('')
@@ -173,9 +173,8 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
   const box = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Filtre par nom OU par tag (« robe » / « vert »). Requête vide = tout,
-  // c'est ce qui fait du champ un vrai menu déroulant et pas seulement
-  // une recherche.
+  // Filter by name OR tag ("robe" / "vert"). Empty query = everything,
+  // which makes the field a real dropdown and not just a search.
   const needle = q.trim().toLowerCase()
   const filtered = needle
     ? items.filter(i =>
@@ -183,8 +182,8 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
         i.tags.some(t => t.toLowerCase().includes(needle)))
     : items
 
-  // Fermer sur clic extérieur : sans ça le menu reste ouvert derrière le
-  // reste de la colonne et masque les champs suivants.
+  // Close on outside click: otherwise the menu stays open behind the
+  // rest of the column and hides the following fields.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
@@ -194,7 +193,7 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  // Garder l'item actif visible quand on navigue au clavier.
+  // Keep the active item visible during keyboard navigation.
   useEffect(() => {
     listRef.current?.querySelector('[data-active="1"]')
       ?.scrollIntoView({ block: 'nearest' })
@@ -272,7 +271,7 @@ export function Combobox({ items, onPick, placeholder, selectedId }: {
   )
 }
 
-/* ---------- Slider ligne (label + range + valeur) ---------- */
+/* ---------- Slider row (label + range + value) ---------- */
 export function SliderRow({ label, valueLabel, min, max, step, value, onChange }: {
   label: string; valueLabel: string; min: number; max: number; step: number
   value: number; onChange: (v: number) => void
@@ -289,17 +288,16 @@ export function SliderRow({ label, valueLabel, min, max, step, value, onChange }
     </div>
   )}
 
-/* ---------- Upload (image ou vidéo) ----------
-   Zone cliquable → sélecteur de fichier natif (fonctionne aussi
-   depuis iPhone/iPad : pellicule/caméra). En POC le fichier vit en
-   object-URL côté navigateur ; le worker réel recevra l'upload. */
+/* ---------- Upload (image or video) ----------
+   Clickable area → native file picker (also works on iPhone/iPad:
+   camera roll/camera). The file lives as a browser object URL. */
 export function UploadBox({ accept, uri, name, onPick, onFile, hint }: {
-  accept: string                        // ex. "image/*" | "video/*"
+  accept: string                        // e.g. "image/*" | "video/*"
   uri: string; name: string
   onPick: (uri: string, name: string) => void
-  /** Fichier BRUT, pour les usages qui exigent un dépôt réel côté serveur
-   *  (une URL d'objet n'existe que dans l'onglet du navigateur). Optionnel :
-   *  les zones purement décoratives n'en ont pas besoin. */
+  /** RAW file, for uses that need a real server-side upload
+   *  (an object URL only exists in the browser tab). Optional:
+   *  purely decorative zones do not need it. */
   onFile?: (f: File) => void
   hint?: string
 }) {
@@ -348,9 +346,9 @@ export function UploadBox({ accept, uri, name, onPick, onFile, hint }: {
   )
 }
 
-/* ---------- Zoom au survol (poses & vignettes) ----------
-   Overlay fixe qui suit la souris — pointer-events none pour ne pas
-   gêner le clic. Rendu null tant que rien n'est survolé. */
+/* ---------- Hover zoom (poses & thumbnails) ----------
+   Fixed overlay following the mouse, pointer-events none so it does
+   not block clicks. Renders null while nothing is hovered. */
 export function ZoomPreview({ zoom }: {
   zoom: { src: string; label?: string; x: number; y: number } | null
 }) {

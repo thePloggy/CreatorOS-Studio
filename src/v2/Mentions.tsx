@@ -1,8 +1,8 @@
 /* ============================================================
-   @ dans le prompt : taper « @jes » propose les personnages et les
-   éléments (tenues, lieux, poses, styles). Un personnage devient le personnage
-   actif et le mot disparaît ; un élément est remplacé par son texte.
-   / en début de mot : les commandes de la page (préréglages, Enhancer, Éléments…).
+   @ in the prompt: typing "@jes" suggests characters and elements
+   (outfits, places, poses, styles). A character becomes the active
+   character and the word disappears; an element is replaced by its text.
+   / at the start of a word: the page's commands (presets, Enhancer, Elements…).
    ============================================================ */
 import { useEffect, useMemo, useState, type KeyboardEvent, type RefObject } from 'react'
 import { EL_GROUPS } from './popups'
@@ -11,7 +11,7 @@ import { t } from '../i18n'
 interface Choix { id: string; label: string; groupe: string; texte: string | null; persona?: string; action?: () => void; aide?: string }
 export interface Commande { id: string; label: string; aide?: string; texte?: string; action?: () => void; groupe?: string }
 
-/** Le mot en @ que l'on est en train de taper, juste avant le curseur. */
+/** The @ word being typed, just before the cursor. */
 function motEnCours(valeur: string, curseur: number) {
   const m = /(^|\s)([@/])([\p{L}\p{N}_-]*)$/u.exec(valeur.slice(0, curseur))
   return m ? { debut: curseur - m[3].length - 1, q: m[3].toLowerCase(), signe: m[2] as '@' | '/' } : null
@@ -20,7 +20,7 @@ function motEnCours(valeur: string, curseur: number) {
 export function useMentions({ champ, valeur, surChange, surPersona, commandes = [] }: {
   champ: RefObject<HTMLTextAreaElement | null>; valeur: string
   surChange: (v: string) => void; surPersona: (id: string) => Promise<void>
-  /** commandes proposées après « / » */
+  /** commands offered after "/" */
   commandes?: Commande[]
 }) {
   const [mot, setMot] = useState<{ debut: number; q: string; signe: '@' | '/' } | null>(null)
@@ -30,7 +30,7 @@ export function useMentions({ champ, valeur, surChange, surPersona, commandes = 
     void fetch('/api/personas').then(r => r.json())
       .then((d: { personas?: { id: string; name?: string }[] }) => setPersos((d.personas ?? []).map(p => ({
         id: `p-${p.id}`, label: p.name || p.id, groupe: 'Personnage', texte: null, persona: p.id }))))
-      .catch(() => { /* la liste reste vide : les éléments restent proposés */ })
+      .catch(() => { /* the list stays empty: elements are still offered */ })
   }, [])
   const liste = useMemo((): Choix[] => {
     if (!mot) return []
@@ -51,7 +51,7 @@ export function useMentions({ champ, valeur, surChange, surPersona, commandes = 
     if (c.persona) void surPersona(c.persona)
     c.action?.()
   }
-  /** Rend true quand la touche a servi à la liste. */
+  /** Returns true when the key was consumed by the list. */
   const touche = (e: KeyboardEvent) => {
     if (!liste.length) return false
     if (e.key === 'ArrowDown') { e.preventDefault(); setI(n => (n + 1) % liste.length); return true }

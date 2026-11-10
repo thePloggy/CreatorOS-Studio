@@ -1,13 +1,13 @@
 /* ============================================================
-   Montage — un petit éditeur de reel dans l'app : des clips et des
-   photos de la bibliothèque mis bout à bout, coupés (début / fin), reliés par
-   une coupe franche, un fondu enchaîné ou un passage au noir, un texte par
-   plan, une musique par-dessus. L'export est un rendu ffmpeg sur le CPU — la
-   carte reste à ComfyUI — livré comme un asset vidéo ordinaire (op 'montage').
+   Montage: a small in-app reel editor. Library clips and photos are placed
+   end to end, trimmed (start / end), joined by a hard cut, crossfade or dip
+   to black, with one text per shot and a music track on top. Export is an
+   ffmpeg render on CPU (the GPU stays with ComfyUI), delivered as a regular
+   video asset (op 'montage').
 
-   Le projet est un JSON enregistré en base (table `montages`), par personnage
-   comme la bibliothèque. Il ne référence que des ids d'assets et des noms de
-   musiques : rien n'est copié avant l'export.
+   The project is a JSON stored in the database (table `montages`), per
+   character like the library. It only references asset ids and music names:
+   nothing is copied before export.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,12 +20,12 @@ import { ensurePoster } from './poster.js'
 export const FORMATS = { '9:16': [1080, 1920], '4:5': [1080, 1350], '1:1': [1080, 1080], '16:9': [1920, 1080] }
 const FPS = 30
 const MAX_CLIPS = 40
-const MAX_DUREE = 180            // secondes livrées : un reel, pas un film
+const MAX_DUREE = 180            // delivered seconds: a reel, not a film
 export const MUSIQUES_DIR = path.join(CONFIG.dataDir, 'montage', 'musiques')
 const TYPES_MUSIQUE = { 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/aac': '.aac',
   'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav', 'audio/ogg': '.ogg', 'audio/flac': '.flac' }
 
-/* ---------- projets ---------- */
+/* ---------- projects ---------- */
 store.db.exec(`CREATE TABLE IF NOT EXISTS montages (
   id TEXT PRIMARY KEY, persona_id TEXT, nom TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL)`)
 
@@ -55,7 +55,7 @@ export function ecrireProjet(id, { nom, data }) {
 }
 export const supprimerProjet = id => store.db.prepare('DELETE FROM montages WHERE id = ?').run(id).changes > 0
 
-/** Ramène un projet venu du navigateur dans des bornes sûres (types, plages). */
+/** Clamps a project coming from the browser to safe bounds (types, ranges). */
 function nettoyer(d) {
   const n = (v, lo, hi, def) => { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def }
   const un = (v, liste, def) => liste.includes(v) ? v : def
@@ -63,7 +63,7 @@ function nettoyer(d) {
     fichier: d.musique.fichier, volume: n(d.musique.volume, 0, 1.5, 0.8),
     fonduEntree: n(d.musique.fonduEntree, 0, 5, 0.5), fonduSortie: n(d.musique.fonduSortie, 0, 8, 1.5),
     decalage: n(d.musique.decalage, 0, 3600, 0),
-    // une piste de voix off ne reboucle pas : la fin est du silence, pas le début de la piste
+    // a voice-over track does not loop: its end is silence, not the track start
     boucle: d.musique.boucle !== false,
   } : null
   return {
@@ -76,12 +76,12 @@ function nettoyer(d) {
       assetId: c.assetId,
       debut: n(c.debut, 0, 3600, 0),
       fin: c.fin == null ? null : n(c.fin, 0, 3600, null),
-      duree: n(c.duree, 0.5, 30, 3),                       // photos seulement
+      duree: n(c.duree, 0.5, 30, 3),                       // photos only
       texte: String(c.texte ?? '').slice(0, 220),
       textePos: un(c.textePos, ['haut', 'centre', 'bas'], 'bas'),
-      transition: un(c.transition, ['coupe', 'fondu', 'noir'], 'coupe'),   // vers le plan SUIVANT
+      transition: un(c.transition, ['coupe', 'fondu', 'noir'], 'coupe'),   // toward the NEXT shot
       transitionDuree: n(c.transitionDuree, 0.2, 1.5, 0.5),
-      // recadrage dans l'image source, en fractions (0..1) — absent = image entière
+      // crop within the source image, as fractions (0..1); absent = full image
       crop: c.crop && [c.crop.x, c.crop.y, c.crop.w, c.crop.h].every(v => Number.isFinite(Number(v))) ? (() => {
         const w = n(c.crop.w, 0.05, 1, 1), h = n(c.crop.h, 0.05, 1, 1)
         return { x: n(c.crop.x, 0, 1 - w, 0), y: n(c.crop.y, 0, 1 - h, 0), w, h }
@@ -90,10 +90,10 @@ function nettoyer(d) {
   }
 }
 
-/* ---------- musiques (dossier du studio, jamais le dossier input de ComfyUI) ---------- */
+/* ---------- music (studio folder, never ComfyUI's input folder) ---------- */
 const nomMusiqueValide = nom => /^[\w.-]+$/.test(nom) && !nom.startsWith('.') && fs.existsSync(path.join(MUSIQUES_DIR, nom))
-/** Fin de la partie sonore d'un morceau : beaucoup finissent par plusieurs secondes de
-    silence, qui revenaient à chaque tour de boucle (un trou de 3 s en plein reel). */
+/** End of the audible part of a track: many tracks end with several seconds of
+    silence, which would recur on every loop. */
 const finsSonores = new Map()
 export function finSonore(fichier) {
   if (finsSonores.has(fichier)) return finsSonores.get(fichier)
@@ -102,7 +102,7 @@ export function finSonore(fichier) {
     const duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', fichier], { encoding: 'utf8' })) || 0
     const log = String(spawnSync('ffmpeg', ['-v', 'info', '-i', fichier, '-af', 'silencedetect=n=-45dB:d=0.4', '-f', 'null', '-'], { encoding: 'utf8', timeout: 60_000 }).stderr ?? '')
     fin = duree
-    // un silence qui court jusqu'à la fin du fichier : sa fin est (à peu près) la durée, ou absente
+    // silence running to the end of the file: its end is (roughly) the duration, or absent
     const debuts = [...log.matchAll(/silence_start: ([\d.]+)/g)].map(x => Number(x[1]))
     const fins = [...log.matchAll(/silence_end: ([\d.]+)/g)].map(x => Number(x[1]))
     const dernierDebut = debuts.at(-1)
@@ -111,7 +111,7 @@ export function finSonore(fichier) {
   finsSonores.set(fichier, fin)
   return fin
 }
-/** Filtre qui fait boucler la partie sonore d'un morceau à partir de `depart`, sur `longueur` secondes. */
+/** Filter that loops the audible part of a track from `depart`, over `longueur` seconds. */
 export function boucleSonore(fichier, depart, longueur, boucle = true) {
   if (!boucle) return `aresample=48000,aformat=channel_layouts=stereo,atrim=${depart},asetpts=PTS-STARTPTS,apad=whole_dur=${longueur.toFixed(3)},atrim=0:${longueur.toFixed(3)}`
   const fin = finSonore(fichier)
@@ -120,7 +120,7 @@ export function boucleSonore(fichier, depart, longueur, boucle = true) {
     + `aloop=loop=-1:size=${Math.round(fin * 48000)},atrim=${depart}:${(depart + longueur).toFixed(3)},asetpts=PTS-STARTPTS`
 }
 
-// durée par fichier et date de modification : la liste ne relance pas ffprobe à chaque ouverture
+// duration cached per file and mtime: listing does not rerun ffprobe each time
 const durees = new Map()
 function dureeEnCache(f, mtime) {
   const cle = `${f}:${mtime}`
@@ -144,7 +144,7 @@ export function deposerMusique(type, nomOrigine, buf) {
   if (!dureeDe(path.join(MUSIQUES_DIR, nom))) { fs.rmSync(path.join(MUSIQUES_DIR, nom), { force: true }); throw Object.assign(new Error('fichier audio illisible'), { statusCode: 422 }) }
   return { nom, duree: dureeDe(path.join(MUSIQUES_DIR, nom)) }
 }
-/** Retire un son de la bibliothèque audio : il part dans .corbeille du dossier, rien n'est effacé. */
+/** Removes a sound from the audio library: it goes to the folder's .corbeille, nothing is deleted. */
 export function retirerMusique(nom) {
   if (!nomMusiqueValide(nom)) throw Object.assign(new Error('son inconnu'), { statusCode: 404 })
   const corbeille = path.join(MUSIQUES_DIR, '.corbeille')
@@ -163,7 +163,7 @@ function aDuSon(f) {
   try { return execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim() !== '' }
   catch { return false }
 }
-/** drawtext ne coupe pas les lignes : on le fait ici, à la largeur du cadre. */
+/** drawtext does not wrap lines: wrap here, to the frame width. */
 function couper(texte, parLigne) {
   const lignes = []
   for (const para of texte.split(/\n/)) {
@@ -176,9 +176,9 @@ function couper(texte, parLigne) {
   return lignes.join('\n').trim()
 }
 
-/** Images de bord d'une transition générée : la dernière image GARDÉE du plan A (sa coupe de fin) et la première
- *  gardée du plan B (sa coupe de début), avec le recadrage de chaque plan puis le cadre du montage, comme à l'export.
- *  Rend les deux noms déposés dans input/ et le format. */
+/** Edge frames for a generated transition: the last KEPT frame of shot A (its out point) and the first
+ *  kept frame of shot B (its in point), with each shot's crop then the montage frame, as in export.
+ *  Returns the two file names written to input/ and the format. */
 export function cadresTransition({ format, a, b }) {
   const [W, H] = FORMATS[format] ?? FORMATS['9:16']
   const bord = (c, quelle) => {
@@ -190,7 +190,7 @@ export function cadresTransition({ format, a, b }) {
     const total = video ? dureeDe(fichier) : 0
     const debut = video ? Math.min(Number(c.debut) || 0, Math.max(0, total - 0.2)) : 0
     const fin = video ? Math.min(total, c.fin ?? total) : 0
-    // la dernière image gardée : un peu avant la coupe, ffmpeg ne décode rien pile sur la fin du fichier
+    // last kept frame: slightly before the cut, ffmpeg decodes nothing exactly at end of file
     const t = !video ? 0 : quelle === 'fin' ? Math.max(debut, fin - 1 / 24) : debut
     const k = c.crop
     const vf = [k && `crop=trunc(iw*${Number(k.w).toFixed(4)}/2)*2:trunc(ih*${Number(k.h).toFixed(4)}/2)*2:iw*${Number(k.x).toFixed(4)}:ih*${Number(k.y).toFixed(4)}`,
@@ -204,8 +204,8 @@ export function cadresTransition({ format, a, b }) {
   return { debut: bord(a, 'fin'), fin: bord(b, 'debut'), format: FORMATS[format] ? format : '9:16' }
 }
 
-/** Plan de rendu : résout les assets, mesure les durées, calcule la longueur
- *  livrée. Lève une erreur lisible si quelque chose manque. */
+/** Render plan: resolves assets, measures durations, computes the delivered
+ *  length. Throws a readable error if something is missing. */
 export function planDe(projet) {
   const d = projet.data
   if (!d.clips.length) throw new Error('montage vide : ajouter au moins un plan')
@@ -221,7 +221,7 @@ export function planDe(projet) {
     const duree = Math.max(0.2, fin - debut)
     return { ...c, fichier, video, debut, duree, son: video && d.sonClips && aDuSon(fichier) }
   })
-  // une transition ne peut pas manger plus de la moitié d'un des deux plans
+  // a transition cannot take more than half of either shot
   let longueur = 0
   plans.forEach((p, i) => {
     const suiv = plans[i + 1]
@@ -246,7 +246,7 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
   const parLigne = Math.max(12, Math.floor(W / (taille * 0.56)))
   plans.forEach((p, i) => {
     const norme = `fps=${FPS},format=yuv420p,setsar=1,settb=AVTB,setpts=PTS-STARTPTS`
-    // recadrage d'abord : le remplissage et le fond flou partent de la zone gardée
+    // crop first: padding and blurred background start from the kept area
     const c = p.crop
     const entree = c ? `[${i}:v]crop=trunc(iw*${c.w.toFixed(4)}/2)*2:trunc(ih*${c.h.toFixed(4)}/2)*2:iw*${c.x.toFixed(4)}:ih*${c.y.toFixed(4)},` : `[${i}:v]`
     if (d.cadrage === 'flou') {
@@ -259,9 +259,9 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
     }
     let v = `p${i}`
     if (p.texte.trim()) {
-      /* Une ligne = un drawtext : avec un fichier multiligne, ffmpeg 8 dessine le
-         saut de ligne comme un glyphe absent (une case) en fin de ligne. Texte
-         écrit dans un fichier : aucun échappement à faire pour drawtext. */
+      /* One line = one drawtext: with a multiline file, ffmpeg 8 draws the
+         newline as a missing glyph (a box). Text goes through a file: no
+         escaping needed for drawtext. */
       const lignes = couper(p.texte.trim(), parLigne).split('\n')
       const pas = Math.round(taille * 1.28), bloc = pas * lignes.length
       const y0 = p.textePos === 'haut' ? Math.round(H * 0.11) : p.textePos === 'centre' ? Math.round((H - bloc) / 2) : Math.round(H * 0.80 - bloc)
@@ -275,12 +275,12 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
       })
     }
     p.v = v
-    // son du plan, ou un silence de même durée (les fondus audio suivent la vidéo)
+    // shot audio, or silence of the same length (audio fades follow the video)
     if (p.son) f.push(`[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${p.duree.toFixed(3)},asetpts=PTS-STARTPTS,volume=${d.volumeClips}[a${i}]`)
     else f.push(`aevalsrc=0:c=stereo:s=48000:d=${p.duree.toFixed(3)}[a${i}]`)
   })
 
-  // chaîne : coupe = concat ; fondu / noir = xfade + acrossfade de même durée
+  // chain: cut = concat; fade / black = xfade + acrossfade of the same length
   let vc = plans[0].v, ac = 'a0', long = plans[0].duree
   for (let i = 1; i < plans.length; i++) {
     const prec = plans[i - 1], p = plans[i]
@@ -302,16 +302,16 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
     f.push(`[${iMusique}:a]${boucleSonore(path.join(MUSIQUES_DIR, m.fichier), Number(m.decalage) || 0, longueur, m.boucle !== false)},volume=${m.volume}`
       + (m.fonduEntree > 0 ? `,afade=t=in:d=${m.fonduEntree}` : '')
       + (m.fonduSortie > 0 ? `,afade=t=out:st=${Math.max(0, longueur - m.fonduSortie).toFixed(3)}:d=${m.fonduSortie}` : '') + '[mus]')
-    // sans le son des plans, leur chaîne n'est que du silence : mixée quand même, aucune sortie ne reste en l'air.
-    // Le son des plans (voix, parole) pilote un compresseur sur la musique : elle baisse de 7 à 8 dB sous une voix
-    // normalisée et revient entre les phrases (un ratio plus fort la faisait disparaître).
+    // without shot audio, its chain is pure silence: mixed anyway so no output is left dangling.
+    // Shot audio (voice, speech) sidechains a compressor on the music: it ducks 7 to 8 dB under a
+    // normalized voice and comes back between sentences.
     f.push(`[${ac}]asplit=2[voix][cle]`,
       `[mus][cle]sidechaincompress=threshold=0.08:ratio=3:attack=15:release=350:makeup=1[musd]`,
       `[voix][musd]amix=inputs=2:duration=first:normalize=0[amx]`); aOut = 'amx'
   }
   const avecSon = d.sonClips || !!d.musique
   if (!avecSon) f.push(`[${ac}]anullsink`)
-  // niveau final des plateformes de vidéo courte : −14 LUFS intégrés, crêtes à −1 dBTP
+  // final level for short-video platforms: -14 LUFS integrated, peaks at -1 dBTP
   else { f.push(`[${aOut}]loudnorm=I=-14:TP=-1:LRA=11,aresample=48000[afin]`); aOut = 'afin' }
   args.push('-filter_complex', f.join(';'), '-map', `[${vc}]`)
   if (avecSon) args.push('-map', `[${aOut}]`, '-c:a', 'aac', '-b:a', '192k')
@@ -324,7 +324,7 @@ function argsFfmpeg({ plans, longueur, format: [W, H], d }, sortie, tmp) {
 const progression = new Map()     // jobId → 0..1
 export const progressionDe = jobId => progression.get(jobId)
 
-/** Lance l'export en arrière-plan ; rend l'id du job tout de suite. */
+/** Starts the export in the background; returns the job id immediately. */
 export function exporter(projet) {
   const plan = planDe(projet)
   const jobId = `mtg-${Date.now().toString(36)}`
@@ -335,7 +335,7 @@ export function exporter(projet) {
     op: 'montage', videoEngine: null, userPrompt: projet.nom, composedPositive: null,
     montageId: projet.id, montage: plan.d, estimatedMs: Math.round(8000 + plan.longueur * 1500),
   }
-  // tout ce qui peut échouer AVANT d'écrire le job : sinon il resterait « en rendu »
+  // everything that can fail happens BEFORE writing the job, otherwise it would stay "rendering"
   fs.mkdirSync(path.join(CONFIG.dataDir, 'montage'), { recursive: true })
   const tmp = fs.mkdtempSync(path.join(CONFIG.dataDir, 'montage', 'rendu-'))
   const nom = `${jobId}-0-${crypto.randomBytes(4).toString('hex')}.mp4`

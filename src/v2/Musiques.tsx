@@ -1,6 +1,6 @@
-/* Bibliothèque audio (onglet Audio de la bibliothèque) : les sons générés au studio son et ceux
-   déposés dans le montage, avec leur forme d'onde. La création se fait dans la section Studio son,
-   ouverte d'ici sur le bon onglet. */
+/* Audio library (Audio tab of the library): sounds generated in the sound studio and sounds
+   dropped into the editor, with their waveform. Creation happens in the Sound studio section,
+   opened from here on the right tab. */
 import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -10,7 +10,7 @@ import { LecteurOnde } from './Onde'
 const nomCourt = (n: string) => n.replace(/_[a-z0-9]{6}(_\d)?\.\w+$/, '').replace(/\.\w+$/, '').replace(/_/g, ' ')
 type Onglet = 'musique' | 'voix' | 'bruitage'
 
-/** Ouvre la section Studio son sur un onglet. */
+/** Opens the Sound studio section on a given tab. */
 export function ouvrirStudioSon(o: Onglet) {
   useAppStore.setState(st => ({ ongletAudio: o, ongletMusiques: false, navRequest: { section: 'son', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
 }

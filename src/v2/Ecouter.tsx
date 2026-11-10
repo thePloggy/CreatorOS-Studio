@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 
-/** Lecture rapide d'un son (échantillon de voix, musique) : un clic lit, un second arrête. Un seul son à la fois. */
+/** Quick sound playback (voice sample, music): one click plays, a second stops. One sound at a time. */
 let courant: HTMLAudioElement | null = null
-/** Coupe l'écoute en cours (changement de page, visionneuse fermée). */
+/** Stops the current playback (page change, viewer closed). */
 export const arreterEcoute = () => { courant?.pause(); courant = null }
 
 export function Ecouter({ src, titre }: { src: string | null; titre?: string }) {

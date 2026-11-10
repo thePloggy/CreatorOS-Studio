@@ -1,8 +1,7 @@
 /* ============================================================
-   Sélecteur de personnage de la barre du haut : un clic sur le nom déroule
-   tous les personnages ; un clic sur l'un d'eux le rend actif (la
-   bibliothèque se recharge sur ses rendus). « Modifier les personnages »
-   ouvre la page Personnage. Partagé bureau et mobile.
+   Top-bar character picker: clicking the name lists all characters;
+   clicking one makes it active (the library reloads with its renders).
+   "Edit characters" opens the Character page. Shared desktop and mobile.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -15,7 +14,7 @@ const rond = (url: string | null, size: number) => url
 
 export function PersonaMenu({ onEdit, className, style, alignDroite = false }: {
   onEdit: () => void; className?: string; style?: React.CSSProperties
-  /** menu calé sur le bord droit du bouton (bouton à droite de l'écran) */
+  /** menu aligned to the button's right edge (button on the right of the screen) */
   alignDroite?: boolean
 }) {
   const nom = useAppStore(s => s.personaName)

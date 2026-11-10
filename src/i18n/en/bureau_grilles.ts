@@ -1,4 +1,4 @@
-/* Traductions anglaises — zone « bureau_grilles ». Clé = texte français exact passé à t(). */
+/* English translations — "bureau_grilles" area. Key = exact French text passed to t(). */
 export const bureau_grilles: Record<string, string> = {
   // V2App
   'Assets': 'Assets',

@@ -1,5 +1,5 @@
-/* Traductions anglaises, une table par zone de l'interface (fusionnées ici).
-   Clé = texte français exact passé à t(), valeur = anglais. */
+/* English translations, one table per interface area (merged here).
+   Key = exact French text passed to t(), value = English. */
 import { commun } from './commun'
 import { bureau_grilles } from './bureau_grilles'
 import { bureau_visionneuse } from './bureau_visionneuse'
@@ -13,7 +13,7 @@ import { audio } from './audio'
 import { danse } from './danse'
 import { galeries } from './galeries'
 
-/* `serveur` en premier : un texte d'interface identique garde sa traduction d'interface. */
+/* `serveur` first: identical interface text keeps its interface translation. */
 export const EN: Record<string, string> = {
   ...serveur, ...partage, ...bureau_grilles, ...bureau_visionneuse, ...mobile, ...commun, ...nouveautes, ...cinema, ...reshoot, ...audio, ...danse, ...galeries,
 }

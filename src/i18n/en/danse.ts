@@ -1,4 +1,4 @@
-/* Page Danse : galerie des danses et des studios, panneau de création, rendus. */
+/* Dance page: dance and studio gallery, creation panel, renders. */
 export const danse: Record<string, string> = {
   'Une photo, une danse, un studio : ton personnage danse avec son visage et sa tenue.': 'One photo, one dance, one studio: your character dances with their own face and outfit.',
   'Créer une danse': 'Create a dance',
@@ -41,7 +41,7 @@ export const danse: Record<string, string> = {
   'Ouvrir le rendu': 'Open the render',
   'Ouvrir le montage': 'Open in Editor',
   'Refaire': 'Redo',
-  // « Comment ça marche » en tête de page
+  // "How it works" at the top of the page
   'Fais danser ton personnage': 'Make your character dance',
   'Une photo, une danse, un studio : tu reçois une vraie vidéo de danse, avec son visage et sa tenue.': 'One photo, one dance, one studio. You get a real dance video with their face and outfit.',
   'Commencer': 'Start creating',

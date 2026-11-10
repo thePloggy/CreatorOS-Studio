@@ -1,15 +1,15 @@
 #!/usr/bin/env python
-"""Cadrage « face tracking » d'une vidéo : la caméra reste verrouillée sur le visage.
+"""Face-tracking crop of a video: the camera stays locked on the face.
 
-Usage : suivi_visage.py VIDEO MODELES_CONTROLE [ZOOM]
-Lancé avec le Python de ComfyUI, sur le processeur. Remplace VIDEO par la version recadrée
-(même taille, même cadence, son conservé) et affiche une ligne JSON {"ok": bool, ...}.
+Usage: suivi_visage.py VIDEO MODELES_CONTROLE [ZOOM]
+Run with ComfyUI's Python, on CPU. Replaces VIDEO with the cropped version
+(same size, same frame rate, audio kept) and prints a JSON line {"ok": bool, ...}.
 
-- YuNet (OpenCV) trouve le visage le plus grand sur chaque image ;
-- les images sans visage reprennent la position voisine, et la trajectoire est lissée
-  (une caméra qui suit, pas une caméra qui tremble) ;
-- la fenêtre, ZOOM fois plus serrée que l'image (défaut 1,7), garde le visage au tiers haut
-  et ne sort jamais de l'image ; elle est remise à la taille d'origine.
+- YuNet (OpenCV) finds the largest face in each frame;
+- frames without a face take the neighbouring position, and the path is smoothed
+  (a following camera, not a shaking one);
+- the window, ZOOM times tighter than the frame (default 1.7), keeps the face in the upper third
+  and never leaves the frame; it is scaled back to the original size.
 """
 import json
 import os
@@ -54,10 +54,10 @@ for im in images:
 vus = [i for i, c in enumerate(centres) if c is not None]
 if len(vus) < len(images) * 0.3:
     fin(ok=False, raison=f'visage trouvé sur {len(vus)}/{len(images)} images')
-# trous : interpolation entre les images où le visage est vu
+# gaps: interpolate between frames where the face is seen
 cx = np.interp(range(len(images)), vus, [centres[i][0] for i in vus])
 cy = np.interp(range(len(images)), vus, [centres[i][1] for i in vus])
-# lissage : moyenne glissante gaussienne sur ~0,5 s
+# smoothing: gaussian moving average over ~0.5 s
 k = max(3, int(fps * 0.5) | 1)
 noyau = np.exp(-0.5 * (np.linspace(-2, 2, k)) ** 2)
 noyau /= noyau.sum()

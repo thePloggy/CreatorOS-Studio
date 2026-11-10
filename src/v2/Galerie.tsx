@@ -1,13 +1,13 @@
-/* Briques des pages « galerie » (Danse, Camera Moves, Effects, Styles, Relight, effets vidéo…) : une grande
-   galerie de cartes qui s'animent à la demande, à côté d'un panneau de création compact à étapes numérotées.
-   Les classes `.dz-*` de v2.css portent la mise en page commune, née sur la page Danse. */
+/* Building blocks for "gallery" pages (Dance, Camera Moves, Effects, Styles, Relight, video effects…): a large
+   gallery of cards that animate on demand, next to a compact creation panel with numbered steps.
+   The `.dz-*` classes in v2.css hold the shared layout. */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Asset, Job } from '../types'
 import { t } from '../i18n'
 import { FailCard, Ic, JobCard } from './bits'
 import { posterOf, vignetteOf } from '../components/AssetMedia'
 
-/* Préférences du navigateur, suivies en direct : mouvement réduit, pointeur précis (survol possible). */
+/* Live-tracked browser preferences: reduced motion, fine pointer (hover available). */
 const media = (q: string) => typeof window !== 'undefined' && window.matchMedia(q).matches
 export function usePreference(q: string) {
   const [v, setV] = useState(() => media(q))
@@ -20,8 +20,8 @@ export function usePreference(q: string) {
 export const useMouvementReduit = () => usePreference('(prefers-reduced-motion: reduce)')
 export const useSurvolPossible = () => usePreference('(hover: hover) and (pointer: fine)')
 
-/* Image fixe : une image dessinée une fois sur un canevas (recadrage « cover »), chargée quand la carte
-   approche de l'écran. Sans image (fichier absent), `secours` montre la première image d'une vidéo. */
+/* Still image: drawn once on a canvas ("cover" crop), loaded when the card
+   nears the viewport. Without an image (missing file), `secours` shows the first frame of a video. */
 const images = new Map<string, Promise<HTMLImageElement>>()
 function chargerImage(src: string) {
   let p = images.get(src)
@@ -58,7 +58,7 @@ export function ImageFixe({ src, largeur = 360, hauteur = 640, secours }: { src:
   </>
 }
 
-/* Une seule carte joue sur écran tactile : la plus proche du centre parmi celles bien visibles. */
+/* Only one card plays on touch screens: the one closest to the center among the fully visible ones. */
 export function useCarteAuCentre(actif: boolean, deps: unknown[]) {
   const racine = useRef<HTMLDivElement | null>(null)
   const [cle, setCle] = useState<string | null>(null)
@@ -81,18 +81,18 @@ export function useCarteAuCentre(actif: boolean, deps: unknown[]) {
   return { racine, cle }
 }
 
-/* Carte de la galerie (9:16, ou carrée) : image fixe au repos, aperçu animé au survol, au clavier ou au centre.
-   `apres` : une seconde image (l'avant / après d'un style), montrée en fondu à la place de l'animation. */
+/* Gallery card (9:16, or square): still image at rest, animated preview on hover, keyboard focus or when centered.
+   `apres`: a second image (a style's before/after), crossfaded in place of the animation. */
 export function Carte({ cle, titre, detail, fixe, boucle, anime, video, apres, secours, carree, paysage, badge, lettre, sansLegende, classe, choisie, auCentre, survolPossible, reduit, onChoisir }: {
   cle: string; titre: string; detail?: string; fixe?: string
-  /** image animée (webp) jouée en continu dans la grille à la place de l'image fixe ; ignorée si le mouvement est réduit */
+  /** animated image (webp) looping in the grid instead of the still; ignored under reduced motion */
   boucle?: string; anime?: string; video?: string; apres?: string; secours?: string
   carree?: boolean; paysage?: boolean; badge?: ReactNode
-  /** classe en plus (la carte du vêtement d'un essayage, marquée autrement que la personne) */
+  /** extra class (the garment card in a try-on, styled differently from the person) */
   classe?: string
-  /** le titre reste pour les lecteurs d'écran, l'image parle seule */
+  /** the title stays for screen readers; the image speaks for itself */
   sansLegende?: boolean
-  /** sans image : une lettre (ou un format) sur un fond sobre */
+  /** without an image: a letter (or a format) on a plain background */
   lettre?: string
   choisie: boolean; auCentre: boolean; survolPossible: boolean; reduit: boolean; onChoisir: () => void
 }) {
@@ -134,9 +134,9 @@ export function Aucun({ texte, onEffacer }: { texte: string; onEffacer: () => vo
   )
 }
 
-/* Barre de la galerie : onglets (avec compteurs), recherche, puces de filtre. */
+/* Gallery bar: tabs (with counts), search, filter chips. */
 export type OngletGalerie<K extends string> = { cle: K; label: string; n?: number; enCours?: number }
-/* une icône par onglet, devinée de sa clé : la galerie de l'outil, la bibliothèque, les rendus */
+/* one icon per tab, guessed from its key: the tool gallery, the library, the renders */
 function iconeOnglet(cle: string): Parameters<typeof Ic>[0]['n'] {
   if (cle === 'rendus') return 'folder'
   if (cle === 'biblio') return 'image'
@@ -180,7 +180,7 @@ export function BarreGalerie<K extends string>({ onglets, onglet, onOnglet, rech
   )
 }
 
-/* Étapes du panneau : chaque ligne ouvre son choix ; la prochaine à faire est soulignée. */
+/* Panel steps: each row opens its choice; the next one to do is underlined. */
 export type EtapePanneau = { n: number; label: string; valeur: string; fait: boolean; vignette?: string; fixe?: boolean; carree?: boolean
   icone?: 'user' | 'play' | 'image' | 'camera' | 'grid' | 'sound' | 'edit'; ouvrir: () => void; courant?: boolean }
 export function EtapesPanneau({ etapes, prochaine }: { etapes: EtapePanneau[]; prochaine: number }) {
@@ -203,16 +203,16 @@ export function EtapesPanneau({ etapes, prochaine }: { etapes: EtapePanneau[]; p
   )
 }
 
-/* Onglet Rendus d'une page galerie : en cours (progression), en échec (reprise), puis livrés (lecture et gestes).
-   Rien encore : `vide` (en général une phrase et un bouton vers la galerie). */
+/* Renders tab of a gallery page: in progress (progress), failed (retry), then delivered (playback and actions).
+   Nothing yet: `vide` (usually a sentence and a button to the gallery). */
 export function RendusGalerie({ enCours, echecs, livres, legende, onOpen, gestes, vide, photo }: {
   enCours: Job[]; echecs: Job[]; livres: Asset[]
   legende: (a: Asset) => { titre: string; detail?: string }
   onOpen?: (a: Asset, list: Asset[]) => void
-  /** gestes propres à la page (Refaire…), après Télécharger */
+  /** page-specific actions (Redo…), after Download */
   gestes?: (a: Asset) => ReactNode
   vide: ReactNode
-  /** rendus photo : vignette fixe au format 4:5 */
+  /** photo renders: fixed 4:5 thumbnail */
   photo?: boolean
 }) {
   if (enCours.length + echecs.length + livres.length === 0) return <div className="dz-rendus-vide">{vide}</div>
@@ -245,7 +245,7 @@ export function RendusGalerie({ enCours, echecs, livres, legende, onOpen, gestes
   )
 }
 
-/* Bas du panneau : rendus en cours, bouton d'options (téléphone), bouton principal, ce qui manque encore. */
+/* Panel footer: renders in progress, options button (mobile), main button, what is still missing. */
 export function ActionPanneau({ id, nbEnCours, onVoirRendus, options, onOptions, pret, onLancer, label, detail, manque, msg, avecOptions = true }: {
   id: string
   nbEnCours: number; onVoirRendus?: () => void
@@ -277,13 +277,13 @@ export function ActionPanneau({ id, nbEnCours, onVoirRendus, options, onOptions,
   )
 }
 
-/* Réglages d'un lancement, gardés dans le navigateur pour « Refaire » et la légende du rendu. */
+/* Settings of a launch, kept in the browser for "Redo" and the render caption. */
 export function memoireReglages<R>(cle: string) {
   const lire = (): Record<string, R> => { try { return JSON.parse(localStorage.getItem(cle) ?? '{}') } catch { return {} } }
   const noter = (id: string, r: R) => {
     const tout = lire(); tout[id] = r
     const cles = Object.keys(tout); for (const k of cles.slice(0, Math.max(0, cles.length - 200))) delete tout[k]
-    try { localStorage.setItem(cle, JSON.stringify(tout)) } catch { /* stockage indisponible */ }
+    try { localStorage.setItem(cle, JSON.stringify(tout)) } catch { /* storage unavailable */ }
   }
   return { lire, noter }
 }

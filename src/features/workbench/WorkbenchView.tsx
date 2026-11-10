@@ -1,21 +1,18 @@
 /* ============================================================
-   Workbench (⚙) — édition de tout ce qui façonne la sortie.
+   Workbench (⚙) — editing of everything that shapes the output.
 
-   Deux familles, un seul mécanisme :
-     Recettes  (.json)  le graphe ComfyUI
-     Textes    (.txt)   system prompts du réécriveur, préambules
-                        d'identité
+   Two families, one mechanism:
+     Recipes   (.json)  the ComfyUI graph
+     Texts     (.txt)   rewriter system prompts, identity
+                        preambles
 
-   Les deux sont lus par le serveur À CHAQUE JOB (aucun cache) : une
-   écriture prend effet au job suivant, sans redémarrage. Les deux
-   sauvegardent l'ancienne version sous `.backups/` et refusent une
-   écriture dont la base a bougé sur le disque. La vue sonde le
-   `mtime` : si le fichier change dessous, elle recharge quand rien
-   n'est en cours d'édition, et prévient sinon.
+   Both are read by the server ON EVERY JOB (no cache): a write takes
+   effect on the next job, without restart. Both back up the previous
+   version under `.backups/` and reject a write whose base changed on
+   disk. The view polls `mtime`: if the file changes underneath, it
+   reloads when nothing is being edited, and warns otherwise.
 
-   La liste se lit au BADGE, pas au nom de fichier. Un nom comme
-   `PROD_gen_sfw.json` ne dit pas ce qu'il fait ; « 📷 T2I » le dit
-   d'un coup d'œil.
+   The list is read by BADGE, not by file name.
    ============================================================ */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { RecetteRevue } from './RecetteRevue'
@@ -32,11 +29,11 @@ type Entry = {
   bytes: number | null
   mtimeMs: number | null
   kind: Kind
-  /* recettes */
+  /* recipes */
   uses?: Use[]
   deprecated?: string | null
   summary?: Summary
-  /* textes */
+  /* texts */
   label?: string
   registers?: string[]
   textKind?: string
@@ -44,7 +41,7 @@ type Entry = {
 
 /* ---------- badges ---------- */
 
-/* L'icône dit la FONCTION. */
+/* The icon shows the FUNCTION. */
 const FN_ICON: Record<string, string> = {
   generate: '📷', edit: '✦',
   video_wan: '🎬', video_ltx: '🎬', video_ltx_hq: '🎬', video_minimax: '🎬',
@@ -70,15 +67,14 @@ function Badge({ fn }: { fn: string }) {
   )
 }
 
-/** Badges d'une entrée : un par fonction servie (sans doublon). */
+/** Badges of an entry: one per served function (no duplicates). */
 function badgesOf(e: Entry) {
   if (e.kind === 'texte') return [{ fn: e.textKind ?? 'autre' }]
   return [...new Set((e.uses ?? []).map(u => u.kind))].map(fn => ({ fn }))
 }
 
-/* Méta locale des textes, par NOM de fichier : le serveur en cours peut être
-   antérieur aux nouvelles entrées (étiquettes « autre ») — le nom, lui, ne
-   ment pas. La méta serveur gagne quand elle existe. */
+/* Local metadata for texts, keyed by file NAME: the running server may not
+   know newer entries (labelled "other"). Server metadata wins when present. */
 function textMetaFallback(file: string): { textKind?: string; registers?: string[] } {
   if (file.startsWith('intent_')) return { textKind: 'intent', registers: [] }
   if (file.startsWith('engine_')) return { textKind: 'engine', registers: [] }
@@ -89,7 +85,7 @@ const fmtBytes = (n: number | null) => (n == null ? '—' : t('{n} Ko', { n: (n 
 const fmtTime = (ms: number | null) =>
   ms == null ? '—' : new Date(ms).toLocaleString(getLang() === 'en' ? 'en-US' : 'fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 
-/** Sous-titre : ce que la recette FAIT tourner, en une ligne. */
+/** Subtitle: what the recipe RUNS, in one line. */
 function engineLine(s?: Summary) {
   if (!s || s.error) return s?.error ? `⚠ ${tServeur(s.error)}` : null
   const parts = [...(s.base ?? []), ...(s.loras ?? [])]
@@ -110,8 +106,8 @@ export function WorkbenchView() {
   const [banner, setBanner] = useState<{ tone: 'ok' | 'warn' | 'err'; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [diskChanged, setDiskChanged] = useState(false)
-  // Lint anti-apparence des couches SOUL/MOOD (renvoyé par /api/prompts) :
-  // mots d'apparence détectés. Non bloquant — un simple signal.
+  // Appearance lint for SOUL/MOOD layers (returned by /api/prompts):
+  // appearance words found. Non-blocking — a warning only.
   const [warnings, setWarnings] = useState<string[]>([])
 
   const dirty = text !== savedText
@@ -145,7 +141,7 @@ export function WorkbenchView() {
 
   useEffect(() => { void loadList() }, [loadList])
 
-  /* Sondage du disque — la moitié « lecture » du va-et-vient. */
+  /* Disk polling — the "read" half of the sync. */
   useEffect(() => {
     const id = setInterval(async () => {
       const cur = live.current
@@ -159,27 +155,27 @@ export function WorkbenchView() {
         setText(d.text); setSavedText(d.text); setMtime(d.mtimeMs)
         setBanner({ tone: 'warn', msg: t('rechargé : le fichier a changé sur le disque') })
         void loadList()
-      } catch { /* serveur momentanément indisponible */ }
+      } catch { /* server temporarily unavailable */ }
     }, 4000)
     return () => clearInterval(id)
   }, [saving, loadList])
 
   const onEdit = (v: string) => {
     setText(v)
-    // Le JSON se valide à la frappe ; un texte libre n'a pas de format.
+    // JSON is validated while typing; free text has no format.
     if (sel?.kind !== 'recette') { setJsonError(null); return }
     try { JSON.parse(v); setJsonError(null) }
     catch (e) { setJsonError((e as Error).message) }
   }
 
-  /* Import d'un fichier : remplit l'éditeur, n'écrit rien. L'opérateur relit,
-     puis « Enregistrer » passe par la validation et la sauvegarde du serveur. */
+  /* File import: fills the editor, writes nothing. The operator reviews,
+     then "Enregistrer" goes through the server's validation and backup. */
   const importer = async (f: File) => {
     const brut = await f.text()
     let wf: unknown
     try { wf = JSON.parse(brut) }
     catch (e) { setBanner({ tone: 'err', msg: t('JSON invalide : {e}', { e: (e as Error).message }) }); return }
-    // L'export « Save » de l'interface (nodes + links) n'est pas jouable par le serveur.
+    // The UI "Save" export (nodes + links) cannot be run by the server.
     if (wf && typeof wf === 'object' && Array.isArray((wf as { nodes?: unknown }).nodes)) {
       setBanner({ tone: 'err', msg: t('« {f} » est un export de l’interface ComfyUI (nodes + links). Exporter le graphe avec « Save (API) » ou « Export (API) », puis l’importer.', { f: f.name }) })
       return
@@ -222,8 +218,8 @@ export function WorkbenchView() {
     } finally { setSaving(false) }
   }
 
-  /* Production d'abord, archive repliée : la liste sert à trouver ce qui
-     tourne, pas à inventorier le dossier. */
+  /* Production first, archive collapsed: the list is for finding what
+     runs, not for listing the folder. */
   const prod = recipes.filter(r => r.uses?.length)
   const archive = recipes.filter(r => !r.uses?.length)
   const entry = [...recipes, ...texts].find(e => e.kind === sel?.kind && e.file === sel?.file) ?? null
@@ -259,7 +255,7 @@ export function WorkbenchView() {
 
   return (
     <div className="flex-1 overflow-hidden flex">
-      {/* ---- colonne gauche ---- */}
+      {/* ---- left column ---- */}
       <div className="w-[330px] shrink-0 border-r border-border overflow-y-auto scroll-clean p-3">
         <div className="flex items-center gap-1.5 flex-wrap mb-3 text-[12px] text-faint">
           <span>{t('📷 génération · ✦ retouche · 🎬 vidéo · ✍ réécriveur · 👤 préambule')}</span>
@@ -281,7 +277,7 @@ export function WorkbenchView() {
           .map(e => <Row key={e.file} e={e} />)}
       </div>
 
-      {/* ---- colonne droite : l'éditeur ---- */}
+      {/* ---- right column: the editor ---- */}
       <div className="flex-1 overflow-y-auto scroll-clean p-4">
         {!sel && (
           <div className="text-[12px] text-muted max-w-[620px] leading-relaxed">
@@ -332,7 +328,7 @@ export function WorkbenchView() {
                 'focus:outline-none focus:ring-2 focus:ring-accent/15',
                 sel.kind === 'recette'
                   ? 'font-mono text-[12px] text-[#c9d5e1]'
-                  // Un system prompt se relit comme de la prose, pas comme du code.
+                  // A system prompt is read as prose, not code.
                   : 'text-[12.5px] leading-relaxed text-[#dbe4ec]',
                 jsonError ? 'border-alert/50' : 'border-border focus:border-accent-dim',
               )}

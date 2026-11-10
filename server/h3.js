@@ -1,8 +1,7 @@
-/* MiniMax H3, moteur vidéo optionnel.
-   La licence MiniMax H3 exclut l'Union européenne, le Royaume-Uni, la Corée du Sud
-   et les États-Unis : le studio ne fournit pas les poids. Une installation locale
-   les reçoit de son propriétaire, qui accepte la licence. La démo publique,
-   hébergée dans l'UE, n'y donne jamais accès. */
+/* MiniMax H3, optional video engine.
+   The MiniMax H3 license excludes the EU, the UK, South Korea and the US: the
+   studio does not ship the weights. A local install gets them from its owner,
+   who accepts the license. The public demo never gives access to them. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -19,11 +18,11 @@ export const H3_FICHIERS = [
   { nom: 'h3_lightx2v_turbo_rank24.safetensors', dossier: 'loras', chargeur: 'LoraLoaderModelOnly', champ: 'lora_name', role: 'LoRA turbo (8 pas)' },
 ]
 
-/** Démo publique : un fichier témoin dans le dossier de données de l'instance. */
+/** Public demo: a marker file in the instance data folder. */
 export const demoPublique = () => fs.existsSync(path.join(CONFIG.dataDir, 'demo-publique'))
 
 let cache = { at: 0, presents: new Set() }
-/** Fichiers que ComfyUI voit, quel que soit le dossier où ils sont rangés. */
+/** Files visible to ComfyUI, whatever folder they are stored in. */
 async function fichiersVus() {
   if (Date.now() - cache.at < 30_000) return cache.presents
   const presents = new Set()
@@ -34,7 +33,7 @@ async function fichiersVus() {
       for (const champ of Object.values(d?.[chargeur]?.input?.required ?? {})) {
         if (Array.isArray(champ?.[0])) champ[0].forEach(n => presents.add(n))
       }
-    } catch { /* ComfyUI injoignable : rien n'est compté comme présent */ }
+    } catch { /* ComfyUI unreachable: nothing counts as present */ }
   }
   cache = { at: Date.now(), presents }
   return presents
@@ -48,7 +47,7 @@ export async function etatH3() {
   return { demo, installe, disponible: installe && !demo, fichiers, licence: H3_LICENCE, territoiresExclus: H3_TERRITOIRES_EXCLUS }
 }
 
-/** Range un fichier envoyé par le propriétaire dans le dossier de modèles de ComfyUI. */
+/** Stores an owner-uploaded file in ComfyUI's model folder. */
 export async function recevoirFichierH3(nom, flux) {
   const f = H3_FICHIERS.find(x => x.nom === nom)
   if (!f) throw Object.assign(new Error('fichier inattendu pour MiniMax H3'), { statusCode: 400 })

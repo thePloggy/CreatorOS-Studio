@@ -1,5 +1,5 @@
-/* Pack publicitaire : le produit (photo de la bibliothèque, fichier, ou simple description), puis
-   la mise en scène avec le personnage ; six rendus (cf. server/packPub.js). */
+/* Ad pack: the product (library photo, file, or plain description), then
+   the staging with the character; six renders (see server/packPub.js). */
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'
@@ -34,7 +34,7 @@ export function PubView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) => void
   const [msg, setMsg] = useState<string | null>(null)
   const suivi = useSuiviOutil('pub')
   const [packs, setPacks] = useState<string[]>([])
-  // les rendus du pack arrivent par étapes : on suit leurs identifiants
+  // the pack's renders arrive in stages: track their ids
   useEffect(() => {
     if (!packs.length) return
     const h = setInterval(() => {

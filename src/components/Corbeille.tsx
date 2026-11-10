@@ -1,6 +1,6 @@
-/* Corbeille — ce qui a été supprimé depuis moins de 30 jours, à restaurer d'un clic.
-   La suppression déplace le fichier côté serveur (media/.corbeille) ; ici on liste,
-   on regarde, on restaure. Passé 30 jours le serveur efface pour de bon. */
+/* Trash: items deleted less than 30 days ago, restorable in one click.
+   Deletion moves the file server-side (media/.corbeille); this view lists,
+   previews and restores. After 30 days the server deletes permanently. */
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
@@ -13,7 +13,7 @@ interface Item { id: string; deletedAt: number; filename: string | null }
 export function CorbeilleButton({ className = 'spill purge' }: { className?: string }) {
   const [n, setN] = useState<number | null>(null)
   const [open, setOpen] = useState(false)
-  // le compteur suit les suppressions et les annulations faites ailleurs dans l'app
+  // the counter tracks deletions and undos made elsewhere in the app
   const marque = useAppStore(s => `${s.assets.length}-${s.lastDeleted?.at ?? 0}`)
   const edition = useEdition()
   useEffect(() => {
@@ -27,7 +27,7 @@ export function CorbeilleButton({ className = 'spill purge' }: { className?: str
   </>)
 }
 
-/** Vignette réservée au propriétaire : une balise img n'envoie pas la clé, on passe par fetch. */
+/** Owner-only thumbnail: an img tag does not send the key, so it goes through fetch. */
 function Vignette({ filename }: { filename: string }) {
   const [src, setSrc] = useState<string | null>(null)
   useEffect(() => {
@@ -47,7 +47,7 @@ function Panneau({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const edition = useEdition()
-  // « Vider » en deux clics : le premier arme, le second efface pour de bon
+  // "Empty" takes two clicks: the first arms, the second deletes permanently
   const [arme, setArme] = useState(false)
   const charger = useCallback(() => {
     fetch('/api/corbeille').then(r => r.json())
@@ -105,8 +105,8 @@ function Panneau({ onClose }: { onClose: () => void }) {
           )}
           <button onClick={onClose} aria-label={t('fermer')} style={{ border: 0, background: 'none', color: '#f2f2f4', fontSize: 18, cursor: 'pointer', opacity: .6 }}>×</button>
         </div>
-        {/* Hauteurs forcées : dans ce conteneur flex limité à 86vh, la grille se faisait
-            écraser et les vignettes (aspect-ratio seul) devenaient de fines lamelles. */}
+        {/* Forced heights: in this flex container capped at 86vh, the grid gets
+            squashed and thumbnails (aspect-ratio only) collapse into thin strips. */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
           gridAutoRows: 'max-content', alignContent: 'start', gap: 10 }}>
           {items?.length === 0 && <div style={{ gridColumn: '1 / -1', padding: 40, textAlign: 'center', opacity: .5, fontSize: 13 }}>{t('La corbeille est vide.')}</div>}

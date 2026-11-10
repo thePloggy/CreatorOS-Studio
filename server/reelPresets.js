@@ -1,17 +1,17 @@
 /* ============================================================
-   Reels à preset — un format de réseau social tenu par le CODE.
-   Le visiteur choisit un preset (saut de tenues, GRWM…) et écrit un brief ;
-   le réalisateur (LLM) ne fait que REMPLIR les cases du preset (le décor,
-   les tenues, l'accroche…). La structure — quelles images, quels clips entre
-   quelles images, quel montage — est écrite ici et ne bouge pas :
-     1. CASES    le LLM remplit un JSON au schéma du preset ;
-     2. IMAGES   chaque image est générée (Klein) ou retouchée (Qwen-Image-Edit)
-                 à partir d'une autre : même femme, même décor, même cadrage ;
-     3. CLIPS    un clip va d'une image de départ à une image de fin (Wan 2.2,
-                 first-last frame) ou part d'une image (LTX) ;
-     4. MONTAGE  coupes franches dans l'ordre du preset, accroche sur le 1er plan.
-   L'état vit dans la table `reels` (etat 'preset' puis 'export') : le suivi du
-   reel ordinaire prend le relais pour l'export.
+   Preset reels: a social-media format driven by CODE.
+   The visitor picks a preset (outfit jump, GRWM…) and writes a brief; the
+   director (LLM) only FILLS the preset's slots (setting, outfits, hook…).
+   The structure (which images, which clips between which images, which
+   montage) is fixed here:
+     1. SLOTS    the LLM fills a JSON matching the preset schema;
+     2. IMAGES   each image is generated (Klein) or edited (Qwen-Image-Edit)
+                 from another: same woman, same setting, same framing;
+     3. CLIPS    a clip goes from a start image to an end image (Wan 2.2,
+                 first-last frame) or starts from an image (LTX);
+     4. MONTAGE  hard cuts in preset order, hook on the 1st shot.
+   State lives in the `reels` table (etat 'preset' then 'export'): the
+   regular reel tracking takes over for export.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -26,17 +26,17 @@ import { priseRetenue } from './controle.js'
 
 export const MODELE = process.env.CREATOROS_REALISATEUR || 'qwen3.5:35b'
 const SEULE = 'She is the only person in the frame.'
-// LoRA d'angles de Qwen-Image-Edit (outil Multi-Angle) : un gros plan tiré d'une photo, même personne, même tenue
+// Qwen-Image-Edit angle LoRA (Multi-Angle tool): a close-up derived from a photo, same person, same outfit
 const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
 const CADRE_SAUT = 'Full-body shot, camera at her eye level, straight on, static camera, 35mm lens, plenty of space above her head and below her feet.'
 const GARDE = 'Keep exactly the same woman, the same face and hair, the same framing, the same camera position, the same background and the same light.'
 
-/* Un gros plan ne nomme pas les chaussures : le modèle montre ce qu'on lui nomme, et des
-   « sandales » dans un gros plan le font reculer en pied. */
+/* A close-up does not name shoes: the model shows what it is told, and naming
+   sandals in a close-up pulls it back to full body. */
 const PIEDS = /\b(boots?|booties|heels?|heeled|stilettos?|pumps|shoes?|sneakers?|trainers|sandals?|espadrilles?|wedges?|flats|loafers?|mules|slippers?|socks?|stockings?|tights)\b/i
 const sansPieds = tenue => String(tenue).split(/\s*,\s*|\s+and\s+|\s+with\s+|;\s*/).filter(m => m && !PIEDS.test(m)).join(', ')
 
-/* ---------- les presets ---------- */
+/* ---------- presets ---------- */
 export const PRESETS = {
   'saut-tenues': {
     nom: 'Outfit jump',
@@ -68,13 +68,13 @@ Everything is safe for work: fully clothed, no lingerie, no brand names. Swimwea
       ]
       for (const k of [1, 2, 3]) {
         stills.push({ id: `sol${k + 1}`, faire: 'retoucher', depuis: 'sol1', prompt: `Change only her clothes: she now wears ${outfits[k]}. Keep the same pose, standing with both feet on the floor. ${GARDE}` })
-        // le saut est tiré de la photo AU SOL de la même tenue : changer de pose garde les vêtements, changer de vêtements sur une pose en l'air en laissait passer
+        // the jump is derived from the GROUND photo of the same outfit: changing pose keeps the clothes, changing clothes on a mid-air pose does not
         stills.push({ id: `air${k + 1}`, faire: 'retoucher', depuis: `sol${k + 1}`, prompt: SAUTE })
       }
       const SAUT = 'She springs straight up into a joyful jump in one quick move, her arms rising above her head, hair flying, her body staying upright. Static camera, real-time speed.'
       const ATT = 'She falls from the top of her jump and lands softly on both feet, arms coming down, then stands still smiling at the camera. Static camera, real-time speed.'
       const clips = [
-        // Wan tient l'image de départ ~0,4 s avant de bouger : on la coupe ; l'atterrissage est fini à 1 s
+        // Wan holds the start frame ~0.4 s before moving: trim it; the landing is done at 1 s
         { id: 'p1', de: 'sol1', a: 'air1', prompt: SAUT, moteur: 'wan', secondes: 2, debut: 0.4 },
         { id: 'p2', de: 'air2', a: 'sol2', prompt: ATT, moteur: 'wan', secondes: 2, fin: 1.0 },
         { id: 'p3', de: 'sol2', a: 'air2', prompt: SAUT, moteur: 'wan', secondes: 2, debut: 0.4 },
@@ -114,7 +114,7 @@ Everything is safe for work, no brand names.`,
         { id: 'fin', faire: 'retoucher', depuis: 'e3', prompt: `Finish her look: ${final}. She smiles confidently at the camera. Keep exactly her own hair colour, her face, her makeup and the same pose. ${GARDE}` },
       ]
       const clips = [
-        // chaque étape part de son résultat (le maquillage est déjà là) : un clip entre deux images où ses mains reposent faisait apparaître une main étrangère
+        // each step starts from its result (makeup already applied): a clip between two images with resting hands would add a stray hand
         { id: 'p0', de: 'e0', prompt: 'She smiles at the camera with her bare face and gives a small wave, then lifts a makeup brush into view. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 2 },
         { id: 'p1', de: 'e1', prompt: 'She lifts a fluffy makeup brush with her own hand and sweeps it over her cheeks, then lowers it and looks at the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
         { id: 'p2', de: 'e2', prompt: 'She lifts a mascara wand with her own hand and brushes her lashes, then lowers it and looks at the camera. Static camera, real-time speed. Single continuous shot.', moteur: 'ltx_hq', secondes: 3 },
@@ -147,7 +147,7 @@ Everything is safe for work, no brand names, no real business names.`,
       const stills = [
         { id: 'rue', faire: 'generer', prompt: `Medium-wide shot, camera at her eye level, she walks toward the camera in ${street}, a curious excited smile, her bag on her shoulder. ${tenue} ${calme} ${SEULE} Natural light, travel vlog photo.` },
         { id: 'plat', faire: 'generer', refs: ['rue'], prompt: `The same woman, in the same outfit as in the reference photo, a few minutes later. Medium shot, camera at her eye level across the table, she sits at ${place}, a plate of ${dish} in front of her and ${drink} beside it; she looks at the plate with wide delighted eyes, her hands joined near her chin. ${tenue} ${calme} No sign, no text. ${SEULE} Warm natural light.` },
-        // gros plans sans référence : Klein recopierait le cadrage large de la photo de référence
+        // close-ups without reference: Klein would copy the reference photo's wide framing
         { id: 'gros', faire: 'generer', sansPersonnage: true, prompt: `Food close-up from slightly above: a plate of ${dish} on a wooden table, a woman's hand about to take some of it, with a fork if the dish is eaten with a fork, a glass of ${drink} softly blurred at the edge, shallow depth of field, appetising food photography, warm natural light. Only the hand is visible, no face, no person.` },
         { id: 'bouchee', faire: 'generer', prompt: `Tight close-up portrait: her face and shoulders fill the frame, camera at her eye level, 85mm lens, she tastes the ${dish} — a forkful or a piece of it at her lips, as you would eat this dish — eyes closed with delight; the plate stays on the table out of frame; the background is a soft warm blur with nobody in it. She wears ${sansPieds(outfit)}. ${SEULE} Warm natural light, shallow depth of field.` },
       ]
@@ -184,7 +184,7 @@ Everything is safe for work, no brand names, no real business names. Nobody else
       const calme = 'Nobody near her; at most a few passers-by far away and blurred.'
       const stills = [
         { id: 'rue', faire: 'generer', prompt: `Medium-wide shot, camera at her eye level, she walks toward the camera down ${street}, a happy relaxed smile. ${tenue} ${lum} ${calme} ${SEULE} Travel vlog photo, shot on a digital cinema camera.` },
-        // sans référence : Klein recopierait le cadrage de la rue ; tenue et lumière tiennent par le texte
+        // without reference: Klein would copy the street framing; outfit and light are held by the text
         { id: 'vitrine', faire: 'generer', prompt: `Medium shot, three-quarter front view, she has stopped at ${shop}, she points at something she likes and looks back at the camera with an excited smile, her face clearly visible. ${tenue} ${lum} ${calme} ${SEULE}` },
         { id: 'trouvaille', faire: 'generer', prompt: `Tight close-up portrait: her face, shoulders and one hand fill the frame, camera at her eye level, 85mm lens, shallow depth of field, she holds ${find} near her face and shows it to the camera with a delighted smile, the street a soft blur behind her. She wears ${sansPieds(outfit)}. ${lum} ${SEULE}` },
         { id: 'vue', faire: 'generer', prompt: `Medium-wide shot, camera at her eye level, she stands at ${view}, holding ${find}, facing the camera with a big smile, the view opening behind her. ${tenue} ${lum} ${calme} ${SEULE}` },
@@ -200,16 +200,16 @@ Everything is safe for work, no brand names, no real business names. Nobody else
     },
   },
 }
-/* « Day in the life » : un parcours de lieux, écrit par le réalisateur du reel libre (2e manière, format journée) */
+/* "Day in the life": a route through places, written by the free reel director (second mode, day format) */
 export const PRESETS_LIBRES = { journee: { nom: 'Day in the life', texte: 'Un moment de sa journée, lieu après lieu : une action par lieu, une petite histoire, une accroche.', exemple: 'Un dimanche à Lisbonne' } }
 export const listePresets = () => [...Object.entries(PRESETS), ...Object.entries(PRESETS_LIBRES)].map(([id, p]) => ({ id, nom: p.nom, texte: p.texte, exemple: p.exemple }))
 
-/* Les cases rendues par le LLM, nettoyées : pas de numérotation (« 2. A coral dress »),
-   pas de sujet répété (« She wears … » : le gabarit l'écrit déjà), pas de point final. */
+/* LLM slots, cleaned: no numbering ("2. A coral dress"), no repeated subject
+   ("She wears …": the template already writes it), no final period. */
 const net = x => String(x ?? '').trim().replace(/^\s*(\d+[.)]|[-•])\s*/, '').replace(/^(she|her)\s+(wears|is wearing)\s+/i, '').replace(/[.\s]+$/, '')
 const nettoyer = v => Array.isArray(v) ? v.map(nettoyer) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, nettoyer(x)])) : typeof v === 'string' ? net(v) : v
 
-/* ---------- état ---------- */
+/* ---------- state ---------- */
 const ligne = r => r && { id: r.id, personaId: r.persona_id, brief: r.brief, etat: r.etat, createdAt: r.created_at, updatedAt: r.updated_at, ...JSON.parse(r.data) }
 const lire = id => ligne(store.db.prepare('SELECT * FROM reels WHERE id = ?').get(id))
 function ecrire(id, etat, patch) {
@@ -232,7 +232,7 @@ function versInput(a) {
 const cles = new Map()
 const filer = (id, job) => deposerAvecCle(cles.get(id) ?? null, () => enqueue(job))
 
-/* ---------- 1. cases ---------- */
+/* ---------- 1. slots ---------- */
 async function remplir(preset, brief, nom, langue, eviter = []) {
   const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(600000),
@@ -243,33 +243,33 @@ async function remplir(preset, brief, nom, langue, eviter = []) {
   return JSON.parse(String((await res.json()).response || '{}'))
 }
 
-/* ---------- lancement ---------- */
-/* Le tournage d'un storyboard : graphe d'images et de clips, morceau éventuel, état 'preset'. */
+/* ---------- launch ---------- */
+/* Shooting a storyboard: graph of images and clips, optional track, state 'preset'. */
 function tournerCases(id, preset, cases, personaId) {
   const g = preset.graphe(cases)
   const graphe = { stills: Object.fromEntries(g.stills.map(s => [s.id, { ...s, job: null, asset: null }])), clips: g.clips.map(c => ({ ...c, job: null, asset: null })), montage: g.montage }
-  // les plans affichés dans la vue Reel : un par clip, l'image de départ en vignette
+  // shots shown in the Reel view: one per clip, start image as thumbnail
   const plans = graphe.clips.map(c => ({ still: graphe.stills[c.de].prompt, motion: c.prompt, photoJob: null, clipJob: null }))
-  // un preset musical : le morceau est composé pendant que les images se font
+  // a music preset: the track is composed while the images render
   let musiqueJob = null
   if (preset.musique) {
     try { musiqueJob = enqueueMusique({ prompt: preset.musique(cases).slice(0, 380), paroles: '', secondes: 14, genre: 'musique', personaId }).id }
     catch (e) { console.warn(`[reel ${id}] musique : ${e.message || e}`) }
   }
-  // une accroche se lit d'un coup d'œil : 8 mots au plus
+  // a hook is read at a glance: 8 words max
   const accroche = String(cases.hook ?? '').trim().split(/\s+/).slice(0, 8).join(' ').replace(/[,;:]$/, '')
   console.log(`[reel ${id}] preset tourné : ${g.stills.length} images, ${g.clips.length} clips`)
   return ecrire(id, 'preset', { cases, graphe, plans, n: plans.length, accroche, musiqueJob })
 }
 const bloque = g => [...g.stills.map(s => s.prompt), ...g.clips.map(c => c.prompt), String(g.montage?.accroche ?? '')].map(t0Hit).find(Boolean)
 
-/** Le storyboard relu (et corrigé) : contrôlé comme une rédaction, puis tourné. */
+/** The reviewed (and corrected) storyboard: checked like a writing step, then shot. */
 export function tournerStoryboard(id, casesCorrigees) {
   const r = lire(id)
   if (!r) throw new Error('reel inconnu')
   if (r.etat !== 'storyboard') throw new Error('ce reel n’attend pas de relecture')
   const preset = PRESETS[r.preset]
-  // seules les cases du preset sont reprises, au même format que celles du réalisateur
+  // only the preset's slots are taken, in the same format as the director's
   const cases = { ...r.cases }
   for (const k of Object.keys(r.cases ?? {})) {
     const v = casesCorrigees?.[k]
@@ -295,14 +295,14 @@ export function lancerPreset({ presetId, brief, langue, cle, personaId, relire =
   void (async () => {
     try {
       const nom = String(p.name || 'the model').replace(/\s*\([^)]*\)\s*$/, '').trim()
-      // un mot de la liste T0 dans une case : le LLM réécrit en l'évitant, deux fois au plus
+      // a T0 list word in a slot: the LLM rewrites avoiding it, at most twice
       let cases = nettoyer(await remplir(preset, b, nom, data.langue)), g = preset.graphe(cases), mot = bloque(g)
       for (let essai = 0, eviter = []; mot && essai < 2; essai++) {
         eviter.push(mot); console.log(`[reel ${id}] case réécrite (terme bloqué)`)
         cases = nettoyer(await remplir(preset, b, nom, data.langue, eviter)); g = preset.graphe(cases); mot = bloque(g)
       }
       if (mot) throw new Error('une image rédigée contient un terme bloqué (liste T0) — relancer')
-      // relecture demandée : le storyboard attend « Tourner », rien ne part au rendu avant
+      // review requested: the storyboard waits for "Tourner", nothing is rendered before
       if (relire) { ecrire(id, 'storyboard', { cases }); console.log(`[reel ${id}] storyboard à relire`) }
       else tournerCases(id, preset, cases, p.id)
     } catch (e) {
@@ -313,7 +313,7 @@ export function lancerPreset({ presetId, brief, langue, cle, personaId, relire =
   return lire(id)
 }
 
-/* ---------- 2 et 3. images puis clips, au fil des rendus ---------- */
+/* ---------- 2 and 3. images then clips, as renders complete ---------- */
 function avancerPreset(r) {
   const g = r.graphe
   let change = false
@@ -336,12 +336,12 @@ function avancerPreset(r) {
     if (st === 'done') {
       const a = premierAsset(s.job)
       if (a) { s.asset = a.id; change = true }
-      // rendu fini sans fichier : le filtre d'images l'a mis en quarantaine — le reel s'arrête et le dit
+      // render done without a file: the image filter quarantined it; the reel stops and says so
       else return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: RETIRE })
     }
     else if (RATE.has(st)) return ecrire(r.id, 'echec', { graphe: g, erreur: `l’image « ${s.id} » a échoué — relancer le reel` })
   }
-  // la vignette d'un plan apparaît dès que son image de départ est faite, sans attendre l'image de fin
+  // a shot's thumbnail appears as soon as its start image is done, without waiting for the end image
   g.clips.forEach((c, k) => {
     const de = g.stills[c.de]
     if (!r.plans[k].photoJob && de.job) { r.plans[k].photoJob = de.job; change = true }
@@ -362,7 +362,7 @@ function avancerPreset(r) {
     const st = etatJob(c.job)
     if (st === 'done') {
       if (!premierAsset(c.job)) { c.rate = 'retire'; return }
-      // le contrôle automatique a pu relancer une prise : on monte celle qu'il a gardée
+      // the automatic check may have relaunched a take: use the one it kept
       const p = priseRetenue(c.job)
       if (p.relance && c.relance !== p.relance) { c.relance = p.relance; change = true }
       if (p.etat === 'pret') { c.asset = p.assetId; r.plans[k].clipAsset = p.assetId; change = true }
@@ -370,19 +370,19 @@ function avancerPreset(r) {
     else if (RATE.has(st)) c.rate = true
   })
   if (g.clips.some(c => c.rate)) return ecrire(r.id, 'echec', { graphe: g, plans: r.plans, erreur: g.clips.some(c => c.rate === 'retire') ? RETIRE : 'un clip a échoué — relancer le reel' })
-  // le montage attend le morceau s'il y en a un (au plus 10 min de plus)
+  // the montage waits for the track if there is one (at most 10 more minutes)
   const ms = r.musiqueJob ? etatJob(r.musiqueJob) : null
   if (g.clips.every(c => c.asset) && (!r.musiqueJob || ms === 'done' || RATE.has(ms) || Date.now() - r.updatedAt > 600_000)) return monterPreset(r)
   if (change) ecrire(r.id, 'preset', { graphe: g, plans: r.plans })
 }
 
-/* ---------- 4. montage : coupes franches, clips entiers ---------- */
+/* ---------- 4. montage: hard cuts, full clips ---------- */
 function monterPreset(r) {
   const g = r.graphe
   const proj = montage.creerProjet(`Reel — ${r.brief.slice(0, 50)}`, r.personaId)
   const clips = g.montage.ordre.map((id, i) => { const c = g.clips.find(x => x.id === id); return { assetId: c.asset, debut: c.debut ?? 0, fin: c.fin ?? null, duree: 3,
     texte: i === 0 ? r.accroche ?? '' : '', textePos: 'centre', transition: 'coupe', transitionDuree: 0.35, crop: null } })
-  // le morceau composé pour le reel : son fichier porte la fin de l'id du job
+  // the track composed for the reel: its file name ends with the job id suffix
   let musique = null
   if (r.musiqueJob && etatJob(r.musiqueJob) === 'done') {
     const f = montage.listerMusiques().map(m => m.nom).find(n => n.endsWith(`_${r.musiqueJob.slice(-6)}.mp3`))

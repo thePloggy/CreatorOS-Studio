@@ -1,16 +1,16 @@
 /* ============================================================
-   Re-shoot — la scène 3D du clip.
+   Re-shoot: the clip's 3D scene.
 
-   Le GLB vient de MoGe-2 (1re image du clip, cf. sceneReshoot côté serveur),
-   dans le repère de three.js : caméra d'origine en 0, regard vers −Z. La
-   nouvelle caméra est posée comme le fait le nœud CrossViewWarp — pivot =
-   médiane des points de la zone centrale, orbite rotY(−az)·rotX(−él) autour
-   de lui, regard gardé sur l'axe de la caméra d'origine (keep_source_aim) —
-   pour que ce qu'on voit ici soit le cadrage que le rendu recevra.
+   The GLB comes from MoGe-2 (first frame of the clip, see sceneReshoot server-side),
+   in three.js coordinates: original camera at 0, looking toward −Z. The
+   new camera is placed the same way as the CrossViewWarp node: pivot =
+   median of the points in the central area, orbit rotY(−az)·rotX(−el) around
+   it, aim kept on the original camera axis (keep_source_aim),
+   so what is shown here is the framing the render will receive.
 
-   Deux vues : « caméra » (ce que voit la nouvelle caméra ; en flou, ce que la
-   première n'a jamais vu et que le modèle devra inventer) et « orbite »
-   (la scène de loin, les deux caméras et le trajet).
+   Two views: "camera" (what the new camera sees; blurred, what the
+   first one never saw and the model must invent) and "orbit"
+   (the scene from afar, both cameras and the path).
    ============================================================ */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
@@ -18,7 +18,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { poseA, type Pose } from './pose'
 
-/* ---------- géométrie : focale, pivot, pose (repère OpenCV du nœud ↔ three.js) ---------- */
+/* ---------- geometry: focal length, pivot, pose (node's OpenCV frame ↔ three.js) ---------- */
 interface Geo { vfov: number; aspect: number; pivot: THREE.Vector3 /* OpenCV */ }
 function analyser(geom: THREE.BufferGeometry, aspect: number): Geo {
   const pos = geom.getAttribute('position'), uv = geom.getAttribute('uv')
@@ -31,7 +31,7 @@ function analyser(geom: THREE.BufferGeometry, aspect: number): Geo {
     if (u > 0.2 && u < 0.8 && v > 0.125 && v < 0.8) pts.push([x, -y, -z])
   }
   const med = (a: number[]) => { const s = [...a].sort((p, q) => p - q); return s[Math.floor(s.length / 2)] ?? 0 }
-  const fxW = med(kx) || 1.07                       // focale / largeur
+  const fxW = med(kx) || 1.07                       // focal length / width
   const zs = pts.map(p => p[2]).sort((p, q) => p - q), z95 = zs[Math.floor(zs.length * 0.95)] ?? Infinity
   const garde = pts.filter(p => p[2] < z95)
   const pivot = new THREE.Vector3(med(garde.map(p => p[0])), med(garde.map(p => p[1])), med(garde.map(p => p[2])) || 2)
@@ -47,10 +47,10 @@ function poser(cam: THREE.PerspectiveCamera, g: Geo, p: Pose) {
   cam.position.copy(cv2three(eye)); cam.up.set(0, 1, 0); cam.lookAt(cv2three(aim)); cam.updateMatrixWorld()
 }
 
-/* Les trous (ce que la 1re caméra n'a pas vu) sont bouchés par un flou des points
-   voisins : on rend le nuage en basse définition, on le floute en normalisant par la
-   couverture (alpha) — un pixel vide prend la couleur de ce qui l'entoure —, puis on
-   le pose en fond, assombri, sous le nuage net. */
+/* Holes (what the first camera did not see) are filled by blurring neighboring
+   points: the point cloud is rendered at low resolution, blurred with coverage (alpha)
+   normalization so an empty pixel takes the surrounding color, then
+   placed as a darkened background under the sharp cloud. */
 function creerFlou(r: THREE.WebGLRenderer) {
   const opt = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }
   const rtA = new THREE.WebGLRenderTarget(2, 2, opt), rtB = new THREE.WebGLRenderTarget(2, 2, { ...opt, depthBuffer: false })
@@ -143,9 +143,9 @@ export function Scene3D({ url, pose, cles, t, vue, onPose, onPret }: {
       const aspect = img?.width && img?.height ? img.width / img.height : 9 / 16
       S.geo = analyser(geom, aspect)
       cam.fov = S.geo.vfov; cam.aspect = aspect; cam.updateProjectionMatrix()
-      /* Chaque pixel de la 1re image devient un point de la taille d'un pixel à sa
-         profondeur — c'est ce que fait le warp du nœud (splat) : là où aucun point
-         ne tombe, le fond flou (creerFlou) reste visible. */
+      /* Each pixel of the first frame becomes a pixel-sized point at its
+         depth, as the node's warp (splat) does: where no point
+         lands, the blurred background (creerFlou) shows through. */
       const g0 = geom as THREE.BufferGeometry
       const nuage = new THREE.BufferGeometry()
       nuage.setAttribute('position', g0.getAttribute('position')); nuage.setAttribute('uv', g0.getAttribute('uv'))
@@ -167,7 +167,7 @@ export function Scene3D({ url, pose, cles, t, vue, onPose, onPret }: {
       const points = new THREE.Points(nuage, mat)
       S.echelle = (h: number, fovDeg: number) => { mat.uniforms.echelle.value = h / (2 * Math.tan(THREE.MathUtils.degToRad(fovDeg) / 2)) }
       scene.add(points)
-      // caméra d'origine (grise), nouvelle caméra (rose), anneau d'orbite, trajet
+      // original camera (gray), new camera (pink), orbit ring, path
       const tc = S.geo.pivot.length()
       const c0 = new THREE.PerspectiveCamera(S.geo.vfov, aspect, 0.04 * tc, 0.2 * tc); c0.updateMatrixWorld()
       S.source = new THREE.CameraHelper(c0); S.source.setColors(new THREE.Color('#9a9ca3'), new THREE.Color('#9a9ca3'), new THREE.Color('#9a9ca3'), new THREE.Color('#9a9ca3'), new THREE.Color('#9a9ca3'))
@@ -181,11 +181,11 @@ export function Scene3D({ url, pose, cles, t, vue, onPose, onPret }: {
       S.anneau.computeLineDistances()
       S.trajet = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#ffab5e' }))
       for (const o of [S.source, S.helper, S.anneau, S.trajet]) { o.visible = false; scene.add(o) }
-      obs.position.set(R * 1.5, R * 0.9, R * 1.1); ctl.target.copy(piv.clone().multiplyScalar(0.7)); ctl.update()   // en retrait, au-dessus de la caméra d'origine
+      obs.position.set(R * 1.5, R * 0.9, R * 1.1); ctl.target.copy(piv.clone().multiplyScalar(0.7)); ctl.update()   // set back, above the original camera
       onPret?.(true); boucle()
     }, undefined, () => onPret?.(false))
 
-    // vue caméra : glisser l'image fait tourner la caméra (droite = orbite à droite, haut = monte)
+    // camera view: dragging the image orbits the camera (right = orbit right, up = go up)
     let tire: { x: number; y: number; p: Pose } | null = null
     const bas = (e: PointerEvent) => { if (props.current.vue !== 'camera') return; tire = { x: e.clientX, y: e.clientY, p: props.current.pose }; r.domElement.setPointerCapture(e.pointerId) }
     const bouge = (e: PointerEvent) => {
@@ -199,7 +199,7 @@ export function Scene3D({ url, pose, cles, t, vue, onPose, onPret }: {
     return () => { fin = true; ro.disconnect(); ctl.dispose(); r.dispose(); r.domElement.remove(); etat.current = null }
   }, [url])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // trajet du mouvement (dans la vue orbite)
+  // move path (in the orbit view)
   useEffect(() => {
     const S = etat.current; if (!S?.geo || !S.trajet) return
     const tmp = new THREE.PerspectiveCamera()

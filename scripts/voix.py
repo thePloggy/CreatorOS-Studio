@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Voix off : synthèse Kokoro-82M (Apache-2.0) d'un texte anglais, en WAV 24 kHz.
-Usage : voix.py <texte> <voix> <vitesse> <sortie.wav>"""
+"""Voice-over: Kokoro-82M (Apache-2.0) synthesis of English text to 24 kHz WAV.
+Usage: voix.py <texte> <voix> <vitesse> <sortie.wav>"""
 import sys
 
 import numpy as np
@@ -9,7 +9,7 @@ from kokoro import KPipeline
 
 texte, voix, vitesse, sortie = sys.argv[1], sys.argv[2], float(sys.argv[3]), sys.argv[4]
 langue = 'b' if voix.startswith('b') else 'a'
-# sur le processeur : la carte est souvent prise entière par ComfyUI, et ce petit modèle y est rapide
+# on CPU: ComfyUI often holds the whole GPU, and this small model is fast on CPU
 p = KPipeline(lang_code=langue, repo_id='hexgrad/Kokoro-82M', device='cpu')
 morceaux = [np.asarray(x.audio) for x in p(texte, voice=voix, speed=vitesse)]
 if not morceaux:

@@ -1,13 +1,12 @@
 /* ============================================================
-   Améliorer et Éléments.
+   Improve and Elements.
 
-   Améliorer : le réécriveur local (même endpoint que le desktop) avec
-   le moteur du brouillon. On montre Original ET
-   Proposition ; seul « Appliquer » remplace le champ, et le brief
-   d'origine est conservé en provenance.
+   Improve: the local rewriter (same endpoint as desktop) with the
+   draft's engine. Shows Original AND Proposal; only "Apply"
+   replaces the field, and the original brief is kept as provenance.
 
-   Éléments : les vocabulaires (tenues, environnements, positions,
-   LoRA), insérés SANS écraser le texte existant.
+   Elements: vocabularies (outfits, environments, positions, LoRA),
+   inserted WITHOUT overwriting existing text.
    ============================================================ */
 import { ImportLora } from '../components/ImportLora'
 import { useEffect, useMemo, useState } from 'react'
@@ -18,7 +17,7 @@ import { buildPhotoPrompt } from '../core/promptBuilder'
 import { Ic, Opt, Seg, Sheet } from './bits'
 import { t, tp, tServeur } from '../i18n'
 
-/* ---------- Améliorer ---------- */
+/* ---------- Improve ---------- */
 export function MEnhance({ onClose }: { onClose: () => void }) {
   const s = useAppStore()
   const original = s.userPrompt
@@ -26,18 +25,17 @@ export function MEnhance({ onClose }: { onClose: () => void }) {
   const [out, setOut] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  /* Ce que le VLM a lu dans la still — consultable quand la réécriture
-     surprend (image mal lue ≠ consigne mal suivie). */
+  /* What the VLM read in the still, viewable when the rewrite is
+     surprising (misread image ≠ misfollowed instruction). */
   const [seen, setSeen] = useState<string | null>(null)
   const [suite, setSuite] = useState(false)
-  /* « Tenue de l'image » : même verrou que sur desktop (appel VLM dédié,
-     texte inséré tel quel par le serveur ; la description complète part
-     quand même). */
+  /* "Outfit from image": same lock as desktop (dedicated VLM call, text
+     inserted as is by the server; the full description is still sent). */
   const [keepOutfit, setKeepOutfit] = useState(false)
   const [tenue, setTenue] = useState<{ text: string | null } | null>(null)
-  /* Le réécriveur tourne sur le PROCESSEUR : 20 à 60 s, parfois plus si le
-     modèle doit être chargé depuis le disque. Sans progression visible,
-     l'attente ressemble à un blocage — on montre le temps qui passe. */
+  /* The rewriter runs on CPU: 20 to 60 s, sometimes more if the model
+     must be loaded from disk. Elapsed time is shown so the wait does not
+     look like a hang. */
   const [sec, setSec] = useState(0)
   useEffect(() => {
     if (!busy) return
@@ -46,8 +44,8 @@ export function MEnhance({ onClose }: { onClose: () => void }) {
     return () => window.clearInterval(id)
   }, [busy])
 
-  /* Le fichier que le RENDU utilisera, choisi selon la tâche (même règle
-     que la construction du job). */
+  /* The file the RENDER will use, chosen by task (same rule as job
+     construction). */
   const ancre = (s.mode === 'video'
             ? (s.video.task === 'motion_pure' ? s.video.motionStillFile : s.video.startFrameFile)
             : (s.photo.task === 'edit' ? s.photo.editSourceFile : '')) || null
@@ -64,12 +62,12 @@ export function MEnhance({ onClose }: { onClose: () => void }) {
           userPrompt: original,
           userDirectives: directives,
           keepOutfit: keepOutfit && Boolean(ancre),
-          /* Même contexte visuel que sur desktop, et surtout la même RÈGLE de
-             choix : on décrit le fichier que le rendu utilisera, sélectionné
-             d'après la tâche courante. Une précédence aveugle entre les deux
-             champs fait décrire une still restée d'une sélection précédente. */
+          /* Same visual context as desktop and the same selection RULE:
+             describe the file the render will use, chosen from the current
+             task. Blind precedence between the two fields would describe a
+             still left over from a previous selection. */
           anchorFile: ancre,
-          /* Étendre : le prompt du clip prolongé, même contexte que desktop. */
+          /* Extend: the extended clip's prompt, same context as desktop. */
           previousPrompt: s.mode === 'video' && s.video.task === 'extend' && s.video.extendAssetId
             ? ((p => p?.composedPositive || p?.userPrompt || null)(s.assets.find(a => a.id === s.video.extendAssetId)?.provenance))
             : null,
@@ -85,7 +83,7 @@ export function MEnhance({ onClose }: { onClose: () => void }) {
   }
 
   const apply = () => {
-    // Le brief d'origine part en provenance : rien n'est perdu.
+    // The original brief is sent as provenance.
     useAppStore.setState({ initialBrief: original, promptVision: seen })
     s.setUserPrompt(out)
     onClose()
@@ -147,7 +145,7 @@ export function MEnhance({ onClose }: { onClose: () => void }) {
   )
 }
 
-/* ---------- Éléments ---------- */
+/* ---------- Elements ---------- */
 type Cat = 'garde' | 'compo' | 'tenues' | 'lieux' | 'poses' | 'loras'
 type Ligne = { id: string; label: string; prompt: string }
 const lignes = (xs: { id: string; label: string; labelFr?: string; prompt?: string }[]): Ligne[] =>
@@ -164,7 +162,7 @@ export function MElements({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('')
 
   const values = useMemo(() => {
-    /* `compo` et `loras` n'ont pas de liste de vocabulaire. */
+    /* `compo` and `loras` have no vocabulary list. */
     const entry = CATS.find(c => c[0] === cat)
     if (!entry) return []
     const out = entry[2]()
@@ -172,14 +170,14 @@ export function MElements({ onClose }: { onClose: () => void }) {
     return needle ? out.filter(x => `${x.label} ${x.prompt}`.toLowerCase().includes(needle)) : out
   }, [cat, q])
 
-  /* Compatibilité par ARCHITECTURE : une LoRA Flux ne s'applique pas à une
-     recette H3 et inversement — les proposer toutes ferait charger une LoRA
-     inerte, et on croirait la recette faible. */
+  /* Compatibility by ARCHITECTURE: a Flux LoRA does not apply to an H3
+     recipe and vice versa; offering all of them would load an inert
+     LoRA. */
   const compatibleLoras = useMemo(
     () => s.loraCatalog.filter(l => (s.mode === 'video' ? l.arch === 'h3' : l.arch !== 'h3')),
     [s.loraCatalog, s.mode])
 
-  /* Insertion ADDITIVE : on n'écrase jamais ce qui est déjà écrit. */
+  /* ADDITIVE insertion: existing text is never overwritten. */
   const insert = (text: string) => {
     const cur = s.userPrompt.trim()
     s.setUserPrompt(cur ? `${cur}, ${text}` : text)
@@ -248,10 +246,10 @@ export function MElements({ onClose }: { onClose: () => void }) {
   )
 }
 
-/* ---------- Composition guidée ----------
-   Le prompt assemblé champ par champ depuis les vocabulaires. Chaque ligne
-   montre sa valeur ou « Non choisi ».
-   L'aperçu du prompt composé est visible AVANT d'appliquer. */
+/* ---------- Guided composition ----------
+   The prompt assembled field by field from the vocabularies. Each row
+   shows its value or "Not chosen".
+   The composed prompt preview is visible BEFORE applying. */
 function Composition({ onClose }: { onClose: () => void }) {
   const s = useAppStore()
   const [open, setOpen] = useState<null | 'outfit' | 'env' | 'pose' | 'style'>(null)

@@ -1,10 +1,10 @@
 /* ============================================================
-   Liste des personnages — choisir l'actif, en créer, dupliquer, supprimer.
+   Character list: choose the active one, create, duplicate, delete.
 
-   Le personnage ACTIF est celui des prochains rendus ; l'éditeur placé
-   dessous modifie celui-là. Un rendu déjà en file garde le personnage qui
-   était actif quand il a été lancé.
-   Styles en ligne, couleurs héritées : partagé bureau et mobile.
+   The ACTIVE character is used for the next renders; the editor below
+   edits that one. A queued render keeps the character that was active
+   when it was submitted.
+   Inline styles, inherited colours: shared desktop and mobile.
    ============================================================ */
 import { Ic } from '../v2/bits'
 import { useEffect, useState } from 'react'
@@ -33,9 +33,9 @@ async function appel(url: string, init?: RequestInit) {
   return d
 }
 
-/** `onChange` : appelé avec l'id de l'actif après chaque changement, pour que
- *  l'éditeur se recharge sur le bon personnage. */
-/** `onCreerDeZero` : ouvre le créateur de personnage (description → visages → planche → LoRA). */
+/** `onChange`: called with the active id after each change, so the
+ *  editor reloads on the right character. */
+/** `onCreerDeZero`: opens the character creator (description → faces → sheet → LoRA). */
 export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: string | null) => void; onCreerDeZero?: () => void }) {
   const [liste, setListe] = useState<PersonaResume[] | null>(null)
   const [nouveau, setNouveau] = useState<string | null>(null)
@@ -47,17 +47,17 @@ export function PersonaListe({ onChange, onCreerDeZero }: { onChange: (actif: st
   const charger = async () => {
     try {
       const d = await appel('/api/personas') as { active: string | null; personas: PersonaResume[] }
-      // le personnage de ce navigateur prime sur l'actif du serveur : la fiche montre celui qu'on voit en haut
+      // this browser's character takes precedence over the server's active one: the card shows the one in the top bar
       const c = personnageChoisi()
       const actif = c && c !== SANS_PERSONNAGE && d.personas.some(p => p.id === c) ? c : d.active
       setListe(d.personas.map(p => ({ ...p, active: p.id === actif }))); onChange(actif)
     } catch (e) { setMsg(t('lecture impossible : {e}', { e: (e as Error).message })) }
   }
-  // relu aussi quand le nom ou la photo de l'actif change (éditeur, dépôt de photo)
+  // also reloaded when the active character's name or photo changes (editor, photo upload)
   const nomActif = useAppStore(s => s.personaName), photoActif = useAppStore(s => s.personaAvatar)
   useEffect(() => { void charger() }, [nomActif, photoActif])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // actif du serveur ET choix de ce navigateur : les prochains rendus et la fiche suivent le même
+  // server active AND this browser's choice: next renders and the card follow the same one
   const activer = async (id: string) => {
     await appel(`/api/personas/${id}/activer`, { method: 'POST' })
     await useAppStore.getState().choisirPersonnage(id)

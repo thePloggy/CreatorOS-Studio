@@ -1,10 +1,8 @@
 /* ============================================================
-   Validateur T0 — enforcement HORS-LLM du plancher dur :
-   personnage adulte, aucun mineur, intégrité d'identité.
-   Tourne après composition, avant dispatch. Structurellement
-   non-dérogeable (règle projet #2) : le LLM ne peut pas le franchir.
-   Le mock utilise une liste de termes interdits ; le réel sera
-   plus robuste (patterns + revue) côté worker aussi.
+   T0 validator — non-LLM enforcement of the hard floor:
+   adult character, no minors, identity integrity.
+   Runs after composition, before dispatch. Cannot be overridden:
+   the LLM cannot bypass it.
    ============================================================ */
 import { t } from '../i18n'
 
@@ -13,15 +11,15 @@ export interface ValidationResult {
   reason?: string
 }
 
-/** Termes toujours bloqués (jamais dérogeable). */
+/** Always-blocked terms (never overridable). */
 let T0_BLOCKLIST = [
   'minor', 'teen', 'child', 'underage', 'barely legal', 'schoolgirl',
   'young girl', 'loli', 'jeune fille mineure',
 ]
 
-/** La liste de référence vit côté serveur (server/t0.js, rejouée sur le
- *  texte résolu) et arrive par GET /api/health au montage ; celle ci-dessus
- *  n'est que le repli hors ligne. */
+/** The reference list lives on the server (server/t0.js, re-applied to the
+ *  resolved text) and arrives via GET /api/health on mount; the list above
+ *  is only the offline fallback. */
 export function setT0Blocklist(list: unknown) {
   if (Array.isArray(list) && list.length && list.every(x => typeof x === 'string')) T0_BLOCKLIST = list
 }

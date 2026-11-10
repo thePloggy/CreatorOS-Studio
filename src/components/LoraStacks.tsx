@@ -1,13 +1,13 @@
-/* Piles de LoRA nommées — communes aux sélecteurs photo et vidéo.
-   Une pile = les LoRA choisies avec leurs forces, enregistrée sous un nom pour
-   une famille de moteur (`cle`). Un clic la recharge. Enregistrées dans le
-   navigateur (préférences d'affichage), pas sur le serveur. */
+/* Named LoRA stacks, shared by the photo and video pickers.
+   A stack = the chosen LoRAs with their strengths, saved under a name for
+   an engine family (`cle`). A click reloads it. Stored in the browser
+   (display preferences), not on the server. */
 import { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { LoraPick } from '../types'
 import { t } from '../i18n'
 
-/** Les moteurs qui partagent les mêmes LoRA partagent leurs piles. */
+/** Engines that share the same LoRAs share their stacks. */
 export const loraFamily = (engine: string) => engine.startsWith('minimax') ? 'h3' : engine.startsWith('ltx') ? 'ltx' : engine
 
 export function LoraStacks({ cle, picks, apply }: { cle: string; picks: LoraPick[]; apply: (items: LoraPick[]) => void }) {
@@ -41,7 +41,7 @@ export function LoraStacks({ cle, picks, apply }: { cle: string; picks: LoraPick
   )
 }
 
-/** Interrupteur d'une LoRA choisie : coupée, elle reste dans la pile mais ne part pas au rendu. */
+/** Toggle for a chosen LoRA: when off, it stays in the stack but is not sent to the render. */
 export function LoraSwitch({ off, onToggle }: { off?: boolean; onToggle: () => void }) {
   return <button onClick={e => { e.stopPropagation(); onToggle() }} title={off ? t('coupée : ne part pas au rendu') : t('active — cliquer pour couper sans retirer')}
     style={{ border: 0, borderRadius: 99, width: 30, height: 16, padding: 2, cursor: 'pointer', background: off ? 'rgba(255,255,255,.14)' : 'var(--accent)', flex: 'none' }}>

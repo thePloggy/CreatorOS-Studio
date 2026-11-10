@@ -1,5 +1,5 @@
-/* Gabarit d'un outil : volet de réglages à gauche (source en haut, action en bas), résultats de
-   l'outil à droite, rendus en cours compris. Sur téléphone, le volet passe au-dessus. */
+/* Tool layout: settings pane on the left (source on top, action at the bottom), tool results
+   on the right, including renders in progress. On phones the pane goes on top. */
 import { useRef, useState, type ReactNode } from 'react'
 import type { Asset, Job } from '../types'
 import { t, tServeur } from '../i18n'
@@ -12,27 +12,27 @@ import { useMouvementReduit } from './Galerie'
 
 export type Etape = { titre: string; texte: string; image?: string }
 
-/** « Comment ça marche » au gabarit de Dance : montage 16:9 (/danses/howto/<cle>-hero.mp4) et une vidéo par étape. */
+/** "How it works" in the Dance layout: 16:9 showreel (/danses/howto/<cle>-hero.mp4) and one video per step. */
 export type HowtoPage = { cle: string; titre: string; texte: string; label: string; repli?: string }
 
 export function OutilPage({ titre, texte, children, action, jobs, assets, vide, onOpen, etapes, resultat, howto, lots }: {
   titre: string
   texte?: string
   children: ReactNode
-  /** le bouton principal, posé en bas du volet */
+  /** main button, placed at the bottom of the pane */
   action?: ReactNode
-  /** les rendus de l'outil : en cours, puis livrés */
+  /** the tool's renders: in progress, then delivered */
   jobs?: (j: Job) => boolean
   assets?: (a: Asset) => boolean
   vide?: ReactNode
   onOpen?: (a: Asset, list: Asset[]) => void
-  /** « Comment ça marche » : affiché tant que l'outil n'a rien rendu, et dans son onglet */
+  /** "How it works": shown while the tool has no render, and in its tab */
   etapes?: Etape[]
-  /** un résultat propre à l'outil, posé au-dessus de l'historique */
+  /** a tool-specific result, placed above the history */
   resultat?: ReactNode
-  /** section « Comment ça marche » en tête des résultats (les étapes sont celles de `etapes`) */
+  /** "How it works" section at the top of the results (steps come from `etapes`) */
   howto?: HowtoPage
-  /** les rendus d'un même lot (carrousel) tiennent sur une carte, comme sur la page Image */
+  /** renders from the same batch (carousel) fit on one card, as on the Image page */
   lots?: boolean
 }) {
   const [lotOuvert, setLotOuvert] = useState<string | null>(null)
@@ -103,12 +103,12 @@ export function OutilPage({ titre, texte, children, action, jobs, assets, vide, 
   )
 }
 
-/* Zone source : un média de la bibliothèque, ou un fichier déposé (propriétaire sur la démo). */
+/* Source area: a library media, or an uploaded file (owner only on the demo). */
 export function ZoneSource({ media, valeur, onChoix, depot, label }: {
   media: 'photo' | 'video'
   valeur: { asset?: Asset; fichier?: string; apercu?: string } | null
   onChoix: (v: { asset?: Asset; fichier?: string; apercu?: string } | null) => void
-  /** dépôt d'un fichier autorisé ici */
+  /** whether file upload is allowed here */
   depot?: boolean
   label: string
 }) {
@@ -140,14 +140,14 @@ export function ZoneSource({ media, valeur, onChoix, depot, label }: {
   )
 }
 
-/** Les rendus lancés depuis un outil, gardés par navigateur pour afficher ses résultats. */
+/** Renders launched from a tool, stored per browser to show its results. */
 export function useSuiviOutil(cle: string) {
   const lire = () => { try { return new Set<string>(JSON.parse(localStorage.getItem(`outil:${cle}`) ?? '[]')) } catch { return new Set<string>() } }
   const [ids, setIds] = useState<Set<string>>(lire)
-  // écrit tout de suite : un lancement qui fait changer de page (retouche, boucle) est suivi quand même
+  // written immediately: a launch that changes page (retouch, loop) is still tracked
   const ajouter = (nouveaux: (string | null | undefined)[]) => {
     const n = lire(); for (const x of nouveaux) if (x) n.add(x)
-    try { localStorage.setItem(`outil:${cle}`, JSON.stringify([...n].slice(-300))) } catch { /* stockage indisponible */ }
+    try { localStorage.setItem(`outil:${cle}`, JSON.stringify([...n].slice(-300))) } catch { /* storage unavailable */ }
     setIds(n)
   }
   return { ids, ajouter }

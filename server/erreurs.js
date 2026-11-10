@@ -1,14 +1,12 @@
 /* ============================================================
-   Erreurs de ComfyUI dites en clair.
+   ComfyUI errors in plain language.
 
-   Le JSON brut de ComfyUI noie la cause : un job « bloqué » porte une phrase.
-
-   Forme : « nœud N (type) : message », et pour les pannes
-   connues un conseil. Le détail brut part dans le journal du serveur, où il
-   reste entier pour le diagnostic.
+   Raw ComfyUI JSON buries the cause; a failed job gets one sentence:
+   "nœud N (type) : message", plus advice for known failures. The raw
+   detail goes to the server log, in full, for diagnosis.
    ============================================================ */
 
-/** Pannes reconnues → ce qu'il faut faire. Le premier motif qui correspond gagne. */
+/** Known failures -> what to do. First matching pattern wins. */
 const CONSEILS = [
   [/out of memory|OutOfMemory|Allocation on device|CUDA error: out of memory/i,
     'mémoire vidéo insuffisante pour ce rendu : réduire la durée ou la résolution, ou relancer quand la carte est libre'],
@@ -34,13 +32,13 @@ const CONSEILS = [
 const conseilPour = texte => CONSEILS.find(([re]) => re.test(texte))?.[1] ?? null
 const court = (s, n = 260) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t }
 
-/** Échec d'EXÉCUTION, lu dans l'entrée d'historique de ComfyUI. */
+/** EXECUTION failure, read from the ComfyUI history entry. */
 export function erreurExecution(status = {}) {
   const msgs = status.messages || []
   const err = msgs.find(m => m[0] === 'execution_error')?.[1]
   const interrompu = msgs.find(m => m[0] === 'execution_interrupted')?.[1]
   if (err) {
-    const cause = court(String(err.exception_message || err.exception_type || 'erreur inconnue').split('\n')[0], 170)   // 1re ligne : la suite est un relevé mémoire
+    const cause = court(String(err.exception_message || err.exception_type || 'erreur inconnue').split('\n')[0], 170)   // first line only: the rest is a memory dump
     const ou = `nœud ${err.node_id ?? '?'} (${err.node_type ?? '?'})`
     const c = conseilPour(`${err.exception_type ?? ''} ${err.exception_message ?? ''}`)
     return `${ou} : ${cause}${c ? ` — ${c}` : ''}`
@@ -50,10 +48,10 @@ export function erreurExecution(status = {}) {
   return `exécution non terminée (${status.status_str || 'état inconnu'})`
 }
 
-/** REFUS à la soumission (HTTP 400) ou erreurs de nœuds renvoyées avec un 200. */
+/** REJECTION at submission (HTTP 400) or node errors returned with a 200. */
 export function erreurSoumission(texte) {
   let j = null
-  try { j = typeof texte === 'string' ? JSON.parse(texte) : texte } catch { /* pas du JSON : on rend le texte */ }
+  try { j = typeof texte === 'string' ? JSON.parse(texte) : texte } catch { /* not JSON: return the text */ }
   if (!j) return `refus de ComfyUI : ${court(texte)}`
   const lignes = []
   for (const [id, n] of Object.entries(j.node_errors ?? {})) {

@@ -1,31 +1,17 @@
 /* ============================================================
-   Réécriture de prompt par LLM local (Ollama), SUR CPU.
+   Prompt rewriting by a local LLM (Ollama), on CPU.
 
-   POURQUOI CPU. Mesures :
+   Why CPU: the GPU path depends on the card being free (ComfyUI may hold
+   most of the VRAM, see CONFIG.ollamaUnload); on CPU there is no contention
+   with diffusion and system RAM absorbs the model. 70B models are too slow
+   here (around 1 tok/s, minutes per rewrite).
 
-     llama 8B       CPU   19 s   12,1 tok/s
-     mistral-small  CPU   50 s    4,1 tok/s   |  GPU : HTTP 500
-     qwen3:14b      CPU  115 s    6,3 tok/s   |  GPU : 11 s, 73 tok/s
-
-   Le GPU est ~12x plus rapide, mais mistral-small y échoue quand ComfyUI
-   tient 21,5 Go des 32. Le chemin GPU n'est pas
-   « plus rapide », il est conditionnel à ce que la carte soit libre —
-   c'est l'OOM que CONFIG.ollamaUnload évite.
-   Sur CPU il n'y a plus d'arbitrage avec la diffusion, et les 91 Go de
-   RAM absorbent le modèle sans gêner personne.
-
-   Corollaire : les 70B sont hors jeu ici. À ~4 tok/s pour un modèle de
-   14 Go, un Hermes 70B en Q4 tomberait vers 1 tok/s, soit deux à trois
-   minutes par réécriture.
-
-   POURQUOI ICI ET PAS DANS LA RECETTE. Un nœud OllamaGenerateV2 dans le
-   graphe réécrirait le prompt PENDANT le job : on ne découvrirait le
-   texte qu'après coup, dans la provenance, et la file de génération
-   attendrait le LLM. Ici, la réécriture arrive dans « Prompt composé »
-   AVANT l'envoi — relisible, corrigeable, et les secondes de CPU sont
-   dépensées pendant qu'un humain lit, pas pendant que le GPU chôme.
-   C'est aussi le seul emplacement où le champ « Directive au LLM » de
-   la console veut dire quelque chose.
+   Why here and not in the recipe: an OllamaGenerateV2 node in the graph
+   would rewrite the prompt DURING the job, so the text would only be seen
+   afterwards and the queue would wait for the LLM. Here the rewrite lands
+   in "Prompt composé" BEFORE submission: readable, editable, and the CPU
+   time is spent while a human reads. It is also the only place where the
+   console's "Directive au LLM" field means something.
    ============================================================ */
 import crypto from 'node:crypto'
 import * as wildcards from './wildcards.js'
@@ -33,46 +19,45 @@ import { CONFIG } from './config.js'
 import { fetchOllama } from './gpu.js'
 import { promptFor, readPrompt } from './prompts.js'
 
-/** Négatif de base. Les recettes Klein tournent à cfg 1.0 avec
- *  ConditioningZeroOut : ce texte n'y agit PAS. Il est produit pour la
- *  traçabilité et pour les recettes à cfg>1 qui, elles, le liront. */
+/** Base negative. Klein recipes run at cfg 1.0 with ConditioningZeroOut, where
+ *  this text has NO effect. It is produced for traceability and for cfg>1 recipes. */
 const BASE_NEGATIVE = 'plastic smooth skin, perfect symmetry, blurry, extra fingers, watermark, nudity'
 
-/* System prompt du réécriveur = INTENTION + MOTEUR (diffusion), deux fichiers
-   concaténés et LUS SUR LE DISQUE à chaque appel — donc modifiables depuis le
-   Workbench sans redémarrage. L'intention dit ce qu'on veut (sujet, limites),
-   le moteur dit comment écrire pour lui (ordre, langue, longueur, parole).
-   `engine` : 'wan' | 'ltx' | 'ltx_hq' | 'minimax' | 'motion' en vidéo (HQ
-   partage le fichier LTX) ; en photo le moteur vient de
-   CREATOROS_PHOTO_ENGINE. Repli sur les rewrite_* si un fichier manque. */
-/** Moteur de diffusion photo. `klein` (défaut) ou `krea`. */
+/* Rewriter system prompt = INTENT + ENGINE (diffusion): two files concatenated
+   and READ FROM DISK on each call, so editable from the Workbench without a
+   restart. The intent says what is wanted (subject, limits), the engine says
+   how to write for it (order, language, length, speech).
+   `engine`: 'wan' | 'ltx' | 'ltx_hq' | 'minimax' | 'motion' for video (HQ
+   shares the LTX file); for photo the engine comes from
+   CREATOROS_PHOTO_ENGINE. Falls back to rewrite_* if a file is missing. */
+/** Photo diffusion engine: `klein` (default) or `krea`. */
 export const PHOTO_ENGINE_DEFAUT = 'krea'
 const PHOTO_ENGINE = CONFIG.photoEngine
 
 export function systemFor(register, mode = 'photo', engine = null, opts = {}) {
-  // SOUL (persona) + MOOD (scène) : couches ADDITIVES, défaut OFF. `soul` et
-  // `mood` sont des NOMS (→ soul_<nom>.txt / mood_<nom>.txt, relus du disque).
-  // Contrainte absolue : soul=null ET mood=null ⇒ résultat STRICTEMENT identique
-  // à intent + moteur. Elles s'insèrent dans l'ordre intent + soul + mood +
-  // moteur, et sont TOLÉRANTES (un fichier absent est ignoré).
+  // SOUL (persona) + MOOD (scene): ADDITIVE layers, default OFF. `soul` and
+  // `mood` are NAMES (-> soul_<name>.txt / mood_<name>.txt, read from disk).
+  // Invariant: soul=null AND mood=null => result STRICTLY identical to
+  // intent + engine. Order is intent + soul + mood + engine; a missing file
+  // is ignored.
   const { soul = null, mood = null } = opts
-  // Retouche par instruction : le system prompt est AUTO-SUFFISANT (engine_edit.txt).
-  // L'intention dit « écris un prompt qui DÉCRIT une scène », ce qui contredit
-  // une instruction d'édition (« change la robe en rouge »).
+  // Edit by instruction: the system prompt is SELF-CONTAINED (engine_edit.txt).
+  // The intent says "write a prompt that DESCRIBES a scene", which contradicts
+  // an edit instruction ("make the dress red").
   if (mode !== 'video' && engine === 'edit') {
-    try { return readPrompt('engine_edit.txt') } catch { /* repli plus bas */ }
+    try { return readPrompt('engine_edit.txt') } catch { /* fallback below */ }
   }
   const engineKey = mode === 'video'
     ? ({ ltx_hq: 'ltx' }[engine] ?? engine ?? 'wan')
     : (engine && engine !== 'edit' ? engine : PHOTO_ENGINE)
   try {
     const layers = [readPrompt('intent_sfw.txt')]
-    /* Exemples few-shot du STYLE CIBLE, fournis par l'opérateur, photo
-       seulement. Jamais en vidéo — ils y importaient leur décor alors que la
-       still fixait un autre lieu. */
-    if (mode !== 'video') { try { layers.push(readPrompt('examples_sfw.txt')) } catch { /* pas d'exemples */ } }
-    if (soul) { try { layers.push(readPrompt(`soul_${soul}.txt`)) } catch { /* couche absente, ignorée */ } }
-    if (mood) { try { layers.push(readPrompt(`mood_${mood}.txt`)) } catch { /* couche absente, ignorée */ } }
+    /* Few-shot examples of the TARGET STYLE, provided by the operator, photo
+       only. Never in video: they would import their setting while the still
+       fixes another place. */
+    if (mode !== 'video') { try { layers.push(readPrompt('examples_sfw.txt')) } catch { /* no examples */ } }
+    if (soul) { try { layers.push(readPrompt(`soul_${soul}.txt`)) } catch { /* missing layer, ignored */ } }
+    if (mood) { try { layers.push(readPrompt(`mood_${mood}.txt`)) } catch { /* missing layer, ignored */ } }
     layers.push(readPrompt(`engine_${engineKey}.txt`))
     return layers.join('\n\n')
   } catch {
@@ -80,41 +65,37 @@ export function systemFor(register, mode = 'photo', engine = null, opts = {}) {
   }
 }
 
-/** Lint anti-apparence pour les couches SOUL/MOOD : elles ne doivent décrire
- *  QUE comportement et atmosphère, jamais l'apparence (celle-ci vient de la
- *  LoRA + du préambule). Non bloquant : rend la liste des mots d'apparence
- *  trouvés, pour un signal dans le Workbench. */
+/** Appearance lint for SOUL/MOOD layers: they must describe ONLY behaviour
+ *  and atmosphere, never appearance (which comes from the LoRA + preamble).
+ *  Non-blocking: returns the appearance words found, as a Workbench signal. */
 const APPEARANCE_RE = /\b(hair|eyes?|skin|freckled?|freckles?|body|figure|physique|face|facial|lips?|mouth|complexion|tanned?|tan|clothing|clothes|clothed|outfit|dress|shirt|shorts|blonde|brunette|hips?|waist|tall|slim|toned)\b/gi
 export function lintAppearance(text) {
   return [...new Set((String(text).match(APPEARANCE_RE) || []).map(w => w.toLowerCase()))]
 }
 
-/** Modèle du rédacteur. Un seul registre, donc un seul modèle — la
- *  signature garde `register` pour les appelants. */
+/** Writer model. A single register, so a single model; the signature keeps
+ *  `register` for callers. */
 export function modelFor() {
   return CONFIG.composerModels.sfw
 }
 
-/** Réécrit le prompt. Lève une erreur explicite plutôt que de rendre un texte
- *  approximatif : un composeur qui échoue en silence renverrait le prompt brut
- *  et on croirait le LLM médiocre. */
-/* Sous ce seuil, la réponse n'est pas un prompt d'image : c'est une phrase.
-   un modèle 8B le fait par intermittence — mesuré 20 mots puis 162 sur la
-   MÊME entrée. Un seul mot d'insistance suffit à le remettre en piste, et la
-   relance ne coûte que quand elle est nécessaire. */
+/** Rewrites the prompt. Throws an explicit error rather than returning an
+ *  approximate text: a composer failing silently would return the raw prompt. */
+/* Below this threshold the response is a sentence, not an image prompt (an 8B
+   model does this intermittently on the same input). One insisting word puts
+   it back on track, and the retry only costs when needed. */
 const MIN_WORDS = 60
 const INSIST = '\n\nIMPORTANT: your previous answer was far too short. Write the '
   + 'FULL descriptive paragraph of 130-180 words, covering setting, pose, '
   + 'wardrobe, light, camera and skin. Do not answer with a single sentence.'
 
-/* ---------- répliques : protégées du LLM, pas confiées à lui ----------
-   Un brief vidéo porte ce que le personnage DIT, souvent en français ou en
-   mélange. Un modèle 8B traduit la réplique quelle que soit la consigne
-   (règle en dernière ligne comprise : « coucou toi » → « Hi there »). On sort
-   donc les segments entre guillemets AVANT l'appel, remplacés par un jeton
-   {{LINE n}}, et on les remet APRÈS, caractère pour caractère. Un jeton
-   perdu par le modèle → la réplique est rajoutée en fin de texte plutôt
-   que perdue. Guillemets reconnus : « … », "…", “…”. */
+/* ---------- spoken lines: shielded from the LLM ----------
+   A video brief carries what the character SAYS, often in French or mixed.
+   An 8B model translates the line whatever the instruction says. So quoted
+   segments are pulled out BEFORE the call, replaced by a {{LINE n}} token,
+   and put back AFTER, character for character. A token lost by the model ->
+   the line is appended at the end of the text instead of being lost.
+   Recognized quotes: « … », "…", “…”. */
 const QUOTE_RE = /«\s*([^»]+?)\s*»|"([^"\n]+?)"|“([^”]+?)”/g
 export function shieldLines(text) {
   const lines = []
@@ -129,9 +110,8 @@ export function unshieldLines(text, lines, { drop = false } = {}) {
   lines.forEach((line, i) => {
     const re = new RegExp(`["“«]?\\{\\{\\s*LINE\\s*${i + 1}\\s*\\}\\}["”»]?`, 'g')
     if (drop) {
-      /* Moteur MUET (Wan) : la consigne moteur fait supprimer les répliques ;
-         si le LLM laisse traîner un jeton, on l'efface au lieu d'y remettre
-         les mots — et on ne ré-injecte jamais une réplique absente. */
+      /* SILENT engine (Wan): the engine instruction drops spoken lines; a leftover
+         token is erased instead of refilled, and a missing line is never re-injected. */
       out = out.replace(re, '').replace(/\s{2,}/g, ' ')
     } else if (re.test(out)) {
       out = out.replace(re, `"${line}"`)
@@ -144,47 +124,42 @@ export function unshieldLines(text, lines, { drop = false } = {}) {
 
 export async function compose({ register = 'sfw', userPrompt = '', userDirectives = '', mode = 'photo', engine = null, soul = null, mood = null, sceneDesc = null, previousPrompt = null, outfitAnchor = null }) {
   const model = modelFor(register, mode)
-  // Un brief de mouvement court (« elle sourit, push-in lent ») donne
-  // légitimement 30 mots ; exiger 60 forçait le modèle à broder.
-  // Retouche : la sortie DOIT être courte (2 phrases). Un plancher de mots
-  // déclencherait la relance INSIST « étoffe » — l'exact inverse de ce qu'on
-  // veut, et la cause du délayage en description de scène.
+  // A short motion brief ("she smiles, slow push-in") legitimately gives ~30
+  // words; a higher floor would force the model to pad.
+  // Edit: output MUST be short (2 sentences). A word floor would trigger the
+  // INSIST "expand" retry, the opposite of what is wanted.
   const minWords = mode === 'video' ? 25 : engine === 'edit' ? 0 : MIN_WORDS
-  /* Un item « 🎲 au hasard » arrive ici sous forme de token : le LLM ne sait
-     pas ce qu'est `__tenues*__` et l'inventerait. On tire AVANT de
-     réécrire, avec une seed jetable (le job n'existe pas encore) : le texte
-     composé porte alors une tenue concrète, et c'est elle que la provenance
-     gardera. Corollaire assumé : un lot composé partage le même tirage ; un
-     lot envoyé SANS composer tire une ligne par job. */
+  /* A "🎲 random" item arrives here as a token: the LLM does not know what
+     `__tenues*__` is and would invent it. It is drawn BEFORE rewriting with a
+     throwaway seed (the job does not exist yet), so the composed text carries
+     a concrete outfit that provenance keeps. Consequence: a composed batch
+     shares the same draw; a batch sent WITHOUT composing draws one line per job. */
   const drawn = wildcards.resolve(userPrompt, crypto.randomInt(2 ** 31))
-  // Répliques hors de portée du LLM en vidéo (voir shieldLines).
+  // Spoken lines kept out of the LLM's reach in video (see shieldLines).
   const shielded = mode === 'video' ? shieldLines(drawn.text) : { out: drawn.text, lines: [] }
   const brief = userDirectives.trim()
     ? `${shielded.out.trim()}\n\nDIRECTIVES (priority over defaults): ${userDirectives.trim()}`
     : shielded.out.trim()
   if (!brief) throw new Error('rien à réécrire : le prompt est vide')
 
-  /* ---------- contexte visuel (VLM) ----------
-     Sans la still, le réécriveur travaille EN AVEUGLE et invente la tenue et
-     la pose de départ : il change une robe, ou fait se lever quelqu'un d'assis.
-     En vidéo c'est disqualifiant : la règle « START IN THE IMAGE'S EXACT POSE »
-     lui demande de décrire un état initial qu'il ne connaîtrait pas.
-
-     La description du VLM est une ENTRÉE, au même titre que le brief, et
-     elle est SUBORDONNÉE à lui : l'image dit ce qui EST, le brief dit ce qui
-     doit ARRIVER. Le contrat est écrit noir sur blanc dans le message, car
-     sans lui le modèle traite la description comme une consigne et se
-     contente de paraphraser l'image au lieu d'exécuter le brief. */
+  /* ---------- visual context (VLM) ----------
+     Without the still, the rewriter works BLIND and invents the starting outfit
+     and pose. In video that breaks the rule "START IN THE IMAGE'S EXACT POSE",
+     which requires describing the initial state.
+  
+     The VLM description is an INPUT like the brief and SUBORDINATE to it: the
+     image says what IS, the brief says what must HAPPEN. The contract is
+     spelled out in the message, otherwise the model treats the description as
+     an instruction and paraphrases the image instead of executing the brief. */
   const desc = String(sceneDesc ?? '').trim()
 
-  /* ---------- continuation (onglet Étendre) ----------
-     Le nouveau clip démarre sur la DERNIÈRE image du précédent : la
-     description VLM ci-dessus en dit l'état visuel, mais pas l'intention.
-     Sans le prompt du plan précédent, le réécriveur ne sait ni ce qui a déjà
-     été joué (il le rejoue), ni à quel rythme la scène allait (il redémarre
-     plus vite ou plus lentement), ni vers quoi elle tendait. On lui donne ce
-     prompt comme CONTEXTE, avec les règles de raccord, et la même mise en
-     garde que pour la description : le lire, jamais le recopier. */
+  /* ---------- continuation (Extend tab) ----------
+     The new clip starts on the LAST frame of the previous one: the VLM
+     description above gives its visual state, not its intent. Without the
+     previous shot's prompt, the rewriter would replay what was already played,
+     change the pace, or lose the direction. That prompt is given as CONTEXT,
+     with continuity rules and the same warning as for the description: read
+     it, never copy it. */
   const prev = String(previousPrompt ?? '').trim().slice(0, 6000)
   const suite = prev
     ? '<previous_shot>\n' + prev + '\n</previous_shot>\n\n'
@@ -197,19 +172,18 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       + 'carried to its end first;\n'
       + '- carry its intent forward toward what the brief asks;\n'
       + '- keep the same camera language (type of framing, camera behaviour) unless the brief changes it;\n'
-      /* Sans cette règle, le réécriveur reprend l'état de DÉPART du clip précédent
-         (« tasse pleine à ras bord ») alors que ce clip finit sur une tasse bue. Le prompt précédent
-         raconte un début ; la dernière image montre la fin. */
+      /* Without this rule the rewriter reuses the previous clip's START state
+         ("cup filled to the brim") while that clip ends on an empty cup. The
+         previous prompt tells a beginning; the last frame shows the end. */
       + '- the previous prompt describes how that clip STARTED, not how it ended: for the current state '
       + '(what she holds, what is full or empty, spilled or tidy, where things and people are) the '
       + 'last frame is the truth' + (desc ? ' — follow <source_image> wherever the two disagree' : '') + ';\n'
       + '- it is context, not text to reuse: do not copy its sentences.\n\n'
     : ''
-  /* Tenue verrouillée (« Tenue de l'image ») : le texte vient d'un appel VLM
-     dédié, filtré en code. Le réécriveur est prévenu qu'il ne doit PAS
-     décrire la tenue, parce que c'est le code qui l'insère plus bas — on ne
-     compte pas sur lui pour la recopier fidèlement. Le verrou prime sur le
-     brief : c'est un choix explicite de l'opérateur. */
+  /* Locked outfit ("Tenue de l'image"): the text comes from a dedicated VLM call,
+     filtered in code. The rewriter is told NOT to describe the outfit, because
+     the code inserts it below. The lock overrides the brief: it is an explicit
+     operator choice. */
   const tenue = String(outfitAnchor ?? '').trim()
   const verrouTenue = tenue && engine !== 'edit'
     ? `OUTFIT — fixed by the pipeline: she wears exactly "${tenue}". Do NOT describe, name, change or remove her `
@@ -217,12 +191,10 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       + 'outfit description itself. Write everything else as usual.\n\n'
     : ''
   const prompt = verrouTenue + suite + (desc
-    /* La description est ENCADRÉE et annoncée comme de la donnée. Laissée en
-       prose libre, ce modèle en recopie les phrases telles quelles
-       (« The mood is bright and sunny », « The camera angle is straight-on »),
-       alors que le moteur interdit explicitement ce vocabulaire méta. Même piège que les exemples
-       concrets dans les consignes du VLM et que les MARKERS du composeur :
-       ce qui est montré est recopié, donc on dit quoi en faire. */
+    /* The description is FRAMED and announced as data. Left as free prose, the
+       model copies its sentences verbatim ("The mood is bright and sunny",
+       "The camera angle is straight-on") although the engine forbids that meta
+       vocabulary. What is shown gets copied, so the message says what to do with it. */
     ? '<source_image>\n' + desc + '\n</source_image>\n\n'
       + 'The block above is a CAPTION of the still, written by a vision model. It is reference '
       + 'DATA about the first frame — the starting pose, the outfit, the setting. Read it, do not '
@@ -246,18 +218,14 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       signal: ctl,
       body: JSON.stringify({
         model, system: systemFor(register, mode, engine, { soul, mood }), prompt: text, stream: false,
-        // qwen3 : sans ce champ le « thinking » consomme des minutes de CPU
-        // (422 s mesurées) ; ignoré par les modèles non-thinking.
+        // qwen3: without this field "thinking" burns minutes of CPU;
+        // ignored by non-thinking models.
         think: false,
-        // keep_alive 0 : le modèle quitte la RAM dès la réponse. Il en reste
-        // assez pour tout le monde, mais un modèle résident pour rien est une
-        // dette qu'on paie au prochain pic.
+        // keep_alive 0: the model leaves RAM right after replying.
         keep_alive: 0,
-        // num_gpu 0 : valeur de repli. fetchOllama (gpu.js)
-        // la retire quand la carte est prise pour Ollama, et la garde quand un
-        // long rendu occupe la carte.
-        // Retouche : température basse — on veut une instruction littérale et
-        // stable, pas de la variété créative qui part en description.
+        // num_gpu 0: fallback value. fetchOllama (gpu.js) removes it when the card
+        // is taken for Ollama, and keeps it when a long render occupies the card.
+        // Edit: low temperature for a literal, stable instruction.
         options: { num_gpu: 0, num_ctx: 4096, temperature: engine === 'edit' ? 0.3 : 0.8 },
       }),
     })
@@ -277,17 +245,16 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
   if (positive && positive.split(/\s+/).length < minWords) {
     retried = true
     const second = await ask(prompt + INSIST)
-    // On garde la plus étoffée : la relance peut elle aussi rater son coup,
-    // et rendre alors la PIRE des deux serait une régression pure.
+    // Keep the richer one: the retry can also fail, and returning the worse of
+    // the two would be a regression.
     if (second.text.split(/\s+/).length > positive.split(/\s+/).length) {
       positive = second.text
       tokens = second.tokens
     }
   }
   if (!positive) throw new Error(`${model} n'a rien produit`)
-  /* Anti-copie des EXEMPLES few-shot (« beach condo slider door » importé
-     dans une vidéo i2v dont la still fixe le décor). Les marqueurs signature des exemples ne peuvent apparaître que si
-     le brief les contient — sinon un retry dur. */
+  /* Anti-copy of few-shot EXAMPLES. The examples' signature markers can only
+     appear if the brief contains them; otherwise a hard retry. */
   if (engine !== 'edit') {
     const MARKERS = ['beach condo', 'slider door', 'public library', 'bookshelves',
       'gray mini dress', 'knitted cardigan']
@@ -304,46 +271,38 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
     }
   }
   positive = unshieldLines(positive, shielded.lines, { drop: mode === 'video' && ['wan', 'motion'].includes(engine ?? 'wan') })
-  /* Gabarits de réplique ORPHELINS. Sur un brief sans réplique, le
-     réécriveur peut inventer une phrase ET recopier le gabarit de la consigne
-     moteur : `<d>[French] {{LINE 1}}</d>`.
-     unshieldLines ne remplit que les gabarits d'une vraie réplique du brief :
-     celui-ci partirait tel quel au moteur, qui prononcerait « LINE ».
-     On retire le bloc <d> vide (avec son « X (S1) says: ») et tout jeton
-     restant. */
+  /* ORPHAN line templates. On a brief without a spoken line, the rewriter may
+     invent a sentence AND copy the engine instruction template:
+     `<d>[French] {{LINE 1}}</d>`. unshieldLines only fills templates of a real
+     brief line, so this one would reach the engine, which would say "LINE".
+     The empty <d> block (with its "X (S1) says:") and any leftover token are removed. */
   if (/\{\{\s*LINE\s*\d+\s*\}\}/i.test(positive)) {
     positive = positive
       .replace(/(?:[A-Z][\w ]{0,30}\(S\d\)\s*says(?: in an off-screen voiceover)?:\s*)?<d>\s*(?:\[[A-Za-z]+\]\s*)?["“«]?\{\{\s*LINE\s*\d+\s*\}\}["”»]?\s*<\/d>/gi, '')
       .replace(/["“«]?\{\{\s*LINE\s*\d+\s*\}\}["”»]?/gi, '')
       .replace(/[ \t]{2,}/g, ' ')
   }
-  /* Le rédacteur emballe parfois la description H3 dans des balises <p> (tic
-     stochastique). Le format MiniMax n'en
-     veut pas, et une consigne de plus ne tiendrait pas mieux que les autres
-     gardes textuelles : on les retire mécaniquement. Les balises <d> des
-     répliques, elles, font PARTIE du format et survivent. */
+  /* The writer sometimes wraps the H3 description in <p> tags. The MiniMax
+     format does not accept them, so they are removed mechanically. The <d>
+     tags of spoken lines are PART of the format and are kept. */
   if (mode === 'video') positive = positive.replace(/<\/?p>/g, '').replace(/[ \t]{2,}/g, ' ').trim()
 
-  /* Marqueur [Shot 1] — garde MÉCANIQUE, propre aux moteurs MiniMax (seuls
-     engine_minimax*.txt l'exigent ; WAN et LTX n'en veulent pas).
-     Le modèle l'écrit spontanément sur un brief seul, mais le laisse tomber dès
-     qu'on lui fournit la description d'image : il a alors assez de matière
-     pour attaquer directement sur un horodatage. Le rappeler dans le message
-     le fait replacer AVANT le nom du champ, ce qui casse la structure : on
-     répare en code.
-     Le marqueur sert à interdire les coupes ; l'horodatage qui suit est
-     légitime et reste en place. */
+  /* [Shot 1] marker: MECHANICAL guard, MiniMax engines only (only
+     engine_minimax*.txt require it; WAN and LTX do not). The model writes it
+     on a bare brief but drops it when given the image description; asking for
+     it in the message makes it land BEFORE the field name, breaking the
+     structure, so it is repaired in code. The marker forbids cuts; the
+     timestamp that follows is legitimate and stays. */
   if (mode === 'video' && String(engine ?? '').startsWith('minimax') && !/\[Shot 1\]/.test(positive)) {
     positive = positive.replace(/(integrated_multimodal_description:\s*\n?)/i, '$1[Shot 1] ')
   }
 
-  /* Marqueurs de plan INVENTÉS — garde mécanique, moteurs MiniMax.
-     Sur un brief à plan unique, le réécriveur peut produire
-     « [Continue from Shot 1] » au milieu de la description. Le moteur lit
-     tout marqueur comme une coupe, alors que la règle du moteur interdit
-     d'inventer des plans. On retire donc tout marqueur autre que [Shot 1]
-     — sauf si le BRIEF en contient lui-même (multi-plan voulu). Le texte
-     qui suivait le marqueur est conservé : seule l'étiquette disparaît. */
+  /* INVENTED shot markers: mechanical guard, MiniMax engines. On a single-shot
+     brief the rewriter may produce "[Continue from Shot 1]" mid-description.
+     The engine reads any marker as a cut, while the engine rule forbids
+     inventing shots. So every marker other than [Shot 1] is removed, unless
+     the BRIEF itself contains some (intended multi-shot). The text after the
+     marker is kept: only the label goes. */
   if (mode === 'video' && String(engine ?? '').startsWith('minimax')
       && !/\[\s*shot\s*[2-9]/i.test(String(userPrompt ?? ''))) {
     const EXTRA = /\[\s*(?:continue[^\]]*|shot\s*(?:[2-9]|\d{2,})[^\]]*|cut[^\]]*|next shot[^\]]*)\]\s*/gi
@@ -352,12 +311,12 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
     }
   }
 
-  /* Insertion CODE de la tenue verrouillée — au début de la scène pour
-     MiniMax (juste après [Shot 1]), en tête du texte ailleurs. */
+  /* CODE insertion of the locked outfit: at the start of the scene for MiniMax
+     (right after [Shot 1]), at the head of the text elsewhere. */
   if (verrouTenue) {
-    /* « her » plutôt qu'un article : la liste du VLM est brute (« dark green
-       dress », « black lace bra, white thigh-high stockings ») et « her »
-       se lit correctement devant l'une comme devant l'autre. */
+    /* "her" rather than an article: the VLM list is raw ("dark green dress",
+       "black lace bra, white thigh-high stockings") and "her" reads correctly
+       in front of either. */
     const phrase = `She is wearing her ${tenue}, exactly as in the provided image.`
     if (mode === 'video' && String(engine ?? '').startsWith('minimax') && /\[Shot 1\]/.test(positive))
       positive = positive.replace(/\[Shot 1\]\s*/, `[Shot 1] ${phrase} `)
@@ -365,12 +324,10 @@ export async function compose({ register = 'sfw', userPrompt = '', userDirective
       positive = `${phrase} ${positive}`
   }
 
-  /* Retouche : garde-fou MÉCANIQUE contre le délayage. Le format impose de
-     terminer par la clause de préservation « … unchanged. » ; on coupe tout
-     ce qui suit la PREMIÈRE occurrence. Un modèle CPU obéit mal à « deux
-     phrases et stop » (« robe rouge » s'arrête, « enlève les
-     lunettes » repart en description de scène) — on ne compte pas dessus, on
-     tronque. Repli : si « unchanged » est absent, on garde le texte tel quel. */
+  /* Edit: MECHANICAL guard against padding. The format must end with the
+     preservation clause "... unchanged."; everything after the FIRST occurrence
+     is cut, since a CPU model does not reliably stop after two sentences.
+     Fallback: if "unchanged" is absent, the text is kept as is. */
   if (engine === 'edit') {
     const m = positive.match(/^([\s\S]*?\bunchanged\b\.?)/i)
     if (m) positive = m[1].trim()

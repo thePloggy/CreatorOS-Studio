@@ -1,5 +1,5 @@
-/* Extensions : les fonctions ajoutées au studio sans code (cf. server/extensions.js), avec leur
-   formulaire, et le catalogue d'où le propriétaire en installe de nouvelles. */
+/* Extensions: no-code functions added to the studio (see server/extensions.js), with their
+   form, and the catalog from which the owner installs new ones. */
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'
@@ -21,7 +21,7 @@ const poster = async (url: string, corps?: object) => {
   return d
 }
 
-/* Page d'une extension, au gabarit app : formulaire à gauche, exemple puis résultats à droite. */
+/* Extension page, app layout: form on the left, example then results on the right. */
 function AppExtension({ x, onRetour, onRetirer, onOpen }: { x: Extension; onRetour: () => void; onRetirer: () => void; onOpen?: (a: Asset, list: Asset[]) => void }) {
   const s = useAppStore()
   const edition = useEdition()
@@ -88,7 +88,7 @@ function AppExtension({ x, onRetour, onRetirer, onOpen }: { x: Extension; onReto
   )
 }
 
-/* Carte de la galerie : média, badge, titre et une ligne de description. */
+/* Gallery card: media, badge, title and a one-line description. */
 function CarteGalerie({ titre, texte, image, badge, onClick, pied }: { titre: string; texte: string; image?: string | null; badge?: string; onClick?: () => void; pied?: React.ReactNode }) {
   return (
     <div className="galerie-carte">
@@ -108,8 +108,8 @@ type EtatMaj = { demo: boolean; messageDemo: string; travaux: Record<string, Tra
 let etatMaj: Promise<EtatMaj> | null = null
 const lireMaj = (frais = false) => { if (frais || !etatMaj) etatMaj = fetch('/api/comfy/maj').then(r => r.json()); return etatMaj }
 
-/* Nœuds absents : le dépôt qui les fournit, installé en un clic sur une installation locale ;
-   la démo publique refuse le code tiers et le dit. */
+/* Missing nodes: the repository that provides them, installed in one click on a local install;
+   the public demo refuses third-party code and says so. */
 function NoeudsManquants({ classes }: { classes: string[] }) {
   const edition = useEdition()
   const [maj, setMaj] = useState<EtatMaj | null>(null)
@@ -148,7 +148,7 @@ function NoeudsManquants({ classes }: { classes: string[] }) {
   )
 }
 
-/* ComfyUI lui-même : mise à jour depuis son dépôt, puis redémarrage quand la file est vide. */
+/* ComfyUI itself: update from its repository, then restart when the queue is empty. */
 function MiseAJourComfy() {
   const edition = useEdition()
   const [maj, setMaj] = useState<EtatMaj | null>(null)
@@ -176,7 +176,7 @@ type WorkflowComfy = { id: string; titre: string; description: string; categorie
   telechargement: { etat: string; fait: number; total: number; fichier: string | null; erreur: string | null } | null }
 const go = (o: number | null) => (o ? `${(o / 1e9).toFixed(o > 10e9 ? 0 : 1)} Go` : '')
 
-/* Les workflows officiels de ComfyUI : modèles présents ou à télécharger, nœuds absents. */
+/* Official ComfyUI workflows: models present or to download, missing nodes. */
 function WorkflowsComfy({ onOuvrir }: { onOuvrir: (x: Extension) => void }) {
   const edition = useEdition()
   const [liste, setListe] = useState<WorkflowComfy[] | null>(null)
@@ -192,7 +192,7 @@ function WorkflowsComfy({ onOuvrir }: { onOuvrir: (x: Extension) => void }) {
     return () => clearInterval(h)
   }, [liste])
   const telecharger = async (id: string) => { try { await poster(`/api/workflows-comfy/${id}/telecharger`); charger() } catch (e) { setErreur(String((e as Error).message)) } }
-  // le workflow devient une page du studio : formulaire tiré du workflow, rendus à droite
+  // the workflow becomes a studio page: form derived from the workflow, renders on the right
   const ouvrir = async (w: WorkflowComfy) => {
     setErreur(null)
     try {
@@ -256,7 +256,7 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
   const [ouverte, setOuverte] = useState<string | null>(null)
   const [cherche, setCherche] = useState('')
   const [filtre, setFiltre] = useState<'tout' | 'image' | 'video' | 'audio' | 'comfy' | 'lora'>(() => useAppStore.getState().ongletExtensions ?? 'tout')
-  // le menu ouvre Extensions ou le catalogue officiel de ComfyUI, à l'ouverture comme page déjà ouverte
+  // the menu opens Extensions or the official ComfyUI catalog, both on open and when the page is already open
   const demande = useAppStore(st => st.ongletExtensions)
   useEffect(() => { if (demande) { setFiltre(demande); useAppStore.setState({ ongletExtensions: null }) } }, [demande])
   const charger = () => void fetch('/api/extensions').then(r => r.json()).then((d: { extensions: Extension[]; catalogue: Fiche[] }) => { setListe(d.extensions); setCat(d.catalogue) }).catch(() => setListe([]))
@@ -308,8 +308,8 @@ export function ExtensionsView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) 
   )
 }
 
-/* Tes LoRA : l'import (propriétaire, ou ton installation locale) et la liste de celles que ComfyUI voit,
-   avec l'architecture lue dans le fichier — c'est elle qui décide du moteur où la LoRA agit. */
+/* Your LoRAs: import (owner, or your local install) and the list of those ComfyUI sees,
+   with the architecture read from the file, which decides which engine the LoRA applies to. */
 const MOTEUR_ARCH: Record<string, string> = { krea2: 'Krea 2', flux2: 'FLUX.2 Klein', flux3: 'FLUX 3 Klein', moss: 'MOSS', flux1: 'FLUX.1', zimage: 'Z-Image', h3: 'MiniMax H3', qwen: 'Qwen-Image', wan: 'Wan', ltx: 'LTX' }
 export function MesLoras({ q = '' }: { q?: string }) {
   const catalogue = useAppStore(st => st.loraCatalog)

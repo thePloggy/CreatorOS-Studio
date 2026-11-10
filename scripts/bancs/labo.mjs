@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /* ============================================================
-   Labo : chaque recette tourne une fois, graine fixe, sur la machine
-   qui sert le studio ; on garde son temps de rendu réel et sa VRAM de crête,
-   avec les poids complets. Les poids allégés (12 Go) passent par
-   labo-petite-carte.mjs, sur un ComfyUI bridé à 12 Go.
+   Lab: each recipe runs once, fixed seed, on the machine serving the
+   studio; records its real render time and peak VRAM, with full
+   weights. Lightweight (12 GB) weights go through
+   labo-petite-carte.mjs, on a ComfyUI capped at 12 GB.
 
-   Avant chaque cas, ComfyUI décharge tout (/free) : la crête mesurée est celle
-   du cas seul. Sur une grande carte, ComfyUI garde tout en VRAM ; la crête est
-   donc un plafond : sous 12 Go, la recette tient sur une carte de 12 Go.
+   Before each case ComfyUI unloads everything (/free), so the measured peak
+   is the case alone. On a large card ComfyUI keeps everything in VRAM, so the
+   peak is an upper bound: under 12 GB, the recipe fits a 12 GB card.
 
-   node scripts/bancs/labo.mjs [cas…]      (studio lancé, ComfyUI local)
-   node scripts/bancs/labo.mjs --table     (réécrit seulement docs/LAB.md)
-   Écrit docs/lab/resultats.json, les vignettes docs/lab/*.jpg et docs/LAB.md.
-   CREATOROS_OWNER_KEY : la clé de propriétaire (le profil forcé lui est réservé).
+   node scripts/bancs/labo.mjs [cas…]      (studio running, local ComfyUI)
+   node scripts/bancs/labo.mjs --table     (only rewrites docs/LAB.md)
+   Writes docs/lab/resultats.json, thumbnails docs/lab/*.jpg and docs/LAB.md.
+   CREATOROS_OWNER_KEY: owner key (forced profiles are owner-only).
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -29,7 +29,7 @@ const PHOTO = 'A woman in a mustard raincoat crossing a rainy city street at dus
 const GESTE = 'she walks forward under the rain and glances to the side, slow tracking shot'
 const GRAINE = 20261030
 
-/* Les cas : `depuis` = le cas dont la photo sert d'image de départ. */
+/* Cases: `depuis` = the case whose photo is used as the start image. */
 const CAS = [
   { id: 'photo_krea', titre: 'Photo · Krea 2', type: 'photo', moteur: 'krea' },
   { id: 'photo_klein9', titre: 'Photo · FLUX.2 Klein 9B', type: 'photo', moteur: 'klein' },
@@ -45,7 +45,7 @@ async function liberer() {
   await sleep(4000)
 }
 
-/** Lance un cas et le suit : temps de rendu (de « rendering » à « done ») et crête de VRAM au-dessus du repos. */
+/** Runs a case and tracks it: render time (from "rendering" to "done") and peak VRAM above idle. */
 async function jouer(c, sources) {
   await liberer()
   const repos = vramMo()
@@ -66,7 +66,7 @@ async function jouer(c, sources) {
   return r
 }
 
-/** Vignette JPEG 480 px de large (première image d'une vidéo). */
+/** 480 px wide JPEG thumbnail (first frame of a video). */
 function vignette(r) {
   if (!r.url) return null
   const f = path.join(DOSSIER, `${r.id}.jpg`)
@@ -90,12 +90,12 @@ for (const c of cas) {
   r.vignette = vignette(r)
   resultats[c.id] = r
   if (r.media) sources[c.id] = r.media
-  // les lignes des petites cartes (labo-petite-carte.mjs) sont gardées après celles-ci
+  // small-card rows (labo-petite-carte.mjs) are kept after these
   const autres = Object.values(resultats).filter(x => !CAS.some(c => c.id === x.id))
   fs.writeFileSync(fichier, JSON.stringify({ carte: carte(), le: new Date().toISOString().slice(0, 10), cas: [...CAS.map(x => resultats[x.id]).filter(Boolean), ...autres] }, null, 1) + '\n')
 }
 
-/* docs/LAB.md : le tableau, régénéré à chaque passage. */
+/* docs/LAB.md: the table, regenerated on every run. */
 const d = JSON.parse(fs.readFileSync(fichier, 'utf8'))
 const lignes = d.cas.map(r => `| ${r.titre} | ${r.statut === 'done' ? `${r.secondes} s` : r.statut} | ${r.vramCreteGo} GB | ${r.vignette ? `<img src="lab/${r.vignette}" width="160">` : ''} |`)
 fs.writeFileSync(path.join(RACINE, 'docs', 'LAB.md'), `# Lab: real render times and peak VRAM

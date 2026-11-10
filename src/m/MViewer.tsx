@@ -1,6 +1,6 @@
 /* ============================================================
-   Visionneuse mobile — média plein écran, actions de tri,
-   reprise (cloner / animer / prolonger / HD) et informations.
+   Mobile viewer: full-screen media, triage actions,
+   follow-ups (clone / animate / extend / HD) and info.
    ============================================================ */
 import { PrisesViewer } from '../v2/Prises'
 import { resumeControle } from '../lib/controle'
@@ -37,14 +37,14 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   const [armed, arm] = useConfirm()
   const [busy, setBusy] = useState('')
   const [prises, setPrises] = useState(false)
-  /* Liste de navigation CAPTURÉE à l'entrée : changer un statut pendant le
-     tri ne doit pas réordonner la liste sous le doigt. */
+  /* Navigation list CAPTURED on entry: changing a status during triage
+     must not reorder the list under the finger. */
   const navList = useRef(list.map(a => a.id))
   const idx = navList.current.indexOf(asset.id)
   const fresh = s.assets.find(a => a.id === asset.id) ?? asset
   const nomPerso = useNomPersonnage(fresh.personaId)
   const renduTable = useRenduTable(fresh)
-  // les autres prises du même lot (× N rendus) : on les compare côte à côte
+  // the other takes of the same batch (× N renders), compared side by side
   const lots = [...(fresh.batchId ? [fresh.batchId] : []), ...(fresh.batchIds ?? [])]
   const memeLot = lots.length ? s.assets.filter(a => a.mediaType === 'video' && (lots.includes(a.batchId ?? '') || (a.batchIds ?? []).some(b => lots.includes(b)))) : []
   const go = (d: 1 | -1) => {
@@ -64,9 +64,9 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  /* Balayage horizontal = navigation, jamais validation.
-     Un geste vertical ou un pincement ne déclenchent rien : ils servent au
-     défilement et au zoom. */
+  /* Horizontal swipe = navigation, never approval.
+     A vertical gesture or a pinch triggers nothing: they are for
+     scrolling and zoom. */
   const touch = useRef<{ x: number; y: number; multi: boolean } | null>(null)
   const onStart = (e: React.TouchEvent) => {
     touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, multi: e.touches.length > 1 }
@@ -81,8 +81,8 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
 
   const isVid = fresh.mediaType === 'video'
   const p = fresh.provenance
-  /* Pile de LoRA du rendu : minuscule, rechargée à chaque asset. Le graphe
-     complet, lui, reste hors de la galerie — trop lourd à transporter. */
+  /* The render's LoRA stack: tiny, reloaded per asset. The full graph
+     stays out of the gallery (too heavy to transfer). */
   const [loras, setLoras] = useState<LoraLigne[] | null>(null)
   useEffect(() => {
     setLoras(null)
@@ -109,8 +109,8 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
         </button>
       </div>
 
-      {/* `zoomable` : le pinch agrandit le MÉDIA (index.css le réserve à
-          cette classe, l'interface elle-même ne zoome pas). */}
+      {/* `zoomable`: pinch enlarges the MEDIA (index.css reserves it for
+          this class; the UI itself does not zoom). */}
       <div className="stage zoomable" onTouchStart={onStart} onTouchEnd={onEnd}>
         {isVid
           ? <video ref={videoArretee} src={fresh.uri} controls playsInline autoPlay loop muted={false} />
@@ -153,9 +153,9 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
             await s.hydrate(); onClose()
           })}><Ic n="hd" s={20} />{t('Passer en HD')}</button>
         )}
-        {/* « Plus » AUSSI en bas : le coin haut-droit est le point le plus
-            difficile à atteindre au pouce sur un grand téléphone, et c'est
-            là que le ⋯ se trouve. Les deux ouvrent la même feuille. */}
+        {/* "More" ALSO at the bottom: the top-right corner, where the ⋯ is,
+            is the hardest spot to reach with a thumb on a large phone.
+            Both open the same sheet. */}
         <button className="act" onClick={() => setSheet('more')} aria-label={t('plus d’actions')}>
           <Ic n="more" s={20} />{t('Plus')}
         </button>
@@ -214,10 +214,10 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
 
       {sheet === 'info' && (
         <Sheet title={t('Informations')} onClose={() => setSheet(null)}>
-          {/* La chaîne du prompt dans l'ordre où elle s'est faite : brief →
-              ce que le VLM a lu dans la still → prompt envoyé. Voir la vision
-              séparément est ce qui permet de dire si un prompt surprenant
-              vient d'une image mal lue ou d'une consigne mal suivie. */}
+          {/* The prompt chain in the order it happened: brief → what the
+              VLM read in the still → prompt sent. Showing the vision step
+              separately tells whether a surprising prompt comes from a
+              misread image or a misfollowed instruction. */}
           {p?.initialBrief && p.initialBrief !== (p.composedPositive || p.userPrompt) && (
             <Info k={t('Brief initial')} v={p.initialBrief} wrap />
           )}
@@ -234,8 +234,8 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
             : t('aléatoire')} />
           <Info k={t('Personnage')} v={nomPerso === undefined ? '…' : nomPerso ?? t('aucun')} />
           <Info k={t('Recette')} v={p?.recipeId || '—'} />
-          {/* La pile de LoRA telle qu'elle a tourné, lue dans le graphe : la
-              recette n'en montre aucune, et `extra_loras` oublie l'identité. */}
+          {/* The LoRA stack as it ran, read from the graph: the recipe
+              shows none, and `extra_loras` omits the identity LoRA. */}
           <Info k={t('LoRA appliquées')} wrap v={loras == null ? '…' : loras.length === 0 ? t('aucune')
             : loras.map(l => `${l.label} @ ${l.strength == null ? '—' : l.strength.toFixed(2).replace('.', getLang() === 'en' ? '.' : ',')}`).join('\n')} />
           <Info k={t('Rendu')} v={fresh.renderMs ? fmtDur(fresh.renderMs) : '—'} />

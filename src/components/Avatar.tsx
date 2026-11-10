@@ -1,6 +1,6 @@
-/* Photo de profil de la persona — <img> si une photo a été déposée, sinon le
-   rond neutre d'origine. Une seule source (le store), utilisée par la barre,
-   la carte persona, la vue Perso et le mobile. */
+/* Persona profile picture: <img> if a photo was uploaded, otherwise a
+   neutral circle. Single source (the store), used by the bar, the persona
+   card, the Perso view and mobile. */
 import { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { vignetteOf } from './AssetMedia'
@@ -19,9 +19,9 @@ export function Avatar({ size = 36, className }: { size?: number; className?: st
   )
 }
 
-/** « changer la photo » : une fenêtre avec les photos du personnage actif
- *  (la bibliothèque n'en contient pas d'autres) ; un clic la pose en photo
- *  de profil, recadrée en carré côté serveur. */
+/** "change photo": a dialog with the active character's photos
+ *  (the library holds no others); a click sets it as profile picture,
+ *  cropped square on the server. */
 export function AvatarUpload({ className }: { className?: string }) {
   const edition = useEdition()
   const [ouvert, setOuvert] = useState(false)

@@ -1,6 +1,6 @@
 /* ============================================================
-   Personnage (◐) — l'identité constante des rendus : photo de profil, et
-   l'éditeur (nom, mot déclencheur, préambule, LoRA d'identité).
+   Character (◐) — the constant identity of renders: profile photo, and
+   the editor (name, trigger word, preamble, identity LoRA).
    ============================================================ */
 import { Entrainement } from './Entrainement'
 import { SectionTitle } from '../../components/ui'
@@ -25,7 +25,7 @@ export function PersonaView() {
         </div>
       </section>
 
-      {/* le personnage actif : l'entraînement à gauche (le plus large), son identité à droite */}
+      {/* the active character: training on the left (wider), identity on the right */}
       <div className="perso-colonnes">
         <section style={{ minWidth: 0 }}>
           <SectionTitle>{t('Personnage actif')} · {name}</SectionTitle>

@@ -1,8 +1,8 @@
 /* ============================================================
-   Atelier — identité du personnage et réglages.
+   Workshop: character identity and settings.
 
-   L'identité (nom, mot déclencheur, préambule, LoRA) s'édite ici comme
-   sur le bureau : un seul éditeur partagé, une seule source (persona.json).
+   Identity (name, trigger word, preamble, LoRA) is edited here as on
+   desktop: one shared editor, one source (persona.json).
    ============================================================ */
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'

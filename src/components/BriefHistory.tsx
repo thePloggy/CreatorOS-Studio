@@ -1,7 +1,7 @@
-/* Briefs récents et étoilés — commun aux vues Image et Vidéo.
-   ↑ dans un champ de brief VIDE ouvre la liste ; on cherche, on étoile, on
-   reprend d'un clic ou avec ↑ ↓ Entrée. La liste vient des jobs déjà envoyés
-   (/api/briefs) : rien à saisir pour l'alimenter. */
+/* Recent and starred briefs, shared by the Image and Video views.
+   ↑ in an EMPTY brief field opens the list; search, star, reuse with a
+   click or ↑ ↓ Enter. The list comes from jobs already submitted
+   (/api/briefs). */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { t, getLang } from '../i18n'
 

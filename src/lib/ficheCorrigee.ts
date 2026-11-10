@@ -1,10 +1,9 @@
 /* ============================================================
-   Corrections de l'opérateur sur ce que le VLM a lu dans la 1re photo du
-   carrousel (il reconnaît mal les véhicules). Une dimension
-   corrigée remplace le texte court ET le texte long de la fiche ; la
-   correction est aussi ajoutée à la description VLM, que le rédacteur lit
-   en plus de la fiche — sinon l'ancienne lecture (« a red sedan ») y
-   resterait et contredirait la fiche.
+   Operator corrections to what the VLM read in the carousel's first
+   photo. A corrected dimension replaces both the short and long text
+   of the sheet; the correction is also appended to the VLM description,
+   which the writer reads alongside the sheet, so the original reading
+   does not contradict the sheet.
    ============================================================ */
 
 type Dim = { texte?: string; court?: string; nom?: string }

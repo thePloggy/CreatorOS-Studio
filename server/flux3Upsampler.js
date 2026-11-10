@@ -1,10 +1,10 @@
 /* ============================================================
-   Réécriveur de prompt FLUX 3 Image Klein.
-   BFL : « Always run a prompt upsampler » — le modèle est entraîné sur des descriptions complètes,
-   un prompt court donne une image générique. Le prompt système est celui des workflows officiels
-   ComfyUI (image_flux3_klein_distilled_t2i), exécuté ici par le LLM local (Ollama) au lieu du
-   Qwen3.5-9B dédié. Un personnage entraîné garde son visage : on demande au réécriveur de ne
-   décrire ni cheveux, ni yeux, ni peau, ni origine pour lui.
+   FLUX 3 Image Klein prompt rewriter.
+   The model is trained on full descriptions; a short prompt gives a generic image.
+   The system prompt is the one from the official ComfyUI workflows
+   (image_flux3_klein_distilled_t2i), run by the local LLM (Ollama). For a trained
+   character the rewriter is told not to describe hair, eyes, skin or ethnicity,
+   so the LoRA keeps the face.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,7 +14,7 @@ import { fetchOllama } from './gpu.js'
 
 const SYSTEME = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'flux3-upsampler-system.txt'), 'utf8')
 
-/** Un prompt déjà long (plus de 120 mots) est pris pour une description complète et passe tel quel. */
+/** A prompt that is already long (over 120 words) is treated as a full description and passed through. */
 export const aReecrire = texte => String(texte ?? '').trim().split(/\s+/).length < 120
 
 export async function reecrireFlux3(texte, { largeur, hauteur, personnage = false } = {}) {
@@ -38,8 +38,8 @@ export async function reecrireFlux3(texte, { largeur, hauteur, personnage = fals
   return personnage ? sansApparence(sortie) : sortie
 }
 
-/* Un LLM généraliste ajoute quand même une apparence (« fair skin, long brown hair ») ou cache le visage
-   (« her face obscured by the hat ») : ces mots contredisent la LoRA du personnage, on les retire. */
+/* A general-purpose LLM may still add appearance ("fair skin, long brown hair") or hide the face
+   ("her face obscured by the hat"): these words contradict the character LoRA and are removed. */
 const APPARENCE = [
   /,?\s*(with\s+)?(very\s+)?(fair|pale|light|olive|tan(?:ned)?|brown|dark|medium|warm|golden|sun-?kissed|bronzed)\s+(?:-\s*)?(?:skin(?:ned)?|complexion)/gi,
   /,?\s*(with\s+)?((long|short|shoulder-length|wavy|curly|straight|flowing|loose|tousled|windswept)\s+)*(blonde?|brown|black|red|auburn|dark|chestnut|copper|ginger|light|golden|raven)(-|\s)?(haired|hair)\b/gi,

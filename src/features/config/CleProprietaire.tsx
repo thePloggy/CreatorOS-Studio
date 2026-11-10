@@ -1,4 +1,4 @@
-/* Réglage « Propriétaire » : n'apparaît que si le serveur est verrouillé. */
+/* "Owner" setting: shown only when the server is locked. */
 import { useEffect, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { fmtDur } from '../../lib/progress'
@@ -33,7 +33,7 @@ export function CleProprietaire() {
   )
 }
 
-/** Visiteurs par jour (comptés sans rien garder de personnel, cf. server/visites.js). */
+/** Visitors per day (counted without keeping personal data, see server/visites.js). */
 function Visites() {
   const [d, setD] = useState<{
     jours: { jour: string; visiteurs: number; pages: number; rendus: number; rendusProprietaire?: number; refuses: number; tailnet: number }[]
@@ -55,7 +55,7 @@ function Visites() {
   </>)
 }
 
-/** Les derniers rendus lancés par des visiteurs d'Internet, et leur issue (cf. server/visites.js). */
+/** Latest renders started by Internet visitors, and their outcome (see server/visites.js). */
 function JournalVisiteurs({ journal, enCours }: { journal: { at: number; job?: string; type: string; statut: string; dureeMs?: number; erreur?: string }[]; enCours: number }) {
   const couleur: Record<string, string> = { 'terminé': '#5ec27a', 'échec': '#e06c6c', 'refusé': '#f0b43c', 'annulé': 'inherit' }
   return (
@@ -80,7 +80,7 @@ function JournalVisiteurs({ journal, enCours }: { journal: { at: number; job?: s
   )
 }
 
-/** Ligne affichée à la place d'un bouton d'édition, pour le visiteur. */
+/** Line shown to visitors in place of an edit button. */
 export function Verrouille({ style }: { style?: React.CSSProperties }) {
   return <div style={{ fontSize: 12, opacity: 0.6, ...style }}>🔒 {t('Réglé par le propriétaire du studio')}</div>
 }

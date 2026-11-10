@@ -1,18 +1,17 @@
 /* ============================================================
-   Worker réel (§8) — implémente GenerationWorker.
+   API worker — implements GenerationWorker.
 
-   Le job part sur /api/jobs (backend Fastify), qui le sérialise
-   vers ComfyUI. On suit ensuite l'avancement
-   par interrogation périodique, et on émet l'Asset réel — dont
-   l'`uri` pointe sur une image servie depuis /media.
+   The job is posted to /api/jobs (Fastify backend), which serializes
+   it to ComfyUI. Progress is then polled, and the resulting Asset is
+   emitted — its `uri` points to an image served from /media.
    ============================================================ */
 import type { GenerationWorker, Job, Asset, MediaMode, Register, CaptionOption } from '../types'
 
 type UpdateCb = (job: Job, asset?: Asset) => void
 
-/** Réponse de /api/assets et /api/jobs/:id (contrat backend). */
+/** Response of /api/assets and /api/jobs/:id (backend contract). */
 export interface ApiAsset {
-  /** Recette, moteur, opération et LoRA, en minuscules : pour la recherche. */
+  /** Recipe, engine, operation and LoRA, lowercased: for search. */
   search?: string
   id: string
   jobId: string
@@ -40,8 +39,8 @@ export interface ApiAsset {
   batchIds?: string[]
   batchLocks?: Record<string, boolean>
   renderMs?: number | null
-  /* Provenance jointe par GET /api/assets — c'est elle qui rend clonable
-     un asset rechargé depuis la base (le Job n'est plus en mémoire). */
+  /* Provenance joined by GET /api/assets — it makes an asset reloaded
+     from the database clonable (the Job is no longer in memory). */
   recipeId?: string
   seed?: Job['seed']
   selections?: Job['selections']
@@ -77,9 +76,9 @@ interface ApiJob {
   selections: Job['selections'] | null
 }
 
-/** Cadence d'interrogation : une image prend ~25 s, une seconde suffit. */
+/** Polling interval: an image takes ~25 s, one second is enough. */
 const POLL_MS = 1000
-/** Statuts terminaux côté backend. */
+/** Backend terminal statuses. */
 const TERMINAL = new Set(['done', 'blocked'])
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -89,8 +88,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
-/** Convertit un asset backend en Asset du modèle front, en rattachant
- *  la provenance portée par le job (le backend la stocke aussi en base). */
+/** Converts a backend asset into a front-end Asset, attaching the
+ *  provenance carried by the job (the backend also stores it in the database). */
 export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
   return {
     id: a.id,
@@ -104,16 +103,15 @@ export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
     register: 'sfw',
     provenance: {
       selections: (job?.selections ?? a.selections ?? {}) as Job['selections'],
-      /* La seed RÉELLEMENT tirée gagne. Le job local garde `{mode:'random'}`
-         sans valeur tant que le serveur n'a pas répondu : préféré tel quel,
-         il masquait la seed de l'asset et la vue détail affichait
-         « aléatoire » sur des rendus terminés. */
+      /* The seed ACTUALLY drawn wins. The local job keeps `{mode:'random'}`
+         with no value until the server responds; using it would hide the
+         asset's seed. */
       seed: (job?.seed?.value != null ? job.seed : undefined) ?? a.seed ?? job?.seed ?? { mode: 'random' },
       recipeId: job?.recipeId ?? a.recipeId ?? '',
       composedPositive: job?.composedPositive ?? a.composedPositive ?? '',
       composedNegative: job?.composedNegative ?? a.composedNegative ?? '',
-      // Indispensables au clonage : sans eux le champ « Prompt image »
-      // ne peut pas être repeuplé (cf. store.cloneFrom).
+      // Required for cloning: without them the "Prompt image" field
+      // cannot be repopulated (see store.cloneFrom).
       userPrompt: job?.userPrompt ?? a.userPrompt ?? '',
       userDirectives: job?.userDirectives ?? a.userDirectives ?? '',
       initialBrief: job?.initialBrief ?? a.initialBrief ?? undefined,
@@ -142,7 +140,7 @@ export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
     folders: a.folders ?? undefined,
     caption: a.caption ?? undefined,
     captionOptions: a.captionOptions ?? undefined,
-    // contrôle automatique du clip (server/controle.js), absent tant qu'il n'a pas tourné
+    // automatic clip check (server/controle.js), absent until it has run
     controle: a.controle ?? undefined,
   }
 }
@@ -157,17 +155,17 @@ class ApiWorker implements GenerationWorker {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(job),
       })
-      /* Clé déjà vue sur un AUTRE job : ce n'est pas une reprise de celui-ci,
-         il n'existe pas et n'existera pas. On le dit, au lieu d'interroger
-         sans fin un identifiant inconnu du serveur. */
+      /* Key already seen on ANOTHER job: this is not a resume of this one,
+         it does not exist. Report it instead of polling an id unknown to
+         the server forever. */
       if (r?.duplicate && r.id && r.id !== job.id) {
         console.error(`[worker] ${job.id} non créé : même clé d'envoi que #${r.id}`)
         this.emit({ ...job, status: 'blocked' })
         return
       }
     } catch (e) {
-      // Refus immédiat (prompt vide, backend absent) : le job est bloqué,
-      // on le dit au front plutôt que de le laisser « queued » pour toujours.
+      // Immediate rejection (empty prompt, backend missing): the job is blocked,
+      // report it to the front end instead of leaving it "queued" forever.
       this.emit({ ...job, status: 'blocked', error: String((e as Error)?.message ?? e), refusEnvoi: true } as Job)
       console.error('[worker] refus du backend :', e)
       return
@@ -175,9 +173,9 @@ class ApiWorker implements GenerationWorker {
     this.poll(job)
   }
 
-  /** Interroge jusqu'à un statut terminal et relaie chaque transition. */
-  /** Jobs déjà suivis : un seul suivi par job, même si l'état est rechargé
-   *  plusieurs fois (resynchronisation au retour sur l'onglet). */
+  /** Polls until a terminal status and relays each transition. */
+  /** Jobs already tracked: one tracker per job, even if state is reloaded
+   *  several times (resync when the tab regains focus). */
   private suivis = new Set<string>()
 
   private poll(job: Job) {
@@ -188,10 +186,10 @@ class ApiWorker implements GenerationWorker {
     let lastApercu: number | undefined
     let lastRang: number | undefined
     let pannes = 0
-    /* Le suivi ne doit JAMAIS mourir en silence : une exception hors de
-       l'appel réseau (réponse inattendue, erreur à l'émission) arrêterait la
-       boucle, et la carte resterait « en rendu » avec un chrono qui tourne. Toute
-       erreur relance le suivi ; on n'abandonne qu'après 40 échecs de suite. */
+    /* Tracking must NEVER die silently: an exception outside the network call
+       (unexpected response, emit error) would stop the loop and leave the
+       card "rendering" forever. Any error restarts tracking; it gives up only
+       after 40 consecutive failures. */
     const tick = async () => {
       try {
         if (await pas()) this.suivis.delete(job.id)
@@ -199,21 +197,21 @@ class ApiWorker implements GenerationWorker {
         pannes = 0
       } catch (e) {
         if (++pannes > 40) { this.suivis.delete(job.id); console.error(`[job ${job.id}] suivi abandonné`, e); return }
-        setTimeout(tick, POLL_MS * 3)   // backend indisponible ou réponse illisible
+        setTimeout(tick, POLL_MS * 3)   // backend unavailable or unreadable response
       }
     }
-    /** Un pas de suivi ; rend true quand le job est terminé. */
+    /** One tracking step; returns true when the job is finished. */
     const pas = async (): Promise<boolean> => {
       const r: { job: ApiJob; assets: ApiAsset[] } = await api(`/api/jobs/${encodeURIComponent(job.id)}`)
       const status = r.job.status as Job['status']
       const done = TERMINAL.has(r.job.status)
 
-      /* En mode aléatoire, la seed est tirée par le backend : le job local
-         part avec `value: undefined`. On la rapatrie, sinon un rendu vu à
-         l'écran n'est plus reproductible — ni par verrou, ni par clonage. */
+      /* In random mode the backend draws the seed: the local job starts with
+         `value: undefined`. Fetch it back, otherwise an on-screen render is
+         not reproducible (by lock or clone). */
       const withSeed = (j: Job): Job => ({
         ...(Number.isFinite(r.job.seed as number) ? { ...j, seed: { mode: j.seed.mode, value: r.job.seed as number } } : j),
-        // Horodatage du rendu : « en rendu depuis » et « rendu en » dans la file.
+        // Render timestamps: "rendering since" and "rendered in" in the queue.
         startedAt: r.job.startedAt ?? j.startedAt ?? null,
         durationMs: r.job.durationMs ?? j.durationMs ?? null,
         estimatedMs: r.job.estimatedMs ?? j.estimatedMs ?? null,
@@ -222,13 +220,13 @@ class ApiWorker implements GenerationWorker {
       if (done) {
         if (r.job.error) console.error(`[job ${job.id}] ${r.job.error}`)
         const updated: Job = withSeed({ ...job, status, error: r.job.error ?? null })
-        // Un job peut produire plusieurs images : on les émet toutes.
+        // A job can produce several images: emit all of them.
         if (r.assets.length) r.assets.forEach(a => this.emit(updated, toAsset(a, job)))
         else this.emit(updated)
         return true
       }
-      /* La progression change à chaque pas d'échantillonnage : on émet aussi
-         quand elle bouge, sinon la barre resterait figée sur « rendering ». */
+      /* Progress changes on every sampling step: also emit when it moves,
+         otherwise the bar would stay stuck on "rendering". */
       const prog = r.job.progress
       if (status !== last || prog || r.job.phase !== lastPhase || r.job.apercu !== lastApercu || r.job.file?.rang !== lastRang) {
         last = status
@@ -242,9 +240,9 @@ class ApiWorker implements GenerationWorker {
     setTimeout(tick, 300)
   }
 
-  /** Reprend le SUIVI d'un job déjà soumis (rechargement de page, autre
-   *  appareil) : même boucle d'interrogation que submit, sans re-soumettre.
-   *  Le serveur est la source de vérité — le front ne fait que s'y abonner. */
+  /** Resumes TRACKING of an already-submitted job (page reload, other
+   *  device): same polling loop as submit, without resubmitting.
+   *  The server is the source of truth; the front end only subscribes. */
   adopt(job: Job): void {
     this.poll(job)
   }
@@ -262,9 +260,9 @@ class ApiWorker implements GenerationWorker {
 const apiWorkerInstance = new ApiWorker()
 export const worker: GenerationWorker & { adopt: (job: Job) => void } = apiWorkerInstance
 
-/** Charge la bibliothèque persistée au démarrage (SQLite → galerie). */
-/** Assets d'un autre personnage, ou de tous (`'all'`) — le montage en a besoin
- *  pour un plan qui ne vient pas de la bibliothèque affichée. */
+/** Loads the persisted library at startup (SQLite → gallery). */
+/** Assets of another character, or of all (`'all'`) — editing needs them
+ *  for a shot not from the displayed library. */
 export async function fetchAssetsDe(persona: string): Promise<Asset[]> {
   const { assets } = await api<{ assets: ApiAsset[] }>(`/api/assets?limit=5000&persona=${encodeURIComponent(persona)}`)
   return assets.map(a => toAsset(a))
@@ -275,19 +273,19 @@ export async function fetchAssets(): Promise<Asset[]> {
   return assets.map(a => toAsset(a))
 }
 
-/** Supprime un asset : ligne, provenance ET fichier sur disque.
- *  Irréversible — l'appelant confirme avant. */
+/** Deletes an asset: row, provenance AND file on disk.
+ *  Irreversible — the caller confirms first. */
 export async function deleteAsset(id: string) {
   await api(`/api/assets/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-/** Annule un job : retiré de la file s'il attend, interrompu s'il tourne.
- *  409 = déjà terminé — l'appelant l'affiche, ce n'est pas une erreur grave. */
+/** Cancels a job: removed from the queue if waiting, interrupted if running.
+ *  409 = already finished — the caller shows it, not a serious error. */
 export async function cancelJob(id: string) {
   await api(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-/** Écrit la revue manuelle en base (le front n'est plus la source de vérité). */
+/** Writes the manual review to the database (the server is the source of truth). */
 export async function pushReview(id: string, patch: {
   reviewStatus?: Asset['reviewStatus']
   exportReady?: boolean

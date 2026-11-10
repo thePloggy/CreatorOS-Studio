@@ -1,18 +1,18 @@
 /* ============================================================
-   Reel en un clic — un brief, et l'app réalise le reel :
-     1. RÉDACTION   le réalisateur (LLM local) écrit 4 à 6 plans d'une même
-                    séance (même tenue, même lieu, même lumière), une accroche,
-                    et pour chaque plan l'image fixe ET le mouvement ;
-     2. PHOTOS      un rendu photo par plan, avec l'identité du personnage ;
-     3. CLIPS       chaque photo animée en LTX-2.5 (image → vidéo, son
-                    d'ambiance), avec la LoRA vidéo du personnage s'il en a ;
-     4. MONTAGE     un projet de l'onglet Montage, monté tout seul (fondus,
-                    accroche sur le premier plan, musique), puis exporté.
-   Chaque étape passe par la file de rendu ordinaire : un plan raté se refait
-   comme n'importe quel job, et le montage reste modifiable ensuite.
+   One-click reel: a brief, and the app produces the reel:
+     1. WRITING     the director (local LLM) writes 4 to 6 shots of one
+                    session (same outfit, place, light), a hook, and for
+                    each shot the still AND the motion;
+     2. PHOTOS      one photo render per shot, with the character identity;
+     3. CLIPS       each photo animated with LTX-2.5 (image → video, ambient
+                    sound), with the character's video LoRA if any;
+     4. MONTAGE     a Montage tab project, auto-assembled (fades, hook on
+                    the first shot, music), then exported.
+   Every step goes through the regular render queue: a failed shot is redone
+   like any job, and the montage stays editable afterwards.
 
-   L'état vit en base (table `reels`) : la boucle de suivi reprend après un
-   redémarrage, sauf une rédaction interrompue (à relancer).
+   State lives in the database (table `reels`): the tracking loop resumes
+   after a restart, except an interrupted writing step (to be relaunched).
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -33,10 +33,10 @@ import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 const lancer = promisify(execFile)
 
-/* Voix off du reel : une phrase par plan, écrite par le même LLM, dite par Kokoro (anglais).
-   Une phrase doit finir avant la coupe : son nombre de mots est borné par la durée du plan
-   (environ 2,3 mots par seconde), vérifié en code ; une phrase trop longue est réécrite une
-   fois, puis coupée à sa dernière ponctuation, sinon le plan reste muet. */
+/* Reel voice-over: one sentence per shot, written by the same LLM, spoken by Kokoro (English).
+   A sentence must end before the cut: its word count is bounded by the shot duration
+   (about 2.3 words per second), checked in code; a too-long sentence is rewritten once,
+   then cut at its last punctuation, otherwise the shot stays silent. */
 export const motsMax = pas => Math.max(4, Math.floor(pas * 2.3) - 1)
 const nbMots = l => String(l).trim().split(/\s+/).filter(Boolean).length
 async function demanderLignes({ system, prompt }) {
@@ -63,7 +63,7 @@ export async function narrer({ brief, plans, nom, pas }) {
       const refaites = await demanderLignes({ system, prompt: `${prompt}\n\nThese lines are too long, rewrite each in at most ${max} words, same meaning:\n`
         + longues.map(k => `Shot ${k + 1}: ${lignes[k]}`).join('\n') })
       longues.forEach((k, j) => { const l = String(refaites[j] ?? '').trim(); if (l && nbMots(l) <= max) lignes[k] = l })
-    } catch { /* la coupe ci-dessous garde le reel sonorisé */ }
+    } catch { /* the trim below keeps the reel with sound */ }
   }
   const tenir = l => {
     if (nbMots(l) <= max) return l
@@ -76,7 +76,7 @@ export async function narrer({ brief, plans, nom, pas }) {
 
 const dureeAudio = f => { try { return Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f], { encoding: 'utf8' })) || 0 } catch { return 0 } }
 
-/** Une piste : chaque phrase posée au début de son plan, sous la musique (abaissée quand la voix parle). */
+/** One track: each sentence placed at the start of its shot, under the music (ducked when the voice speaks). */
 export async function pisteNarree(r, nbPlans, pasPlan) {
   const morceaux = []
   for (const [k, l] of (r.narration ?? []).entries()) {
@@ -109,9 +109,9 @@ store.db.exec(`CREATE TABLE IF NOT EXISTS reels (
   id TEXT PRIMARY KEY, persona_id TEXT, brief TEXT NOT NULL, etat TEXT NOT NULL,
   data TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`)
 
-/* Clé Comfy Cloud du visiteur : les jobs d'un reel partent plus tard, depuis la
-   boucle de suivi, hors de la requête qui la portait. Gardée EN MÉMOIRE seulement
-   (jamais en base), le temps du reel ; perdue au redémarrage, comme partout ailleurs. */
+/* Visitor's Comfy Cloud key: reel jobs are submitted later, from the tracking loop,
+   outside the request that carried it. Kept IN MEMORY only (never in the database)
+   for the reel's lifetime; lost on restart. */
 const cles = new Map()
 const enqueue = (reelId, job) => deposerAvecCle(cles.get(reelId) ?? null, () => enfiler(job))
 
@@ -127,12 +127,12 @@ function ecrire(id, etat, patch) {
   return lireReel(id)
 }
 
-/* ---------- 1. rédaction ----------
-   Même méthode que le carrousel : le CODE distribue à chaque plan sa place dans le récit
-   (cadrage, angle, geste, mouvement de caméra, accessoire), tirés sans répétition ; le
-   réalisateur remplit des champs séparés (geste, appui, objet exact, image, mouvement) ;
-   des contrôles écrits en code relèvent les fautes, et seuls les plans fautifs sont
-   redemandés, avec la faute écrite à côté. */
+/* ---------- 1. writing ----------
+   Same method as the carousel: the CODE assigns each shot its place in the story
+   (framing, angle, gesture, camera move, prop), drawn without repetition; the
+   director fills separate fields (gesture, support, exact object, image, motion);
+   code checks flag the faults, and only faulty shots are requested again,
+   with the fault written next to them. */
 const melange = a => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]] } return b }
 const ARCS = {
   3: ['wide establishing shot', 'medium shot', 'close-up'],
@@ -141,7 +141,7 @@ const ARCS = {
   6: ['wide establishing shot', 'medium-wide shot', 'medium shot', 'close-up detail', 'medium shot', 'wide closing shot'],
 }
 const SERRE = /close-up/i
-// toujours le visage dans le champ : l'identité du clip vient du visage de la photo de départ
+// face always in frame: the clip's identity comes from the face in the starting photo
 const ANGLES = ['camera at her eye level', 'slightly low angle', 'from slightly above', 'three-quarter front view', 'three-quarter view from her side, her face toward the camera']
 const DOS = /\b(from behind|her back (is )?(to|toward)|back to the camera|facing away|seen from behind|over her shoulder|turn(s|ing|ed)? away|walk(s|ing)? away|looks? away from the camera|her face (is )?(hidden|out of frame|not visible)|only her hands|hands only|silhouette)\b/i
 const CAMERA = [['subtle slow push-in, the framing tightens only slightly', /push(es|ing)?[- ]in|dolly in|moves? (in|closer)/i], ['gentle pan', /\bpan/i], ['handheld follow', /handheld|follows?/i],
@@ -224,7 +224,7 @@ const racinesAction = t => String(t ?? '').replace(/\b[A-Z][a-z]+'?s?\b/g, ' ').
 const partage = (a, b) => { const r = racinesAction(a), p = new Set(racinesAction(b)); return r.length ? r.filter(m => p.has(m)).length / r.length : 1 }
 const vide = x => /^(none|no|nothing|n\/a|-)?\.?$/i.test(String(x ?? '').trim())
 const teteObjet = o => String(o).toLowerCase().match(/[a-z]+/g)?.filter(w => w.length > 2 && !['the', 'and', 'with', 'her', 'its'].includes(w)).pop()
-/** Fautes d'un plan face à son affectation, en anglais pour le réalisateur. */
+/** Faults of a shot against its assignment, in English for the director. */
 export function fautesPlan(s, a, autres = [], duBrief = []) {
   const f = [], still = String(s?.still ?? '').trim(), motion = String(s?.motion ?? '').trim()
   const mots = still.split(/\s+/).filter(Boolean).length
@@ -287,12 +287,12 @@ export async function rediger({ brief, n, nom, langue }) {
   return { ...out, shots, affectations: aff, fautes }
 }
 
-/* ---------- rédaction, 2e manière ----------
-   Le reel raconte une petite histoire : le réalisateur (modèle plus fort) écrit d'abord le
-   récit en temps forts (accroche, moment fort, chute), puis un plan par temps fort, chacun
-   à un ENDROIT différent du lieu, avec une échelle et un angle différents, et un look de
-   cinéma commun (boîtier, optique, pellicule, étalonnage) choisi pour l'ambiance.
-   Un découpage déjà écrit dans le brief (« [Shot 1] … ») est suivi plan par plan. */
+/* ---------- writing, second mode ----------
+   The reel tells a short story: the director (stronger model) first writes the
+   story as beats (hook, peak, payoff), then one shot per beat, each at a different
+   SPOT of the location, with a different scale and angle, and a shared cinema look
+   (body, lens, film stock, grade) chosen for the mood.
+   A shot list already written in the brief ("[Shot 1] …") is followed shot by shot. */
 export const MODELE_REALISATEUR = process.env.CREATOROS_REALISATEUR || 'qwen3.5:35b'
 const LOOKS_REEL = {
   'golden-hour': 'shot on a large-format digital cinema camera with a spherical prime lens, warm golden hour sunlight, low sun, long soft shadows, gentle film grain, warm amber color grade',
@@ -389,8 +389,8 @@ async function appeler2({ system, prompt, format, temperature, predire }) {
   if (!res.ok) throw new Error(`le réalisateur (LLM) a refusé : HTTP ${res.status}`)
   return JSON.parse(String((await res.json()).response || '{}'))
 }
-/* Ce que le modèle vidéo rate ou que la vraie vie n'autorise pas, relevé en code :
-   un animal (figé ou fondu), la vaisselle d'un café hors d'un café. */
+/* What the video model gets wrong or real life does not allow, checked in code:
+   an animal (frozen or melting), café tableware outside a café. */
 const ANIMAUX = /\b(pigeons?|birds?|seagulls?|gulls?|doves?|ducks?|swans?|dogs?|puppy|puppies|cats?|kittens?|horses?|animals?|squirrels?)\b/i
 const VAISSELLE = /\b(ceramic|porcelain|china)\b[^.]{0,30}\b(cups?|mugs?|saucers?|plates?)\b|\bsaucers?\b/i
 const LIEU_CAFE = /\b(caf[eé]s?|coffee (shop|bar)|bistro|bar|restaurant|terrace|kitchen|table)\b/i
@@ -418,7 +418,7 @@ export async function rediger2({ brief, n, nom, langue, formatImpose }) {
   const shots = out.shots.slice(0, n)
   const objetsAvant = k => shots.slice(0, k).map(x => x.object).filter(o => !vide(o))
   const duBrief = (out.brief_objects ?? []).map(String).filter(x => x.trim()).slice(0, 4)
-  // les contrôles du geste assigné ne s'appliquent pas : le geste vient du récit
+  // assigned-gesture checks do not apply: the gesture comes from the story
   const controles = (x, k) => [...fautesPlan(x, aff[k], objetsAvant(k), duBrief).filter(f => !/does not show the action|the brief names|another shot already uses this object/.test(f)), ...fautesVraieVie(x)]
   let fautes = shots.map(controles)
   const aRefaire = fautes.map((f, k) => (f.length ? k : -1)).filter(k => k >= 0)
@@ -435,12 +435,13 @@ export async function rediger2({ brief, n, nom, langue, formatImpose }) {
   return { ...out, format, shots, affectations: aff, fautes, look: LOOKS_REEL[out.look] ?? LOOKS_REEL['natural-day'] }
 }
 
-/* ---------- écriture v3 : le LLM n'écrit que le contenu, le code tient le rendu ----------
-   Même raisonnement que la v2 (situation, lieux, actions, histoire, accroche), mais chaque plan n'a
-   plus de « still » rédigée d'un bloc : le LLM donne l'endroit, la pose au premier instant, l'expression
-   et le geste ; le code compose la photo (cadrage et angle assignés, puis tenue, lieu, lumière et look
-   communs à tout le reel) et le mouvement (geste écrit + mouvement de caméra assigné). Les mots de rendu
-   et de caméra sont listés au LLM, rappelés après la demande, et retirés s'ils passent quand même. */
+/* ---------- writing, third mode: the LLM writes only content, code owns the rendering ----------
+   Same reasoning as the second mode (situation, places, actions, story, hook), but no shot has
+   a "still" written in one block: the LLM gives the spot, the pose at the first instant, the
+   expression and the gesture; code composes the photo (assigned framing and angle, then outfit,
+   place, light and look shared by the whole reel) and the motion (written gesture + assigned camera
+   move). Rendering and camera words are listed to the LLM, repeated after the request, and removed
+   if they still slip through. */
 const INTERDITS3 = [...MOTS_RENDU, ...MOTS_CAMERA]
 const SCHEMA3 = (n, tenueParPlan = false) => ({
   type: 'object', required: ['situation', 'goal', 'times', 'places', 'actions', 'story', 'hook', 'brief_objects', 'outfit', 'location', 'light', 'look', 'shots'],
@@ -485,7 +486,7 @@ Then one shot per line, shot k = places[k] + actions[k]:
 Real life: objects stay where they belong (a café cup stays at the café); what she holds stays in her hand until a shot shows her putting it down; physical actions happen in their order; her face is visible in every shot (front, three-quarter or profile), she never turns her back or walks away. She is alone in her space: nobody near her (no waiter, vendor or friend); passers-by only far away and blurred. No animals. No text, signs or brands. Never put on or take off clothes inside a shot. Fully clothed, safe for work, no real people.
 Everything except the hook in English.`
 }
-/* Un endroit déjà quitté : il partage la plupart de ses mots-clés avec un endroit d'avant (hors le plan juste avant). */
+/* A spot already left: it shares most of its keywords with an earlier spot (excluding the previous shot). */
 function retourLieu(spot, avant) {
   const cles = t => new Set(String(t ?? '').toLowerCase().match(/[a-z]{4,}/g)?.filter(w => !['with', 'near', 'over', 'from', 'that', 'this', 'their', 'small', 'large', 'quiet', 'wooden'].includes(w)) ?? [])
   const a = cles(spot)
@@ -499,16 +500,16 @@ export async function rediger3({ brief, n, nom, langue, formatImpose }) {
   const demande = `Brief: ${brief}\nWrite the situation, the places, the actions, the story, the hook, the reel fields, then one shot per line:\n${lignes.join('\n')}\n${rappel(INTERDITS3)}`
   const out = await appeler2({ system, prompt: demande, format: SCHEMA3(n, FORMATS[format].tenueParPlan), temperature: 0.8, predire: 4500 })
   if (!Array.isArray(out.shots) || out.shots.length < 2) throw new Error('le réalisateur n’a pas rendu de plans exploitables')
-  // le code compose : cadrage et angle assignés, puis le contenu écrit, sans mot de rendu ni de caméra
+  // code composes: assigned framing and angle, then the written content, without rendering or camera words
   const net = t => sansMots(nettoyer(t), INTERDITS3).replace(/[.\s]+$/, '')
   const composerPlan = (x, k) => {
     const a = aff[k], expr = net(x.expression)
-    // l'endroit en groupe nominal : sans « At », sans le nom ni la personne, en minuscule sauf nom propre
+    // the spot as a noun phrase: no "At", no name or person, lowercase except proper nouns
     const spot = net(x.spot).replace(/^(at|in|on|inside|near)\s+/i, '').replace(new RegExp(`^${nom}\\s+\\w+(ing)?\\s+(at|in|on|by|near)?\\s*`, 'i'), '')
       .replace(/^([A-Z])(?=[a-z]+\s+[a-z])/, c => c.toLowerCase())
     let pose = net(x.pose)
     if (!new RegExp(`^(${nom}|she|her)\\b`, 'i').test(pose)) pose = `${nom}, ${pose.replace(/^([A-Z])/, c => c.toLowerCase())}`
-    // l'objet assigné doit être dans la photo : s'il manque à la pose, le code l'ajoute
+    // the assigned object must be in the photo: if the pose lacks it, code adds it
     if (!vide(x.object) && teteObjet(x.object) && !pose.toLowerCase().includes(teteObjet(x.object))) pose = `${pose}, with ${net(x.object).replace(/^(a|an|the)\s+/i, 'her ')}`
     const geste = net(x.motion)
     return { ...x, geste, still: phrase(`${a.cadrage}, ${a.angle}, ${spot}. ${pose}${expr ? `, ${expr}` : ''}`),
@@ -523,7 +524,7 @@ export async function rediger3({ brief, n, nom, langue, formatImpose }) {
     ...(/\b(jacket|coat|scarf|wetsuit|dress|shirt|sweater|hoodie|blazer|top|skirt|trousers|jeans|shorts|swimsuit|bikini)\b/i.test(String(x.object ?? '')) && !vide(x.object) ? ['the object is a piece of clothing: hands never hold or put on clothes — choose a small object or "none"'] : []),
     ...(/\b(surf ?board|board|suitcase|luggage|bicycle|bike|umbrella|paddle|ladder)\b/i.test(`${x.object} ${x.motion}`) && /\b(lift(s|ing)?|rais(e|es|ing)|hold(s|ing)? (it )?(up|above|over)|above her head|overhead|in the air|swing(s|ing)?)\b/i.test(String(x.motion ?? '')) ? ['a big object is lifted in the motion: it stays under her arm or on the ground'] : []),
     ...(/\b(pull(s|ing)? (it |the \w+ )?(down|off)|unzip(s|ping)?|take(s)? off|taking off|remov(e|es|ing) (her|the) (top|shirt|wetsuit|jacket|dress|sweater|hoodie)|undress)/i.test(`${x.motion} ${x.pose}`) ? ['she never takes off or pulls down clothing: choose another gesture'] : []),
-    // un mouvement vidé par le nettoyage (il ne parlait que de caméra ou de lenteur) : à réécrire
+    // a motion emptied by cleanup (it only mentioned camera or slowness): to be rewritten
     ...(x.geste ? [] : ['motion is empty: write what SHE does, one action, no camera words'])]
   let fautes = shots.map(controles)
   const aRefaire = fautes.map((f, k) => (f.length ? k : -1)).filter(k => k >= 0)
@@ -540,19 +541,18 @@ export async function rediger3({ brief, n, nom, langue, formatImpose }) {
   return { ...out, format, shots, affectations: aff, fautes, look: LOOKS_REEL[out.look] ?? LOOKS_REEL['natural-day'] }
 }
 
-/* Tenue cadrée : dans un gros plan, les chaussures et les bas ne sont pas nommés — le
-   modèle montre ce qu'on lui nomme, et un gros plan avec « white sneakers » recule en pied.
-   Le vêtement lui-même n'est jamais retiré : ce qui n'est pas nommé n'existe pas. */
+/* Framed outfit: in a close-up, shoes and legwear are not named, since the model
+   shows what it is told and naming them pulls the shot back to full body.
+   The garment itself is never removed: what is not named does not exist. */
 export function tenueCadree(tenue, cadrage) {
   if (!SERRE.test(cadrage)) return tenue
   const morceaux = String(tenue).split(/\s*,\s*|\s+and\s+/).filter(m => m && !PIEDS.test(m))
   return morceaux.length ? morceaux.join(', ') : tenue
 }
 
-/* Le réalisateur (mistral-small) ne tient pas toujours les interdits du mouvement :
-   « She puts the car in drive and begins to pull away », « she adjusts her
-   sunglasses » (LTX ajoute alors une 2e paire sur son nez). Les phrases
-   fautives sont retirées ; s'il ne reste rien, un geste sûr les remplace. */
+/* The director does not always respect motion restrictions (e.g. driving away,
+   adjusting sunglasses, which makes LTX add a second pair). Faulty sentences are
+   removed; if nothing remains, a safe gesture replaces them. */
 const INFAISABLE = /\b(put(s|ting)? on|take(s)? off|taking off|adjust(s|ing)?|sunglasses|glasses|hat\b|gets? (in|into|out)|climbs?|opens? the|closes? the|door|engine|ignition|drive(s|n)?\b|driving|pulls? (away|out|off)|gear|accelerat|speeds? (up|off)|starts? the car|picks? up|hands? (her|him|over)|holds? up)/i
 const GESTE_SUR = 'Her hair and clothes move gently in the wind, she breathes naturally and smiles softly. The camera slowly pushes in.'
 function geste(motion) {
@@ -561,10 +561,10 @@ function geste(motion) {
   return gardees.length && gardees.join(' ').split(/\s+/).length >= 8 ? gardees.join(' ') : GESTE_SUR
 }
 
-/* ---------- contrôle des plans avant le rendu ----------
-   Des règles écrites dans le code, pas un modèle qui juge : ce qui donne en pratique un
-   clip raté. Un plan fautif est réécrit UNE fois par le réalisateur ; ce qui reste
-   fautif part quand même, avec un avertissement sur sa carte. */
+/* ---------- shot checks before rendering ----------
+   Rules written in code, not a judging model: what in practice yields a failed
+   clip. A faulty shot is rewritten ONCE by the director; what stays faulty is
+   rendered anyway, with a warning on its card. */
 const CONTROLES_PLAN = [
   { code: 'enchaine', test: pl => /\b(then|and then|before|after that|afterwards|finally|while also)\b/i.test(pl.motion),
     dit: 'several actions chained in one shot: keep ONE gesture', fr: 'plusieurs actions dans un seul plan' },
@@ -585,15 +585,15 @@ const CONTROLES_PLAN = [
   { code: 'long', test: pl => pl.motion.split(/\s+/).length > 32,
     dit: 'motion too long: 12 to 25 words', fr: 'mouvement trop long' },
 ]
-// toute autre personne dans le cadre prend le visage du personnage : elle est seule à l'image
+// any other person in frame takes the character's face: she is alone in the image
 const SEULE = ' She is the only person in focus; any other people are far in the background, small and blurred, their faces not visible.'
-/* Chez elle (une pièce de la maison) : nommer des passants lointains en fait apparaître derrière elle. Seule, sans exception. */
+/* At home (a room of the house): naming distant passers-by makes them appear behind her. Alone, no exception. */
 const SEULE_DEDANS = ' She is alone in the room: nobody else in the frame, no other person anywhere.'
 const INTERIEUR = /\b(kitchen|bedroom|bathroom|living room|lounge|hallway|corridor|apartment|flat|home|house|sofa|couch|bed|wardrobe|closet|vanity|desk|study|dining room|balcony|window ledge|entryway|doorway|staircase)\b/i
 const seule = (...lieux) => INTERIEUR.test(lieux.join(' ')) ? SEULE_DEDANS : SEULE
 export function controlerPlan(pl) { return CONTROLES_PLAN.filter(c => c.test(pl)) }
 
-/* ---------- lancement ---------- */
+/* ---------- launch ---------- */
 export function realiser({ brief, n, duree, musique, langue, cle, personaId, voix, calerMusique, proprietaire, ecriture, format }) {
   const v2 = ecriture === 2 || ecriture === 3
   const b = String(brief ?? '').trim().slice(0, v2 ? 1500 : 600)
@@ -608,9 +608,9 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
     langue: langue === 'en' ? 'English' : 'French',
     voix: voixAcceptee(voix, proprietaire), narration: null, calerMusique: calerMusique === true,
     plans: [], erreur: null, ecriture: ecriture === 3 ? 3 : v2 ? 2 : 1,
-    // un seul moteur pour toutes les photos du reel : Klein, qui part de la photo du plan
-    // précédent (même tenue, mêmes accessoires, même décor) avec la LoRA Klein du personnage
-    // ou sa photo de profil ; une graine commune tient le rendu
+    // one engine for all reel photos: Klein, starting from the previous shot's photo
+    // (same outfit, accessories, setting) with the character's Klein LoRA
+    // or profile photo; a shared seed keeps the render consistent
     moteurPhoto: 'klein', graine: Math.floor(Math.random() * 2 ** 31),
   }
   store.db.prepare('INSERT INTO reels (id, persona_id, brief, etat, data, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
@@ -621,8 +621,8 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
       const nom = String(p.name || 'the model').replace(/\s*\([^)]*\)\s*$/, '').trim()
       const r = ecriture === 3 ? await rediger3({ brief: b, n: data.n, nom, langue: data.langue, formatImpose: format }) : v2 ? await rediger2({ brief: b, n: data.n, nom, langue: data.langue, formatImpose: format }) : await rediger({ brief: b, n: data.n, nom, langue: data.langue })
       if (!enCours(id)) return
-      // « She wears A white linen shirt » : le LLM ouvre souvent sur une majuscule
-      // … ou répète le sujet (« She wears Mila wears a white blouse »)
+      // "She wears A white linen shirt": the LLM often starts with a capital
+      // … or repeats the subject ("She wears Mila wears a white blouse")
       const sujet = new RegExp(`^(?:${nom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|She)\\s+(?:wears|is wearing)\\s+`, 'i')
       const bas = x => String(x ?? '').trim().replace(sujet, '').replace(/^(A|An|The)\b/, m => m.toLowerCase()).replace(/[.\s]+$/, '')
       const lieu = String(r.location).trim().replace(/[.\s]+$/, ''), lumiere = String(r.light).trim().replace(/[.\s]+$/, '')
@@ -634,12 +634,12 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
           cadrage: a.cadrage, photoJob: null, clipJob: null }
         if (r.fautes[k]?.length) {
           console.log(`[reel ${id}] plan ${k + 1} : ${r.fautes[k].join(' ; ')}`)
-          // contrôle sur le mouvement écrit, pas sur la mention de vitesse ajoutée par le studio
+          // check the written motion, not the speed mention added by the studio
           const reste = controlerPlan({ still: pl.still, motion: geste(s.motion) })
           if (reste.length) pl.avertissements = reste.map(c => c.fr)
         }
         if (v2) {
-          // chaque plan à son endroit, le look de cinéma commun, l'optique selon le cadrage
+          // each shot at its spot, the shared cinema look, the lens depending on framing
           pl.endroit = String(s.spot ?? '').trim().replace(/[.\s]+$/, '')
           const tenue = FORMATS[r.format]?.tenueParPlan && String(s.outfit ?? '').trim() ? s.outfit : r.outfit
           pl.still = `${pl.still} She wears ${bas(tenueCadree(tenue, a.cadrage))}. ${pl.endroit ? `${pl.endroit}, ` : ''}${lieu}. ${lumiere}. ${r.look}, ${focaleDe(a.cadrage)}.${seule(pl.endroit, pl.still)}${anatomieImage(b)}`
@@ -649,7 +649,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
       for (const pl of plans) {
         if (t0Hit(`${pl.still} ${pl.motion}`)) throw new Error('un plan rédigé contient un terme bloqué (liste T0) — relancer')
       }
-      // la photo du plan 1 d'abord : c'est l'ancrage de la séance, les autres plans en sont tirés (cf. avancer).
+      // shot 1 photo first: it anchors the session, other shots derive from it (see avancer).
       const j = enqueue(id, { id: `${id}-p1`, mode: 'photo', register: 'sfw', personaId: p.id, purpose: 'creative', photoEngine: data.moteurPhoto, seed: { mode: 'lock', value: data.graine },
         composedPositive: plans[0].still, userPrompt: plans[0].still, composedNegative: '', width: 768, height: 1344, batchId: `reel-${id}`, reelId: id })
       plans[0].photoJob = j.id
@@ -667,7 +667,7 @@ export function realiser({ brief, n, duree, musique, langue, cle, personaId, voi
   return lireReel(id)
 }
 
-/* ---------- suivi : photos → clips → montage → export ---------- */
+/* ---------- tracking: photos → clips → montage → export ---------- */
 const etatJob = id => id ? store.getJob(id)?.status ?? 'absent' : null
 const premierAsset = id => (id && store.assetsOfJob(id).find(a => !String(a.id).endsWith('-full'))) || null
 const versInput = a => {
@@ -677,12 +677,12 @@ const versInput = a => {
   return nom
 }
 
-/* Les plans 2 à n sortent de la même séance que le plan 1 : sa photo leur sert de référence
-   (même femme, même tenue, même lieu, même lumière), seuls le cadrage et le geste changent. */
+/* Shots 2 to n come from the same session as shot 1: its photo is their reference
+   (same woman, outfit, place, light); only framing and gesture change. */
 const SOEUR = 'The same woman, in the same outfit, in the same place and under the same light as in the reference photo, a few seconds later in the same continuous shoot; the background, the colours and the time of day stay identical. '
-/* 2e manière : les photos se suivent de proche en proche. Le plan k prend pour référence
-   la photo du plan k-1 (où elle se trouve, le décor, la lumière) et celle du plan 1 (sa
-   tenue) : la balade avance au lieu de revenir sans cesse au décor du premier plan. */
+/* Second mode: photos chain step by step. Shot k references the photo of shot k-1
+   (where she is, setting, light) and that of shot 1 (her outfit): the walk moves
+   forward instead of returning to the first shot's setting. */
 function lancerSuivante(r, a0) {
   const k = r.plans.findIndex(pl => !pl.photoJob)
   if (k < 1) return false
@@ -695,9 +695,9 @@ function lancerSuivante(r, a0) {
   const aPrec = premierAsset(avant.photoJob)
   if (!aPrec) return false
   const pl = r.plans[k]
-  /* transition de tenues, à partir du 3e plan : la photo du 2e plan (elle en l'air) est
-     retouchée — seule la tenue change, la pose, le décor et la lumière restent identiques.
-     Klein, lui, recopie les vêtements de sa référence. */
+  /* outfit transition, from the 3rd shot: the 2nd shot's photo (her mid-air) is
+     edited; only the outfit changes, pose, setting and light stay identical.
+     Klein would copy its reference's clothing. */
   if (FORMATS[r.format]?.tenueParPlan && k >= 2) {
     const base = premierAsset(r.plans[1].photoJob)
     if (!base) return false
@@ -710,7 +710,7 @@ function lancerSuivante(r, a0) {
   }
   const refs = k === 1 || FORMATS[r.format]?.tenueParPlan ? [versInput(k === 1 ? a0 : aPrec)] : [versInput(aPrec), versInput(a0)]
   const lien = k === 1 ? 'the reference photo' : 'the first reference photo (where she was a moment ago) — her outfit as in the second reference photo'
-  // transition de tenues : même femme, même endroit, même cadrage — seule la tenue change
+  // outfit transition: same woman, same spot, same framing; only the outfit changes
   const neuve = FORMATS[r.format]?.tenueParPlan
     ? `The same woman, at exactly the same spot, with the same framing, background and light as in the reference photo, a moment later — but she now wears a completely different outfit, described below; ignore the clothes of the reference photo. `
     : null
@@ -732,7 +732,7 @@ function lancerSoeurs(r) {
   const a0 = premierAsset(p0.photoJob)
   if (!a0) return false
   if (r.moteurPhoto === 'krea') {
-    // Krea ne prend pas de référence : la continuité tient au texte (tenue, lieu, lumière répétés) et à la graine commune
+    // Krea takes no reference: continuity relies on the text (repeated outfit, place, light) and the shared seed
     for (const pl of attente) {
       const k = r.plans.indexOf(pl)
       const j = enqueue(r.id, { id: `${r.id}-p${k + 1}`, mode: 'photo', register: 'sfw', personaId: r.personaId, purpose: 'creative', photoEngine: 'krea', seed: { mode: 'lock', value: r.graine },
@@ -775,7 +775,7 @@ function avancer(r) {
         if (s === 'done') {
           if (!premierAsset(pl.clipJob)) rates++
           else {
-            // le contrôle automatique a pu relancer une prise : on monte celle qu'il a gardée
+            // the automatic check may have relaunched a take: use the one it kept
             const p = priseRetenue(pl.clipJob)
             if (p.etat === 'pret') { pl.clipAsset = p.assetId; change = true }
           }
@@ -796,8 +796,8 @@ function avancer(r) {
   }
 }
 
-/* Clip musical : les temps forts du morceau (scripts/temps.py) donnent la longueur des plans,
-   un nombre entier de temps, et les coupes tombent sur les temps. */
+/* Music clip: the track's beats (scripts/temps.py) set shot lengths to a whole
+   number of beats, and cuts fall on beats. */
 function grilleMusique(r) {
   if (!r.calerMusique || !r.musique) return null
   try {
@@ -805,7 +805,7 @@ function grilleMusique(r) {
     const g = JSON.parse(execFileSync(py, [path.join(import.meta.dirname, '..', 'scripts', 'temps.py'), montage.cheminMusique(r.musique)], { encoding: 'utf8', timeout: 60_000 }))
     if (!g.temps?.length || g.temps.length < 4) return null
     const p = (g.temps[g.temps.length - 1] - g.temps[0]) / (g.temps.length - 1)
-    // le plus grand nombre entier de temps qui tient dans un clip : une coupe ne tombe jamais avant la fin du plan
+    // the largest whole number of beats that fits in a clip: a cut never falls before the end of the shot
     return { debut: g.temps[0], pas: p * Math.max(1, Math.floor((r.duree - 0.05) / p)), bpm: g.bpm }
   } catch (e) { console.warn(`[reel ${r.id}] tempo : ${e.message || e}`); return null }
 }
@@ -823,12 +823,12 @@ function monter(r, prets, rates) {
   if (voixOff) r = { ...r, musique: voixOff }
   const proj = montage.creerProjet(`Reel — ${r.brief.slice(0, 50)}`, r.personaId)
   const g = r.grille
-  // le format fixe le rythme : plans courts et coupes franches pour une transition de tenues, etc. ; le dernier plan garde sa durée
+  // the format sets the rhythm: short shots and hard cuts for an outfit transition, etc.; the last shot keeps its duration
   const f = FORMATS[r.format]
   const dureeDe = i => g ? Math.round(g.pas * 100) / 100
     : f?.dureePlan && i < prets.length - 1 ? Math.min(i === 0 && f.dureePremier ? f.dureePremier : f.dureePlan, f.secondesClip ?? r.duree)
     : f?.secondesClip ?? r.duree
-  // pour un clip, le montage coupe à `fin` (la durée ne vaut que pour une photo)
+  // for a clip, the montage cuts at `fin` (duration only applies to a photo)
   const clips = prets.map((p, i) => ({ assetId: p.clipAsset, debut: 0, fin: dureeDe(i), duree: dureeDe(i), texte: i === 0 ? r.accroche ?? '' : '',
     textePos: 'centre', transition: g || i === prets.length - 1 || f?.coupe === 'coupe' ? 'coupe' : 'fondu', transitionDuree: 0.35, crop: null }))
   const p2 = montage.ecrireProjet(proj.id, { data: { format: '9:16', cadrage: 'remplir', sonClips: !(voixOff || r.musique), volumeClips: 1,
@@ -842,10 +842,10 @@ function monter(r, prets, rates) {
 }
 
 export function demarrerSuivi() {
-  // une rédaction interrompue par un redémarrage ne reprendra pas toute seule
+  // a writing step interrupted by a restart does not resume on its own
   for (const r of store.db.prepare(`SELECT id FROM reels WHERE etat = 'redaction'`).all())
     ecrire(r.id, 'echec', { erreur: 'rédaction interrompue par un redémarrage du service — relancer le reel' })
-  // un montage interrompu (voix off en cours) repart de l'étape des clips, qui le relance
+  // an interrupted montage (voice-over in progress) restarts from the clips step, which relaunches it
   for (const r of store.db.prepare(`SELECT id FROM reels WHERE etat = 'montage'`).all()) ecrire(r.id, 'clips', {})
   setInterval(() => {
     for (const row of store.db.prepare(`SELECT id FROM reels WHERE etat IN ('photos','clips','export')`).all()) {
@@ -854,8 +854,8 @@ export function demarrerSuivi() {
   }, 4000).unref()
 }
 
-/** Refait un seul plan d'un reel fini : sa photo est gardée, son clip est rendu à nouveau
- *  (avec un nouveau mouvement si on en donne un), puis le reel est remonté. Les autres clips ne bougent pas. */
+/** Redoes a single shot of a finished reel: its photo is kept, its clip re-rendered
+ *  (with a new motion if given), then the reel is reassembled. Other clips are untouched. */
 export function refairePlan(id, k, motion) {
   const r = lireReel(id)
   if (!r) throw new Error('reel inconnu')
@@ -871,16 +871,16 @@ export function refairePlan(id, k, motion) {
   return lireReel(id)
 }
 
-/** Retire un reel de la liste (ses photos, clips et montage restent dans la bibliothèque). */
-/** Annule un reel en cours : ses jobs encore en file ou en rendu sont arrêtés, la rédaction
- *  en vol s'arrête à son retour, et le suivi le laisse. Ce qui est déjà rendu reste en bibliothèque. */
+/** Removes a reel from the list (its photos, clips and montage stay in the library). */
+/** Cancels a running reel: its queued or rendering jobs are stopped, in-flight writing
+ *  stops when it returns, and tracking drops it. Already rendered output stays in the library. */
 export async function annulerReel(id) {
   const r = lireReel(id)
   if (!r) return null
   if (r.etat === 'fini' || r.etat === 'echec') return r
   ecrire(id, 'echec', { erreur: 'annulé' })
   cles.delete(id)
-  // un reel à preset a aussi ses images clés, ses clips et son morceau dans son graphe
+  // a preset reel also has its keyframes, clips and track in its graph
   const g = r.graphe ?? {}
   const jobs = [...(r.plans ?? []).flatMap(p => [p.photoJob, p.clipJob]), ...Object.values(g.stills ?? {}).map(s => s.job), ...(g.clips ?? []).map(c => c.job),
     r.musiqueJob, r.exportJob].filter(Boolean)

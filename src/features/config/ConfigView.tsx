@@ -1,7 +1,7 @@
 /* ============================================================
-   Configuration de l'outil — ce qui n'est pas une tâche de création :
-   vocabulaires (catalogues + ajouts), recettes et textes de façonnage
-   (Workbench). Regroupés sous ⚙ config.
+   Tool configuration — everything that is not a creation task:
+   vocabularies (catalogs + additions), recipes and shaping texts
+   (Workbench). Grouped under ⚙ config.
    ============================================================ */
 import { useEffect, useState } from 'react'
 import { cn } from '../../lib/cn'
@@ -18,7 +18,7 @@ export type ConfigTab = 'vocab' | 'workbench' | 'cloud' | 'modeles'
 
 export function ConfigView({ initial = 'vocab' }: { initial?: ConfigTab }) {
   const [tab, setTab] = useState<ConfigTab>(() => useAppStore.getState().ongletConfig ?? initial)
-  // un lien vers un onglet précis (MiniMax H3 → Modèles optionnels), à l'ouverture comme page déjà ouverte
+  // a link to a specific tab (MiniMax H3 → Optional models), both on open and when the page is already open
   const demande = useAppStore(st => st.ongletConfig)
   useEffect(() => { if (demande) { setTab(demande); useAppStore.setState({ ongletConfig: null }) } }, [demande])
   const edition = useEdition()

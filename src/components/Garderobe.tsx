@@ -1,9 +1,8 @@
 /* ============================================================
-   Garde-robe du personnage actif : ses tenues et lieux favoris (étoile ★
-   sur les éléments du vocabulaire) et des lignes libres. Elle s'affiche
-   en tête des Éléments : un clic insère la ligne dans le prompt, comme
-   un élément ordinaire — c'est ce qui garde une tenue identique d'un
-   post à l'autre. Enregistrée avec le personnage (persona.json).
+   Active character's wardrobe: favourite outfits and places (★ star on
+   vocabulary items) and free lines. Shown at the top of Elements: a click
+   inserts the line into the prompt, like a regular element, which keeps
+   an outfit identical across posts. Saved with the character (persona.json).
    ============================================================ */
 import { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -46,7 +45,7 @@ const champ: React.CSSProperties = {
   background: 'rgba(127,127,127,0.10)', border: '1px solid rgba(127,127,127,0.30)', minWidth: 0,
 }
 
-/** Onglet « Garde-robe » des Éléments (bureau et mobile). */
+/** "Wardrobe" tab of Elements (desktop and mobile). */
 export function GarderobeTab({ onInsert, prompt }: { onInsert: (text: string) => void; prompt: string }) {
   const nom = useAppStore(s => s.personaName)
   const { lignes, ajouter, retirer, err } = useGarderobe()
@@ -86,7 +85,7 @@ export function GarderobeTab({ onInsert, prompt }: { onInsert: (text: string) =>
   )
 }
 
-/** Étoile ★ d'un élément du vocabulaire (dans une ligne cliquable : span, pas bouton). */
+/** ★ star on a vocabulary item (inside a clickable row: span, not button). */
 export function Etoile({ kind, id }: { kind: GKind; id: string }) {
   const { has, toggle } = useGarderobe()
   const edition = useEdition()

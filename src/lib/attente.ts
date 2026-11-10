@@ -2,9 +2,9 @@ import type { Job } from '../types'
 import { t } from '../i18n'
 import { fmtDur } from './progress'
 
-/** Ce qu'attend un rendu pas encore parti : son rang et le délai estimé
- *  avant son départ, ou la carte graphique encore prise par un autre rendu
- *  (job remis à ComfyUI, qui finit d'abord le sien). Null : rien à dire de plus. */
+/** What a not-yet-started render is waiting for: its queue position and estimated
+ *  delay, or the GPU still busy with another render (job handed to ComfyUI,
+ *  which finishes its own first). Null: nothing more to say. */
 export function attente(j: Job): string | null {
   if (j.status === 'queued-comfy') return t('la carte graphique finit un autre rendu, le tien part juste après')
   if (j.status !== 'queued' || !j.file) return null

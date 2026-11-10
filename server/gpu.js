@@ -1,45 +1,32 @@
 /* ============================================================
-   Arbitrage de la carte graphique entre ComfyUI et Ollama.
+   GPU arbitration between ComfyUI and Ollama.
 
-   POURQUOI. Deux programmes se partagent la carte graphique sans se connaître :
-   ComfyUI (Krea, Wan, LTX, MiniMax…) et Ollama (rédacteurs, VLM, trieur).
-   Mesuré sur un appel de la taille du carrousel (qwen3.5:35b,
-   3 690 jetons lus, ~500 écrits) :
-       CPU                          53 s
-       partagé (Krea resté chargé)  30 s  — carte à 31,5 Go sur 32
-       carte entière                 6 s
-   et le rendu Krea qui suit paie ~5 s de rechargement (12,2 s au lieu de 7,1).
-
-   RÈGLE :
-   - un seul programme occupe la carte ; deux tâches du MÊME programme
-     s'enchaînent sans rien décharger (image derrière image, appel LLM
-     derrière appel LLM) ;
-   - on ne vide jamais par précaution : on vide l'autre seulement quand il
-     faut la carte pour soi (/free pour ComfyUI, déchargement vérifié sur
-     /api/ps pour Ollama) ;
-   - file d'arrivée : un appel LLM qui attend passe avant le rendu suivant ;
-   - un appel LLM n'attend pas un LONG rendu (vidéo de 14 min) : il part sur
-     le CPU ;
-   - un appel Ollama lancé DEPUIS un job de rendu (contrôle VLM du motion)
-     n'est pas arbitré : le job tient déjà la carte, il s'attendrait lui-même.
+   Rules:
+   - one program holds the GPU at a time; consecutive tasks of the SAME
+     program run without unloading anything;
+   - the other program is unloaded only when the GPU is needed (/free for
+     ComfyUI, unload verified via /api/ps for Ollama);
+   - FIFO: a waiting LLM call goes before the next render;
+   - an LLM call does not wait behind a LONG render: it runs on the CPU;
+   - an Ollama call made FROM a render job is not arbitrated: the job
+     already holds the GPU and would wait on itself.
    ============================================================ */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { CONFIG } from './config.js'
 
-/** Au-delà de ce reste estimé, un appel Ollama ne patiente pas derrière le
- *  rendu en cours : il part sur le CPU. */
+/** Above this estimated remaining render time, an Ollama call runs on the CPU
+ *  instead of waiting. */
 const ATTENTE_MAX_MS = 60_000
-/** CREATOROS_LLM_GPU : `0` → tout Ollama sur le CPU ; `libre` → la carte seulement quand ComfyUI n'a aucun
- *  rendu d'un AUTRE client (ComfyUI partagé avec une production : on ne lui vide jamais la carte en plein
- *  travail) ; absent → arbitrage complet. */
+/** CREATOROS_LLM_GPU: `0` → all Ollama on CPU; `libre` → GPU only when ComfyUI has no render
+ *  from ANOTHER client (shared ComfyUI: never unload it mid-job); unset → full arbitration. */
 const MODE = process.env.CREATOROS_LLM_GPU === '0' ? 'cpu' : process.env.CREATOROS_LLM_GPU === 'libre' ? 'libre' : 'auto'
 const ACTIF = MODE !== 'cpu'
-/** En mode `libre`, Ollama rend vite la carte : une production qui arrive ensuite la retrouve libre. */
+/** In `libre` mode, Ollama releases the GPU quickly so another client finds it free. */
 const GARDE_CARTE = MODE === 'libre' ? '2m' : '30m'
 let clientStudio = null
-/** L'identifiant client du studio auprès de ComfyUI : ses rendus à lui sont arbitrés ici. */
+/** The studio's ComfyUI client id: only its own renders are arbitrated here. */
 export function definirClientStudio(id) { clientStudio = id }
-/** ComfyUI travaille-t-il pour un autre client (la production) ? En cas de doute : oui. */
+/** Is ComfyUI working for another client? Returns true when unsure. */
 async function comfyPrisAilleurs() {
   if (MODE !== 'libre') return false
   try {
@@ -48,11 +35,11 @@ async function comfyPrisAilleurs() {
   } catch { return true }
 }
 
-let occupant = null      // 'comfy' | 'ollama' | null (inconnu au démarrage)
-let actifs = 0           // tâches de l'occupant en cours
-let bascule = false      // vidage de l'autre programme en cours
-let rendu = null         // rendu ComfyUI en cours : { debut, estimeMs }
-const file = []          // [{ qui, reveil }]
+let occupant = null      // 'comfy' | 'ollama' | null (unknown at startup)
+let actifs = 0           // running tasks of the occupant
+let bascule = false      // unloading of the other program in progress
+let rendu = null         // current ComfyUI render: { debut, estimeMs }
+const file = []
 const dansJob = new AsyncLocalStorage()
 
 const attendre = ms => new Promise(r => setTimeout(r, ms))
@@ -61,8 +48,8 @@ async function viderComfy() {
   try {
     await fetch(`${CONFIG.comfyUrl}/free`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ unload_models: true, free_memory: true }), signal: AbortSignal.timeout(10_000) })
-    /* /free est traité par la boucle de ComfyUI, pas dans la requête : on
-       attend que la mémoire soit réellement rendue. */
+    /* /free is handled by the ComfyUI loop, not in the request: wait until the
+       memory is actually released. */
     for (let t = 0; t < 60; t++) {
       const s = await (await fetch(`${CONFIG.comfyUrl}/system_stats`, { signal: AbortSignal.timeout(5000) })).json()
       const d = s.devices?.[0]
@@ -91,7 +78,7 @@ async function viderOllama() {
 function servir() {
   while (file.length && !bascule) {
     const t = file[0]
-    if (actifs > 0 && occupant !== t.qui) return        // l'autre finit d'abord
+    if (actifs > 0 && occupant !== t.qui) return        // the other one finishes first
     if (occupant !== t.qui) {
       bascule = true
       const t0 = Date.now()
@@ -108,8 +95,8 @@ function servir() {
 function prendre(qui) { return new Promise(reveil => { file.push({ qui, reveil }); servir() }) }
 function rendre() { actifs--; servir() }
 
-/** Enveloppe un job de la file de rendu : il prend la carte pour ComfyUI, et
- *  les appels Ollama qu'il fait lui-même passent sans arbitrage. */
+/** Wraps a render-queue job: it takes the GPU for ComfyUI, and Ollama calls
+ *  it makes itself bypass arbitration. */
 export async function pourRendu(job, travail) {
   if (!ACTIF) return travail()
   await prendre('comfy')
@@ -117,34 +104,30 @@ export async function pourRendu(job, travail) {
   try { return await dansJob.run(true, travail) } finally { rendu = null; rendre() }
 }
 
-/** Plusieurs appels Ollama qui se suivent (VLM, fiche, rédaction d'un
- *  carrousel) prennent la carte UNE fois pour tout le bloc. Sans ça, un
- *  rendu en file s'intercale entre deux appels et chaque alternance recharge
- *  un programme — mesuré : 56 s au lieu de 17 pour le même
- *  carrousel. Derrière un long rendu, tout le bloc part sur le CPU. */
+/** Consecutive Ollama calls (VLM, sheet, carousel writing) take the GPU ONCE
+ *  for the whole block, so no queued render interleaves and forces reloads.
+ *  Behind a long render, the whole block runs on the CPU. */
 export async function blocOllama(travail, { attendreCarte = false } = {}) {
   if (!ACTIF || dansJob.getStore()) return travail()
-  /* `attendreCarte` : un long lot (les captions d'un mois de reels) attend la
-     fin du rendu en cours plutôt que de se traîner une heure sur le CPU. */
+  /* `attendreCarte`: a long batch waits for the current render to finish
+     instead of running on the CPU. */
   if ((!attendreCarte && renduLong()) || await comfyPrisAilleurs()) return dansJob.run('cpu', travail)
   await prendre('ollama')
   try { return await dansJob.run('ollama', travail) } finally { rendre() }
 }
 
-/** Le rendu en cours va-t-il encore durer longtemps ? Estimation absente =
- *  on ne sait pas = on ne fait pas attendre l'opérateur. */
+/** Will the current render last long? No estimate = unknown = the operator
+ *  is not made to wait. */
 function renduLong() {
   if (!rendu) return false
   if (!rendu.estimeMs) return true
   return rendu.estimeMs - (Date.now() - rendu.debut) > ATTENTE_MAX_MS
 }
 
-/** Remplace `fetch(`${ollamaUrl}/api/generate`, init)`. Choisit la carte ou le
- *  CPU, prend la carte si besoin, et retombe sur le CPU si le chargement sur
- *  la carte échoue. */
-/* Sans flux, Node abandonne une réponse dont les en-têtes tardent plus de 5 min (modèle sur
-   processeur, machine chargée). On demande donc le flux et on le réassemble : l'appelant reçoit
-   la même réponse JSON qu'en mode non continu. */
+/** Replaces `fetch(`${ollamaUrl}/api/generate`, init)`. Chooses GPU or CPU,
+ *  takes the GPU if needed, and falls back to CPU if loading on GPU fails. */
+/* Without streaming, Node drops a response whose headers take over 5 min. So the
+   stream is requested and reassembled: the caller gets the same JSON as non-streaming. */
 async function fetchLong(url, init) {
   const corps = JSON.parse(init.body)
   if (corps.stream !== false) return fetch(url, init)
@@ -176,10 +159,10 @@ export async function fetchOllama(url, init) {
   const surCpu = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options: { ...corps.options, num_gpu: 0 } }) })
   if (bloc === 'cpu' || (!bloc && (renduLong() || await comfyPrisAilleurs()))) return surCpu()
   const options = { ...corps.options }; delete options.num_gpu
-  /* Il reste chargé : c'est le prochain rendu qui le videra, s'il arrive. */
+  /* The model stays loaded; the next render unloads it if needed. */
   const surCarte = () => fetchLong(url, { ...init, body: JSON.stringify({ ...corps, options, keep_alive: GARDE_CARTE }) })
   let res
-  if (bloc === 'ollama') res = await surCarte()          // la carte est déjà tenue par le bloc
+  if (bloc === 'ollama') res = await surCarte()          // the block already holds the GPU
   else {
     await prendre('ollama')
     try { res = await surCarte() } finally { rendre() }
@@ -191,7 +174,7 @@ export async function fetchOllama(url, init) {
   return res
 }
 
-/** État, pour /api/health et les tests de bascule. */
+/** State, for /api/health and switch tests. */
 export function etat() {
   return { actif: ACTIF, occupant, actifs, bascule, enAttente: file.map(t => t.qui),
     rendu: rendu && { ecouleMs: Date.now() - rendu.debut, estimeMs: rendu.estimeMs } }

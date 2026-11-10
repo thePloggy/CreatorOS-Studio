@@ -1,7 +1,7 @@
-/* Essai de Mila (personnage vidéo, LoRA LTX-2.3 sur LTX-2.5) : plans texte → vidéo
-   AVEC le personnage, plus deux photos Krea 2 (sa LoRA photo) pour l'I2V.
+/* Mila test (video character, LTX-2.3 LoRA on LTX-2.5): text → video shots
+   with the character, plus two Krea 2 photos (her photo LoRA) for I2V.
 
-   node scripts/demo/mila.mjs [url du studio] */
+   node scripts/demo/mila.mjs [studio url] */
 const BASE = process.argv[2] || 'http://127.0.0.1:8787'
 const post = async (job, nom) => {
   const r = await fetch(`${BASE}/api/jobs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(job) })

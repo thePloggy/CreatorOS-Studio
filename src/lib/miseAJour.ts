@@ -1,5 +1,5 @@
-/* Après une mise à jour du studio, un onglet resté ouvert réclame des morceaux du build précédent,
-   qui n'existent plus : la vue ne se charge pas. On recharge alors la page une fois, sans boucler. */
+/* After a studio update, a tab left open requests chunks from the previous build that
+   no longer exist, so the view fails to load. The page is then reloaded once, without looping. */
 const CLE = 'creatoros.rechargeMiseAJour'
 const MORCEAU_ABSENT = /dynamically imported module|Importing a module script failed|error loading dynamically|Unable to preload CSS|text\/html.*MIME|MIME.*text\/html/i
 
@@ -8,7 +8,7 @@ function recharger() {
     const dernier = Number(sessionStorage.getItem(CLE) ?? 0)
     if (Date.now() - dernier < 15_000) return
     sessionStorage.setItem(CLE, String(Date.now()))
-  } catch { /* stockage indisponible : on recharge quand même */ }
+  } catch { /* storage unavailable: reload anyway */ }
   window.location.reload()
 }
 

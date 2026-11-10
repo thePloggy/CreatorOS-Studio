@@ -1,58 +1,56 @@
 @import "tailwindcss";
-/* Polices : Outfit (UI) + JetBrains Mono (technique). Chargées depuis
-   Google Fonts avec repli système — si la machine est hors-ligne, on tombe
-   proprement sur la pile système (à bundler via @fontsource en dur plus tard). */
+/* Fonts: Outfit (UI) + JetBrains Mono (technical). Loaded from Google Fonts
+   with a system fallback stack when offline. */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
-   CreatorOS — Design tokens (source de vérité du design system)
-   Règle v5 : le texte est blanc, la COULEUR est une pastille. La couleur
-   ne peint jamais un fond de bouton ni un texte — sauf le CTA orange
-   (unique), les liens machine cyan, les warnings ambre inline. Le refactor
-   « pastille » des composants suit, phase par phase ; ici on pose les tokens.
-   Réf : design_handoff_creatoros_layout/CreatorOS-Design-System.dc.html
+   CreatorOS — design tokens (design system source of truth)
+   Rule: text is white, COLOR is a dot. Color never paints a button
+   background or text — except the single orange CTA, cyan machine
+   links and inline amber warnings.
+   Ref: design_handoff_creatoros_layout/CreatorOS-Design-System.dc.html
    ============================================================ */
 @theme {
-  /* Surfaces (bg → zone/carte → sélection surélevée) */
+  /* Surfaces (bg → zone/card → raised selection) */
   --color-bg: #0f1012;
-  --color-surface: #141519;   /* chrome, colonnes latérales */
-  --color-surface2: #1e2026;  /* cartes */
-  --color-surface3: #2a2c33;  /* rails, contrôles surélevés / sélection */
+  --color-surface: #141519;   /* chrome, side columns */
+  --color-surface2: #1e2026;  /* cards */
+  --color-surface3: #2a2c33;  /* rails, raised controls / selection */
 
-  /* Bordures (b2 courant → b3 fort / focus neutre) */
+  /* Borders (b2 default → b3 strong / neutral focus) */
   --color-border: #2d3038;
   --color-border2: #40444e;
 
-  /* Texte (t1 → t3 secondaire → t4 ténu) */
+  /* Text (t1 → t3 secondary → t4 faint) */
   --color-text: #ecebe8;
   --color-muted: #8d8f97;
   --color-faint: #858891;
 
-  /* Accent = action ORANGE (unique). Aplat réservé au CTA ; ailleurs, pastille. */
+  /* Accent = ORANGE action (single). Solid fill reserved for the CTA; elsewhere, a dot. */
   --color-accent: #ff5a1f;
   --color-accent-dim: #5a2f1c;
 
-  /* État d'erreur (negatif). Distinct de --color-alert (rose, mise en garde) :
-     le rouge appartient à l'échec. */
+  /* Error state. Distinct from --color-alert (pink, warning):
+     red means failure. */
   --color-danger: #ff3b30;
 
-  /* Sémantiques v5 (une couleur = un sens) */
-  --color-positif: #22c55e;    /* validé, terminé, export-ready, à jour */
-  --color-attention: #ffb020;  /* à trier, périmé, imposé source, lint */
-  --color-variable: #a78bfa;   /* verrou ouvert, carrousel, série à venir, retouche */
-  --color-machine: #2dd4bf;    /* composeur LLM, soumis à Comfy, télémétrie saine */
+  /* Semantic colors (one color = one meaning) */
+  --color-positif: #22c55e;    /* validated, done, export-ready, up to date */
+  --color-attention: #ffb020;  /* to sort, stale, source-imposed, lint */
+  --color-variable: #a78bfa;   /* open lock, carousel, upcoming series, edit */
+  --color-machine: #2dd4bf;    /* LLM composer, submitted to Comfy, healthy telemetry */
 
-  /* Pastilles d'état (info · avertissement · alerte), jamais de fond teinté */
+  /* Status dots (info · warning · alert), never a tinted background */
   --color-info: #3b9eff;
   --color-warn: #8b5cf6;
   --color-alert: #ff2d78;
 
-  /* Sémantique couches audio (mode Son = MAQUETTE) */
+  /* Audio layer colors (Sound mode = mockup) */
   --color-voix: #4d90d9;
   --color-amb: #3fb0a6;
   --color-mus: #a371f7;
 
-  /* Rayons v5 (zones 14 · cartes/boutons 8-10 · pilules 999) */
+  /* Radii (zones 14 · cards/buttons 8-10 · pills 999) */
   --radius-zone: 14px;
   --radius-card: 10px;
   --radius-ctl: 8px;
@@ -73,7 +71,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbars propres (cohérentes partout) */
+/* Clean scrollbars (consistent everywhere) */
 .scroll-clean { scrollbar-width: thin; scrollbar-color: var(--color-border2) transparent; }
 .scroll-clean::-webkit-scrollbar { width: 9px; height: 9px; }
 .scroll-clean::-webkit-scrollbar-track { background: transparent; }
@@ -84,7 +82,7 @@ body {
 }
 .scroll-clean::-webkit-scrollbar-thumb:hover { background: #4a5a6e; }
 
-/* Slider natif stylé (densité galerie, force mouvement, opacité) */
+/* Styled native slider (gallery density, motion strength, opacity) */
 input[type="range"].slider {
   -webkit-appearance: none;
   height: 4px; border-radius: 3px;
@@ -99,20 +97,19 @@ input[type="range"].slider::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-/* Colonnes de la console et de la Bibliothèque : plus de rembourrage vertical.
-   Les barres collées en haut et en bas reprennent déjà la largeur par marges
-   négatives ; le rembourrage vertical de `p-3.5` laissait une bande morte
-   au-dessus et sous elles. On ne garde que l'horizontal. */
+/* Console and Library columns: no vertical padding. The sticky top and
+   bottom bars already span the width via negative margins; vertical padding
+   from `p-3.5` would leave a dead strip around them. Horizontal only. */
 .p-3\.5 {
   padding: 0 calc(var(--spacing) * 3.5);
 }
 
 /* ---------- zoom (mobile) ----------
-   1. Safari iOS zoome la page dès qu'un champ dont la police fait moins de
-      16 px prend le focus : sur mobile, tous les champs passent à 16 px.
-   2. Le pinch et le double-tap n'agrandissent plus l'INTERFACE : touch-action
-      pan-x pan-y partout, pinch-zoom seulement sur le média en grand (classe
-      `zoomable`, posée par AssetFull). */
+   1. iOS Safari zooms the page when a field with a font under 16 px gets
+      focus: on mobile, all fields use 16 px.
+   2. Pinch and double-tap do not zoom the UI: touch-action pan-x pan-y
+      everywhere, pinch-zoom only on the full-size media (`zoomable` class,
+      set by AssetFull). */
 html, body { touch-action: pan-x pan-y; }
 .zoomable { touch-action: pinch-zoom; }
 @media (max-width: 820px) {

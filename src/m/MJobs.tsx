@@ -1,9 +1,9 @@
 /* ============================================================
-   Jobs — calcul en cours, attente, échecs, historique.
+   Jobs: running, queued, failed, history.
 
-   Deux règles pilotent tout cet écran :
-   · les mesures de la machine sont EN TÊTE, sans bouton « Machine » en plus ;
-   · une barre de progression ne ment pas — voir `Progress` plus bas.
+   Two rules drive this screen:
+   · machine metrics are AT THE TOP, without an extra "Machine" button;
+   · a progress bar does not lie; see `Progress` below.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import type { Job } from '../types'
@@ -16,8 +16,8 @@ import { Ic, Opt, Sheet, fmtDur, useConfirm } from './bits'
 import { getLang, t, tp, tServeur } from '../i18n'
 import { CleProprietaire } from '../features/config/CleProprietaire'
 
-/** Message d'erreur du job : le serveur le renvoie, le type Job ne le
- *  déclare pas — on le lit sans mentir sur le typage. */
+/** Job error message: the server returns it but the Job type does not
+ *  declare it, so it is read without faking the typing. */
 const jobError = (j: Job): string | null =>
   tServeur((j as unknown as { error?: string }).error) ?? null
 
@@ -29,8 +29,8 @@ export function MJobs({ goLibrary }: { goLibrary: () => void }) {
   const jobs = [...s.jobs].sort((a, b) => b.createdAt - a.createdAt)
   const running = jobs.filter(j => STATUTS_EN_CALCUL.includes(j.status))
   const queued = jobs.filter(j => j.status === 'queued')
-  /* Un rendu en échec revient en `blocked` (le type JobStatus ne porte pas
-     d'état « error » — c'est le message qui dit pourquoi). */
+  /* A failed render comes back as `blocked` (JobStatus has no "error"
+     state; the message says why). */
   const broken = jobs.filter(j => j.status === 'blocked')
   const done = jobs.filter(j => j.status === 'done').slice(0, 20)
 
@@ -44,7 +44,7 @@ export function MJobs({ goLibrary }: { goLibrary: () => void }) {
       </div>
 
       <div className="scroll">
-        {/* ---- mesures de la machine ---- */}
+        {/* ---- machine metrics ---- */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <span style={{
@@ -57,9 +57,9 @@ export function MJobs({ goLibrary }: { goLibrary: () => void }) {
             <div className="telem">
               <Cell k="GPU" v={`${tm.gpu.util} %`} />
               <Cell k="CPU" v={tm.cpu?.util != null ? `${tm.cpu.util} %` : t('Indisponible')} />
-              {/* Le seuil d'alerte n'est PAS déduit d'une valeur de maquette :
-                  tant que le serveur n'en fournit pas, on colore seulement
-                  au-delà d'un palier franc et on reste factuel. */}
+              {/* The alert threshold is NOT derived from a mock value: until
+                  the server provides one, colour only above a clear level
+                  and stay factual. */}
               <Cell k={t('Temp. GPU')} v={`${tm.gpu.temp} °C`} warn={tm.gpu.temp >= 83} />
               <Cell k="VRAM" v={gb(tm.gpu.vramUsedMb) ? t('{n} Go', { n: gb(tm.gpu.vramUsedMb)! }) : t('Indisponible')} />
               <Cell k="RAM" v={tm.ram ? t('{used} / {total} Go', { used: gb(tm.ram.usedMb)!, total: gb(tm.ram.totalMb)! }) : t('Indisponible')} />
@@ -92,7 +92,7 @@ export function MJobs({ goLibrary }: { goLibrary: () => void }) {
         </>}
 
         {jobs.length === 0 && <div className="empty">{t('Aucun rendu pour l’instant.')}</div>}
-        {/* propriétaire : sa clé et les visiteurs du jour (rien ne s'affiche hors studio verrouillé) */}
+        {/* owner: their key and today's visitors (nothing shows outside a locked studio) */}
         <div style={{ overflowX: 'auto' }}><CleProprietaire /></div>
       </div>
 
@@ -114,15 +114,15 @@ function Section({ title, n }: { title: string; n: number }) {
   return <div className="secttl"><b>{title}</b><span>{n}</span></div>
 }
 
-/* ---------- barre de progression ----------
-   ComfyUI ne pousse `progress` que par intermittence, et value/max ne
-   couvrent que le NŒUD en cours : ni une mesure de bout en bout, ni un flux
-   continu. Deux régimes :
-     · sans mesure  → vitesse nominale (écoulé / estimé) ;
-     · à chaque mesure → recalage sur la valeur réelle, puis reprise à une
-       vitesse recalculée pour atteindre 100 % à l'échéance estimée.
-   Sans estimation ET sans mesure, on affiche une progression INDÉTERMINÉE
-   avec le temps écoulé : une durée estimée ne fait jamais un pourcentage. */
+/* ---------- progress bar ----------
+   ComfyUI pushes `progress` only intermittently, and value/max cover only
+   the current NODE: neither an end-to-end measurement nor a continuous
+   stream. Two modes:
+     · no measurement  → nominal speed (elapsed / estimated);
+     · on each measurement → snap to the real value, then continue at a
+       speed recomputed to reach 100 % at the estimated end.
+   With neither estimate NOR measurement, show an INDETERMINATE progress
+   with elapsed time: an estimated duration never becomes a percentage. */
 function Progress({ j }: { j: Job }) {
   const [, tick] = useState(0)
   useEffect(() => {

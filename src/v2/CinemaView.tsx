@@ -1,12 +1,12 @@
 /* ============================================================
-   Studio ciné — une fiche de plan au lieu d'un prompt.
+   Movie studio: a shot sheet instead of a prompt.
 
-   Caméra (boîtier, optique, focale, ouverture), plan, lumière, pellicule,
-   look et étalonnage, une palette de couleurs : la fiche compose la phrase
-   que lit le moteur photo (FLUX 3 Klein, Krea 2 ou Klein), le personnage actif y met son
-   visage. « Même plan, 4 lumières » rend la même graine sous quatre
-   lumières. Les prises sont des rendus photo ordinaires : elles arrivent
-   dans la bibliothèque et s'animent comme les autres.
+   Camera (body, lens, focal length, aperture), shot, lighting, film stock,
+   look and grade, a color palette: the sheet composes the sentence the
+   photo engine reads (FLUX 3 Klein, Krea 2 or Klein); the active character
+   supplies the face. "Same shot, 4 lights" renders the same seed under four
+   lighting setups. Takes are ordinary photo renders: they land in the
+   library and can be animated like any other.
    ============================================================ */
 import { useEffect, useMemo, useState } from 'react'
 import type { Asset } from '../types'
@@ -25,8 +25,8 @@ import {
   composerFiche, couleursDominantes, type Fiche, type Opt,
 } from '../data/cinema'
 
-/* Séquences phares de l'en-tête : une par thème, la première d'entre elles par défaut.
-   Chaque séquence est une vraie chaîne du studio : trois plans fixes, un clip, un préquel, un séquel. */
+/* Header showcase sequences: one per theme, the first one by default.
+   Each sequence is a real studio chain: three stills, a clip, a prequel, a sequel. */
 const v = (f: string) => `/danses/howto/${f}?v=${VERSION_HOWTO}`
 const SEQUENCES: { id: string; label: string; video: string; affiche: string }[] = [
   { id: 'phare', label: 'Gardien de phare', video: v('cinema-seq-phare.mp4'), affiche: v('cinema-seq-phare.jpg') },
@@ -34,7 +34,7 @@ const SEQUENCES: { id: string; label: string; video: string; affiche: string }[]
   { id: 'western', label: 'Western', video: v('cinema-seq-western.mp4'), affiche: v('cinema-seq-western.jpg') },
   { id: 'dragon', label: 'Dragon', video: v('cinema-seq-dragon.mp4'), affiche: v('cinema-seq-dragon.jpg') },
 ]
-/* Les étapes : la démonstration de la table existe en français et en anglais (le texte de l'interface s'y lit). */
+/* Steps: the timeline demo exists in French and English (the UI text is visible in it). */
 const enLangue = (f: string) => getLang() === 'en' ? f.replace(/\.(mp4|jpg)$/, '-en.$1') : f
 const ETAPES_CINE: [string, string, string?][] = [
   ['Les images clés', 'La fiche de plan rend des images cohérentes entre elles : même personnage, même tenue, même lumière, même étalonnage.'],
@@ -43,7 +43,7 @@ const ETAPES_CINE: [string, string, string?][] = [
   ['La vitesse', 'Déplace une image clé : l’aperçu rejoue le plan plus vite ou plus lentement, en direct. Applique la vitesse, ou relance avec ces instants.', 'cinema-etape-4'],
 ]
 
-/* En-tête : la moitié de l'écran, les séquences phares en fondu, un sélecteur de thème. */
+/* Header: half the screen, showcase sequences crossfading, a theme selector. */
 function EnTeteCinema({ onCommencer, onComment }: { onCommencer: () => void; onComment: () => void }) {
   const [i, setI] = useState(0)
   const reduit = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -51,7 +51,7 @@ function EnTeteCinema({ onCommencer, onComment }: { onCommencer: () => void; onC
     <section className="cine-entete" aria-label="Movie Studio">
       {SEQUENCES.map((q, k) => (
         reduit ? <img key={q.id} src={q.affiche} alt="" className={k === i ? 'on' : ''} />
-          // pas de boucle quand il y a plusieurs séquences : la fin de l'une lance la suivante
+          // no loop when there are several sequences: the end of one starts the next
           : <video key={q.id} src={k === i ? q.video : undefined} poster={q.affiche} muted loop={SEQUENCES.length === 1} playsInline autoPlay className={k === i ? 'on' : ''}
             onEnded={() => setI(n => (n + 1) % SEQUENCES.length)} />
       ))}
@@ -74,24 +74,24 @@ function EnTeteCinema({ onCommencer, onComment }: { onCommencer: () => void; onC
 
 const CLE_FICHE = 'creatoros.cinema.fiche'
 const CLE_PRISES = 'creatoros.cinema.prises'
-/** les stills d'un film chargé depuis la liste (pas forcément parmi les assets chargés) */
+/** stills of a film loaded from the list (not necessarily among the loaded assets) */
 const CLE_PRISES_FILM = 'creatoros.cinema.prisesFilm'
-/* Movie Studio s'ouvre vide : à la 1re ouverture d'une session, la fiche, les prises et la table repartent de zéro
-   (le travail reste là tant qu'on navigue dans le studio ; un film de la liste le recharge). */
+/* Movie Studio opens empty: on first open in a session, the sheet, takes and timeline are reset
+   (work persists while navigating within the studio; picking a film from the list reloads it). */
 function ouvertureVide() {
   try {
     if (sessionStorage.getItem('cine:ouvert')) return
     sessionStorage.setItem('cine:ouvert', '1')
     for (const k of [CLE_FICHE, CLE_PRISES, CLE_PRISES_FILM]) localStorage.removeItem(k)
     localStorage.setItem('cine:table', JSON.stringify(TABLE_VIDE))
-  } catch { /* stockage indisponible */ }
+  } catch { /* storage unavailable */ }
 }
 const lireJSON = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) as T : d } catch { return d } }
-const ecrireJSON = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* stockage indisponible */ } }
+const ecrireJSON = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* storage unavailable */ } }
 const FORMATS = ['9:16', '2:3', '1:1', '3:2', '16:9']
 
 export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
-  useState(ouvertureVide)   // avant tout lecteur d'état (la table se lit à son montage, après ce parent)
+  useState(ouvertureVide)   // before any state reader (the timeline reads it on mount, after this parent)
   const ficheRef = useRef<HTMLDivElement>(null)
   const [comment, setComment] = useState(false)
   const reduitCine = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -114,8 +114,8 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
   const maj = (d: Partial<Fiche>) => setF(x => ({ ...x, ...d }))
   const prompt = composerFiche(f)
 
-  /* Chaque prise passe par submitJob, réglée prise par prise (prompt, graine,
-     format), puis le compositeur de la vue Image retrouve ce qu'il avait. */
+  /* Each take goes through submitJob with its own settings (prompt, seed,
+     format), then the Image view composer is restored to its previous state. */
   async function tourner() {
     if (!f.scene.trim()) { setErr(t('Décris la scène : où elle est, ce qu’elle fait.')); return }
     setEnvoi(true); setErr(null)
@@ -149,10 +149,10 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
   const jobs = s.jobs.filter(j => ids.includes(j.id) && STATUTS_ACTIFS.includes(j.status))
   const rendues = useMemo(() => ids.flatMap(id => s.assets.filter(a => a.jobId === id && a.mediaType === 'photo')), [ids, s.assets])
   const queueIds = s.jobs.filter(j => j.status === 'queued').map(j => j.id)
-  // les stills du film chargé qui ne sont pas déjà parmi les prises rendues
+  // stills of the loaded film that are not already among the rendered takes
   const stillsFilm = prisesFilm.filter(p => !rendues.some(a => a.id === p.id))
 
-  /* « Recommencer » (table), liste des films, et chaque plan envoyé depuis la table qui devient un film */
+  /* "Start over" (timeline), film list, and each shot sent from the timeline that becomes a film */
   const etatRef = useRef({ f, rendues, stillsFilm })
   etatRef.current = { f, rendues, stillsFilm }
   useEffect(() => {
@@ -169,7 +169,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
     window.addEventListener('cine:film-envoye', envoye)
     return () => { window.removeEventListener('cine:recommencer', recommencer); window.removeEventListener('cine:films', films); window.removeEventListener('cine:film-envoye', envoye) }
   }, [])
-  /** Charge un film : sa fiche, ses prises, sa table (images clés, actions, personnage, clip). */
+  /** Loads a film: its sheet, takes and timeline (keyframes, actions, character, clip). */
   const chargerFilm = (film: Film) => {
     setF({ ...FICHE_DEFAUT, ...film.fiche })
     setIds([])
@@ -224,7 +224,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
             <ChoixPersonnage />
             <textarea className="cine-scene" value={f.scene} onChange={e => maj({ scene: e.target.value })} rows={2}
               placeholder={t('Une image fixe, en anglais : où elle est, ce qu’elle fait à cet instant. Le mouvement se règle à l’étape 2.')} />
-            {/* un script vidéo collé ici (minutage, « secondes », plusieurs actions) : on dit où il va */}
+            {/* a video script pasted here (timings, "seconds", several actions): tell the user where it belongs */}
             {/(\d+\s*[–-]\s*\d+\s*(s|sec|secondes?|seconds?)\b|\bsecondes?\b|\bseconds?\b|\bthen\b|\bpuis\b)/i.test(f.scene) && (
               <div className="cine-alerte" role="note">{t('Ça ressemble à un script vidéo. Ici, on crée des images fixes : décris un seul instant. Le déroulé (ce qui se passe, seconde par seconde) se met dans la table de montage, à l’étape 2.')}</div>
             )}
@@ -291,7 +291,7 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
                   </div>
                 </div>
               ))}
-              {/* les images du film chargé */}
+              {/* images of the loaded film */}
               {stillsFilm.map(p => (
                 <div key={p.id} className="cine-prise">
                   <img src={p.uri} alt="" onClick={() => { const a = s.assets.find(x => x.id === p.id); if (a) onOpen(a, rendues) }} />
@@ -313,11 +313,11 @@ export function CinemaView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t('Les images clés sur une frise : LTX-2.5 en fait un seul plan, jusqu’à 16 s, qui passe par chacune à son instant.')}</div>
           </div>
         </div>
-        {/* la lumière, la caméra et l'étalonnage de la fiche, sans la scène : ils valent pour tout le plan */}
-        {/* sans la scène ni le cadrage : ce sont les images clés qui cadrent ; restent l'optique, la lumière, la pellicule, le look */}
+        {/* the sheet's lighting, camera and grade without the scene: they apply to the whole shot */}
+        {/* without scene or framing (keyframes set the framing); keeps lens, lighting, film stock, look */}
         <TableMontage style={composerFiche({ ...f, scene: '' }).replace(PLANS.find(x => x.id === f.plan)?.prompt ?? '\u0000', '').replace(/^[.\s]+/, '').replace(/\.\s*\./g, '.')} />
       </div>
-      {/* toutes les photos de la bibliothèque, et les photos importées */}
+      {/* all library photos, plus imported photos */}
       <FramePicker open={choixPalette} onClose={() => setChoixPalette(false)} assets={s.assets} title={t('Palette depuis une photo')}
         onPickAsset={a => { void couleursDominantes(a.uri).then(p => maj({ palette: p })) }}
         onPickUpload={n => { void couleursDominantes(`/api/uploads/${encodeURIComponent(n)}`).then(p => maj({ palette: p })) }} />

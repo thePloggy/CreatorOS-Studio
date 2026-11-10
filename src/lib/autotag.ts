@@ -1,7 +1,7 @@
 /* ============================================================
-   Auto-tagging client. Sert aux AJOUTS utilisateur : une ligne de
-   prompt EN → attributs (vêtement/matière/couleur), tags
-   d'autocomplete et titre FR.
+   Client-side auto-tagging for user ADDITIONS: an English prompt
+   line → attributes (garment/material/color), autocomplete tags
+   and French title.
    ============================================================ */
 
 const COLORS: [string, string][] = [
@@ -58,7 +58,7 @@ export function fitOf(text: string): string {
   return ''
 }
 
-/** Ligne de prompt tenue EN → attributs + tags + titre FR. */
+/** English outfit prompt line → attributes + tags + French title. */
 export function autotagOutfit(prompt: string, context: string) {
   const gar = findFirst(prompt, GARMENTS)
   const color = findFirst(prompt, COLORS)
@@ -76,7 +76,7 @@ export function autotagOutfit(prompt: string, context: string) {
   }
 }
 
-/** Ligne de prompt lieu EN → lieu détecté + tags. */
+/** English location prompt line → detected location + tags. */
 export function autotagEnvironment(prompt: string, sceneType: string) {
   const place = findFirst(prompt, PLACES)
   return {

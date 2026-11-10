@@ -1,6 +1,5 @@
-/* Télémétrie de la machine — GPU, CPU, RAM — sondée toutes les 5 s. Partagée
-   entre l'en-tête desktop et l'onglet Jobs mobile : une seule source, mêmes
-   seuils d'alerte. */
+/* Machine telemetry (GPU, CPU, RAM) polled every 5 s. Shared by the desktop
+   header and the mobile Jobs tab: one source, same alert thresholds. */
 import { useEffect, useState } from 'react'
 import { t as tr } from '../../i18n'
 
@@ -18,7 +17,7 @@ export function useTelemetry(everyMs = 5000) {
       try {
         const r = await fetch('/api/telemetry', { signal: AbortSignal.timeout(4000) })
         if (alive && r.ok) setT(await r.json())
-      } catch { /* la dernière valeur reste affichée */ }
+      } catch { /* the last value stays displayed */ }
     }
     void tick()
     const iv = setInterval(() => { if (!document.hidden) void tick() }, everyMs)
@@ -29,7 +28,7 @@ export function useTelemetry(everyMs = 5000) {
 
 const gb = (mb: number) => (mb / 1024).toFixed(1)
 
-/** Chaînes prêtes à afficher — null tant que rien n'est reçu. */
+/** Display-ready strings; null until something is received. */
 export function telemetryText(t: Telemetry | null) {
   if (!t?.gpu) return null
   return {

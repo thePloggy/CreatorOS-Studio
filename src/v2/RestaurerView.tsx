@@ -1,6 +1,6 @@
-/* Restaurer : une photo ou un clip abîmé ressort propre et en HD (cf. server/restauration.js).
-   Photo : retouche (rayures, poussière, zones passées), couleur au choix, puis agrandissement SeedVR2.
-   Clip : SeedVR2 vidéo ; coloriser : 1re image colorisée, clip colorisé par VACE, puis SeedVR2. Au gabarit studio : réglages à gauche, avant / après puis historique à droite. */
+/* Restore: a damaged photo or clip comes out clean and in HD (see server/restauration.js).
+   Photo: retouch (scratches, dust, faded areas), optional color, then SeedVR2 upscale.
+   Clip: SeedVR2 video; colorize: first frame colorized, clip colorized by VACE, then SeedVR2. Studio layout: settings on the left, before / after then history on the right. */
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
 import { t, tServeur } from '../i18n'
@@ -25,19 +25,19 @@ export function RestaurerView({ onOpen }: { onOpen?: (a: Asset, list: Asset[]) =
   const [hd, setHd] = useState(true)
   const [etat, setEtat] = useState<Etat | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  // Upscale Image du menu : la photo en HD seule, sans réparation ni couleur
+  // menu's Upscale Image: HD photo only, no repair or color
   const demande = useAppStore(st => st.demandeOutil)
   useEffect(() => { if (demande === 'hd') { setMedia('photo'); setNettoyer(false); setCouleur(false); setHd(true); useAppStore.setState({ demandeOutil: null }) } }, [demande])
   const [occupe, setOccupe] = useState(false)
   const avant = etat?.avant ?? source?.asset?.uri ?? source?.apercu ?? null
 
-  // la dernière restauration reste affichée au retour sur la page
+  // the last restoration stays displayed when returning to the page
   useEffect(() => {
     let id: string | null = null
-    try { id = localStorage.getItem('restaurer:dernier') } catch { /* stockage indisponible */ }
+    try { id = localStorage.getItem('restaurer:dernier') } catch { /* storage unavailable */ }
     if (id) void fetch(`/api/restauration/${id}`).then(r => (r.ok ? r.json() : null)).then((d: Etat | null) => { if (d) { setEtat(e => e ?? d); setMedia(d.media) } }).catch(() => {})
   }, [])
-  useEffect(() => { if (etat) try { localStorage.setItem('restaurer:dernier', etat.id) } catch { /* stockage indisponible */ } }, [etat?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (etat) try { localStorage.setItem('restaurer:dernier', etat.id) } catch { /* storage unavailable */ } }, [etat?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!etat || etat.fini || etat.echec) return

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Objet peint dans un clip : colle l'objet détouré dans la zone, image par image.
+"""Paints an object into a clip: pastes the cut-out object into the zone, frame by frame.
 
-Entrée : le clip, la vidéo de masque (blanc = zone), le PNG de l'objet (alpha), la sortie, le rythme,
-et, pour un objet posé au loin, la vidéo de masque des personnes.
-Au loin : l'objet suit le mouvement de la caméra (flux optique sur le décor), passe derrière les
-personnes et prend le flou et la brume de la distance.
-Le collage sert de départ : la retouche Wan le fond ensuite dans la scène.
+Input: the clip, the mask video (white = zone), the object PNG (alpha), the output, the pace,
+and, for a distant object, the people mask video.
+Distant: the object follows the camera motion (optical flow on the background), goes behind
+people and takes on distance blur and haze.
+The paste is a starting point: the Wan edit then blends it into the scene.
 """
 import subprocess
 import sys
@@ -60,7 +60,7 @@ def principal(clip, masque, objet_png, sortie, fps, personnes=None):
                 cadre.paste(o, (round((x0 + x1 - taille[0]) / 2), round((y0 + y1 - taille[1]) / 2)), o)
             ff.stdin.write(np.asarray(cadre).tobytes())
             continue
-        # au loin : l'objet est placé une fois dans la zone de la 1re image, puis suit le décor
+        # distant: the object is placed once in the zone of the first frame, then follows the background
         g = gens[min(i, len(gens) - 1), :, :, 0]
         if (gw, gh) != (w, h):
             g = cv2.resize(g, (w, h))
@@ -88,7 +88,7 @@ def principal(clip, masque, objet_png, sortie, fps, personnes=None):
             o = o.filter(ImageFilter.GaussianBlur(max(1.0, o.height / 130)))
             calque = np.asarray(o).astype(np.float32)
             pose = np.array([[1, 0, (x0 + x1 - o.width) / 2], [0, 1, y1 - o.height], [0, 0, 1.0]])
-            # brume : la couleur moyenne du haut de l'image, là où se trouve le lointain
+            # haze: mean colour of the top of the frame, where the distance is
             brume = im[: max(1, round(y1)), :, :].reshape(-1, 3).mean(0)
         couche = cv2.warpAffine(calque, (camera @ pose)[:2], (w, h), flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0, 0))
         alpha = couche[..., 3] / 255.0 * (1 - gens_masque)

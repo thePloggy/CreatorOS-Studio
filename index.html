@@ -5,12 +5,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon-sil.svg" />
     <link rel="icon" type="image/png" href="/favicon-64.png" />
     <link rel="apple-touch-icon" href="/favicon-sil.png" />
-    <!-- Pas de user-scalable=no : Safari l’ignore et il casse l’accessibilité.
-         Le zoom de page est bloqué par touch-action (index.css) ; seul le média
-         en grand reste pinçable. -->
+    <!-- No user-scalable=no: Safari ignores it and it breaks accessibility.
+         Page zoom is blocked by touch-action (index.css); only the full-size
+         media stays pinch-zoomable. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- Web app installable (sans service worker : voir TODO §14 — un cache
-         mal purgé servirait une version cassée même après correction). -->
+    <!-- Installable web app, without a service worker (a stale cache would
+         keep serving a broken build). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#101114" />
     <meta name="mobile-web-app-capable" content="yes" />

@@ -1,8 +1,8 @@
 /* ============================================================
-   Ajouts utilisateur aux vocabulaires — persistés en localStorage
-   (zustand/persist). Le vocabulaire de base reste en lecture seule ;
-   les ajouts vivent à part et sont FUSIONNÉS partout (console,
-   prompt, vocabulaires). Exportables en JSON.
+   User additions to vocabularies — persisted in localStorage
+   (zustand/persist). The base vocabulary stays read-only;
+   additions live separately and are MERGED everywhere (console,
+   prompt, vocabularies). Exportable as JSON.
    ============================================================ */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -45,7 +45,7 @@ export const useVocabStore = create<VocabState>()(
           }[kind] as keyof VocabState
           return { [key]: (s[key] as { id: string }[]).filter(x => x.id !== id) } as Partial<VocabState>
         }),
-      /** Export des ajouts en JSON. */
+      /** Exports the additions as JSON. */
       exportJson: () => {
         const s = get()
         return JSON.stringify({
@@ -58,8 +58,8 @@ export const useVocabStore = create<VocabState>()(
   ),
 )
 
-/* ---- Fusion base + ajouts (getters non-React, pour le
-   promptBuilder et le store app) ---- */
+/* ---- Base + additions merge (non-React getters, for the
+   promptBuilder and the app store) ---- */
 export const allOutfits = () => [...OUTFITS, ...useVocabStore.getState().customOutfits]
 export const allEnvironments = () => [...ENVIRONMENTS, ...useVocabStore.getState().customEnvironments]
 export const allStyles = () => [...STYLES, ...useVocabStore.getState().customStyles]

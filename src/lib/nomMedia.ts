@@ -1,7 +1,7 @@
 import type { Asset } from '../types'
 import { t } from '../i18n'
 
-/** Nom accessible d'une vignette : le début du prompt, sinon le type de média. */
+/** Accessible name of a thumbnail: the start of the prompt, else the media type. */
 export function nomMedia(a: Asset): string {
   const p = a.provenance?.userPrompt || a.provenance?.composedPositive
   const type = a.mediaType === 'video' ? t('Vidéo') : t('Photo')

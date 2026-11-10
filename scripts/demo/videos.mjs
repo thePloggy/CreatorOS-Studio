@@ -1,11 +1,10 @@
-/* Vidéos de la démo, depuis les photos de photos.mjs — même brief et même
-   graine pour chaque personnage.
+/* Demo videos from the photos.mjs outputs, same brief and seed per character.
 
-   node scripts/demo/videos.mjs [url du studio] [personnage,personnage…]
+   node scripts/demo/videos.mjs [studio url] [character,character…]
 
-   Pour chaque personnage : la plage animée par Wan 2.2 (5 s, sans son) et le
-   café animé par LTX-2.5 (5 s, avec son d'ambiance). La photo source est la
-   plus récente de la scène pour ce personnage. */
+   Per character: the beach animated by Wan 2.2 (5 s, no sound) and the café
+   by LTX-2.5 (5 s, ambient sound). The source photo is the character's most
+   recent render of that scene. */
 import { SCENES } from './scenes.mjs'
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8787'

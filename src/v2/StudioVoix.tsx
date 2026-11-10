@@ -1,7 +1,7 @@
-/* Studio dialogue et voix : faire dire une phrase (voix du studio, voix clonée, voix d'un
-   personnage), cloner une voix, changer la voix d'un audio ou d'un clip, et rattacher une voix
-   à chaque personnage CreatorOS (champ voix du personnage, repris par le reel et l'avatar parlant).
-   Clonage, changement et rattachement sont réservés au propriétaire du studio. */
+/* Dialogue and voice studio: speak a line (studio voice, cloned voice, character
+   voice), clone a voice, change the voice of an audio or clip, and attach a voice
+   to each CreatorOS character (character voice field, used by reels and the talking avatar).
+   Cloning, voice change and attaching are owner-only. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
@@ -16,7 +16,7 @@ type Perso = { id: string; name: string; voix?: string | null }
 const nomCourt = (n: string) => n.replace(/_[a-z0-9]{6}\.\w+$/, '').replace(/\.\w+$/, '').replace(/_/g, ' ')
 const poster = (url: string, corps: object, methode = 'POST') => fetch(url, { method: methode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
 
-/** Voix du studio, voix clonées possibles (propriétaire) et extraits de la bibliothèque audio. */
+/** Studio voices, possible cloned voices (owner) and audio library excerpts. */
 function useCatalogueVoix(cle: number) {
   const [etat, setEtat] = useState<{ voix: Voix[]; clones: Voix[]; disponible: boolean; clone: boolean }>({ voix: [], clones: [], disponible: true, clone: false })
   const [extraits, setExtraits] = useState<string[]>([])
@@ -28,14 +28,14 @@ function useCatalogueVoix(cle: number) {
   return { ...etat, extraits }
 }
 
-/** Libellé d'une voix rattachable (studio ou clonée). */
+/** Label of an attachable voice (studio or cloned). */
 const libelleVoix = (id: string | null | undefined, voix: Voix[]) =>
   !id ? t('aucune') : id.startsWith('clone:') ? `${t('voix clonée')} · ${nomCourt(id.slice(6))}` : voix.find(v => v.id === id)?.nom ?? id
 
-/** Choix d'une voix : studio, puis voix clonées (propriétaire), puis voix des personnages. */
+/** Voice picker: studio, then cloned voices (owner), then character voices. */
 function SelectVoix({ valeur, onChange, voix, clones, persos }: { valeur: string; onChange: (v: string) => void; voix: Voix[]; clones: Voix[]; persos?: Perso[] }) {
   const avecVoix = (persos ?? []).filter(p => p.voix)
-  // écouter la voix choisie : un échantillon court, rendu une fois par le serveur
+  // preview the chosen voice: a short sample, rendered once by the server
   const ecoute = useRef<HTMLAudioElement | null>(null)
   const [joue, setJoue] = useState(false)
   const id = valeur.startsWith('perso:') ? (persos ?? []).find(p => `perso:${p.id}` === valeur)?.voix ?? '' : valeur
@@ -59,7 +59,7 @@ function SelectVoix({ valeur, onChange, voix, clones, persos }: { valeur: string
   )
 }
 
-/** Une réplique rendue : le studio son la pose dans ses résultats et son historique. */
+/** A rendered line: the sound studio shows it in its results and history. */
 export type RenduVoix = { nom: string; texte: string; voix: string; voixNom: string; mode: 'dire' | 'cloner' | 'changer'; at: number }
 
 export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
@@ -67,7 +67,7 @@ export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
   const [cle, setCle] = useState(0)
   const { voix, clones, disponible, clone, extraits } = useCatalogueVoix(cle)
   const [mode, setMode] = useState<Mode>(() => { const d = useAppStore.getState().demandeOutil; return d === 'cloner' || d === 'changer' ? d : 'dire' })
-  // le menu Audio ouvre directement le clonage ou le changement de voix
+  // the Audio menu opens voice cloning or voice change directly
   const demande = useAppStore(st => st.demandeOutil)
   useEffect(() => { if (demande === 'cloner' || demande === 'changer') { setMode(demande); useAppStore.setState({ demandeOutil: null }) } }, [demande])
   const [persos, setPersos] = useState<Perso[]>([])
@@ -78,8 +78,8 @@ export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
   const [choix, setChoix] = useState('af_heart')
   const [ref, setRef] = useState('')
   const [accord, setAccord] = useState(false)
-  const [source, setSource] = useState('')       // « audio:<nom> » ou « clip:<assetId> »
-  const [cible, setCible] = useState('af_heart') // voix du studio ou « extrait:<nom> »
+  const [source, setSource] = useState('')       // "audio:<nom>" or "clip:<assetId>"
+  const [cible, setCible] = useState('af_heart') // studio voice or "extrait:<nom>"
   const [occupe, setOccupe] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erreur, setErreur] = useState(false)
@@ -87,13 +87,13 @@ export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
   const assets = useAppStore(st => st.assets)
   const clips = useMemo(() => assets.filter(a => String(a.mediaType) === 'video').slice(0, 40), [assets])
 
-  // « perso:<id> » se résout en la voix rattachée au personnage
+  // "perso:<id>" resolves to the voice attached to the character
   const voixReelle = (v: string) => v.startsWith('perso:') ? persos.find(p => p.id === v.slice(6))?.voix ?? '' : v
   const nomVoix = (v: string) => v.startsWith('clone:') ? `${t('voix clonée')} · ${nomCourt(v.slice(6))}` : v.startsWith('extrait:') ? `${t('voix clonée')} · ${nomCourt(v.slice(8))}` : voix.find(x => x.id === v)?.nom ?? v
   const fin = (r: Response, d: { error?: string; nom?: string }, info?: Omit<RenduVoix, 'nom' | 'at'>) => {
     setOccupe(false)
     if (!r.ok) { setErreur(true); setMsg(tServeur(d.error ?? null) ?? `HTTP ${r.status}`); return false }
-    // le rendu s'affiche dans la zone des résultats du studio son
+    // the render shows in the sound studio results area
     surPret(d.nom && info ? { ...info, nom: d.nom, at: Date.now() } : undefined); setCle(c => c + 1); return true
   }
   const dire = async () => {
@@ -113,7 +113,7 @@ export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
     const corps = source.startsWith('clip:') ? { assetId: source.slice(5), ...versCible } : { audio: source.slice(6), ...versCible }
     const r = await poster('/api/voix/changer', corps)
     const d = await r.json().catch(() => ({})) as { error?: string; nom?: string; jobId?: string }
-    // un clip revoisé devient un nouveau clip de la bibliothèque
+    // a revoiced clip becomes a new library clip
     if (fin(r, d, { texte: source.startsWith('clip:') ? '' : nomCourt(source.slice(6)), voix: cible, voixNom: nomVoix(cible), mode: 'changer' }) && d.jobId) { void useAppStore.getState().adoptServerJob(d.jobId); setMsg(t('Nouveau clip dans la bibliothèque, avec la voix changée.')) }
   }
 
@@ -184,7 +184,7 @@ export function StudioVoix({ surPret }: { surPret: (r?: RenduVoix) => void }) {
   )
 }
 
-/** Rattache une voix à chaque personnage : le reel et l'avatar parlant la reprennent. */
+/** Assigns a voice to each character; reels and the talking avatar reuse it. */
 function VoixPersonnages({ persos, voix, clones, surChange }: { persos: Perso[]; voix: Voix[]; clones: Voix[]; surChange: () => void }) {
   const personaId = useAppStore(st => st.personaId)
   const [choix, setChoix] = useState<Record<string, string>>({})

@@ -1,45 +1,43 @@
 /* ============================================================
-   Les moteurs i2v câblés, côté affichage.
+   The wired i2v engines, display side.
 
-   Le ROUTAGE vit dans server/jobs.js (VIDEO_ENGINES) : c'est lui qui associe
-   une clé à un fichier de recette. Ici on ne garde que ce qu'il faut pour
-   choisir — le nom, la force, la présence d'un étage audio, l'ordre de
-   grandeur du temps. Les clés doivent correspondre ; si elles divergent, le
-   serveur refuse le job en nommant les clés qu'il connaît, plutôt que de
-   replier sur un autre moteur en silence.
+   ROUTING lives in server/jobs.js (VIDEO_ENGINES), which maps a key
+   to a recipe file. This file only keeps what is needed to choose:
+   name, strength, audio stage, order of magnitude of render time.
+   Keys must match; if they diverge, the server rejects the job and
+   lists the keys it knows, instead of silently falling back to
+   another engine.
 
-   Aucun de ces moteurs ne domine les autres : ils perdent sur des axes
-   différents. Le choix est donc manuel, et l'interface dit sur quoi il porte
-   au lieu de laisser deviner.
+   No engine dominates the others, so the choice is manual and the
+   UI states what each one is good at.
    ============================================================ */
 import type { VideoEngine } from '../../../types'
 
 export interface EngineInfo {
   key: VideoEngine
-  /** Nom court, celui du bouton. */
+  /** Short name, shown on the button. */
   label: string
-  /** Durée maximale en secondes — une limite de VRAM, pas une préférence :
-   *  au-delà, le rendu tombe en OOM au premier échantillonneur. */
+  /** Maximum duration in seconds — a VRAM limit: beyond it the
+   *  render runs out of memory at the first sampler. */
   maxSeconds: number
-  /** Ce que ce moteur fait MIEUX que les autres — l'indice de force. */
+  /** What this engine does BETTER than the others — the strength hint. */
   force: string
-  /** A un étage audio. Faux → la case « son » est grisée. */
+  /** Has an audio stage. False → the "sound" checkbox is disabled. */
   audio: boolean
-  /** Ordre de grandeur du rendu, en minutes, pour un plan de ~5 s sur une carte de 32 Go. */
+  /** Order of magnitude of render time, in minutes, for a ~5 s shot on a 32 GB card. */
   minutes: number
-  /** Mode brouillon disponible : même recette à surface réduite. `minutes`
-   *  est l'ordre de grandeur en brouillon. Absent → pas de case à cocher. */
+  /** Draft mode available: same recipe at reduced resolution. `minutes`
+   *  is the draft order of magnitude. Absent → no checkbox. */
   draft?: { label: string; minutes: number }
-  /** Moteur à installer soi-même (poids sous licence restreinte). */
+  /** Self-installed engine (weights under a restricted license). */
   optionnel?: 'h3'
 }
 
 export const VIDEO_ENGINES: EngineInfo[] = [
   {
     key: 'wan',
-    // 8 s en direct ; au-delà le serveur bascule sur la recette à fenêtres
-    // de contexte (12 s sondés : 30 min) — plus lent, cohérence
-    // légèrement plus souple, mais ça rend.
+    // 8 s direct; beyond that the server switches to the context-window
+    // recipe (12 s ≈ 30 min) — slower, slightly looser coherence.
     maxSeconds: 12,
     label: 'Wan 2.2 (I2V A14B)',
     force: 'image la plus propre — le plan qui doit tenir en grand',
@@ -49,7 +47,7 @@ export const VIDEO_ENGINES: EngineInfo[] = [
   },
   {
     key: 'ltx_hq',
-    // 16 s sondés : 9 min, 30,9 Go — 20 s non sondé.
+    // 16 s ≈ 9 min, 30.9 GB.
     maxSeconds: 16,
     label: 'LTX-2.5 (22B)',
     force: 'avec le son, rapide — 896×1600 en plusieurs passes',
@@ -70,18 +68,18 @@ export const VIDEO_ENGINES: EngineInfo[] = [
 
 ]
 
-/** Forme de VIDEO_ENGINES côté serveur (GET /api/health). */
+/** Shape of the server's VIDEO_ENGINES (GET /api/health). */
 interface ServerEngine {
   maxSeconds: number; minutes: number; audio: boolean
   draft?: { megapixels: number; minutes: number }
 }
 
-/** Le serveur est la source pour tout ce qui est MESURÉ ou IMPOSÉ (plafond,
- *  minutes, audio, brouillon) ; le front garde le libellé et l'indice de
- *  force, qui sont de l'écriture. Fusion en place : les composants lisent
- *  VIDEO_ENGINES au rendu, et hydrate() déclenche un rendu. */
-/* Texte → vidéo AVEC un personnage dont la LoRA vidéo est une paire Wan haut /
-   bas bruit (Aisha). Hors du sélecteur i2v : il ne part d'aucune image. */
+/** The server is the source for everything MEASURED or ENFORCED (cap,
+ *  minutes, audio, draft); the front end keeps the label and the strength
+ *  hint. Merged in place: components read VIDEO_ENGINES at render time,
+ *  and hydrate() triggers a render. */
+/* Text → video WITH a character whose video LoRA is a Wan high/low noise
+   pair. Not in the i2v selector: it starts from no image. */
 export const T2V_WAN: EngineInfo = {
   key: 'wan_t2v',
   maxSeconds: 5,
@@ -106,38 +104,36 @@ export function setEngineCatalog(list: unknown) {
   }
 }
 
-/** Seul moteur dont la recette sait partir du TEXTE (plan d'ambiance). */
+/** Only engine whose recipe can start from TEXT (ambient shot). */
 export const T2V_ENGINE: VideoEngine = 'ltx_hq'
 
-/** Moteur du texte → vidéo : Wan T2V quand le personnage est demandé et que sa
- *  LoRA vidéo est une LoRA Wan, LTX-2.5 sinon (plans d'ambiance, LoRA LTX). */
+/** Text → video engine: Wan T2V when the character is requested and its
+ *  video LoRA is a Wan LoRA, otherwise LTX-2.5 (ambient shots, LTX LoRA). */
 export const moteurT2v = (persoWan: boolean): VideoEngine => persoWan ? 'wan_t2v' : T2V_ENGINE
 
 export const engineInfo = (key: VideoEngine): EngineInfo =>
   [...VIDEO_ENGINES, T2V_WAN].find(e => e.key === key) ?? VIDEO_ENGINES[0]
 
-/** Le son est-il RÉELLEMENT produit ? Le drapeau de l'opérateur ne suffit
- *  pas : sur un moteur muet il ne veut rien dire, et c'est cette valeur-là
- *  qui part au serveur. */
+/** Is sound ACTUALLY produced? The operator flag is not enough: it is
+ *  meaningless on a silent engine, and this value is what is sent to the server. */
 export const audioEffective = (key: VideoEngine, wanted: boolean) =>
   engineInfo(key).audio && wanted
 
-/** Ce que la langue du moteur impose au brief audio. Mesuré, pas supposé :
- *  MiniMax a rendu la réplique française mot pour mot (langue détectée à
- *  0,88) là où LTX a transcrit « coucou toi » en « Kuku toa ». */
+/** What the engine's language support implies for the audio brief:
+ *  LTX renders French dialogue poorly, MiniMax renders it faithfully. */
 export const AUDIO_HINT: Partial<Record<VideoEngine, string>> = {
   ltx_hq: 'Voix correcte en anglais, brouillonne en français · ambiance quasi muette',
 }
 
-/* ---------- format ----------
-   Les formats sont ceux du nœud ResolutionSelector de ComfyUI : en proposer
-   d'autres ferait échouer le graphe à l'exécution, pas à la validation. */
+/* ---------- aspect ratio ----------
+   The ratios are those of ComfyUI's ResolutionSelector node: any other
+   value would fail the graph at execution, not at validation. */
 export const ASPECTS = ['9:16', '2:3', '3:4', '1:1', '4:3', '3:2', '16:9', '21:9'] as const
 export type AspectRatio = typeof ASPECTS[number]
 
-/** Format de la liste le plus proche de dimensions données. Sert au mode
- *  « format de l'image » : la still de départ fait rarement un ratio rond
- *  (832×1216 n'est ni du 9:16 ni du 2:3, mais il est bien plus près du 2:3). */
+/** Closest listed aspect ratio to given dimensions. Used by the
+ *  "image aspect" mode: the starting still rarely has a round ratio
+ *  (832×1216 is neither 9:16 nor 2:3, but much closer to 2:3). */
 export function nearestAspect(w: number, h: number): AspectRatio {
   if (!w || !h) return '9:16'
   const target = w / h
@@ -145,18 +141,17 @@ export function nearestAspect(w: number, h: number): AspectRatio {
   let dist = Infinity
   for (const a of ASPECTS) {
     const [rw, rh] = a.split(':').map(Number)
-    // Comparaison en logarithme : sans ça, l'écart entre 16:9 et 21:9 pèserait
-    // bien plus que celui, tout aussi visible, entre 9:16 et 2:3.
+    // Compare in log space: otherwise the gap between 16:9 and 21:9 would weigh
+    // much more than the equally visible one between 9:16 and 2:3.
     const d = Math.abs(Math.log(target / (rw / rh)))
     if (d < dist) { dist = d; best = a }
   }
   return best
 }
 
-/* ---------- multi-plans ----------
-   Aucun paramètre de nœud n'existe : c'est le PROMPT qui pilote le découpage
-   (vérifié dans /object_info sur les trois moteurs).
-   MiniMax coupe, LTX suit un découpage demandé plan par plan, Wan coupe
-   les LIEUX et les angles mais ignore les changements d'échelle (pas de
-   gros plan obtenu) — activé quand même, le prompt fait la différence. */
+/* ---------- multi-shot ----------
+   No node parameter exists: the PROMPT drives the cuts.
+   MiniMax cuts, LTX follows a shot-by-shot breakdown, Wan cuts
+   LOCATIONS and angles but ignores scale changes (no close-up) —
+   enabled anyway, the prompt makes the difference. */
 export const MULTISHOT_ENGINES: ReadonlySet<VideoEngine> = new Set(['ltx_hq', 'wan'])

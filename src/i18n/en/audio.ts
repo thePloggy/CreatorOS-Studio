@@ -1,6 +1,6 @@
-/* Textes : page audio (studio musique, studio dialogue et voix, bruitages). */
+/* Texts: audio page (music studio, dialogue and voice studio, sound effects). */
 export const audio: Record<string, string> = {
-  // onglets et menu
+  // tabs and menu
   'Studio audio': 'Audio studio',
   'Un morceau complet : style, instruments, tempo, tonalité, paroles et voix chantée. Deux prises à chaque fois.': 'A complete track: style, instruments, tempo, key, lyrics and vocals. Two takes every time.',
   'Fais parler une voix, clone ou change une voix, et donne sa voix à chaque personnage.': 'Make a voice speak, clone or change a voice, and give each character a voice.',
@@ -8,7 +8,7 @@ export const audio: Record<string, string> = {
   'Un morceau complet : style, instruments, tempo, tonalité, paroles et voix, en libre ou d’après un preset.': 'A complete track: style, instruments, tempo, key, lyrics and vocals, free-form or from a preset.',
   'Tape une phrase, choisis une voix, et donne une voix à chaque personnage.': 'Type a line, pick a voice, and give each character a voice.',
   'Décris un bruitage pour tes vidéos : il rejoint la bibliothèque audio.': 'Describe a sound effect for your videos: it joins the audio library.',
-  // studio musique
+  // music studio
   'Depuis un preset': 'From a preset',
   'Presets musicaux': 'Music presets',
   'Le preset remplit les champs ; tout reste modifiable.': 'The preset fills in the fields; you can still change everything.',
@@ -39,11 +39,11 @@ export const audio: Record<string, string> = {
   'Prêt : deux prises, garde la meilleure.': 'Ready: two takes, keep the best one.',
   'Prise {n}': 'Take {n}',
   'Waltz': 'Waltz',
-  // bruitages
+  // sound effects
   'Le son': 'The sound',
   'Un bruitage seul, sans musique ni voix : pour habiller une vidéo au montage.': 'A sound effect on its own, no music or voice: to dress a video in the editor.',
   'Générer le bruitage': 'Generate the sound effect',
-  // studio dialogue et voix
+  // dialogue and voice studio
   'Dire une réplique': 'Speak a line',
   'Voix des personnages': 'Character voices',
   'Réplique': 'Line',
@@ -59,7 +59,7 @@ export const audio: Record<string, string> = {
   'La voix d’un personnage sert au reel (voix off) et à l’avatar parlant (« Voix de … »).': 'A character’s voice is used by the reel (voice-over) and the talking avatar (“Voice of …”).',
   'Rattacher cette voix': 'Attach this voice',
   'Détacher': 'Detach',
-  // messages du serveur
+  // server messages
   'décris le morceau': 'describe the track',
   'décris le son': 'describe the sound',
   'tempo invalide': 'invalid tempo',
@@ -68,7 +68,7 @@ export const audio: Record<string, string> = {
   'langue inconnue': 'unknown language',
   'type de voix inconnu': 'unknown vocal type',
   'voix inconnue': 'unknown voice',
-  // studio son (section de premier niveau)
+  // sound studio (top-level section)
   'Studio son': 'Sound Studio',
   'Dialogue et voix': 'Dialog & Voice',
   'Bruitages': 'Sound Effects',
@@ -127,7 +127,7 @@ export const audio: Record<string, string> = {
   'Studio son : musique': 'Sound Studio: music',
   '{n} rendu(s) audio en cours : suivre dans le studio son ›': '{n} audio render(s) in progress: follow them in the Sound Studio ›',
   'Chercher un son…': 'Search a sound…',
-  // comment ça marche
+  // how it works
   'Ce que fait le modèle': 'What the model does',
   'ACE-Step 1.5 compose un morceau complet d’après une description : instruments, structure, voix chantée et paroles, mixés ensemble.': 'ACE-Step 1.5 composes a complete track from a description: instruments, structure, vocals and lyrics, mixed together.',
   'Écrire le style': 'Writing the style',

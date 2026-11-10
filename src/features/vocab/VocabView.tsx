@@ -1,8 +1,8 @@
 /* ============================================================
-   Vocabulaires (☰) — bibliothèques ÉDITABLES.
-   Base = vocabulaire de départ (lecture seule) + AJOUTS
-   utilisateur (localStorage, préfixe custom_) fusionnés partout.
-   Ajout par onglet avec auto-tag ; export JSON des ajouts.
+   Vocabularies (☰) — EDITABLE libraries.
+   Base = starter vocabulary (read-only) + user ADDITIONS
+   (localStorage, custom_ prefix) merged everywhere.
+   Per-tab additions with auto-tag; JSON export of additions.
    ============================================================ */
 import { useState } from 'react'
 import { Button, Field, SectionTitle, Select, Textarea } from '../../components/ui'
@@ -23,7 +23,7 @@ function Tag({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** ✕ de suppression — uniquement sur les ajouts utilisateur. */
+/** Delete ✕ — only on user additions. */
 function DeleteBtn({ kind, id }: { kind: string; id: string }) {
   const removeCustom = useVocabStore(s => s.removeCustom)
   if (!isCustom(id)) return null
@@ -41,7 +41,7 @@ export function VocabView() {
 
   const store = useVocabStore()
 
-  /* Formulaire d'ajout — champs partagés, interprétés selon l'onglet. */
+  /* Add form — shared fields, interpreted per tab. */
   const [fPrompt, setFPrompt] = useState('')
   const [fLabelFr, setFLabelFr] = useState('')
   const [fCtx, setFCtx] = useState('général')
@@ -139,7 +139,7 @@ export function VocabView() {
         )}
       </div>
 
-      {/* ---------- Formulaire d'ajout (selon l'onglet) ---------- */}
+      {/* ---------- Add form (per tab) ---------- */}
       {adding && canAdd && (
         <div className="border border-accent-dim/40 rounded-card bg-surface2 p-3 mb-4">
           <div className="text-[12px] font-semibold mb-2">{t('Ajouter — {tab}', { tab: t(tab) })}</div>

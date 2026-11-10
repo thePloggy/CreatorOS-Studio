@@ -1,26 +1,25 @@
 /* ============================================================
-   Captions des reels — le texte gravé à l'écran.
+   Reel captions: the text burned on screen.
 
-   L'opérateur produit, trie, range ses vidéos dans un dossier, sélectionne
-   tout, lance les captions. Rien n'est écrit à la génération : la plupart
-   des vidéos finissent au déchet.
+   Captions are written on demand for a selection of videos, never at
+   generation time.
 
-   Pour chaque vidéo :
-   1. trois images (début, milieu, fin) accolées en UNE image → un seul appel
-      VLM par vidéo (le VLM lit très bien une planche) ;
-   2. le rédacteur reçoit la description, l'intention du prompt vidéo et les
-      captions déjà prises (livrées + écrites dans le même lot), avec la
-      consigne `caption.txt` du dossier des textes ;
-   3. il propose 5 captions ; le code garde celles qui tiennent les règles
-      dures (longueur, pas d'emoji ni de lien) et pose la première dans le
-      champ, les autres restent proposées.
+   For each video:
+   1. three frames (start, middle, end) tiled into ONE image -> one VLM
+      call per video;
+   2. the writer gets the description, the intent of the video prompt and
+      the captions already taken (delivered + written in the same batch),
+      with the `caption.txt` instruction from the texts directory;
+   3. it proposes 5 captions; the code keeps those that pass the hard
+      rules (length, no emoji or link), puts the first in the field and
+      keeps the others as suggestions.
 
-   Le lot entier prend la carte une fois (blocOllama, attendreCarte).
+   The whole batch takes the GPU once (blocOllama, attendreCarte).
 
-   Livraison : les vidéos captionnées sont gravées (server/graver.py) et
-   écrites dans <données>/exports/<nom du dossier>/ sous un nom numéroté
-   (reel-0001, reel-0002…). Le compteur vit dans <données>/reels_compteur.json
-   et les captions livrées rejoignent <données>/captions_publiees.txt.
+   Delivery: captioned videos are burned (server/graver.py) and written to
+   <data>/exports/<folder name>/ under a numbered name (reel-0001,
+   reel-0002...). The counter lives in <data>/reels_compteur.json and
+   delivered captions are appended to <data>/captions_publiees.txt.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -39,13 +38,13 @@ const COMPTEUR = path.join(CONFIG.dataDir, 'reels_compteur.json')
 const GRAVEUR = path.join(import.meta.dirname, 'graver.py')
 const REDACTEUR = process.env.CREATOROS_LLM_CAPTION || CONFIG.composerModels.sfw
 
-/* Une tâche à la fois (écriture OU livraison) : l'état est lu par le front. */
+/* One task at a time (writing OR delivery); the state is read by the front end. */
 let tache = null
 export const etat = () => tache
 
 const fichierDe = a => path.join(CONFIG.mediaDir, path.basename(a.uri))
 
-/* ---------- 1. ce que montre le clip ---------- */
+/* ---------- 1. what the clip shows ---------- */
 async function planche(video) {
   const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', video])
   const d = Number(stdout) || 6
@@ -78,16 +77,15 @@ async function decrire(a) {
       + 'clip, and the time of day. No preamble.' })
 }
 
-/* Le prompt vidéo H3 est un script technique (plans, minutages) : on n'en
-   garde que le texte, raccourci — il dit l'INTENTION du clip, que la planche
-   ne montre pas toujours (un geste qui commence à peine). */
+/* The H3 video prompt is a technical script (shots, timings): only its text is
+   kept, shortened. It gives the clip's INTENT, which the frames may not show. */
 function intention(a) {
   const t = String(a.initial_brief || a.user_prompt || a.composed_positive || '')
     .replace(/\[[^\]]*\]/g, ' ').replace(/integrated_multimodal_description:/g, ' ').replace(/\s+/g, ' ').trim()
   return t.slice(0, 900)
 }
 
-/* ---------- 2. rédaction ---------- */
+/* ---------- 2. writing ---------- */
 const SCHEMA = {
   type: 'object', required: ['options'],
   properties: { options: { type: 'array', minItems: 5, maxItems: 5, items: {
@@ -95,8 +93,7 @@ const SCHEMA = {
     properties: { caption: { type: 'string' }, family: { type: 'string' } } } } },
 }
 
-/** Règles dures vérifiées en code : ce qu'un paragraphe demande, le modèle
- *  l'oublie parfois ; ce que le code contrôle tient toujours. */
+/** Hard rules checked in code, since the model sometimes ignores them in the prompt. */
 export function propre(brut) {
   const c = String(brut || '').trim().replace(/^["'“]+|["'”]+$/g, '').replace(/\s+/g, ' ')
   if (/\p{Extended_Pictographic}|#|@|https?:/u.test(c)) return null
@@ -104,11 +101,9 @@ export function propre(brut) {
   return c
 }
 
-/* Une caption presque recopiée (« the water's perfect... coming in? » après
-   « the water's warm... coming in? ») n'est pas une nouvelle caption. On
-   compare les mots porteurs : deux en commun sur trois, c'est la même phrase.
-   Les petits mots et les verbes de gabarit (too… for, come join…, share…)
-   ne comptent pas. */
+/* A near-copy of a caption is not a new caption. Content words are compared:
+   two out of three in common means the same sentence. Short words and template
+   verbs (too... for, come join..., share...) do not count. */
 const VIDES = new Set(('a an the my your me you I i it is do does can will to with for in on of and or this that be are just so '
   + 'too come join want take walk share watch keep').split(' '))
 const porteurs = c => new Set(c.toLowerCase().replace(/[^a-z' ]/g, ' ').split(/\s+/)
@@ -148,9 +143,8 @@ async function rediger(a, description, recentes) {
   return options
 }
 
-/** Écrit les captions des assets donnés (vidéos). `tout` : réécrit aussi
- *  celles déjà remplies — sinon on ne touche jamais une caption existante,
- *  retouchée à la main ou non. */
+/** Writes captions for the given assets (videos). `tout`: also rewrites filled
+ *  ones; otherwise an existing caption is never touched. */
 export function lancerEcriture(ids, { tout = false } = {}) {
   if (tache && !tache.fini) throw new Error(`une tâche est déjà en cours (${tache.type})`)
   const cibles = ids.map(store.getAsset).filter(a => a && a.media_type === 'video' && (tout || !a.caption))
@@ -158,7 +152,7 @@ export function lancerEcriture(ids, { tout = false } = {}) {
   if (!cibles.length) return tache
   const t = tache
   void blocOllama(async () => {
-    /* Déjà prises : les publiées, puis celles des autres vidéos du lot. */
+    /* Already taken: published ones, then those of other videos in the batch. */
     const recentes = [...captionsPubliees(),
       ...ids.map(store.getAsset).filter(a => a?.caption && !cibles.some(c => c.id === a.id)).map(a => a.caption)]
     for (const a of cibles) {
@@ -166,7 +160,7 @@ export function lancerEcriture(ids, { tout = false } = {}) {
       try {
         const desc = await decrire(a)
         let options = await rediger(a, desc || '', recentes)
-        if (!options.length) options = await rediger(a, desc || '', recentes)   // une relance, pas plus
+        if (!options.length) options = await rediger(a, desc || '', recentes)   // one retry, no more
         if (!options.length) throw new Error('aucune proposition ne tient les règles')
         store.setCaptionProposee(a.id, options[0].caption, options)
         recentes.push(options[0].caption)
@@ -178,20 +172,20 @@ export function lancerEcriture(ids, { tout = false } = {}) {
   return tache
 }
 
-/* ---------- 3. livraison ---------- */
+/* ---------- 3. delivery ---------- */
 export function prochainReel() {
   try { return JSON.parse(fs.readFileSync(COMPTEUR, 'utf8')).prochain } catch { return 'reel-0001' }
 }
-/** reel-0001 → reel-0002 : le dernier nombre du nom est incrémenté, préfixe
- *  et largeur conservés. */
+/** reel-0001 -> reel-0002: the last number in the name is incremented, prefix
+ *  and width kept. */
 export function reelSuivant(nom) {
   const m = /^([\w-]*?)(\d+)$/.exec(String(nom))
   if (!m) throw new Error(`nom de reel invalide : ${nom} (attendu un nom finissant par un nombre, ex. reel-0001)`)
   return `${m[1]}${String(Number(m[2]) + 1).padStart(m[2].length, '0')}`
 }
 
-/** Grave et livre, dans l'ordre donné. Refuse s'il manque une caption :
- *  une vidéo livrée sans texte serait publiée telle quelle. */
+/** Burns and delivers, in the given order. Refuses if a caption is missing:
+ *  a delivered video without text would be published as is. */
 export function lancerLivraison(ids, { debut, dossier } = {}) {
   if (tache && !tache.fini) throw new Error(`une tâche est déjà en cours (${tache.type})`)
   const assets = ids.map(store.getAsset).filter(a => a && a.media_type === 'video')
@@ -200,7 +194,7 @@ export function lancerLivraison(ids, { debut, dossier } = {}) {
     + sans.slice(0, 6).map(a => `#${a.job_id}`).join(', ') + (sans.length > 6 ? '…' : ''))
   if (!assets.length) throw new Error('aucune vidéo dans la sélection')
   let nom = debut || prochainReel()
-  reelSuivant(nom)   // valide le format avant de commencer
+  reelSuivant(nom)   // validates the format before starting
   const sortie = path.join(CONFIG.exportsDir, String(dossier || 'Reels').replace(/[/\\]|\.\./g, '-'))
   fs.mkdirSync(sortie, { recursive: true })
   tache = { type: 'livraison', total: assets.length, faits: 0, erreurs: [], fini: false, debut: Date.now(), dossier: sortie, livres: [] }
@@ -212,7 +206,7 @@ export function lancerLivraison(ids, { debut, dossier } = {}) {
         const dst = path.join(sortie, `${nom}.mp4`)
         const { stdout } = await run(CONFIG.comfyPython, [GRAVEUR, fichierDe(a), dst, a.caption.trim()], { timeout: 180_000 })
         const info = JSON.parse(stdout.trim().split('\n').pop())
-        // la still du reel (1re image, bandeau compris), même nom en .jpg
+        // the reel still (first frame, banner included), same name as .jpg
         await run('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', dst, '-frames:v', '1', '-q:v', '2', path.join(sortie, `${nom}.jpg`)])
         fs.appendFileSync(PUBLIEES, `${nom} | ${a.caption.trim()}\n`)
         t.livres.push({ id: a.id, nom, zone: info.zone })

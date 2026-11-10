@@ -1,9 +1,9 @@
 /* ============================================================
-   Carrousel — neuf propositions à partir d'une photo existante.
+   Carousel: nine proposals from an existing photo.
 
-   L'ORIGINE n'est jamais regénérée : c'est la référence de lecture,
-   pas une proposition. Il y a donc 8 réécritures cochables + 1 témoin,
-   et le décompte d'envoi ne porte que sur les huit.
+   The ORIGINAL is never regenerated: it is the reference, not a
+   proposal. So there are 8 selectable rewrites + 1 control, and the
+   submit count covers only the eight.
    ============================================================ */
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'
@@ -22,7 +22,7 @@ const LABELS: Record<Dim, string> = {
   style: 'the photographic style',
 }
 const FR: Record<Dim, string> = { outfit: 'Tenue', pose: 'Pose', env: 'Décor', props: 'Accessoires', light: 'Lumière', style: 'Style photo' }
-/* `env` côté mobile s'appelle `location` côté serveur. */
+/* `env` on mobile is called `location` on the server. */
 const VERS_SERVEUR: Record<Dim, string> = { outfit: 'outfit', pose: 'pose', env: 'location', props: 'props', light: 'light', style: 'style' }
 
 export function MCarousel({ asset, onClose, onSent }: {
@@ -30,21 +30,21 @@ export function MCarousel({ asset, onClose, onSent }: {
 }) {
   const s = useAppStore()
   const base = asset.provenance?.composedPositive || asset.provenance?.userPrompt || ''
-  /* Coché = GARDÉ. Par défaut on garde la tenue et le décor, et on fait
-     varier la pose et la lumière : c'est la déclinaison la plus courante. */
+  /* Checked = KEPT. By default outfit and setting are kept, and pose and
+     lighting vary: the most common variation. */
   const [keep, setKeep] = useState<Record<Dim, boolean>>({ outfit: true, pose: false, env: true, props: true, light: true, style: false })
-  /* Décomposition montrée AVANT les cadenas, comme sur le desktop : sans elle
-     on verrouille sans savoir ce que chaque dimension contient. */
+  /* Breakdown shown BEFORE the locks, as on desktop: without it you lock
+     without knowing what each dimension contains. */
   const [dims, setDims] = useState<Record<string, string> | null>(null)
   const [dimsErr, setDimsErr] = useState(false)
-  /* Préparation du carrousel, renvoyée telle quelle à la rédaction. */
+  /* Carousel preparation, sent back as is to the writing step. */
   const [prep, setPrep] = useState<{ racine: string | null; vlm: string | null; fiche: unknown } | null>(null)
   const [corr, setCorr] = useState<Corrections>({})
   const [edite, setEdite] = useState<string | null>(null)
   const [keepSeed, setKeepSeed] = useState(false)
   const [phase, setPhase] = useState<'config' | 'busy' | 'review' | 'sending'>('config')
   const [variants, setVariants] = useState<string[]>([])
-  /* LoRA attribuée par la grille à chaque plan (facultatif). */
+  /* LoRA assigned by the grid to each shot (optional). */
   const [lorasPlans, setLorasPlans] = useState<({ name: string; strength: number; trigger: string }[] | null)[]>([])
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [tab, setTab] = useState(0)
@@ -84,7 +84,7 @@ export function MCarousel({ asset, onClose, onSent }: {
       if (!Array.isArray(d.variants) || !d.variants.length) throw new Error(t('aucune variante produite'))
       setVariants([base, ...d.variants.slice(0, 8)])
       setLorasPlans(Array.isArray(d.loras) ? d.loras.slice(0, 8) : [])
-      // toutes cochées d'emblée : relire et décocher est plus rapide que cocher
+      // all checked up front: reviewing and unchecking is faster than checking
       setChosen(new Set(d.variants.slice(0, 8).map((_: string, i: number) => i + 1)))
       setTab(1)
       setPhase('review')
@@ -101,14 +101,14 @@ export function MCarousel({ asset, onClose, onSent }: {
     setPhase('sending'); setSentN(0)
     const seedVal = keepSeed ? asset.provenance?.seed?.value : undefined
     const bid = crypto.randomUUID()
-    /* Le rendu ORIGINAL rejoint le lot sans être recalculé : il en est la
-       première vignette. */
+    /* The ORIGINAL render joins the batch without being recomputed: it is
+       its first thumbnail. */
     try {
       await fetch(`/api/jobs/${encodeURIComponent(asset.jobId)}/batch-id`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId: bid }),
       })
-    } catch { /* non bloquant : le lot se formera sans l'original */ }
+    } catch { /* non-blocking: the batch is built without the original */ }
 
     s.setMode('photo')
     s.updatePhoto({ task: 'generate' })

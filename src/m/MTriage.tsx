@@ -1,9 +1,9 @@
 /* ============================================================
-   Tri rapide — une file de médias en attente, trois décisions.
+   Quick triage: a queue of pending media, three decisions.
 
-   Règles : Valider et Refuser avancent, Passer ne change
-   pas le statut, Annuler revient sur LA DERNIÈRE décision seulement, et
-   Refuser ne supprime jamais le fichier.
+   Rules: Approve and Reject advance, Skip does not change the
+   status, Undo reverts only THE LAST decision, and Reject never
+   deletes the file.
    ============================================================ */
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -16,8 +16,8 @@ import { t, tc, tp } from '../i18n'
 export function MTriage({ assets, onClose }: { assets: Asset[]; onClose: () => void }) {
   const videoArretee = useVideoArretee()
   const s = useAppStore()
-  /* La file est FIGÉE à l'ouverture : valider un média le sortirait sinon de
-     `assets` et ferait sauter la position. */
+  /* The queue is FROZEN on open: otherwise approving a media would remove
+     it from `assets` and shift the position. */
   const queue = useRef(assets.map(a => a.id)).current
   const [i, setI] = useState(0)
   const [history, setHistory] = useState<{ id: string; was: Asset['reviewStatus'] }[]>([])

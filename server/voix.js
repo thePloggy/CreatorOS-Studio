@@ -1,5 +1,5 @@
-/* Voix off : Kokoro-82M (Apache-2.0) dans un environnement Python à part. Le fichier rejoint
-   les musiques du montage : il sert au montage, à l'avatar parlant et au doublage. */
+/* Voice-over: Kokoro-82M (Apache-2.0) in a separate Python environment. The file joins the
+   montage music: it is used by montage, talking avatar and dubbing. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -28,8 +28,8 @@ export async function synthetiser({ texte, voix, vitesse }) {
   return { nom }
 }
 
-/* Voix clonée (Chatterbox, MIT) : réservée au propriétaire, sur un extrait de la bibliothèque audio
-   dont il déclare avoir le droit (sa voix, ou l'accord de la personne). */
+/* Cloned voice (Chatterbox, MIT): owner only, on an audio library clip the owner declares
+   having the right to use (their voice, or the person's consent). */
 const pythonClone = () => process.env.CREATOROS_CLONE_PYTHON || path.join(CONFIG.dataDir, 'clone-venv', 'bin', 'python')
 export const cloneDisponible = () => fs.existsSync(pythonClone())
 export async function cloner({ texte, reference, accord }) {
@@ -45,8 +45,8 @@ export async function cloner({ texte, reference, accord }) {
   return { nom }
 }
 
-/* Changeur de voix (Chatterbox VC) : la cible est une voix du studio (Kokoro, synthétique) ou un
-   extrait dont le propriétaire déclare avoir le droit. Les mots et le rythme de la source restent. */
+/* Voice changer (Chatterbox VC): the target is a studio voice (Kokoro, synthetic) or a clip
+   the owner declares having the right to use. The source words and rhythm are kept. */
 const CIBLES = path.join(CONFIG.dataDir, 'voix-cibles')
 async function cibleStudio(id) {
   const f = path.join(CIBLES, `${id}.wav`)
@@ -76,7 +76,7 @@ export async function changerVoix({ source, voix, reference, accord }) {
   return { nom, chemin: path.join(MUSIQUES_DIR, nom) }
 }
 
-/** Échantillon d'écoute d'une voix du studio : phrase fixe, synthétisée une fois puis gardée. */
+/** Listening sample of a studio voice: fixed sentence, synthesized once then cached. */
 const ECHANTILLONS = path.join(CONFIG.dataDir, 'voix-echantillons')
 const enCours = new Map()
 export async function echantillon(voix) {
@@ -95,8 +95,8 @@ export async function echantillon(voix) {
   return f
 }
 
-/** Dit une phrase avec une voix : du studio (Kokoro) ou « clone:<extrait> » (Chatterbox, propriétaire seul,
-    l'extrait ayant été déclaré consenti en le choisissant comme voix du personnage). */
+/** Speaks a sentence with a voice: a studio one (Kokoro) or "clone:<clip>" (Chatterbox, owner only,
+    the clip having been declared consented when chosen as the character voice). */
 export async function dire({ texte, voix, vitesse, proprietaire }) {
   const v = String(voix ?? '')
   if (v.startsWith('clone:')) {
@@ -105,7 +105,7 @@ export async function dire({ texte, voix, vitesse, proprietaire }) {
   }
   return synthetiser({ texte, voix: v, vitesse })
 }
-/** Voix acceptée : une voix du studio, ou une voix clonée pour le propriétaire. */
+/** Accepted voice: a studio voice, or a cloned voice for the owner. */
 export const voixAcceptee = (v, proprietaire) => {
   const x = String(v ?? '')
   if (VOIX.some(y => y.id === x)) return x

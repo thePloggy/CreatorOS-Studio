@@ -1,8 +1,8 @@
 /* ============================================================
-   v2 — voyant « machine » : l'état de la machine de rendu.
-   Vert = saine, orange = alertes, rouge = un rendu échouera.
-   Un clic ouvre la liste : ce qui ne va pas, et quoi faire.
-   Lit /api/diagnostic (contrôle côté serveur, lecture seule).
+   v2 — "machine" indicator: health of the render machine.
+   Green = healthy, orange = warnings, red = a render will fail.
+   Click opens the list: what is wrong and what to do.
+   Reads /api/diagnostic (server-side check, read-only).
    ============================================================ */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { t, tp, getLang } from '../i18n'
@@ -33,15 +33,15 @@ export function VoyantMachine() {
   }, [])
   useEffect(() => {
     void lire()
-    const iv = setInterval(() => void lire(), 20_000)   // le serveur garde son contrôle 2 min : lecture légère
+    const iv = setInterval(() => void lire(), 20_000)   // the server caches its check for 2 min: cheap to read
     return () => clearInterval(iv)
   }, [lire])
-  // petite carte : poids légers employés à la place des modèles lourds (lu à l'ouverture)
+  // small card: lightweight weights used instead of heavy models (read on open)
   useEffect(() => {
     if (!ouvert) return
     fetch('/api/machine/allegement').then(r => r.ok ? r.json() : null).then(setAllege, () => setAllege(null))
   }, [ouvert])
-  // clic en dehors : on referme
+  // click outside closes
   useEffect(() => {
     if (!ouvert) return
     const cb = (e: MouseEvent) => { if (!boite.current?.contains(e.target as Node)) setOuvert(false) }

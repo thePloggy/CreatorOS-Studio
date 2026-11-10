@@ -1,11 +1,10 @@
 /* ============================================================
-   Persistance SQLite — jobs, assets, provenance.
-   node:sqlite (intégré à Node 22) : aucune dépendance native à
-   compiler, donc rien à installer hors npm.
-   Trois tables, conformes au modèle de données CreatorOS :
-     jobs       : le contrat d'exécution + son issue
-     assets     : les médias produits, servis depuis /media
-     provenance : la lignée COMPLÈTE d'un asset (recette rejouable)
+   SQLite persistence: jobs, assets, provenance.
+   node:sqlite (built into Node 22): no native dependency to compile.
+   Three tables, matching the CreatorOS data model:
+     jobs       : the execution contract + its outcome
+     assets     : produced media, served from /media
+     provenance : the FULL lineage of an asset (replayable recipe)
    ============================================================ */
 import { DatabaseSync } from 'node:sqlite'
 import fs from 'node:fs'
@@ -105,12 +104,10 @@ CREATE TABLE IF NOT EXISTS folder_assets (
 CREATE INDEX IF NOT EXISTS idx_folder_assets_asset ON folder_assets(asset_id);
 `)
 
-/* Migration de `folder_assets` créée sans clé étrangère : supprimer un média
-   y laisserait sa ligne d'appartenance, et le compteur du dossier annoncerait
-   des médias qui n'existent plus. On la reconstruit avec la même cascade que `provenance` ; la
-   copie ne reprend que les liens dont le média ET le dossier existent, ce qui
-   purge les orphelins au passage. Idempotent : une fois la clé posée, le test
-   est faux et le bloc ne refait rien. */
+/* Migration of `folder_assets` created without a foreign key: rebuilt with the
+   same cascade as `provenance`, copying only links whose media AND folder exist
+   (purges orphans). Idempotent: once the key is set, the test is false and the
+   block does nothing. */
 if (!db.prepare('PRAGMA foreign_key_list(folder_assets)').all().length) {
   db.exec('PRAGMA foreign_keys = OFF')
   db.exec('BEGIN')
@@ -137,9 +134,8 @@ if (!db.prepare('PRAGMA foreign_key_list(folder_assets)').all().length) {
   db.exec('PRAGMA foreign_keys = ON')
 }
 
-/* Bases antérieures à l'élargissement de la provenance : le prompt BRUT
-   n'y était pas stocké, donc « Cloner » ne pouvait pas repeupler la colonne 3.
-   ALTER idempotent — SQLite n'a pas d'IF NOT EXISTS sur ADD COLUMN. */
+/* Adds the RAW prompt column to older databases ("Cloner" needs it to refill
+   column 3). Idempotent ALTER: SQLite has no IF NOT EXISTS on ADD COLUMN. */
 {
   const cols = new Set(db.prepare(`PRAGMA table_info(provenance)`).all().map(c => c.name))
   for (const c of ['user_prompt', 'user_directives', 'resolved_text', 'identity_preamble', 'register_clause', 'extra_loras', 'source_image'])
@@ -148,27 +144,27 @@ if (!db.prepare('PRAGMA foreign_key_list(folder_assets)').all().length) {
 
 /* ---------- jobs ---------- */
 
-/* La ligne de file en mémoire est plus riche que les colonnes (op, image
-   source, moteur vidéo, LoRA…) : pour RECONSTRUIRE la file au redémarrage,
-   on la garde entière, en JSON. Les colonnes restent la vue requêtable. */
-try { db.exec('ALTER TABLE jobs ADD COLUMN payload TEXT') } catch { /* déjà là */ }
-/* Clé d'idempotence d'envoi (mobile) : le client la génère AVANT le premier
-   POST et la réutilise sur toute reprise de transport. L'index unique fait
-   foi — deux envois de la même clé ne peuvent pas créer deux jobs, quelle que
-   soit la course. Nullable : le desktop et les jobs internes n'en posent pas,
-   et SQLite autorise autant de NULL qu'on veut dans un index unique. */
-try { db.exec('ALTER TABLE jobs ADD COLUMN request_id TEXT') } catch { /* déjà là */ }
-try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS jobs_request_id ON jobs(request_id)') } catch { /* déjà là */ }
-/* Fonction de l'asset (op generate/swap, moteur vidéo ou 'motion') : sert à
-   filtrer les galeries par catégorie. Rétro-remplie depuis le
-   payload du job pour que la bibliothèque existante soit filtrable aussi. */
+/* The in-memory queue row is richer than the columns (op, source image, video
+   engine, LoRA...): it is stored whole as JSON to REBUILD the queue on restart.
+   Columns remain the queryable view. */
+try { db.exec('ALTER TABLE jobs ADD COLUMN payload TEXT') } catch { /* already there */ }
+/* Submission idempotency key (mobile): the client generates it BEFORE the first
+   POST and reuses it on every transport retry. The unique index is
+   authoritative: two submissions with the same key cannot create two jobs,
+   whatever the race. Nullable: desktop and internal jobs set none, and SQLite
+   allows any number of NULLs in a unique index. */
+try { db.exec('ALTER TABLE jobs ADD COLUMN request_id TEXT') } catch { /* already there */ }
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS jobs_request_id ON jobs(request_id)') } catch { /* already there */ }
+/* Asset function (op generate/swap, video engine or 'motion'): used to filter
+   galleries by category. Backfilled from the job payload so existing library
+   items are filterable too. */
 {
   const acols = new Set(db.prepare('PRAGMA table_info(assets)').all().map(c => c.name))
   if (!acols.has('op')) db.exec('ALTER TABLE assets ADD COLUMN op TEXT')
   if (!acols.has('video_engine')) db.exec('ALTER TABLE assets ADD COLUMN video_engine TEXT')
-  /* Caption gravée des reels : le texte à l'écran, modifiable par
-     l'opérateur ; `caption_options` garde les autres propositions du
-     rédacteur, pour en choisir une sans relancer. */
+  /* Burned reel caption: on-screen text, editable by the operator;
+     `caption_options` keeps the writer's other suggestions, to pick one
+     without rerunning. */
   if (!acols.has('caption')) db.exec('ALTER TABLE assets ADD COLUMN caption TEXT')
   if (!acols.has('caption_options')) db.exec('ALTER TABLE assets ADD COLUMN caption_options TEXT')
   db.exec(`UPDATE assets SET
@@ -195,9 +191,9 @@ export function createJob(j) {
   )
 }
 
-/** Jobs déjà créés pour une clé d'idempotence — vide si la clé est neuve.
- *  Rend les LIGNES (pas le payload) : l'appelant veut les identifiants pour
- *  répondre comme au premier envoi. */
+/** Jobs already created for an idempotency key; empty if the key is new.
+ *  Returns ROWS (not the payload): the caller needs ids to reply as on the
+ *  first submission. */
 const byRequestStmt = db.prepare(`SELECT id, status FROM jobs WHERE request_id = ?`)
 export const jobsByRequestId = rid => (rid ? byRequestStmt.all(rid) : [])
 
@@ -209,16 +205,16 @@ const patchStmt = {
   finished: db.prepare(`UPDATE jobs SET status=?, finished_at=?, duration_ms=? WHERE id=?`),
   failed:   db.prepare(`UPDATE jobs SET status=?, finished_at=?, duration_ms=?, error=? WHERE id=?`),
 }
-/** Jobs restés « queued » en base : la file en mémoire au moment d'un arrêt.
- *  Rendus dans l'ordre d'arrivée, payload complet reparsé. */
+/** Jobs still "queued" in the database: the in-memory queue at shutdown.
+ *  Returned in arrival order, full payload re-parsed. */
 export const queuedPayloads = () =>
   db.prepare(`SELECT payload FROM jobs WHERE status='queued' AND payload IS NOT NULL
               ORDER BY created_at`).all()
     .map(r => { try { return JSON.parse(r.payload) } catch { return null } })
     .filter(Boolean)
 
-/** Jobs orphelins d'un arrêt en plein rendu, avec ce qu'il faut pour se
- *  RÉ-ATTACHER à leur prompt ComfyUI encore vivant. */
+/** Jobs orphaned by a shutdown mid-render, with what is needed to RE-ATTACH
+ *  to their still-alive ComfyUI prompt. */
 export const orphanedRunningRows = () =>
   db.prepare(`SELECT id, comfy_prompt_id, payload, started_at FROM jobs
               WHERE status IN ('rendering','swap-ref','queued-comfy','post-process','retry')`)
@@ -226,7 +222,7 @@ export const orphanedRunningRows = () =>
       payload: (() => { try { return JSON.parse(r.payload) } catch { return null } })() }))
 
 export const markStarted  = (id, promptId)      => patchStmt.started.run('rendering', Date.now(), promptId, id)
-/* Abonnés à la fin d'un job (filtre des rendus) : appelés après l'écriture, sans attendre. */
+/* Job-finished subscribers (render filter): called after the write, not awaited. */
 const finJob = []
 export const surFinJob = f => { finJob.push(f) }
 export const markFinished = (id, ms) => {
@@ -235,15 +231,15 @@ export const markFinished = (id, ms) => {
   return r
 }
 export const markFailed   = (id, ms, err)       => patchStmt.failed.run('blocked', Date.now(), ms, String(err).slice(0, 4000), id)
-/** Remet un job en file depuis son payload : prompt ComfyUI oublié (il
- *  n'existe plus), erreur effacée. Utilisé par la reprise après un
- *  redémarrage de ComfyUI, où le rendu en cours est réellement perdu. */
+/** Re-queues a job from its payload: ComfyUI prompt cleared (it no longer
+ *  exists), error cleared. Used when resuming after a ComfyUI restart, where
+ *  the running render is actually lost. */
 const requeueStmt = db.prepare(`UPDATE jobs SET status='queued', comfy_prompt_id=NULL,
                                 started_at=NULL, finished_at=NULL, error=NULL WHERE id=?`)
 export const requeue = id => requeueStmt.run(id)
 
-/* Historique des durées par recette : nourrit l'estimation dynamique
-   (moyenne des derniers jobs de même workflow — voir estimateMs). */
+/* Duration history per recipe: feeds the dynamic estimate (average of the
+   latest jobs of the same workflow, see estimateMs). */
 const doneDurStmt = db.prepare(`SELECT payload, duration_ms FROM jobs
   WHERE status='done' AND duration_ms IS NOT NULL AND payload IS NOT NULL
     AND json_extract(payload, '$.workflowFile') = ?
@@ -253,11 +249,11 @@ export const doneDurations = (workflowFile, limit = 32) => doneDurStmt.all(workf
 const getJobStmt   = db.prepare(`SELECT * FROM jobs WHERE id = ?`)
 const listJobsStmt = db.prepare(`SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?`)
 export const getJob   = id => getJobStmt.get(id)
-/** Jobs d'un même groupe de plans (motion par plans), dans l'ordre d'arrivée. */
+/** Jobs of the same shot group (motion by shots), in arrival order. */
 export const jobsByPlanGroup = g => db.prepare(`SELECT id, status, payload FROM jobs
   WHERE json_extract(payload, '$.motionPlan.group') = ? ORDER BY created_at, id`).all(g)
 export const listJobs = (limit = 50) => listJobsStmt.all(limit)
-/** Jobs d'une opération (ex. « musique » : l'historique du studio son), les plus récents d'abord. */
+/** Jobs of an operation (e.g. "musique": sound studio history), most recent first. */
 const listJobsOpStmt = db.prepare(`SELECT * FROM jobs WHERE json_extract(payload, '$.op') = ? ORDER BY created_at DESC LIMIT ?`)
 export const listJobsOp = (op, limit = 50) => listJobsOpStmt.all(String(op), limit)
 
@@ -276,8 +272,8 @@ INSERT INTO provenance (asset_id, job_id, created_at, recipe_id, workflow_file,
                         selections, injections, workflow_json)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 
-/** Enregistre l'asset ET sa lignée dans la même transaction :
- *  un média sans provenance n'aurait aucune valeur de production. */
+/** Records the asset AND its lineage in the same transaction: a media without
+ *  provenance is worthless for production. */
 export function createAsset(a, prov) {
   db.exec('BEGIN')
   try {
@@ -299,12 +295,11 @@ export function createAsset(a, prov) {
   }
 }
 
-/* Les assets sont TOUJOURS lus avec leur provenance : c'est elle qui rend
-   « Cloner » possible après un rechargement de page (le Job n'est plus en
-   mémoire côté front). Le workflow complet, lui, reste hors de cette vue —
-   il pèse ~900 Ko et ne sert qu'à la route dédiée. */
-/* Contrôle automatique d'un clip rendu (scripts/controle_clip.py) : défauts
-   horodatés et score de visage, par asset. Créée avant ASSET_SELECT, qui la lit. */
+/* Assets are ALWAYS read with their provenance: it makes "Cloner" work after
+   a page reload (the Job is no longer in front-end memory). The full workflow
+   stays out of this view: it weighs ~900 KB and is only for the dedicated route. */
+/* Automatic check of a rendered clip (scripts/controle_clip.py): timestamped
+   defects and face score, per asset. Created before ASSET_SELECT, which reads it. */
 db.exec(`CREATE TABLE IF NOT EXISTS controles (asset_id TEXT PRIMARY KEY, job_id TEXT, data TEXT NOT NULL, at INTEGER NOT NULL)`)
 const ecrireControleStmt = db.prepare('INSERT INTO controles (asset_id, job_id, data, at) VALUES (?, ?, ?, ?) ON CONFLICT(asset_id) DO UPDATE SET data = excluded.data, at = excluded.at')
 const lireControleStmt = db.prepare('SELECT data FROM controles WHERE asset_id = ?')
@@ -342,26 +337,25 @@ const listAssetsStmt  = db.prepare(`${ASSET_SELECT} ORDER BY a.created_at DESC L
 const listAssetsPersonaStmt = db.prepare(`${ASSET_SELECT} WHERE j.persona_id = ? ORDER BY a.created_at DESC LIMIT ?`)
 const getProvStmt     = db.prepare(`SELECT * FROM provenance WHERE asset_id = ?`)
 export const assetsOfJob = jobId => assetsOfJobStmt.all(jobId)
-/** `personaId` : les rendus d'un seul personnage ; absent, tous. */
+/** `personaId`: renders of one character only; absent, all. */
 export const listAssets  = (limit = 200, personaId) =>
   personaId ? listAssetsPersonaStmt.all(personaId, limit) : listAssetsStmt.all(limit)
 export const getProvenance = id => getProvStmt.get(id)
 
-/* ---------- dossiers (collections d'assets, appartenances multiples) ---------- */
-/* Dossiers cloisonnés par personnage : sans persona_id, les dossiers
-   d'un personnage apparaissaient chez tous les autres. Un dossier existant
-   sans personnage prend celui de la majorité de ses rendus ; un dossier vide,
-   celui qui le crée ensuite (rattaché à la première liste qui le voit). */
-try { db.exec('ALTER TABLE folders ADD COLUMN persona_id TEXT') } catch { /* déjà là */ }
+/* ---------- folders (asset collections, multiple membership) ---------- */
+/* Folders are scoped per character (persona_id). An existing folder without a
+   character takes the one of most of its renders; an empty folder takes the
+   one that next creates it (attached to the first list that sees it). */
+try { db.exec('ALTER TABLE folders ADD COLUMN persona_id TEXT') } catch { /* already there */ }
 db.exec(`UPDATE folders SET persona_id = (
     SELECT j.persona_id FROM folder_assets fa JOIN assets a ON a.id = fa.asset_id JOIN jobs j ON j.id = a.job_id
     WHERE fa.folder_id = folders.id AND j.persona_id IS NOT NULL
     GROUP BY j.persona_id ORDER BY COUNT(*) DESC LIMIT 1)
   WHERE persona_id IS NULL`)
 
-/** `personaId` absent : tous les dossiers (outils internes). */
+/** `personaId` absent: all folders (internal tools). */
 export function listFolders(personaId) {
-  // les dossiers communs (sans personnage) sont visibles de tous ; ceux d'un personnage, de lui seul
+  // shared folders (no character) are visible to all; a character's folders to that character only
   const filtre = personaId ? 'WHERE (f.persona_id = ? OR f.persona_id IS NULL)' : ''
   return db.prepare(`SELECT f.id, f.name, f.created_at, f.persona_id,
     (SELECT COUNT(*) FROM folder_assets fa JOIN assets a ON a.id = fa.asset_id
@@ -369,7 +363,7 @@ export function listFolders(personaId) {
     FROM folders f ${filtre} ORDER BY f.created_at DESC`).all(...(personaId ? [personaId] : []))
 }
 export function createFolder(name, personaId = null) {
-  /* nom dupliqué (chez le même personnage) → suffixe chiffré (« Aout 2026 » existe ⇒ « Aout 2026 2 ») */
+  /* duplicate name (same character) -> numeric suffix ("Aout 2026" exists => "Aout 2026 2") */
   const base = String(name).trim()
   const names = new Set(db.prepare('SELECT name FROM folders WHERE persona_id IS ?').all(personaId).map(r => r.name))
   let final = base, n = 2
@@ -396,21 +390,19 @@ export function folderToggle(folderId, addIds = [], removeIds = []) {
 const getAssetStmt = db.prepare(`${ASSET_SELECT} WHERE a.id = ?`)
 export const getAsset = id => getAssetStmt.get(id)
 
-/* Suppression d'un asset. La provenance part avec lui : la garder seule
-   laisserait une ligne qui décrit une image qui n'existe plus, et
-   `/api/assets/:id/provenance` répondrait sur un asset absent de la galerie.
-   Le fichier sur disque est effacé par l'appelant — la base ne connaît pas
-   le dossier des médias, et l'inverse ferait de db.js un gestionnaire de
-   fichiers. */
+/* Asset deletion. Provenance goes with it: otherwise a row would describe a
+   missing image and `/api/assets/:id/provenance` would answer for an asset
+   absent from the gallery. The file on disk is deleted by the caller: the
+   database does not know the media folder. */
 const delAssetStmt = db.prepare(`DELETE FROM assets WHERE id = ?`)
 const delProvStmt  = db.prepare(`DELETE FROM provenance WHERE asset_id = ?`)
-/** Fichiers médias d'un job (pour les effacer avant la suppression). */
+/** Media files of a job (to delete them before removal). */
 const jobFilesStmt = db.prepare(`SELECT filename FROM assets WHERE job_id = ?`)
 export const jobAssetFiles = id => jobFilesStmt.all(id).map(r => r.filename).filter(Boolean)
 
-/** Suppression PROFONDE d'un job : la ligne job, et par cascade ses assets
- *  et leurs provenances. Les fichiers disque sont effacés par l'appelant
- *  (route), AVANT, pendant que la base les connaît encore. */
+/** DEEP deletion of a job: the job row and, by cascade, its assets and their
+ *  provenance. Disk files are deleted by the caller (route), BEFORE, while the
+ *  database still knows them. */
 const delJobStmt = db.prepare(`DELETE FROM jobs WHERE id = ?`)
 export function deleteJobDeep(id) {
   const n = jobFilesStmt.all(id).length
@@ -418,9 +410,9 @@ export function deleteJobDeep(id) {
   return { removed: r.changes > 0, assetsRemoved: n }
 }
 
-/* ---------- briefs récents et étoilés ----------
-   L'historique n'est pas stocké à part : ce sont les briefs des jobs. Seules
-   les étoiles ont leur table (un brief étoilé survit à la suppression du job). */
+/* ---------- recent and starred briefs ----------
+   History is not stored separately: it is the jobs' briefs. Only stars have
+   their own table (a starred brief survives job deletion). */
 db.exec(`CREATE TABLE IF NOT EXISTS briefs_etoiles (texte TEXT PRIMARY KEY, mode TEXT, at INTEGER NOT NULL)`)
 export function listBriefs(limit = 400) {
   const recents = db.prepare(`SELECT user_prompt AS texte, mode, register, MAX(created_at) AS at, COUNT(*) AS n
@@ -436,12 +428,11 @@ export function starBrief(texte, mode, on) {
   else db.prepare('DELETE FROM briefs_etoiles WHERE texte = ?').run(texte)
 }
 
-/* ---------- corbeille ----------
-   Supprimer un asset ne l'efface plus tout de suite : sa ligne, sa provenance
-   et ses dossiers sont photographiés en JSON dans `corbeille`, puis retirés
-   des tables vivantes (aucune requête de la galerie n'a donc à changer). Le
-   fichier est déplacé par l'appelant. Restauration possible tant que la purge
-   (30 jours) n'est pas passée et que le job d'origine existe encore. */
+/* ---------- trash ----------
+   Deleting an asset does not erase it immediately: its row, provenance and
+   folders are snapshotted as JSON into `corbeille`, then removed from the live
+   tables (no gallery query needs to change). The file is moved by the caller.
+   Restorable until the purge (30 days) and as long as the source job exists. */
 db.exec(`CREATE TABLE IF NOT EXISTS corbeille (
   asset_id TEXT PRIMARY KEY, deleted_at INTEGER NOT NULL, filename TEXT, donnees TEXT NOT NULL)`)
 const inserer = (table, row) => {
@@ -498,11 +489,11 @@ const exportStmt = db.prepare(`UPDATE assets SET export_ready = ? WHERE id = ?`)
 export const setReview = (id, status) => reviewStmt.run(status, id)
 export const setExportReady = (id, v) => exportStmt.run(v ? 1 : 0, id)
 
-/* Reclassement d'un asset. Ne touche QUE la colonne `register` de l'asset :
-   ni le job, ni la provenance. Le job a bien tourné sous son registre
-   d'origine, avec le préambule et l'instruction de ce registre-là — réécrire
-   la provenance rendrait le rendu inexplicable après coup.
-   Ce qu'on corrige ici, c'est la DESTINATION du média, pas son histoire. */
+/* Asset reclassification. Touches ONLY the asset's `register` column: neither
+   the job nor the provenance. The job did run under its original register,
+   with that register's preamble and instruction; rewriting provenance would
+   make the render unexplainable. This changes the media's DESTINATION, not its
+   history. */
 const registerStmt = db.prepare(`UPDATE assets SET register = ? WHERE id = ?`)
 export const setAssetRegister = (id, register) => registerStmt.run(register, id)
 
@@ -510,23 +501,23 @@ const captionStmt = db.prepare(`UPDATE assets SET caption = ? WHERE id = ?`)
 const captionOptsStmt = db.prepare(`UPDATE assets SET caption = ?, caption_options = ? WHERE id = ?`)
 export const setCaption = (id, texte) => captionStmt.run(texte || null, id)
 export const setCaptionProposee = (id, texte, options) => captionOptsStmt.run(texte, JSON.stringify(options), id)
-/** Assets d'un dossier, dans l'ordre où ils y sont entrés. */
+/** Assets of a folder, in the order they were added. */
 export const assetsOfFolder = folderId => db.prepare(`${ASSET_SELECT}
   JOIN folder_assets fx ON fx.asset_id = a.id WHERE fx.folder_id = ? ORDER BY fx.added_at`).all(folderId)
 export const getFolder = id => db.prepare('SELECT * FROM folders WHERE id = ?').get(id)
 
 
-/* Pose un batchId dans le payload d'un job existant (carrousel —
-   l'original rejoint le lot sans re-génération). */
-/* Un job peut appartenir à PLUSIEURS lots (une still qui sert d'origine à
-   plusieurs carrousels) : on APPEND dans payload.batchIds au lieu d'écraser
-   payload.batchId (qui reste l'appartenance de création, intouchée). */
+/* Sets a batchId in an existing job's payload (carousel: the original joins
+   the batch without regeneration). */
+/* A job can belong to SEVERAL batches (a still used as source for several
+   carousels): APPEND to payload.batchIds instead of overwriting
+   payload.batchId (which stays the creation membership, untouched). */
 const getPayloadStmt = db.prepare(`SELECT payload FROM jobs WHERE id = ?`)
 const setPayloadStmt = db.prepare(`UPDATE jobs SET payload = ? WHERE id = ?`)
 const setComposedStmt = db.prepare(`UPDATE jobs SET composed_positive = ? WHERE id = ?`)
-/** Prompt écrit au moment du rendu (quand il dépend d'une description de la source). */
+/** Prompt written at render time (when it depends on a description of the source). */
 export function setComposedPositive(id, texte) { setComposedStmt.run(String(texte), String(id)) }
-/* Prompt réécrit par le réécriveur FLUX 3 : gardé à part, le prompt de l'opérateur reste tel qu'il l'a écrit. */
+/* Prompt rewritten by the FLUX 3 rewriter: stored separately, the operator's prompt stays as written. */
 const promptReecritStmt = db.prepare(`UPDATE jobs SET payload = json_set(payload, '$.promptReecrit', ?) WHERE id = ?`)
 export function noterPromptReecrit(id, texte) { promptReecritStmt.run(String(texte), String(id)) }
 export function setJobBatchId(id, batchId) {
@@ -540,11 +531,10 @@ export function setJobBatchId(id, batchId) {
   return true
 }
 
-/* Fichiers déposés par LE STUDIO dans le dossier input de ComfyUI.
-   Ce dossier est partagé avec l'instance privée : le lister tel quel montrait
-   les uploads et frames de l'autre instance. On ne liste et ne sert donc que
-   les noms inscrits ici. Premier passage : on reprend les noms déjà cités par
-   les jobs du studio, pour ne pas vider l'onglet Uploads existant. */
+/* Files placed BY THE STUDIO in ComfyUI's input folder. That folder is shared
+   with the private instance, so only names registered here are listed and
+   served. First pass: names already referenced by the studio's jobs are
+   imported, so the existing Uploads tab is not emptied. */
 const inputsNeuf = !db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'inputs_studio'`).get()
 db.exec(`CREATE TABLE IF NOT EXISTS inputs_studio (nom TEXT PRIMARY KEY, at INTEGER NOT NULL)`)
 const noterInputStmt = db.prepare('INSERT OR IGNORE INTO inputs_studio (nom, at) VALUES (?, ?)')
@@ -554,11 +544,11 @@ if (inputsNeuf) {
     for (const m of String(payload).matchAll(/crs_[\w.-]+?\.(?:png|jpe?g|webp|mp4|mov|webm)/gi)) noms.add(m[0])
   for (const n of noms) noterInputStmt.run(n, Date.now())
 }
-/* Origine de chaque dépôt : « genere » pour ce que le studio tire de ses
-   propres rendus (still, première/dernière image, suite), « upload » pour un
-   fichier envoyé, « voix » pour une voix. Un visiteur ne part que de « genere ».
-   Les noms d'avant cette colonne sont classés par leur forme ; une image tirée
-   d'une vidéo dont on ignore la source reste « inconnu », donc refusée. */
+/* Origin of each upload: "genere" for what the studio extracts from its own
+   renders (still, first/last frame, sequel), "upload" for a sent file,
+   "voix" for a voice. A visitor can only start from "genere". Names without
+   this column are classified by their shape; a frame from a video of unknown
+   source stays "inconnu", hence refused. */
 if (!db.prepare(`SELECT 1 FROM pragma_table_info('inputs_studio') WHERE name = 'origine'`).get())
   db.exec(`ALTER TABLE inputs_studio ADD COLUMN origine TEXT`)
 db.exec(`UPDATE inputs_studio SET origine = CASE
@@ -573,24 +563,24 @@ const estInputStmt = db.prepare('SELECT origine FROM inputs_studio WHERE nom = ?
 export function estInputStudio(nom) { return !!estInputStmt.get(String(nom)) }
 export function origineInput(nom) { return estInputStmt.get(String(nom))?.origine ?? null }
 export function estInputGenere(nom) { return origineInput(nom) === 'genere' }
-/** Ce qu'un visiteur peut prendre comme source : les rendus du studio et ses propres dépôts contrôlés (sans personne). */
-// les danses du catalogue (mannequin rendu par le studio) servent de vidéo de mouvement à tous
+/** What a visitor can use as a source: studio renders and their own checked uploads (no person). */
+// catalog dances (mannequin rendered by the studio) are a motion video for everyone
 export function estInputVisiteur(nom) { return ['genere', 'depot-visiteur', 'danse'].includes(origineInput(nom)) }
 const origineRestaureeStmt = db.prepare("SELECT 1 FROM jobs WHERE json_extract(payload, '$.origineUri') = ? LIMIT 1")
-/** L'envoi est la source d'une restauration : son avant / après se montre avec le rendu. */
+/** The upload is the source of a restoration: its before/after is shown with the render. */
 export function estOrigineRestauree(nom) { return !!origineRestaureeStmt.get(`/api/uploads/${encodeURIComponent(String(nom))}`) }
 
-/** Montages et reels qui emploient ce son (musique ou voix off), par leur nom. */
+/** Edits and reels using this sound (music or voice-over), by name. */
 const sonDansMontagesStmt = db.prepare("SELECT nom FROM montages WHERE instr(data, ?) > 0")
 const sonDansReelsStmt = db.prepare("SELECT brief AS nom FROM reels WHERE instr(data, ?) > 0")
 export function usagesSon(nom) {
   return [...sonDansMontagesStmt.all(String(nom)), ...sonDansReelsStmt.all(String(nom))].map(r => String(r.nom ?? '').slice(0, 60))
 }
 
-/** L'asset d'un fichier de la médiathèque (nom nu), ou null. */
+/** The asset of a media library file (bare name), or null. */
 const assetParFichierStmt = db.prepare('SELECT id, uri FROM assets WHERE filename = ? LIMIT 1')
 export function assetParFichier(nom) { return assetParFichierStmt.get(String(nom)) ?? null }
 
-/** Les assets d'un job (id, fichier). */
+/** Assets of a job (id, file). */
 const assetsDuJobStmt = db.prepare('SELECT id, filename FROM assets WHERE job_id = ?')
 export function listAssetsByJob(jobId) { return assetsDuJobStmt.all(String(jobId)) }

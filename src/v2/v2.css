@@ -1,9 +1,9 @@
 /* ============================================================
-   CreatorOS v2 — design system « dark minimal »
-   Élévation par LUMINANCE (zéro bordure), ombres douces,
-   accent iridescent unique.
-   Pas de noir pur, pas de blanc pur,
-   couleurs désaturées, hiérarchie par la lumière.
+   CreatorOS v2 — "dark minimal" design system
+   Elevation by LUMINANCE (no borders), soft shadows,
+   single iridescent accent.
+   No pure black, no pure white,
+   desaturated colours, hierarchy through light.
    ============================================================ */
 .v2 {
   --bg: #0c0d10;
@@ -35,7 +35,7 @@
   font: 14px/1.5 -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* transitions douces générales (hover) */
+/* general soft transitions (hover) */
 .v2 button, .v2 a, .v2 [role="button"], .v2 input, .v2 textarea, .v2 label {
   transition: background-color .18s ease, color .18s ease, box-shadow .22s ease,
               transform .18s ease, opacity .18s ease;
@@ -44,7 +44,7 @@
   .v2 * { transition: none !important; animation: none !important; }
 }
 
-/* scrollbar minimaliste */
+/* minimal scrollbar */
 .v2 * { scrollbar-width: thin; scrollbar-color: var(--lv4) transparent; }
 .v2 ::-webkit-scrollbar { width: 5px; height: 5px; }
 .v2 ::-webkit-scrollbar-track { background: transparent; }
@@ -84,7 +84,7 @@
   color: var(--muted); text-transform: uppercase;
 }
 
-/* CTA iridescent en relief — glow au hover seulement */
+/* raised iridescent CTA — glow on hover only */
 .v2 .cta {
   background: var(--grad); color: #fff; border: 0; cursor: pointer;
   border-radius: 16px; font-size: 15px; font-weight: 700; letter-spacing: .01em;
@@ -130,14 +130,14 @@
 .v2 .tgl.on .sw { background: var(--grad); }
 .v2 .tgl.on .sw::after { left: 17px; background: #fff; }
 
-/* couches (élévation par lumière + ombre projetée) */
+/* layers (elevation by light + drop shadow) */
 .v2 .layer1 {
   position: relative; z-index: 2; margin-top: -12px;
   background: #121317; border-radius: 20px 20px 0 0;
   box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.6);
 }
 
-/* ---------- vignettes ---------- */
+/* ---------- thumbnails ---------- */
 .v2 .card {
   break-inside: avoid; margin: 0 0 10px; border-radius: 14px; position: relative;
   overflow: hidden; cursor: pointer; background: var(--lv1);
@@ -180,7 +180,7 @@
 .v2 .playmark { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 32px; height: 32px;
   background: rgba(10,11,13,.7); border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; pointer-events: none; }
 
-/* placeholder de job */
+/* job placeholder */
 .v2 .jobcard { background: var(--lv1); box-shadow: inset 0 0 0 1.5px rgba(95, 98, 107, 0.18); aspect-ratio: 9/16; }
 .v2 .jobcard .jbody { padding: 12px; display: flex; flex-direction: column; gap: 7px; height: 100%; }
 .v2 .jobcard .eta, .v2 .jobcard .pbar { margin-top: auto; }
@@ -200,21 +200,21 @@
 .v2 .jobcard .eta { font-size: 12px; color: var(--accent); }
 .v2 .jobcard.q .eta { color: var(--faint); }
 .v2 .pbar { height: 4px; border-radius: 99px; background: var(--lv3); overflow: hidden; margin-top: auto; }
-/* width animée : le tick local avance la barre par bonds d'une seconde, et un
-   recalage sur une mesure réelle peut la déplacer d'un coup — la transition
-   rend les deux continus à l'œil. */
+/* animated width: the local tick advances the bar in one-second steps and a
+   resync on a real measurement can jump it; the transition makes both look
+   continuous. */
 .v2 .pbar i { display: block; height: 100%; border-radius: 99px; background: var(--grad); box-shadow: 0 0 8px var(--glow); animation: v2pulse 1.6s ease-in-out infinite; transition: width .9s linear; }
 .v2 .jobcard.q .pbar i { background: var(--faint); box-shadow: none; animation: none; }
 @keyframes v2pulse { 50% { opacity: .55; } }
 
-/* ---------- masonry : scroll parent, colonnes en hauteur libre ----------
-   column-count sur un bloc à hauteur CONTRAINTE remplit en largeur (déborde
-   du viewport) : la hauteur doit rester auto, le scroll au parent. */
+/* ---------- masonry: parent scrolls, columns with free height ----------
+   column-count on a height-CONSTRAINED block fills horizontally (overflows
+   the viewport): height must stay auto, scrolling on the parent. */
 .v2 .scrollwrap { flex: 1; min-height: 0; overflow-y: auto; }
 .v2 .masonry { padding: 8px 14px 150px; overflow-x: hidden; }
 .v2 .scrollwrap { overflow-x: hidden; }
 
-/* menu contextuel ancré (⋯) */
+/* anchored context menu (⋯) */
 .v2 .menu { position: fixed; z-index: 1000; background: var(--lv3); border-radius: 12px;
   box-shadow: var(--sh-lg); padding: 5px; min-width: 160px; }
 .v2 .menu button { display: flex; width: 100%; text-align: left; gap: 8px; align-items: center;
@@ -225,7 +225,7 @@
 .v2 .menu button.dis:hover { background: none; }
 .v2 .menu .sep { height: 1px; background: var(--lv4); margin: 4px 6px; }
 
-/* jobs drag & drop */
+/* job drag & drop */
 .v2 .jobcard[draggable="true"] { cursor: grab; }
 .v2 .jobcard.dragover { box-shadow: inset 0 0 0 2px var(--accent); }
 
@@ -234,7 +234,7 @@
   color: var(--text); font-size: 12px; padding: 7px 12px; outline: none;
   font-family: ui-monospace, Menlo, monospace; }
 
-/* ---------- bottom-sheet mobile à crans ---------- */
+/* ---------- mobile bottom sheet with snap points ---------- */
 .v2 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   background: rgba(26, 28, 33, 0.94); backdrop-filter: blur(20px);
   border-radius: 22px 22px 0 0; box-shadow: 0 -14px 50px rgba(0, 0, 0, 0.6);
@@ -247,7 +247,7 @@
   margin: 9px auto 5px; flex: none; cursor: grab; }
 .v2 .sheet .sbody { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 14px 14px;
   display: flex; flex-direction: column; gap: 9px; }
-/* les îlots et menus de sélection passent devant tout (liserés des vignettes, survols) */
+/* selection islands and menus sit above everything (thumbnail outlines, hovers) */
 .v2 .selbar { position: fixed; top: 0; left: 0; right: 0; z-index: 999;
   background: rgba(84, 33, 74, 0.92); backdrop-filter: blur(10px);
   padding: 11px 14px; font-size: 12px; display: flex; align-items: center; gap: 8px;
@@ -278,7 +278,7 @@
 .v2 .pk:hover { transform: scale(1.04); box-shadow: 0 0 0 2px var(--accent), var(--sh-sm); }
 .v2 .pk.sel { box-shadow: 0 0 0 2px var(--accent); }
 
-/* ---------- slots frame ---------- */
+/* ---------- frame slots ---------- */
 .v2 .slot {
   flex: 1; aspect-ratio: 3/4; border-radius: 12px; border: 0; padding: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
@@ -297,12 +297,12 @@
 @media (hover: none) { .v2 .slot .retirer { opacity: 1; } }
 .v2 .slot .opt { position: absolute; top: 6px; right: 7px; font-size: 12px; color: var(--faint); z-index: 2; }
 
-/* ---------- champs ---------- */
+/* ---------- fields ---------- */
 .v2 .varea { background: var(--lv2); border-radius: 12px; padding: 10px; }
 .v2 .varea textarea { width: 100%; background: none; border: 0; outline: none; color: var(--text); font: 12px/1.55 inherit; min-height: 64px; resize: none; overflow: hidden; field-sizing: content; }
 .v2 .varea textarea::placeholder { color: var(--faint); }
 
-/* mode cards (Rejouer) */
+/* mode cards (Replay) */
 .v2 .modes { display: flex; gap: 5px; }
 .v2 .mode { flex: 1; border-radius: 11px; background: var(--lv2); padding: 9px 8px; cursor: pointer; border: 0; text-align: left; }
 .v2 .mode:hover { background: var(--lv3); transform: translateY(-1px); }
@@ -318,7 +318,7 @@
 .v2 .engine .caps { display: flex; gap: 4px; margin-top: 7px; flex-wrap: wrap; }
 .v2 .cap { font-size: 12px; padding: 2.5px 7px; border-radius: 6px; background: var(--lv3); color: var(--muted); }
 
-/* ---------- barre flottante image / sidebar vidéo (desktop) ---------- */
+/* ---------- floating image bar / video sidebar (desktop) ---------- */
 .v2 .fbar {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 12;
   display: flex; gap: 12px; align-items: stretch;
@@ -328,9 +328,9 @@
 }
 .v2 .fbar .fmain { display: flex; flex-direction: column; min-height: 0; gap: 8px; }
 .v2 .fbar textarea { flex: 1; min-height: 64px; max-height: calc(50vh - 130px); overflow-y: auto !important; }
-/* Le volet s'élargit au survol jusqu'à 35 % de l'écran : il passe par-dessus la
-   bibliothèque au lieu de la pousser, les vignettes ne bougent pas. Il reste ouvert
-   tant qu'on écrit dedans, même si la souris en sort. */
+/* The panel widens on hover up to 35% of the screen: it overlays the
+   library instead of pushing it, so thumbnails do not move. It stays open
+   while typing in it, even if the mouse leaves. */
 .v2 .vside-place { width: 356px; flex: none; position: relative; min-height: 0; }
 .v2 .vside {
   position: absolute; inset: 0 auto 0 0; width: 340px; display: flex; flex-direction: column; gap: 10px; padding: 14px;
@@ -340,10 +340,10 @@
 }
 .v2 .vside:hover, .v2 .vside:has(textarea:focus, input[type="text"]:focus) { width: max(340px, 35vw); z-index: 20; }
 @media (prefers-reduced-motion: reduce) { .v2 .vside { transition: none; } }
-/* les blocs du volet gardent leur hauteur : quand il y en a trop (menu des moteurs ouvert), le volet défile au lieu de les écraser les uns sur les autres */
+/* panel blocks keep their height: when there are too many (engine menu open), the panel scrolls instead of squashing them */
 .v2 .vside > *, .v2 .vside .engine { flex-shrink: 0; }
 
-/* ---------- mobile (<821px) : parité — mêmes composants, layout adapté ---------- */
+/* ---------- mobile (<821px): parity — same components, adapted layout ---------- */
 @media (max-width: 820px) {
   .v2 .fbar {
     left: 0; right: 0; transform: none; bottom: 0; width: 100%;
@@ -361,7 +361,7 @@
   .v2 .viewer-panel { width: 100% !important; }
 }
 
-/* case à cocher de sélection sur vignette (visible au hover, ou si cochée) */
+/* selection checkbox on thumbnail (visible on hover, or when checked) */
 .v2 .selbox { position: absolute; top: 8px; left: 8px; z-index: 6; width: 20px; height: 20px;
   border-radius: 7px; border: 0; cursor: pointer; font-size: 12px; color: #fff;
   background: rgba(12, 13, 16, 0.9);
@@ -369,10 +369,10 @@
   opacity: 0; display: flex; align-items: center; justify-content: center; }
 .v2 .card:hover .selbox { opacity: 1; }
 .v2 .selbox[data-on] { opacity: 1; background: var(--grad); box-shadow: none; }
-/* la case pousse le badge à droite */
+/* the checkbox pushes the badge to the right */
 .v2 .card .badge { left: 34px; }
 
-/* pill segmentée sur vignette : caméra (2/3) | chevron (1/3) */
+/* segmented pill on thumbnail: camera (2/3) | chevron (1/3) */
 .v2 .fbtn-group { display: flex; align-items: stretch; height: 26px; border-radius: 8px; overflow: hidden;
   background: rgba(12, 13, 16, 0.9); }
 .v2 .fbtn-group button { border: 0; cursor: pointer; background: none; color: var(--text);
@@ -381,14 +381,14 @@
 .v2 .fbtn-group .seg-main { width: 32px; }
 .v2 .fbtn-group .seg-arrow { width: 18px; box-shadow: inset 1px 0 0 rgba(95, 98, 107, 0.35); }
 
-/* bouton-jauge : outline blanc, fond iridescent qui remplit L->R */
+/* gauge button: white outline, iridescent fill growing L->R */
 .v2 .b1.fillbtn { position: relative; overflow: hidden; background: transparent;
   box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.75); color: #fff; cursor: wait; }
 .v2 .b1.fillbtn .fill { position: absolute; inset: 0; background: var(--grad);
   transition: width 1s linear; z-index: 0; display: block; }
 .v2 .b1.fillbtn span { position: relative; z-index: 1; }
 
-/* méta au hover : temps de rendu + durée du clip */
+/* hover meta: render time + clip duration */
 .v2 .hovmeta { position: absolute; right: 40px; bottom: 8px; z-index: 2; font-size: 12px; color: #fff;
   background: rgba(10, 11, 13, 0.78); padding: 3px 7px; border-radius: 7px;
   pointer-events: none; white-space: nowrap; }
@@ -401,13 +401,13 @@
 .v2 .jcell .card img, .v2 .jcell .card video { width: 100%; height: 100%; object-fit: cover; max-height: none; }
 .v2 .jcell .jobcard .jbody { height: 100%; }
 
-/* vignette sélectionnée : liseré iridescent */
+/* selected thumbnail: iridescent outline */
 .v2 .card.picked::after { content: ''; position: absolute; inset: 0; border-radius: 12px; padding: 2px;
   background: var(--grad); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude; pointer-events: none; z-index: 7; }
 
-/* menu dossiers */
+/* folder menu */
 .v2 .foldermenu { min-width: 320px; width: 320px; padding: 0; overflow: hidden; }
 .v2 .foldermenu .fsticky { padding: 5px; border-bottom: 1px solid rgba(95,98,107,.25); }
 .v2 .foldermenu .fscroll { max-height: 260px; overflow-y: auto; padding: 5px; }
@@ -416,11 +416,11 @@
   font-size: 12px; color: #fff; }
 .v2 .foldermenu .fcheck[data-on] { background: var(--grad); }
 
-/* vue Assets : sidebar */
+/* Assets view: sidebar */
 .v2 .aside-assets { background: var(--lv1); }
 .v2 .stitle { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); padding: 10px 8px 4px; }
-/* bouton d'ordre des dossiers : discret dans le titre de section, il ne
-   devient lisible qu'au survol — c'est un réglage, pas une action. */
+/* folder order button: subtle in the section title, only readable
+   on hover — it is a setting, not an action. */
 .v2 .ssort { margin-left: auto; font-size: 12px; text-transform: none; letter-spacing: 0;
   color: var(--faint); padding: 1px 5px; border-radius: 5px; }
 .v2 .ssort:hover { color: var(--text); background: var(--lv3); }
@@ -432,37 +432,36 @@
 .v2 .sitem:hover .sdots { opacity: .8; }
 .v2 .sitem .sdots:hover { background: var(--lv4); opacity: 1; }
 .v2 .mlabel { font-size: 12px; font-weight: 600; color: var(--muted); padding: 16px 2px 8px; text-transform: capitalize; }
-/* Desktop : les titres de groupe de la bibliothèque deviennent de vraies
-   respirations éditoriales (le mobile garde la version compacte, sinon un
-   titre de 30px mangerait l'écran). Les .mlabel DANS un menu contextuel
-   gardent leur taille : leur règle est plus spécifique (voir plus bas). */
+/* Desktop: library group titles get editorial spacing (mobile keeps
+   the compact version, a 30px title would take the screen). .mlabel
+   INSIDE a context menu keeps its size: its rule is more specific (see below). */
 @media (min-width: 821px) {
   .v2 .mlabel { padding: 96px 2px 8px; font-size: 30px; }
 }
-/* en-tête DANS un menu contextuel : pas d'espace géant en tête de section */
+/* header INSIDE a context menu: no large top spacing */
 .v2 .menu .mlabel { padding: 6px 11px 4px; font-size: 12px; text-transform: none; }
 
-/* rangée champ + bouton (création de dossier) : le champ prend TOUTE la largeur restante */
+/* field + button row (folder creation): the field takes ALL remaining width */
 .v2 .frow { display: flex; align-items: center; gap: 6px; width: 100%; }
 .v2 .frow input.pin { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
 .v2 .frow .pill { flex: none; width: fit-content; }
-/* la règle générique .menu button{width:100%} gonflerait le bouton « créer »
-   à toute la largeur et écraserait le champ à 20px. */
+/* the generic .menu button{width:100%} rule would stretch the "create" button
+   to full width and squash the field to 20px. */
 
-/* icônes de la sidebar Assets : blanc, teintées au hover de la ligne */
+/* Assets sidebar icons: white, tinted on row hover */
 .v2 .sik { display: inline-flex; flex: none; color: var(--text); }
 .v2 .sitem:hover .sik-ok, .v2 .sitem.on .sik-ok { color: var(--positif); }
 .v2 .sitem:hover .sik-ko, .v2 .sitem.on .sik-ko { color: var(--danger); }
 
-/* menu de vignette ouvert : l'overlay hover reste affiché */
+/* thumbnail menu open: the hover overlay stays visible */
 .v2 .card.menu-open .hov { opacity: 1; }
-/* sous-menu collé au bord du menu parent */
+/* submenu attached to the parent menu edge */
 .v2 .submenu { position: absolute; left: calc(100% + 2px); top: 0; z-index: 2; }
 .v2 .submenu.left { left: auto; right: calc(100% + 2px); }
 
-/* Chargement d'une dimension du carrousel : le VLM met ~20 s à lire l'image,
-   et une case vide pendant ce temps ne dit pas si elle est vide ou en attente.
-   Deux barres qui respirent, à la place du texte qui va arriver. */
+/* Loading a carousel dimension: the VLM takes ~20 s to read the image and
+   an empty box gives no hint whether it is empty or pending.
+   Two breathing bars stand in for the incoming text. */
 .v2 .dimload { display: block; width: 100%; margin-top: 4px; }
 .v2 .dimload i { display: block; height: 7px; border-radius: 4px; background: var(--lv4);
   animation: dimpulse 1.15s ease-in-out infinite; }
@@ -470,7 +469,7 @@
 @keyframes dimpulse { 0%, 100% { opacity: .35 } 50% { opacity: .85 } }
 @media (prefers-reduced-motion: reduce) { .v2 .dimload i { animation: none; opacity: .5 } }
 
-/* ---------- copie au clic (vue détail) ---------- */
+/* ---------- click to copy (detail view) ---------- */
 .v2 .copiable { position: relative; display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
   background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; text-align: inherit; cursor: copy; }
 .v2 .copiable-ic { display: inline-flex; width: 11px; justify-content: center; font-size: 12px; color: var(--muted);
@@ -479,14 +478,14 @@
 .v2 .copiable:hover { color: var(--text); }
 @media (hover: none) { .v2 .copiable-ic { opacity: .6; transform: none; } }
 
-/* bouton « copier » → « copié ! » en fondu enchaîné */
+/* "copy" → "copied!" button crossfade */
 .v2 .copier-btn { position: relative; display: inline-grid; background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); }
 .v2 .copier-btn > span { grid-area: 1 / 1; text-align: right; transition: opacity .25s ease-in-out, transform .25s ease-in-out; }
 .v2 .copier-btn .lbl-b { opacity: 0; transform: translateY(4px); color: var(--positif); }
 .v2 .copier-btn.fait .lbl-a { opacity: 0; transform: translateY(-4px); }
 .v2 .copier-btn.fait .lbl-b { opacity: 1; transform: none; }
 
-/* ---------- Studio ciné : fiche de plan à gauche, pellicule des prises à droite ---------- */
+/* ---------- cinema studio: shot sheet on the left, takes filmstrip on the right ---------- */
 .v2 .cine { display: grid; gap: 16px; }
 .v2 .cine-grille { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .v2 .cine-fiche { background: var(--lv1); border-radius: 18px; padding: 16px; }
@@ -518,7 +517,7 @@
   .v2 .cine-actions { opacity: 1; }
 }
 
-/* ---------- Re-shoot : clips, angles en schéma vu de dessus, avant / après ---------- */
+/* ---------- Re-shoot: clips, top-down angle diagram, before / after ---------- */
 .v2 .pk video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .v2 .pk-clip { aspect-ratio: 9/16; }
 .v2 .pk-lecture { position: absolute; left: 6px; bottom: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #fff; background: rgba(0,0,0,.55); pointer-events: none; }
@@ -534,7 +533,7 @@
 .v2 .rs-duo figure { margin: 0; flex: 1 1 220px; max-width: 360px; }
 .v2 .rs-duo video { width: 100%; border-radius: 12px; display: block; background: #000; }
 .v2 .rs-duo figcaption { font-size: 12px; color: var(--faint); margin-top: 5px; letter-spacing: .06em; text-transform: uppercase; }
-/* Re-shoot : angles + réglages à gauche, scène 3D à droite */
+/* Re-shoot: angles + settings on the left, 3D scene on the right */
 .v2 .rs-scene { display: grid; justify-items: center; gap: 6px; }
 .v2 .rs-3d-cadre { position: relative; user-select: none; -webkit-user-select: none; width: min(100%, calc(min(66vh, 660px) * var(--ar))); border-radius: 16px; overflow: hidden; background: #0a0b0d; box-shadow: 0 0 0 1px var(--lv3); }
 .v2 .rs-3d-cadre .sc3d, .v2 .rs-3d-cadre canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; touch-action: none; }
@@ -557,14 +556,14 @@
 .v2 .rs-barre label b { color: var(--text); font-weight: 600; min-width: 40px; text-align: right; }
 .v2 .rs-alerte { font-size: 12px; color: var(--attention); margin-top: 6px; }
 
-/* menus d'outils */
+/* tool menus */
 .nav-outil { display: grid; gap: 1px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
 .nav-outil:hover, .nav-outil:focus-visible { background: var(--lv3); }
 .nav-outil b { font-size: 12.5px; font-weight: 600; }
 .nav-outil span { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .nav-outil span[style] { color: inherit; }
 
-/* Panneaux : le réglage à gauche, le résultat à droite, aux couleurs et à la typo de CreatorOS. */
+/* Panels: settings on the left, result on the right, in CreatorOS colours and type. */
 .v2 .titre-outil { font-size: 22px; font-weight: 800; margin: 0; }
 .v2 .etiquette { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .v2 .onglet { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 4px 0 7px; font: inherit; font-weight: 600; cursor: pointer; }
@@ -584,7 +583,7 @@
 .v2 .slot:not(.filled):hover { outline-color: #ea4e89; }
 @media (max-width: 760px) { .v2 .vside { margin: 0; border-radius: 0; } .v2 .vwrap2 > .flex-1 { margin: 0; border-radius: 0; } }
 
-/* Accueil : bandeaux légendés dessous, puis le catalogue avec recherche et filtres. */
+/* Home: captioned banners, then the catalog with search and filters. */
 .v2 .bandeau, .v2 .carte-outil { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
 .v2 .bandeau-media { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--lv2); margin-bottom: 8px; }
 .v2 .bandeau-media video, .v2 .bandeau-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
@@ -617,7 +616,7 @@
 .v2 .musiques { display: grid; gap: 14px; padding: 18px; max-width: 760px; }
 .v2 .musique { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--lv1); font-size: 12.5px; }
 .v2 .musique audio { width: 100%; height: 34px; }
-/* Aperçus : avant/après à la souris, consigne ou réglages en surimpression. */
+/* Previews: mouse-driven before/after, instruction or settings overlaid. */
 .v2 .apercu { position: absolute; inset: 0; display: block; overflow: hidden; --coupe: 50%; }
 .v2 .apercu img, .v2 .apercu video { display: block; width: 100%; height: 100%; object-fit: cover; }
 .v2 .apercu .couche { position: absolute; inset: 0; display: block; }
@@ -638,7 +637,7 @@
 .v2 .apercu.onde img { position: absolute; top: 12%; height: 62%; object-fit: fill; mix-blend-mode: screen; }
 .v2 .cherche-outil { width: 220px; padding: 7px 12px; border-radius: 999px; border: 0; background: var(--lv2); color: var(--text); font: inherit; font-size: 12px; }
 
-/* Cibles : 24 px minimum (WCAG 2.2, taille de cible). */
+/* Targets: 24 px minimum (WCAG 2.2, target size). */
 .v2 button, .v2 [role=button], .v2 label.pill, .v2 select { min-height: 24px; }
 .v2 button:not(.pk):not(.carte-outil):not(.bandeau) { min-width: 24px; }
 .v2 .pill.workflow-comfy { align-self: flex-start; display: inline-flex; gap: 6px; align-items: center; background: var(--accent-soft); color: var(--text); font-weight: 600; }
@@ -653,10 +652,10 @@
 .v2 .croquis-panneau .btn-gen:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 900px) { .v2 .croquis { grid-template-columns: 1fr; } }
 .v2 .bandeaux { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: end; }
-/* l'outil vedette occupe toute la première rangée, en grand */
+/* the featured tool spans the whole first row, large */
 .v2 .bandeaux > .bandeau:first-child { grid-column: 1 / -1; }
 .v2 .bandeaux > .bandeau:first-child .bandeau-media { aspect-ratio: 21 / 8; }
-/* vedette : texte posé sur l'image, dégradé noir depuis la gauche et le bas */
+/* featured: text over the image, black gradient from the left and bottom */
 .v2 .bandeau-vedette { position: relative; }
 .v2 .bandeau-vedette .bandeau-media { margin-bottom: 0; }
 .v2 .bandeau-vedette .bandeau-media::after { content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -669,7 +668,7 @@
 @media (max-width: 760px) { .v2 .vedette-texte { padding: 18px; } .v2 .vedette-texte b { font-size: 28px; } }
 @media (max-width: 1100px) { .v2 .bandeaux { grid-template-columns: 1fr; } }
 
-/* Champs, textes d'état et pastilles posées sur un média : classes partagées des panneaux. */
+/* Fields, status text and chips over media: shared panel classes. */
 .v2 .champ { max-width: 100%; min-width: 0; padding: 7px 10px; border-radius: 9px; background: var(--lv2); border: 1px solid var(--lv3); color: var(--text); font: inherit; font-size: 13px; }
 .v2 .champ:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .v2 .texte-doux { color: var(--muted); }
@@ -680,7 +679,7 @@
 .v2 .puces-sous em { font-style: normal; font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--lv2); color: var(--muted); }
 .v2 .bandeau, .v2 .carte-outil { align-content: start; }
 .v2 .guide-outil { grid-template-columns: minmax(0, 1fr); }
-/* Gabarit d'outil : volet de réglages à gauche, résultats à droite. */
+/* Tool layout: settings panel on the left, results on the right. */
 .v2 .outil-page { display: flex; flex: 1; min-height: 0; }
 .v2 .outil-volet { gap: 14px; }
 .v2 .outil-action { margin-top: auto; display: grid; gap: 6px; padding-top: 8px; }
@@ -715,7 +714,7 @@
 .v2 .outil-etape i { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); color: #fff; font-style: normal; font-weight: 800; font-size: 13px; }
 .v2 .outil-etape b { font-size: 14px; }
 .v2 .outil-etape span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-/* Gabarit app : deux cartes, formulaire à gauche, exemple puis résultat à droite. */
+/* App layout: two cards, form on the left, example then result on the right. */
 .v2 .app-page { max-width: 1240px; margin: 0 auto; padding: 24px 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .v2 .app-carte { display: grid; gap: 14px; padding: 20px; border-radius: 18px; background: var(--lv1); border: 1px solid var(--lv3); }
 .v2 .app-carte .zone-source { min-height: 220px; }
@@ -744,7 +743,7 @@
 .v2 .carte-visage.on { border-color: var(--accent); }
 .v2 .carte-visage img { width: 100%; height: 100%; object-fit: cover; }
 
-/* Gabarit galerie : recherche, filtres, sections de cartes illustrées ; page d'app avec fil d'Ariane. */
+/* Gallery layout: search, filters, illustrated card sections; app page with breadcrumb. */
 .v2 .galerie-page { max-width: 1320px; margin: 0 auto; padding: 24px 20px; display: grid; gap: 16px; }
 .v2 .galerie-section { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
 .v2 .galerie-section b { font-size: 18px; font-weight: 800; }
@@ -764,20 +763,20 @@
 .v2 .app-ariane b { color: var(--text); }
 .v2 .outil-volet .texte-faible, .v2 .outil-volet .texte-doux:not(.titre-outil) { font-size: 12px; line-height: 1.45; }
 
-/* Étape de reel en cours : petit anneau qui tourne à côté du nom */
+/* Reel step in progress: small spinning ring next to the name */
 .reel-loader { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: reel-tourne .8s linear infinite; flex: none; }
 @keyframes reel-tourne { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .reel-loader { animation-duration: 2.4s; } }
 
 .v2 img.comparateur-restau, .v2 video.comparateur-restau { max-height: 70vh; max-width: 100%; width: auto; height: auto; }
 
-/* barre du haut : l'état de la carte et le compteur de rendus cèdent la place aux menus sur un écran étroit */
+/* top bar: card status and render counter give way to menus on narrow screens */
 @media (max-width: 2200px) { .masquer-etroit { display: none !important; } }
-/* bandeau : sous 1800 px, la pastille de rendu perd ses durées (dans le menu au clic) et tronque sa phase, pour laisser la place aux jauges */
+/* banner: below 1800 px, the render chip drops its durations (shown in the click menu) and truncates its phase to make room for the gauges */
 @media (max-width: 1799px) { .pastille-temps { display: none; } .pastille-phase { max-width: 130px; overflow: hidden; text-overflow: ellipsis; } }
 @media (max-width: 1400px) { .masquer-tres-etroit { display: none !important; } header nav button { padding-left: 6px !important; padding-right: 6px !important; } }
 
-/* grand menu d'une famille d'outils : colonnes de sous-menus, vignette par outil, modèles à droite */
+/* tool family mega-menu: submenu columns, thumbnail per tool, models on the right */
 .mega-boite { display: flex; gap: 0; max-width: calc(100vw - 32px); max-height: calc(100vh - 90px); overflow: auto; border-radius: 16px; background: var(--lv2); border: 1px solid var(--lv3); box-shadow: 0 22px 60px rgba(0,0,0,.6); }
 .mega-outils { padding: 16px 18px; min-width: 0; }
 .mega-entete { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
@@ -798,7 +797,7 @@
 .mega-modele span { font-size: 12px; color: var(--muted); }
 .mega-pied { font-size: 11.5px; color: var(--faint); margin-top: 6px; }
 
-/* page Personnages : toute la largeur ; entraînement à gauche, identité à droite */
+/* Characters page: full width; training on the left, identity on the right */
 .perso-colonnes { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(340px, 1fr); gap: 20px; align-items: start; }
 @media (max-width: 1100px) { .perso-colonnes { grid-template-columns: 1fr; } }
 .entrainement-reglages { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: rgba(127,127,127,0.08); position: sticky; top: 0; z-index: 2; backdrop-filter: blur(6px); }
@@ -811,20 +810,20 @@
 .mega-lien:hover { background: var(--lv3); }
 .mega-lien em { font-style: normal; font-weight: 500; font-size: 11px; color: var(--accent); margin-left: 6px; }
 
-/* suppression d'un son de la bibliothèque audio */
+/* deleting a sound from the audio library */
 .audio-carte { position: relative; }
 .audio-suppr { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--lv3); color: var(--muted); cursor: pointer; font-size: 11px; opacity: .55; }
 .audio-carte:hover .audio-suppr, .audio-suppr:focus-visible { opacity: 1; }
 .audio-suppr:hover { color: var(--danger); }
 .audio-confirme { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--danger); }
 
-/* carte d'attente d'un son : la carte des rendus en cours, à la hauteur d'une carte audio */
+/* sound pending card: the in-progress render card, at audio card height */
 .v2 .audio-attente .jobcard { aspect-ratio: auto !important; height: 100%; min-height: 112px; }
 
-/* réglages du reel : étiquette et liste toujours sur la même ligne */
+/* reel settings: label and list always on the same line */
 .v2 .reel-reglage { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; }
 
-/* mosaïque des styles */
+/* styles mosaic */
 .v2 .styles-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
 .v2 .style-carte { display: grid; gap: 8px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
 .v2 .style-image { aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: linear-gradient(135deg, var(--lv3), var(--lv2)); display: grid; place-items: center; transition: transform .15s ease, box-shadow .15s ease; }
@@ -834,19 +833,19 @@
 .v2 .style-carte b { font-size: 13px; font-weight: 600; }
 .v2 .style-format { width: 62%; max-height: 80%; border: 2px dashed var(--muted); border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: var(--muted); }
 
-/* îlot photo : la ligne tâche / recette passe à la ligne au lieu de se chevaucher ; les avertissements prennent leur propre ligne */
+/* photo island: the task / recipe line wraps instead of overlapping; warnings get their own line */
 .v2 .fbar .ligne-taches { flex-wrap: wrap; row-gap: 6px; }
 .v2 .fbar .ligne-taches .avis { flex-basis: 100%; }
 
-/* page Personnages, visiteur : planche à gauche, explication à droite */
+/* Characters page, visitor: sheet on the left, explanation on the right */
 .entrainement-visiteur { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .entrainement-visiteur img { width: 100%; border-radius: 10px; display: block; }
 .entrainement-visiteur ol { list-style: decimal; }
 @media (max-width: 760px) { .entrainement-visiteur { grid-template-columns: 1fr; } }
-/* Le bouton de lancement des pages outils : partout la même taille et le même style (celui de Dance) */
+/* Launch button of tool pages: same size and style everywhere */
 .v2 .outil-action > .cta { padding: 18px 15px; flex-direction: row; justify-content: center; gap: 8px; width: 100%; font-size: 14px; }
 
-/* Page audio : onglets des trois studios, formulaire du studio musique, puces d'instruments et de balises */
+/* Audio page: tabs for the three studios, music studio form, instrument and tag chips */
 .v2 .onglets-audio button { line-height: 1.25; }
 @media (max-width: 520px) { .v2 .onglets-audio button { font-size: 12px; padding: 7px 4px; } }
 .v2 .studio-audio { display: grid; gap: 10px; min-width: 0; }
@@ -864,7 +863,7 @@
 .v2 .studio-audio .musique { background: var(--lv2); padding: 10px 12px; }
 .v2 .studio-audio textarea.champ { resize: vertical; width: 100%; }
 
-/* ---------- Studio son (SonView) : création à gauche, rendus à droite ; au-dessus sur téléphone ---------- */
+/* ---------- sound studio (SonView): creation on the left, renders on the right; stacked on phone ---------- */
 .v2 .son-page { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .v2 .son-tete { display: flex; align-items: center; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; padding: 10px 14px 0 16px; }
 .v2 .son-titres { display: grid; gap: 2px; min-width: 0; }
@@ -883,7 +882,7 @@
 .v2 .son-cta { width: 100%; justify-content: center; padding: 13px 15px; font-size: 14px; }
 .v2 .son-cta:disabled { filter: grayscale(.7) brightness(.55); cursor: not-allowed; }
 .v2 .son-volet .outil-action { background: linear-gradient(transparent, var(--lv1) 18px); }
-/* presets en cartes */
+/* presets as cards */
 .v2 .presets-cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
 .v2 .preset-carte { display: grid; gap: 2px; text-align: left; padding: 8px 9px; border-radius: 11px; border: 1px solid var(--lv3); background: var(--lv2); color: var(--text); font: inherit; cursor: pointer; }
 .v2 .preset-carte b { font-size: 12.5px; }
@@ -891,7 +890,7 @@
 .v2 .preset-carte:hover { border-color: var(--lv4); background: var(--lv3); }
 .v2 .preset-carte.plus { border-style: dashed; background: transparent; }
 .v2 .preset-carte.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-/* réglages avancés repliables */
+/* collapsible advanced settings */
 .v2 .son-avances { border: 1px solid var(--lv3); border-radius: 12px; padding: 9px 11px; }
 .v2 .son-avances summary { cursor: pointer; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; list-style: none; }
 .v2 .son-avances summary::-webkit-details-marker { display: none; }
@@ -899,7 +898,7 @@
 .v2 .son-avances[open] summary::before { transform: rotate(90deg); }
 .v2 .son-avances summary em { font-style: normal; padding: 0 6px; border-radius: 999px; background: var(--lv4); font-size: 11px; }
 .v2 .son-avances summary .texte-faible { font-weight: 400; font-size: 11.5px; }
-/* rendus */
+/* renders */
 .v2 .son-liste { display: grid; gap: 10px; }
 .v2 .son-section { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
 .v2 .son-section span { margin-left: 4px; color: var(--accent); }
@@ -940,7 +939,7 @@
 .v2 .son-aide { display: grid; gap: 14px; padding: 6px 0; }
 .v2 .son-aide .outil-etapes { justify-content: stretch; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .v2 .son-licence { text-align: center; }
-/* lecteur à forme d'onde */
+/* waveform player */
 .v2 .onde { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .v2 .onde-jouer { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--text); color: var(--bg); cursor: pointer; }
 .v2 .onde.compacte .onde-jouer { width: 28px; height: 28px; }
@@ -949,7 +948,7 @@
 .v2 .onde-toile canvas { display: block; cursor: pointer; }
 .v2 .onde-temps { flex: none; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .v2 .onde audio { display: none; }
-/* bibliothèque audio (onglet Audio de la bibliothèque) */
+/* audio library (Audio tab of the library) */
 .v2 .biblio-audio { display: grid; align-content: start; gap: 12px; padding: 14px 16px; }
 .v2 .biblio-audio-tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .v2 .biblio-audio-encours { justify-self: start; border: 0; border-radius: 10px; padding: 8px 12px; background: color-mix(in srgb, var(--accent) 16%, var(--lv2)); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
@@ -965,24 +964,24 @@
   .v2 .son-prises { grid-template-columns: minmax(0, 1fr); }
   .v2 .son-volet .outil-action { position: static; margin-bottom: 0; padding-bottom: 0; background: none; }
 }
-/* dans l'espace Créer du mobile : la page suit le défilement de l'espace */
+/* in the mobile Create space: the page follows the space's scrolling */
 .v2.m-son { margin: 12px calc(-1 * var(--pad, 0px)) 0; background: transparent; }
 .v2.m-son .son-page { overflow: visible; }
 .v2.m-son .son-tete .son-titres h2 { display: none; }
 
-/* ---------- Danse : galerie en vedette, panneau de création compact ---------- */
+/* ---------- Dance: featured gallery, compact creation panel ---------- */
 .v2 .dz { display: flex; flex: 1; min-height: 0; gap: 0; }
 .v2 .dz-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .v2 .dz-panneau {
   width: 340px; flex: none; margin: 8px 0 8px 8px; padding: 16px; border-radius: 16px; background: var(--lv1);
   display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; scrollbar-width: thin;
-  /* le bouton d'action reste collé en bas : un champ activé remonte au-dessus de lui, jamais dessous */
+  /* the action button stays stuck to the bottom: a focused field scrolls above it, never under */
   scroll-padding-bottom: 120px;
 }
 .v2 .dz-tete { display: grid; gap: 4px; }
 .v2 .dz-tete p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 
-/* les trois choix, dans l'ordre : chaque ligne ouvre son choix */
+/* the three choices, in order: each row opens its choice */
 .v2 .dz-etapes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .v2 .dz-etape {
   width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) 14px; gap: 12px; align-items: center;
@@ -1008,7 +1007,7 @@
 .v2 .dz-etape:not(.faite) .dz-etape-texte b { color: var(--muted); font-weight: 500; }
 .v2 .dz-etape-chevron { color: var(--faint); transform: rotate(-90deg); display: grid; place-items: center; }
 
-/* la danse et le studio choisis, côte à côte au format 9:16 */
+/* the chosen dance and studio, side by side in 9:16 */
 .v2 .dz-apercu { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .v2 .dz-apercu figure { margin: 0; position: relative; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; background: var(--scene); }
 .v2 .dz-apercu video, .v2 .dz-apercu img, .v2 .dz-apercu canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1053,7 +1052,7 @@
 .v2 .dz-en-cours:hover span { color: var(--text); }
 @keyframes dz-pouls { 50% { opacity: .35; } }
 
-/* la galerie */
+/* the gallery */
 .v2 .dz-galerie { flex: 1; min-width: 0; overflow-y: auto; margin: 8px; border-radius: 16px; background: var(--lv1); padding: 0 16px 20px; scrollbar-width: thin; }
 .v2 .dz-barre {
   position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px;
@@ -1120,7 +1119,7 @@
 .v2 .dz-comment { display: grid; gap: 16px; justify-items: center; text-align: center; padding: 28px 8px; }
 .v2 .dz-comment > b { font-size: 20px; font-weight: 800; }
 
-/* les rendus : la vidéo, puis ses gestes */
+/* the renders: the video, then its gestures */
 .v2 .dz-grille-rendus { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .v2 .dz-rendu { margin: 0; display: grid; gap: 8px; }
 .v2 .dz-rendu-media { position: relative; display: block; width: 100%; aspect-ratio: 9 / 16; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--scene); cursor: pointer; }
@@ -1138,7 +1137,7 @@
   .v2 .dz-squelette, .v2 .dz-en-cours i, .v2 .dz-point { animation: none; }
 }
 
-/* téléphone : la galerie d'abord, le panneau devient une barre collée en bas */
+/* phone: gallery first, the panel becomes a bar stuck to the bottom */
 @media (max-width: 820px) {
   .v2 .dz { flex-direction: column; min-height: auto; }
   .v2 .dz-galerie { order: 1; overflow: visible; margin: 0; border-radius: 0; background: none; padding: 0 12px 16px; }
@@ -1189,21 +1188,21 @@
   .v2 .dz-etape { grid-template-columns: 40px minmax(0, 1fr) 14px; }
 }
 @media (max-width: 820px) { .v2 .dz-panneau { background: var(--lv2); } }
-/* bureau : la paire d'aperçus suit la hauteur de l'écran pour garder le bouton visible sans défiler */
+/* desktop: the preview pair follows screen height to keep the button visible without scrolling */
 @media (min-width: 821px) {
   .v2 .dz-apercu { grid-template-columns: repeat(2, auto); justify-content: center; gap: 12px; }
   .v2 .dz-apercu figure { height: clamp(170px, 26vh, 300px); width: auto; }
 }
 
-/* ---------- Danse : « Comment ça marche » en tête de la galerie ---------- */
+/* ---------- Dance: "How it works" at the top of the gallery ---------- */
 .v2 .dz-galerie { position: relative; }
 .v2 .dz-ancre { height: 0; scroll-margin-top: 8px; }
 .v2 .dz-howto { container-type: inline-size; padding: 16px 0 18px; margin-bottom: 6px; border-bottom: 1px solid var(--lv3); }
 .v2 .dz-howto-grille { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
-/* le montage en grand, le texte posé dessus en bas à gauche */
+/* the montage large, text over it at the bottom left */
 .v2 .dz-howto-hero { position: relative; border-radius: 16px; overflow: hidden; background: var(--scene); isolation: isolate; }
-/* toujours 16:9 exact : le montage n'est jamais rogné (étiquettes, sujets au bord) */
+/* always exact 16:9: the montage is never cropped (labels, subjects at the edge) */
 .v2 .dz-howto-media { position: relative; aspect-ratio: 16 / 9; height: auto; width: 100%; }
 .v2 .dz-howto-media video, .v2 .dz-howto-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .v2 .dz-howto-texte {
@@ -1222,7 +1221,7 @@
 .v2 .dz-howto-cta:active { transform: scale(.98); }
 .v2 .dz-howto-cta:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
-/* les étapes : une vidéo à la fois, légende, et les quatre segments qui avancent */
+/* the steps: one video at a time, caption, and the four progressing segments */
 .v2 .dz-howto-etapes { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .v2 .dz-howto-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .v2 .dz-howto-tete h3 { margin: 0; font-size: 15px; font-weight: 750; }
@@ -1257,11 +1256,11 @@
 .v2 .dz-howto-barre i.fixe { animation: none; }
 @keyframes dz-avance { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
-/* « Commencer » : la prochaine étape du panneau s'allume un instant */
+/* "Start": the next panel step lights up briefly */
 .v2 .dz-panneau.appel .dz-etape.prochaine { animation: dz-appel 1.5s cubic-bezier(.16, 1, .3, 1); }
 @keyframes dz-appel { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 
-/* repliée : un lien discret pour la rouvrir */
+/* collapsed: a subtle link to reopen it */
 .v2 .dz-howto-replie { display: flex; justify-content: flex-end; padding: 10px 0 0; }
 .v2 .dz-howto-replie button {
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--lv3);
@@ -1269,7 +1268,7 @@
 }
 .v2 .dz-howto-replie button:hover { color: var(--text); border-color: var(--lv4); }
 
-/* colonne étroite (fenêtre réduite, téléphone) : montage puis texte, puis étapes en carrousel qu'on fait glisser */
+/* narrow column (small window, phone): montage then text, then steps as a swipeable carousel */
 @container (max-width: 760px) {
   .v2 .dz-howto-grille { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .v2 .dz-howto-media { height: auto; }
@@ -1293,14 +1292,14 @@
   .v2 .dz-panneau.appel .dz-etape.prochaine { animation: none; outline: 2px solid var(--accent); }
 }
 
-/* ---------- Pages galerie (gabarit commun, né sur Danse) : variantes ---------- */
+/* ---------- Gallery pages (shared layout): variants ---------- */
 .v2 .dz-carte.carree { aspect-ratio: 1 / 1; }
 .v2 .dz-carte video.dz-fixe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .v2 .dz-badge {
   position: absolute; top: 9px; left: 9px; z-index: 2; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 700;
   background: rgba(12, 13, 16, .72); color: #fff; letter-spacing: .01em; pointer-events: none;
 }
-/* « Comment ça marche » : un fichier absent laisse un fond sobre, jamais un cadre cassé */
+/* "How it works": a missing file leaves a plain background, never a broken frame */
 .v2 .dz-howto-fond {
   position: absolute; inset: 0; display: block;
   background: radial-gradient(120% 90% at 18% 0%, color-mix(in srgb, var(--accent) 22%, var(--lv2)), var(--lv2) 55%, var(--scene));
@@ -1318,7 +1317,7 @@
 .v2 .dz-rendus-vide { padding: 12px 0; }
 .v2 .dz-grille-rendus.photos .dz-rendu-media { aspect-ratio: 4 / 5; }
 .v2 .dz-rendu-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-/* outils sur un clip : vignette 4:3 (vrais rendus), nom et phrase */
+/* clip tools: 4:3 thumbnail (real renders), name and sentence */
 .v2 .dz-grille-outils { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; align-items: start; }
 .v2 .dz-outil {
   display: grid; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--lv2); color: var(--text); text-align: left; cursor: pointer;
@@ -1366,14 +1365,14 @@
   .v2 .dz-grille-paysage { grid-template-columns: minmax(0, 1fr); }
   .v2 .dz-idees button { min-height: 36px; font-size: 13px; }
 }
-/* Reel en un clic : réglages du panneau, liste des reels */
+/* One-click reel: panel settings, reel list */
 .v2 .dz-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .v2 .dz-ligne select.champ { flex: 1; min-width: 0; font-size: 13px; }
 .v2 .dz-case { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .v2 .dz-reels { display: grid; gap: 12px; }
 .v2 .dz-reels .carte-reel { background: var(--lv2) !important; }
 .v2 .dz-reel-perso { min-width: 0; }
-/* Try-On : la personne puis le vêtement, deux choix dans la même bibliothèque ; le vêtement est marqué en clair */
+/* Try-On: the person then the garment, two picks from the same library; the garment is clearly marked */
 .v2 .dz-cible { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
 .v2 .dz-cible button {
   display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 12px 6px 6px; border-radius: 12px; border: 1px solid var(--lv3);
@@ -1392,32 +1391,32 @@
 .v2 .dz-carte.premier.choisie .dz-badge { background: var(--accent); color: #1a0705; }
 .v2 .dz-carte.second.choisie .dz-badge { background: var(--text); color: var(--bg); }
 @media (max-width: 820px) { .v2 .dz-cible button { min-height: 52px; } }
-/* méga-menu : deux lignes de description au plus, pour que toutes les entrées aient la même hauteur */
+/* mega-menu: at most two description lines, so all entries have the same height */
 .mega-texte span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* Image, Vidéo et Son ouvrent un méga-menu de la même hauteur : passer de l'un à l'autre ne fait pas sauter le bas */
+/* Image, Video and Sound open a mega-menu of the same height: switching between them does not shift the bottom */
 .mega-boite.mega-grand { min-height: min(580px, calc(100vh - 90px)); }
 
-/* comparaisons photo des cartes : le volet balaie seul (le survol reprend la main) */
+/* card photo comparisons: the slider sweeps on its own (hover takes over) */
 @property --coupe { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
 @keyframes apercu-balaye { 0%, 8% { --coupe: 18%; } 50%, 58% { --coupe: 82%; } 100% { --coupe: 18%; } }
 .v2 .apercu.compare.balaye { animation: apercu-balaye 6s cubic-bezier(.45, 0, .55, 1) infinite; }
 @media (prefers-reduced-motion: reduce) { .v2 .apercu.compare.balaye { animation: none; } }
 
-/* l'îlot de sélection passe devant les liserés des vignettes sélectionnées et leurs survols */
+/* the selection island sits above the outlines of selected thumbnails and their hovers */
 .v2 .fbar.ilot-selection { z-index: 999; }
 
-/* icône au-dessus du texte des boutons « Choisir une photo / un clip » */
+/* icon above the text of the "Choose a photo / a clip" buttons */
 .v2 .zone-icone, .v2 .vide-icone { display: block; margin: 0 auto 6px; width: max-content; opacity: .75; }
 
 /* ============================================================
-   Matière des contrôles (relevée au pixel sur la référence, 07/11)
-   - gris neutres : page #0f1112, carte #1c1e20, bouton #23262a, actif #2e3032
-   - une carte n'a pas de liseré : c'est l'écart de fond qui la détache
-   - un champ a un liseré 1 px #323436 ; un plateau creux (#141516) porte ses boutons
-   - l'élément actif est en RELIEF : dégradé vertical, reflet 1 px en haut,
-     ombre sombre dessous — une touche, pas une couleur
-   - le bouton principal a une lèvre plus sombre de 3 px sous lui
-   L'accent reste l'iridescent orange ; seule la matière change.
+   Control material
+   - neutral greys: page #0f1112, card #1c1e20, button #23262a, active #2e3032
+   - a card has no outline: the background difference sets it apart
+   - a field has a 1 px #323436 outline; a recessed tray (#141516) holds its buttons
+   - the active element is RAISED: vertical gradient, 1 px highlight on top,
+     dark shadow below — a key, not a colour
+   - the primary button has a 3 px darker lip below it
+   The accent stays the orange iridescent; only the material changes.
    ============================================================ */
 .v2 {
   --bg: #0f1112;
@@ -1432,7 +1431,7 @@
   --levre: #8e2c5a;
 }
 
-/* bouton principal : aplat iridescent, reflet en haut, lèvre sombre dessous */
+/* primary button: flat iridescent, highlight on top, dark lip below */
 .v2 .cta {
   border-radius: 13px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38), inset 0 -1px 0 rgba(0, 0, 0, .12), 0 3px 0 var(--levre), 0 6px 14px rgba(0, 0, 0, .35);
@@ -1442,7 +1441,7 @@
 .v2 .cta:disabled { filter: grayscale(.75) brightness(.55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15), 0 3px 0 #2a2a2e; transform: none; }
 .v2 .b1 { border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 2px 0 var(--levre); }
 
-/* bouton secondaire : aplat, sans liseré, texte franc, icône + libellé */
+/* secondary button: flat, no outline, solid text, icon + label */
 .v2 .b2 {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   border-radius: 12px; background: var(--lv3); color: var(--text); font-weight: 600; font-size: 12.5px;
@@ -1450,27 +1449,27 @@
 .v2 .b2:hover { background: var(--lv4); }
 .v2 .b2 svg { flex: none; }
 
-/* pastille / puce : aplat ; active = en relief */
+/* chip: flat; active = raised */
 .v2 .pill { border-radius: 10px; background: var(--lv3); border-color: transparent; }
 .v2 .pill:hover { background: var(--lv4); }
 .v2 .pill.on { background: var(--relief); box-shadow: var(--sh-relief); color: var(--text); }
 
-/* onglets : texte gris au repos, touche en relief quand actif (plus de fond rose) */
+/* tabs: grey text at rest, raised key when active */
 .v2 .wtab { border-radius: 10px; background: transparent; color: var(--muted); padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; }
 .v2 .wtab:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
 .v2 .wtab.on { background: var(--relief); box-shadow: var(--sh-relief); color: var(--text); }
 
-/* segmenté : plateau creux, l'option choisie en relief */
+/* segmented: recessed tray, chosen option raised */
 .v2 .segmente { background: var(--lv1); box-shadow: var(--sh-creux); border-radius: 13px; padding: 4px; }
 .v2 .segmente button { border-radius: 9px; }
 .v2 .segmente button.on { background: var(--relief); box-shadow: var(--sh-relief); }
 
-/* interrupteur */
+/* switch */
 .v2 .tgl { background: var(--lv2); }
 .v2 .tgl .sw { background: #3a3c3e; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45); }
 .v2 .tgl .sw::after { background: #e8e8e8; box-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
 
-/* champs : liseré 1 px sur fond creux */
+/* fields: 1 px outline on recessed background */
 .v2 textarea, .v2 input[type="text"], .v2 input[type="search"], .v2 input:not([type]), .v2 select {
   background-color: var(--lv1); border: 1px solid var(--liser); border-radius: 12px;
 }
@@ -1478,7 +1477,7 @@
   outline: none; border-color: #4a4d50; box-shadow: 0 0 0 3px rgba(255, 255, 255, .04);
 }
 
-/* zones de dépôt : carte pleine, pointillé intérieur en retrait, icône dans un médaillon en relief */
+/* drop zones: solid card, inset dashed border, icon in a raised medallion */
 .v2 .zone-source, .v2 .dz-apercu-vide {
   border: 0; background: var(--lv2); border-radius: 16px;
   outline: 1px dashed rgba(255, 255, 255, .13); outline-offset: -7px;
@@ -1492,22 +1491,22 @@
 }
 .v2 .zone-icone svg, .v2 .vide-icone svg { width: 18px; height: 18px; }
 
-/* étapes du panneau : tuiles pleines sans liseré ; l'étape courante en relief léger */
+/* panel steps: solid tiles without outline; the current step slightly raised */
 .v2 .dz-etape { background: var(--lv2); border-color: transparent; border-radius: 14px; }
 .v2 .dz-etape:hover { background: #222426; }
 .v2 .dz-etape.courante { background: #25272a; border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px var(--liser); }
 .v2 .dz-etape.prochaine { border-color: transparent; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
 
-/* menus et popovers : la même carte, un reflet en haut */
+/* menus and popovers: same card, highlight on top */
 .v2 .menu { background: #1f2123; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(0, 0, 0, .5), var(--sh-lg); }
 
-/* menu du haut : le survol (et le méga-menu ouvert) pose un fond ; la page active est en gras iridescent, sans fond */
+/* top menu: hover (and open mega-menu) sets a background; the active page is bold iridescent, no background */
 .v2 .nav-lien { padding: 6px 10px; border-radius: 9px; font-size: 12.5px; background: transparent; color: var(--muted); border: 0; cursor: pointer; white-space: nowrap; font-weight: 500; }
 .v2 .nav-lien:hover, .v2 .nav-lien.ouvert { background: var(--lv3); color: var(--text); }
 .v2 .nav-lien.actif { font-weight: 800; background-image: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .v2 .nav-lien.actif:hover, .v2 .nav-lien.actif.ouvert { background: var(--grad) text, var(--lv3); background-clip: text, border-box; -webkit-background-clip: text, border-box; }
 
-/* fiches du panneau de la visionneuse : en-tête icône + petites capitales, corps dans un encart creux */
+/* viewer panel sheets: icon + small caps header, body in a recessed inset */
 .v2 .vfiche { background: var(--lv2); border-radius: 14px; padding: 10px 10px 10px; display: grid; gap: 8px; }
 .v2 .vfiche-tete { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); padding: 2px 4px; background: none; border: 0; font-family: inherit; width: 100%; text-align: left; }
 .v2 .vfiche-pli { cursor: pointer; }
@@ -1525,19 +1524,19 @@
 .v2 .vfiche-copier > svg { grid-area: 1 / 1; }
 .v2 .vfiche-copier > span { grid-area: 1 / 2; text-align: left; }
 
-/* titre de section : capitales grasses iridescentes, sous-titre gris */
+/* section title: bold iridescent capitals, grey subtitle */
 .v2 .section-tete { display: grid; gap: 3px; }
 .v2 .section-tete h3 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em; text-transform: uppercase; line-height: 1.05;
   background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; justify-self: start; }
 .v2 .section-tete p { margin: 0; font-size: 13px; color: var(--faint); }
 
-/* onglets de galerie : plateau creux, onglet actif en relief, icône devant le libellé */
+/* gallery tabs: recessed tray, active tab raised, icon before the label */
 .v2 .dz-onglets { background: var(--lv1); box-shadow: var(--sh-creux); border-radius: 13px; }
 .v2 .dz-onglets button { display: inline-flex; align-items: center; gap: 7px; border-radius: 9px; }
 .v2 .dz-onglets button.on { background: var(--relief); box-shadow: var(--sh-relief); color: var(--text); }
 .v2 .dz-onglets button svg { opacity: .8; }
 
-/* « Comment ça marche » : onglets au-dessus, hero pleine largeur ; vue étapes : grande vidéo, légende centrée, miniatures ‹ › */
+/* "How it works": tabs on top, full-width hero; steps view: large video, centered caption, ‹ › thumbnails */
 .v2 .dz-howto-onglets { display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
 .v2 .dz-howto-onglets button[role="tab"] { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 10px; border: 0; background: none;
   color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -1570,20 +1569,20 @@
 .v2 .dz-howto-mini i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--grad); transform-origin: left; animation: dz-avance 5.2s linear both; }
 .v2 .dz-howto-mini i.fixe { animation: none; }
 
-/* bas du panneau : petit bouton carré (rendus) à gauche du bouton principal, étincelle après le libellé */
+/* panel bottom: small square button (renders) left of the primary button, sparkle after the label */
 .v2 .dz-carre { position: relative; flex: 0 0 56px; border-radius: 13px; border: 0; cursor: pointer; display: grid; place-items: center; color: var(--text); background: var(--lv3); }
 .v2 .dz-carre:hover { background: var(--lv4); }
 .v2 .dz-carre i { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-style: normal; font-size: 11px; font-weight: 800;
   display: grid; place-items: center; background: var(--attention); color: #1a1205; }
 .v2 .cta-libelle { display: inline-flex; align-items: center; gap: 7px; }
 
-/* titres des tuiles de galerie : petites capitales grasses posées sur l'image */
+/* gallery tile titles: bold small caps over the image */
 .v2 .dz-legende b { font-size: 12.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .v2 .dz-legende small { font-size: 11.5px; }
 .v2 .dz-carte.choisie::after { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 3px rgba(0, 0, 0, .35); }
 .v2 .dz-coche { top: 9px; left: 9px; right: auto; width: 22px; height: 22px; }
 
-/* section repliée : fondu sur la dernière rangée, pastille « Voir tout » centrée dessus */
+/* collapsed section: fade over the last row, "See all" chip centered on it */
 .v2 .section-grille { position: relative; }
 .v2 .section-grille.pliee { max-height: 560px; overflow: hidden; }
 .v2 .voir-tout-fondu { position: absolute; left: 0; right: 0; bottom: 0; height: 170px; display: grid; place-items: end center; padding-bottom: 18px;
@@ -1591,10 +1590,10 @@
 .v2 .voir-tout { display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 11px; border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700;
   color: #ffd2c4; background: color-mix(in srgb, var(--accent) 22%, #1c1e20); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 6px 18px rgba(0, 0, 0, .45); }
 .v2 .voir-tout:hover { background: color-mix(in srgb, var(--accent) 32%, #1c1e20); color: #fff; }
-/* titre du hero en capitales, comme les titres de section */
+/* hero title in capitals, like section titles */
 .v2 .dz-howto-texte h2 { text-transform: uppercase; font-weight: 900; letter-spacing: -.01em; }
 
-/* Movie Studio : en-tête à mi-hauteur, séquences en fondu, texte posé en bas à gauche */
+/* Movie Studio: half-height header, crossfading sequences, text at the bottom left */
 .v2 .cine-entete { position: relative; height: 50vh; min-height: 340px; max-width: 1240px; margin: 0 auto 22px; border-radius: 20px; overflow: hidden; background: var(--scene); isolation: isolate;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
 .v2 .cine-entete > video, .v2 .cine-entete > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .8s ease; }
@@ -1608,7 +1607,7 @@
 .v2 .cine-entete-themes { position: absolute; right: 18px; bottom: 18px; z-index: 2; display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: rgba(10, 11, 13, .55); backdrop-filter: blur(10px); }
 .v2 .cine-entete-themes button { border: 0; cursor: pointer; padding: 6px 12px; border-radius: 9px; background: none; color: rgba(255, 255, 255, .7); font: inherit; font-size: 12.5px; font-weight: 650; }
 .v2 .cine-entete-themes button.on { color: #fff; background: var(--relief); box-shadow: var(--sh-relief); }
-/* « Comment ça marche » en duo : texte et bouton à gauche, étapes à droite */
+/* "How it works" as a duo: text and button on the left, steps on the right */
 .v2 .dz-howto-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 26px; align-items: center; border-bottom: 0; }
 .v2 .dz-howto-duo-texte { display: grid; gap: 12px; justify-items: start; }
 .v2 .dz-howto-duo-texte h2 { margin: 0; font-size: clamp(24px, 2.4vw, 34px); line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; text-wrap: balance; }
@@ -1616,7 +1615,7 @@
 .v2 .dz-howto-duo-cta { padding: 14px 22px; flex-direction: row; }
 @media (max-width: 900px) { .v2 .dz-howto-duo { grid-template-columns: minmax(0, 1fr); } .v2 .cine-entete-texte { padding: 20px; } }
 
-/* accueil : accès rapide en tuiles compactes */
+/* home: quick access as compact tiles */
 .v2 .home-rapides { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .v2 .home-rapide { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 2px; align-items: center; text-align: left;
   padding: 14px; border-radius: 14px; border: 0; cursor: pointer; background: var(--lv2); color: var(--text); font: inherit; }
@@ -1624,7 +1623,7 @@
 .v2 .home-rapide-ic { grid-row: 1 / 3; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--relief); box-shadow: var(--sh-relief); color: #ffb39a; }
 .v2 .home-rapide b { font-size: 13.5px; font-weight: 700; }
 .v2 .home-rapide span:last-child { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* bloc vedette : média large d'un côté, texte de l'autre ; inversé une fois sur deux */
+/* featured block: wide media on one side, text on the other; alternated every other block */
 .v2 .home-vedette { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 0; border-radius: 22px; overflow: hidden; background: var(--lv2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); min-height: 360px; }
 .v2 .home-vedette.inverse { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
@@ -1635,13 +1634,13 @@
 .v2 .home-vedette-texte h3 { margin: 0; font-size: clamp(26px, 2.6vw, 38px); line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: -.015em; text-wrap: balance; }
 .v2 .home-vedette-texte p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .v2 .home-vedette-cta { padding: 13px 20px; flex-direction: row; margin-top: 4px; }
-/* nuage de tous les outils */
+/* cloud of all tools */
 .v2 .home-nuage { display: grid; justify-items: center; gap: 16px; padding: 26px 0 6px; text-align: center; }
 .v2 .home-nuage h3 { margin: 0; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; }
 .v2 .home-nuage > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 980px; }
 .v2 .home-nuage button { border: 0; cursor: pointer; font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 8px; background: var(--lv2); color: var(--muted); }
 .v2 .home-nuage button:hover { color: var(--text); background: var(--lv3); }
-/* pied de page iridescent */
+/* iridescent footer */
 .v2 .home-pied { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 22px; padding: 30px 32px; border-radius: 22px; background: var(--grad); color: #1d0b14; margin-top: 10px; }
 .v2 .home-pied-marque { display: grid; align-content: start; gap: 10px; }
 .v2 .home-pied-marque b { font-size: 30px; font-weight: 900; letter-spacing: -.02em; line-height: 1; text-transform: uppercase; }
@@ -1653,7 +1652,7 @@
 .v2 .home-pied-col button:hover { text-decoration: underline; }
 @media (max-width: 900px) { .v2 .home-vedette, .v2 .home-vedette.inverse { grid-template-columns: minmax(0, 1fr); } .v2 .home-vedette.inverse .home-vedette-media { order: 0; } .v2 .home-pied { grid-template-columns: 1fr 1fr; } }
 
-/* frise d'une étape : morceaux à leur durée, le morceau généré en hachures qui se remplit, tête de lecture */
+/* step timeline: segments at their duration, the generated segment hatched and filling, playhead */
 .v2 .frise { width: min(100%, 780px); padding: 4px 0 22px; }
 .v2 .frise-piste { position: relative; display: flex; gap: 3px; height: 30px; }
 .v2 .frise-seg { position: relative; flex-basis: 0; min-width: 0; border-radius: 7px; background: var(--lv3); display: grid; place-items: center;
@@ -1673,7 +1672,7 @@
 @keyframes frise-charge { to { background-position: -28px 0; } }
 @media (prefers-reduced-motion: reduce) { .v2 .frise-seg.neuf { animation: none; } .v2 .frise-tete { transition: none; } }
 
-/* Movie Studio : « Comment ça marche » prend la place de l'en-tête, même cadre, un bouton pour revenir */
+/* Movie Studio: "How it works" replaces the header, same frame, a button to go back */
 .v2 .cine-entete-comment { height: auto; min-height: 50vh; overflow: visible; background: var(--lv1); padding: 26px 30px 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05); }
 .v2 .cine-entete-comment::after { display: none; }
 .v2 .cine-entete-comment .dz-howto { padding: 0; margin: 0; }
@@ -1681,29 +1680,29 @@
 .v2 .cine-entete-comment .dz-howto-duo-texte .dz-howto-masquer { display: none; }
 .v2 .cine-retour { position: absolute; top: 14px; right: 14px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; border: 0; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 650;
   color: var(--text); padding: 6px 11px; border-radius: 10px; background: var(--relief); box-shadow: var(--sh-relief); }
-/* panneau de la visionneuse : aucun bloc ne se tasse quand un autre grandit (la provenance s'ouvre dessous, la colonne défile) */
+/* viewer panel: no block shrinks when another grows (provenance expands below, the column scrolls) */
 .v2 .viewer-panel > * { flex-shrink: 0; }
 .v2 .vfiche-corps pre { white-space: pre-wrap; word-break: break-word; }
-/* îlot image : le choix du personnage s'aligne sur la ligne des images de référence */
+/* image island: the character picker aligns with the reference images row */
 .v2 .fbar .flex > .elements-prompt { margin: 0; }
 
-/* ---------- 1. l'image se révèle pendant le rendu : l'aperçu de ComfyUI se précise avec la progression ---------- */
+/* ---------- 1. the image reveals itself during rendering: the ComfyUI preview sharpens with progress ---------- */
 .v2 .apercu-revele { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none;
   opacity: calc(.45 + .55 * var(--p)); filter: blur(calc((1 - var(--p)) * 14px)) saturate(calc(.7 + .3 * var(--p)));
   transform: scale(calc(1.06 - .06 * var(--p))); transition: filter .9s ease-out, opacity .9s ease-out, transform .9s ease-out; }
 .v2 .jbody.sur-apercu { position: relative; background: linear-gradient(180deg, rgba(12,13,16,.55), transparent 32%, transparent 58%, rgba(12,13,16,.85)); }
 @media (prefers-reduced-motion: reduce) { .v2 .apercu-revele { transition: none; transform: none; } }
 
-/* ---------- 3. texte qui scintille pour les états d'attente ---------- */
+/* ---------- 3. shimmering text for waiting states ---------- */
 .v2 .scintille { background: linear-gradient(90deg, var(--sc, var(--muted)) 0%, var(--sc, var(--muted)) 40%, #fff 50%, var(--sc, var(--muted)) 60%, var(--sc, var(--muted)) 100%);
   background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: scintille 2.2s linear infinite; }
 @keyframes scintille { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 .v2 .jobcard .eta.scintille { --sc: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .v2 .scintille { animation: none; background: none; color: var(--sc, var(--muted)); } }
 
-/* ---------- 2. verre liquide pour les îlots qui flottent sur les images ----------
-   flou saturé de ce qui passe dessous, reflet en haut, liseré clair, grain discret, pointe bleue et rose
-   aux coins opposés ; repli opaque sans backdrop-filter ou si l'utilisateur réduit la transparence */
+/* ---------- 2. liquid glass for islands floating over images ----------
+   saturated blur of what is underneath, top highlight, light outline, subtle grain, blue and pink tint
+   in opposite corners; opaque fallback without backdrop-filter or when the user reduces transparency */
 .v2 .fbar, .v2 .menu, .v2 .cine-entete-themes {
   background: rgba(22, 24, 27, .62);
   -webkit-backdrop-filter: blur(22px) saturate(1.5) contrast(1.05); backdrop-filter: blur(22px) saturate(1.5) contrast(1.05);
@@ -1723,7 +1722,7 @@
   .v2 .fbar, .v2 .menu, .v2 .cine-entete-themes { background: rgb(24, 25, 30); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
-/* ---------- 4. trace de la réécriture : étapes pendant le travail, repli en une ligne ensuite ---------- */
+/* ---------- 4. rewrite trace: steps during the work, collapsed into one line afterwards ---------- */
 .v2 .trace-etapes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: 12.5px; }
 .v2 .trace-etapes li { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .v2 .trace-etapes li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lv4); flex: none; }
@@ -1738,7 +1737,7 @@
 .v2 .trace-bloc { margin: 6px 0 0 20px; padding-left: 10px; border-left: 1px solid var(--liser); color: var(--muted); line-height: 1.5; display: grid; gap: 2px; }
 .v2 .trace-bloc b { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
 
-/* ---------- 5. menu @ et / du prompt ---------- */
+/* ---------- 5. prompt @ and / menu ---------- */
 .v2 .mentions-menu { margin-top: 6px; display: grid; padding: 5px; border-radius: 13px; background: rgba(22, 24, 27, .9);
   -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .07), 0 14px 40px rgba(0, 0, 0, .5); max-width: 520px; }
@@ -1750,7 +1749,7 @@
 .v2 .mentions-menu em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
 .v2 .mentions-aide { padding: 6px 9px 3px; font-size: 11px; color: var(--faint); }
 
-/* ---------- 6. point et demande : un repère sur l'image, une bulle de consigne ---------- */
+/* ---------- 6. point and ask: a marker on the image, an instruction bubble ---------- */
 .v2 .point-cadre { position: relative; display: inline-block; max-width: 86%; line-height: 0; }
 .v2 .point-cadre.actif img { cursor: crosshair; }
 .v2 .point-aide { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); line-height: 1.3; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 10px;
@@ -1767,11 +1766,11 @@
 .v2 .point-bouton-on { background: var(--relief); box-shadow: var(--sh-relief); color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .v2 .point-repere { animation: none; } }
 
-/* ---------- 7. jauges en anneau, bandeau quota ---------- */
+/* ---------- 7. ring gauges, quota banner ---------- */
 .anneau { display: inline-block; vertical-align: middle; flex: none; }
 .v2 .quota-alerte { padding: 3px 9px 3px 5px; border-radius: 999px; background: color-mix(in srgb, var(--attention) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--attention) 40%, transparent); }
 
-/* ---------- 8. orbe de voix et vu-mètre ---------- */
+/* ---------- 8. voice orb and VU meter ---------- */
 .v2 .voix-orbe { --niveau: 0; display: inline-flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--lv2); }
 .v2 .voix-orbe-coeur { position: relative; width: 26px; height: 26px; border-radius: 50%; background: var(--grad);
   transform: scale(calc(.8 + var(--niveau) * .5)); transition: transform .08s linear;
@@ -1783,7 +1782,7 @@
 .v2 .voix-orbe.ecoute .voix-metre i { height: calc(4px + 14px * var(--niveau) * (1 - (var(--i) - 6) * (var(--i) - 6) / 40)); background: color-mix(in srgb, var(--accent) calc(40% + var(--niveau) * 60%), var(--lv4)); }
 @media (prefers-reduced-motion: reduce) { .v2 .voix-orbe-coeur { transform: none; transition: none; } .v2 .voix-orbe.envoi .voix-orbe-coeur { animation: none; } }
 
-/* ---------- 9. fonds en dégradé maillé (taches iridescentes floues, une source dominante) ---------- */
+/* ---------- 9. mesh gradient backgrounds (blurred iridescent blobs, one dominant source) ---------- */
 .v2 .maille { position: relative; isolation: isolate; }
 .v2 .maille::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   background:
@@ -1803,7 +1802,7 @@
     radial-gradient(at 30% 100%, rgba(242, 77, 138, .2) 0px, transparent 55%),
     var(--lv2); }
 
-/* ---------- 10. lueur derrière les cartes vedettes et le bouton principal ---------- */
+/* ---------- 10. glow behind featured cards and the primary button ---------- */
 .v2 .lueur { box-shadow: 0 22px 60px -18px rgba(242, 77, 138, .38), 0 10px 30px -14px rgba(255, 171, 94, .3); transition: box-shadow .3s ease-out; }
 .v2 .lueur:hover { box-shadow: 0 26px 70px -16px rgba(242, 77, 138, .5), 0 12px 34px -12px rgba(255, 171, 94, .38); }
 .v2 .dz-action .cta, .v2 .outil-action > .cta { position: relative; }
@@ -1811,7 +1810,7 @@
   background: var(--grad); filter: blur(18px); opacity: .45; transition: opacity .25s ease-out; pointer-events: none; }
 .v2 .dz-action .cta:not(:disabled):hover::after, .v2 .outil-action > .cta:not(:disabled):hover::after { opacity: .7; }
 
-/* ---------- Table de montage (Movie Studio) ---------- */
+/* ---------- Edit table (Movie Studio) ---------- */
 .v2 .table-montage { padding: 16px 18px; }
 .v2 .tm-frise-cadre { overflow-x: auto; margin-top: 14px; padding: 4px 2px 6px; }
 .v2 .tm-frise { position: relative; height: 128px; min-width: 560px; margin: 0 58px; border-radius: 10px;
@@ -1846,7 +1845,7 @@
 .v2 .tm-attente { width: 100%; max-width: 720px; aspect-ratio: 16 / 9; border-radius: 10px; background: var(--lv2); display: grid; place-items: center; font-size: 13px; color: var(--muted); }
 .v2 .tm-apercu-aide { font-size: 12px; color: var(--muted); text-align: center; }
 .v2 .tm-tete { position: absolute; top: 58px; width: 2px; height: 46px; background: #fff; border-radius: 2px; box-shadow: 0 0 8px #fff9; pointer-events: none; transform: translateX(-1px); }
-/* Movie Studio : deux temps bien séparés, les images clés puis le plan vidéo */
+/* Movie Studio: two clearly separate stages, keyframes then the video shot */
 .v2 .cine-etape-tete { display: flex; align-items: flex-start; gap: 12px; }
 .v2 .cine-num { flex: 0 0 30px; height: 30px; border-radius: 99px; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff;
   background: linear-gradient(135deg, #ffab5e, #ff655b 55%, #b44bd8); margin-top: 2px; }
@@ -1863,8 +1862,8 @@
 .v2 .tm-demo { width: 100%; max-width: 720px; margin: 0; display: grid; gap: 6px; }
 .v2 .tm-demo video { width: 100%; border-radius: 10px; background: var(--lv2); aspect-ratio: 16 / 9; object-fit: cover; }
 .v2 .tm-demo figcaption { font-size: 12px; color: var(--muted); text-align: center; }
-/* Cartes de rendu : un léger dégradé noir en haut (moteur, prompt) et en bas (temps, barre) rend le texte
-   lisible quel que soit l'aperçu qui se forme derrière ; texte clair avec une ombre douce. */
+/* Render cards: a light black gradient at the top (engine, prompt) and bottom (time, bar) keeps the text
+   readable whatever preview forms behind it; light text with a soft shadow. */
 .v2 .jobcard { position: relative; overflow: hidden; }
 .v2 .jobcard::before, .v2 .jobcard::after { content: ''; position: absolute; left: 0; right: 0; pointer-events: none; z-index: 1; }
 .v2 .jobcard::before { top: 0; height: 46%; background: linear-gradient(to bottom, rgba(0, 0, 0, .62), rgba(0, 0, 0, .28) 55%, transparent); }
@@ -1878,7 +1877,7 @@
   background: rgba(255, 182, 72, .1); border: 1px solid rgba(255, 182, 72, .35); }
 .v2 .montage-ajout { flex-direction: column; justify-content: center; align-items: center; gap: 6px; border-radius: 10px; font-size: 13px; font-weight: 600; padding: 0 10px; }
 
-/* ---------- Movie Studio : films déjà tournés (sous le hero) ---------- */
+/* ---------- Movie Studio: already-shot films (under the hero) ---------- */
 .v2 .cine-films { max-width: 1240px; margin: 18px auto 26px; }
 .v2 .cine-films-tete { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .v2 .cine-films-tete h2 { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
@@ -1903,7 +1902,7 @@
 @media (max-width: 640px) { .v2 .cine-film { flex-basis: 200px; } }
 @media (prefers-reduced-motion: reduce) { .v2 .cine-film-carte, .v2 .cine-film-carte video, .v2 .cine-film-carte img, .v2 .cine-film-texte small { transition: none; } .v2 .cine-film-carte:hover video, .v2 .cine-film-carte:hover img { transform: none; } }
 
-/* Inspirations (Image, Vidéo) : prompts tout faits avec leur rendu, cartes en portrait */
+/* Inspirations (Image, Video): ready-made prompts with their render, portrait cards */
 .v2 .insp { margin: 4px 16px 18px; }
 .v2 .insp-tete { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .v2 .insp-tete h2 { font-size: 14px; font-weight: 700; letter-spacing: .01em; }

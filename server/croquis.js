@@ -1,6 +1,6 @@
-/* Croquis vers vidéo : le dessin, réduit à ses traits, sert de référence à FLUX.2 Klein qui
-   en tire une image ; LTX-2.5 l'anime ensuite. Réduire le dessin à ses contours empêche
-   qu'une vraie photo, envoyée à la place d'un croquis, transmette un visage. */
+/* Sketch to video: the drawing, reduced to its lines, is a reference for FLUX.2 Klein which
+   renders an image from it; LTX-2.5 then animates it. Reducing the drawing to its outlines
+   prevents a real photo, sent instead of a sketch, from passing on a face. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -14,19 +14,19 @@ const FORMATS = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024] 
 const suivis = new Map()
 const PROPOSITIONS = 3
 
-/* Une personne n'apparaît que si la description en parle (ou nomme le personnage) : sinon le
-   croquis est un lieu, des objets, des animaux. Sans cette règle, le modèle mettait le
-   personnage dans un paysage et lisait des oiseaux en « V » comme des jambes. */
+/* A person appears only if the description mentions one (or names the character); otherwise
+   the sketch is a place, objects, animals. Without this rule the model puts the character
+   into landscapes and reads "V"-shaped birds as legs. */
 const HUMAIN = /\b(she|he|her|hers|his|him|they|them|woman|women|man|men|girl|girls|boy|boys|person|persons|people|someone|somebody|child|children|kid|kids|baby|babies|teen|teens|teenager|lady|ladies|guy|guys|hero|heroes|superhero|heroine|character|figure|crowd|couple|family|dancer|runner|player|rider|driver|worker|mum|mom|dad|mother|father|friend|friends|body|face|faces|hand|hands|selfie|portrait|human|humans|elle|il|femme|homme|fille|garçon|personne|enfant|bébé)\b/i
 export function decritUnePersonne(scene, personaId) {
   if (HUMAIN.test(scene)) return true
   const p = personaId && personaId !== SANS_PERSONNAGE ? persona(personaId) : null
-  // le nom entier, son premier mot (« Breezy » pour « Breezy L. ») et le mot déclencheur
+  // the full name, its first word ("Breezy" for "Breezy L.") and the trigger word
   const nom = String(p?.name ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase()
   const noms = [nom, nom.split(/\s+/)[0], String(p?.trigger ?? '').toLowerCase()].filter(x => x.length >= 3)
   return noms.some(n => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(scene))
 }
-/* Conventions de dessin courantes : ce qu'un trait simple représente le plus souvent. */
+/* Common drawing conventions: what a simple line most often represents. */
 const CONVENTIONS = 'Usual sketch conventions: a small V, M or wave shape in the sky is a flying bird; a circle with rays is the sun; a fluffy outline is a cloud or a tree crown; wavy horizontal lines are water; a long line across the frame is the horizon or the ground.'
 
 export function lancerCroquis({ image, scene, mouvement, format, secondes, personaId }) {
@@ -38,10 +38,10 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
   const cle = Date.now().toString(36), brut = path.join(CONFIG.comfyInput, `CRQ_${cle}_brut.png`), nom = `CRQ_${cle}.png`
   fs.writeFileSync(brut, Buffer.from(m[1], 'base64'))
   try {
-    /* Un vrai croquis (traits sur fond blanc, très peu de gris) garde ses traits pleins, épaissis :
-       passé au détecteur de contours, chaque trait devenait un double liseré que le modèle
-       dessinait en tubes ou en rambardes. Une image à demi-teintes (une photo envoyée à la place
-       d'un dessin) n'est réduite qu'à ses contours, pour ne transmettre aucun visage. */
+    /* A real sketch (lines on white, very little grey) keeps its lines solid and thickened, since
+       an edge detector turns each line into a double outline the model draws as tubes or railings.
+       A halftone image (a photo sent instead of a drawing) is reduced to its outlines only, so no
+       face is passed on. */
     const cadre = `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:white,format=gray`
     const gris = execFileSync('ffmpeg', ['-v', 'error', '-i', brut, '-vf', 'scale=160:-2,format=gray', '-frames:v', '1', '-f', 'rawvideo', '-'], { maxBuffer: 1 << 22 })
     let milieu = 0
@@ -55,17 +55,17 @@ export function lancerCroquis({ image, scene, mouvement, format, secondes, perso
     fs.rmSync(brut, { force: true })
   }
   store.noterInput(nom, 'croquis')
-  /* Trois images, tirées avec des graines différentes : on choisit celle qui sera animée. Un
-     croquis se lit de plusieurs façons (une cape prise pour une 3e jambe) ; animer une image
-     ratée coûte un clip entier, la refaire coûte une vingtaine de secondes. */
+  /* Three images with different seeds; the user picks the one to animate. A sketch can be read
+     several ways (a cape taken for a third leg); animating a bad image costs a whole clip,
+     redoing it costs about twenty seconds. */
   const humain = decritUnePersonne(`${s} ${String(mouvement ?? '')}`, personaId)
-  // ce qui bouge nomme souvent des sujets du dessin (« birds ») : l'image doit les montrer aussi
+  // what moves often names subjects of the drawing ("birds"): the image must show them too
   const bouge = String(mouvement ?? '').trim().slice(0, 300)
   const commun = `${s}.${bouge ? ` The clip made from this image will show: ${bouge} — so these subjects are already in the image.` : ''} A photorealistic cinematic photograph. The reference image is a rough hand-drawn sketch that only sets the composition: where each subject is, how big it is, its pose and the camera angle. The sketch lines are not objects: never draw lines, wires, tubes, frames or outlines from it — each shape becomes the real thing it stands for, fully detailed and textured. ${CONVENTIONS}`
   const positif = humain
     ? `${commun} A stick figure is a real person with natural anatomy.${anatomieImage(s)}`
     : `${commun} There are no people in this image: no person, no body, no limbs, no face — every shape is a place, an object, an animal or nature.`
-  // sans personne décrite, aucun personnage n'est injecté (le texte ci-dessus exclut tout humain)
+  // with no person described, no character is injected (the text above excludes any human)
   const qui = humain ? personaId : SANS_PERSONNAGE
   const photoJobs = Array.from({ length: PROPOSITIONS }, () => enqueue({ mode: 'photo', register: 'sfw', personaId: qui, purpose: 'creative', photoEngine: 'klein', references: [nom],
     composedPositive: positif, userPrompt: s, composedNegative: '', width: w, height: h }).id)
@@ -87,7 +87,7 @@ export function etatCroquis(id) {
   return { id, photos, choix: c.choix, photo, clipJob: c.clipJob, clip: etat(c.clipJob), avecPersonnage: c.humain !== false }
 }
 
-/** Anime l'image choisie parmi les propositions du croquis. */
+/** Animates the image chosen among the sketch proposals. */
 export function choisirCroquis(id, assetId) {
   const c = suivis.get(id)
   if (!c) throw new Error('croquis inconnu : relance-le')
@@ -104,5 +104,5 @@ export function choisirCroquis(id, assetId) {
   return etatCroquis(id)
 }
 
-// un croquis oublié (jamais choisi) quitte le suivi au bout d'une journée
+// a sketch never chosen is dropped from tracking after a day
 setInterval(() => { for (const c of suivis.values()) if (Date.now() - (c.debut ?? 0) > 86400_000) suivis.delete(c.id) }, 600_000).unref()

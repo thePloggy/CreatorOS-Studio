@@ -1,7 +1,7 @@
-/* Menus et popups toujours dans l'écran : chacun s'ouvre à sa place habituelle, et seulement
-   s'il dépasse du viewport, il est décalé juste assez pour y rentrer (et limité en hauteur,
-   avec défilement, s'il est plus grand que l'écran). Un seul observateur pour toute l'app :
-   tout élément qui porte une de ces classes ou l'attribut data-popup est surveillé. */
+/* Keeps menus and popups on screen: each opens at its usual place and, only if it
+   overflows the viewport, is shifted just enough to fit (and height-limited with
+   scrolling if taller than the screen). One observer for the whole app watches
+   every element carrying one of these classes or the data-popup attribute. */
 const SELECTEUR = '.menu, .elements-choix, [data-popup]'
 const MARGE = 8
 

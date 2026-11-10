@@ -1,5 +1,5 @@
-/* Bandeau de la démo publique : invite à mettre une étoile au dépôt GitHub. Fermable ; le choix
-   reste dans ce navigateur. */
+/* Public demo banner: invites starring the GitHub repo. Dismissible; the choice
+   is kept in this browser. */
 import { useEffect, useState } from 'react'
 import { t } from '../i18n'
 
@@ -11,13 +11,13 @@ export function BandeauGithub() {
   const [etoiles, setEtoiles] = useState<number | null>(null)
   useEffect(() => {
     let ferme = false
-    try { ferme = localStorage.getItem(CLE) === '1' } catch { /* stockage indisponible */ }
+    try { ferme = localStorage.getItem(CLE) === '1' } catch { /* storage unavailable */ }
     if (ferme) return
     void fetch('/api/comfy/maj').then(r => r.json()).then((d: { demo?: boolean }) => setVisible(!!d.demo)).catch(() => {})
     void fetch('https://api.github.com/repos/thePloggy/CreatorOS-Studio').then(r => (r.ok ? r.json() : null)).then((d: { stargazers_count?: number } | null) => { if (typeof d?.stargazers_count === 'number') setEtoiles(d.stargazers_count) }).catch(() => {})
   }, [])
   if (!visible) return null
-  const fermer = () => { setVisible(false); try { localStorage.setItem(CLE, '1') } catch { /* stockage indisponible */ } }
+  const fermer = () => { setVisible(false); try { localStorage.setItem(CLE, '1') } catch { /* storage unavailable */ } }
   return (
     <div role="region" aria-label={t('Soutenir le projet')} style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap',
       padding: '7px 44px 7px 16px', position: 'relative', fontSize: 13, color: '#e8e7e3',

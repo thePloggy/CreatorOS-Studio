@@ -1,5 +1,5 @@
-/* Croquis vers vidéo : dessine la scène au trait, décris-la, choisis ce qui bouge.
-   Le serveur en tire une image (FLUX.2 Klein) puis un clip (LTX-2.5), dans la bibliothèque. */
+/* Sketch to video: draw the scene as line art, describe it, choose what moves.
+   The server derives an image (FLUX.2 Klein) then a clip (LTX-2.5), saved to the library. */
 import { useEffect, useRef, useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -19,7 +19,7 @@ export function CroquisView() {
   const [mouvement, setMouvement] = useState('')
   const [suivi, setSuivi] = useState<Etat | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  // proposition survolée (aperçu en grand) et proposition retenue (à confirmer avant d'animer)
+  // hovered proposal (large preview) and selected proposal (to confirm before animating)
   const [survol, setSurvol] = useState<string | null>(null)
   const [retenue, setRetenue] = useState<string | null>(null)
   const histo = useRef<ImageData[]>([])
@@ -69,7 +69,7 @@ export function CroquisView() {
     if (!r.ok) { setErr(tServeur(d.error) ?? `HTTP ${r.status}`); return }
     setSuivi(d); if (d.clipJob) void adopter(d.clipJob)
   }
-  // l'image survolée ou retenue s'affiche en grand par-dessus le croquis ; le croquis revient dès qu'on quitte
+  // the hovered or selected image is shown large over the sketch; the sketch returns on leave
   const apercu = (suivi?.photos ?? []).find(p => p.assetId && p.assetId === (survol ?? (suivi?.clipJob ? null : retenue)))?.uri ?? undefined
   const enAttenteDeChoix = !!suivi && !suivi.clipJob && suivi.photo !== 'blocked'
   const etape = !suivi ? null : suivi.clip === 'done' ? t('Clip prêt : il est dans la bibliothèque.') : suivi.clipJob ? t('Le clip se rend à partir de l’image choisie (~5 min)…')

@@ -1,5 +1,5 @@
-/* Créer un personnage, au gabarit studio : les traits en accordéons de choix à gauche, les quatre
-   visages proposés puis la création à droite (cf. server/createurPersonnage.js). */
+/* Create a character, studio layout: trait choices in accordions on the left, the four
+   proposed faces then the creation on the right (see server/createurPersonnage.js). */
 import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
@@ -16,8 +16,8 @@ const CHOIX: { cle: 'origine' | 'cheveux' | 'yeux' | 'style' | 'signes'; titre: 
 ]
 type Traits = { genre: string; age: number; origine: string; cheveux: string; yeux: string; style: string; signes: string }
 
-/* Ce qui doit survivre à un changement de page : la dernière série de visages, le choix,
-   le nom et la création en cours. Les visages vont aussi dans l'Historique de l'outil. */
+/* State that survives a page change: the last batch of faces, the choice,
+   the name and the creation in progress. The faces also go to the tool History. */
 const CLE = 'creatoros.creerPersonnage'
 type Memo = { jobs?: string[]; choisi?: string | null; nom?: string; suiviId?: string | null }
 const lireMemo = (): Memo => { try { return JSON.parse(localStorage.getItem(CLE) ?? '{}') } catch { return {} } }
@@ -39,9 +39,9 @@ export function CreerPersonnageView() {
   const [msg, setMsg] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
   useEffect(() => {
-    try { localStorage.setItem(CLE, JSON.stringify({ jobs, choisi, nom, suiviId: suivi?.id ?? null })) } catch { /* stockage indisponible */ }
+    try { localStorage.setItem(CLE, JSON.stringify({ jobs, choisi, nom, suiviId: suivi?.id ?? null })) } catch { /* storage unavailable */ }
   }, [jobs, choisi, nom, suivi])
-  // une création lancée avant de quitter la page reprend son suivi (le serveur l'oublie à son redémarrage)
+  // a creation started before leaving the page resumes its tracking (the server forgets it on restart)
   useEffect(() => {
     if (!memo.suiviId) return
     void fetch(`/api/personnages/creer/${encodeURIComponent(memo.suiviId)}`).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setSuivi(d) }).catch(() => {})

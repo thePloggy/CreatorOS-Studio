@@ -1,11 +1,10 @@
-/* Exemples de la démo — mêmes scènes, même graine, pour chaque personnage :
-   ce qui change d'une image à l'autre, c'est le personnage, pas la scène.
+/* Demo samples: same scenes and same seed for every character, so only the
+   character changes between images.
 
-   node scripts/demo/photos.mjs [url du studio] [personnage,personnage…] [krea|klein]
+   node scripts/demo/photos.mjs [studio url] [character,character…] [krea|klein]
 
-   Les rendus partent dans la file du studio avec `personaId` : le personnage
-   actif de l'interface ne change pas. Aucun mot déclencheur ici — la recette
-   l'ajoute selon le personnage. */
+   Renders go to the studio queue with `personaId`; the UI's active character
+   is left unchanged. No trigger word here: the recipe adds it per character. */
 const BASE = process.argv[2] || 'http://127.0.0.1:8787'
 const QUI = process.argv[3]?.split(',')
 const MOTEUR = process.argv[4] === 'klein' ? 'klein' : 'krea'

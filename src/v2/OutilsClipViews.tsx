@@ -1,5 +1,5 @@
-/* Outils sur un clip, au gabarit studio : recadrer, doubler ; et l'analyse pour les réseaux au
-   gabarit app (formulaire à gauche, exemple puis résultat à droite). */
+/* Clip tools in the studio layout: crop, dub; and social media analysis in the
+   app layout (form on the left, example then result on the right). */
 import { Ecouter, urlEchantillonVoix } from './Ecouter'
 import { useEffect, useState } from 'react'
 import type { Asset } from '../types'

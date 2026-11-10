@@ -1,14 +1,14 @@
 /* ============================================================
-   CreatorOS mobile — briques partagées.
-   Rien de métier ici : le métier vit dans le store partagé avec
-   le desktop (src/store/useAppStore). Ce fichier ne porte que des
-   composants de présentation tactile.
+   CreatorOS mobile: shared building blocks.
+   No business logic here: it lives in the store shared with
+   desktop (src/store/useAppStore). This file only holds touch
+   presentation components.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getLang, t } from '../i18n'
 
-/* ---------- icônes (outline 1.7, jeu commun à toute l'app mobile) ---------- */
+/* ---------- icons (outline 1.7, shared set for the whole mobile app) ---------- */
 const P = {
   library: <><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="3" width="8" height="8" rx="2" /><rect x="3" y="13" width="8" height="8" rx="2" /><rect x="13" y="13" width="8" height="8" rx="2" /></>,
   create: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
@@ -50,15 +50,14 @@ export function Ic({ n, s = 20 }: { n: IcName; s?: number }) {
   )
 }
 
-/* ---------- feuille modale ----------
-   Un SEUL dialogue ouvert à la fois : le montage d'une
-   feuille ferme la précédente.
+/* ---------- modal sheet ----------
+   Only ONE dialog open at a time: mounting a sheet closes the
+   previous one.
 
-   Le verrou est indexé par IDENTITÉ d'instance, pas par fonction. En
-   développement React monte, démonte puis remonte chaque effet : un verrou
-   naïf ferait fermer la feuille par son PROPRE remontage — elle ne
-   s'ouvrirait jamais. Comparer les identités règle le cas sans dépendre du
-   mode de rendu. */
+   The lock is keyed by instance IDENTITY, not by function. In
+   development React mounts, unmounts and remounts each effect: a naive
+   lock would close the sheet on its OWN remount, so it would never
+   open. Comparing identities handles this regardless of render mode. */
 let top: { id: symbol; close: () => void } | null = null
 
 export function Sheet({ title, onClose, children, maxHeight }: {
@@ -75,19 +74,18 @@ export function Sheet({ title, onClose, children, maxHeight }: {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
     let armed = false
 
-    /* Tout l'effet est DIFFÉRÉ d'un tour de boucle. En développement React
-       monte, démonte puis remonte chaque effet : le `history.back()` du
-       démontage produisait un `popstate` qui arrivait APRÈS le remontage et
-       refermait aussitôt la feuille — elle ne s'ouvrait jamais. Différer
-       laisse le cycle factice s'annuler avant d'avoir touché à quoi que ce
-       soit. */
+    /* The whole effect is DEFERRED by one event-loop tick. In development
+       React mounts, unmounts and remounts each effect: the unmount's
+       `history.back()` fires a `popstate` that arrives AFTER the remount
+       and would close the sheet immediately. Deferring lets the dummy
+       cycle cancel out before touching anything. */
     const timer = window.setTimeout(() => {
       armed = true
       if (top && top.id !== id) top.close()
       top = { id, close: () => onCloseRef.current() }
-      /* Retour matériel Android et geste de retour : une entrée d'historique
-         à l'ouverture, consommée à la fermeture, pour que « Retour » ferme
-         la feuille au lieu de quitter l'espace. */
+      /* Android hardware back and back gesture: a history entry on open,
+         consumed on close, so "Back" closes the sheet instead of leaving
+         the space. */
       window.history.pushState({ sheet: id.toString() }, '')
       window.addEventListener('popstate', onPop)
       window.addEventListener('keydown', onKey)
@@ -99,7 +97,7 @@ export function Sheet({ title, onClose, children, maxHeight }: {
       window.removeEventListener('popstate', onPop)
       window.removeEventListener('keydown', onKey)
       if (top?.id === id) top = null
-      // on ne retire QUE notre propre entrée d'historique
+      // remove ONLY our own history entry
       if (window.history.state?.sheet === id.toString()) window.history.back()
     }
   }, [])
@@ -114,7 +112,7 @@ export function Sheet({ title, onClose, children, maxHeight }: {
     </div>, document.body)
 }
 
-/** Ligne d'option d'une feuille : libellé + coche si sélectionnée. */
+/** Sheet option row: label + check mark when selected. */
 export function Opt({ label, hint, on, onClick }: {
   label: string; hint?: string; on?: boolean; onClick: () => void
 }) {
@@ -156,7 +154,7 @@ export function Stepper({ value, min = 1, max = 10, onChange, label }: {
   )
 }
 
-/* ---------- interrupteur ---------- */
+/* ---------- toggle ---------- */
 export function Toggle({ on, title, hint, onChange, disabledReason }: {
   on: boolean; title: string; hint?: string; onChange: (v: boolean) => void; disabledReason?: string
 }) {
@@ -166,8 +164,8 @@ export function Toggle({ on, title, hint, onChange, disabledReason }: {
       style={disabledReason ? { opacity: .5 } : undefined}>
       <span className="txt">
         <b>{title}</b>
-        {/* La raison d'indisponibilité remplace l'aide : on n'a jamais un
-            contrôle éteint sans explication. */}
+        {/* The unavailability reason replaces the help text: a control is
+            never disabled without explanation. */}
         <small>{disabledReason ?? hint}</small>
       </span>
       <span className="sw" />
@@ -175,7 +173,7 @@ export function Toggle({ on, title, hint, onChange, disabledReason }: {
   )
 }
 
-/* ---------- durées ---------- */
+/* ---------- durations ---------- */
 export const fmtDur = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000))
   if (s < 60) return `${s} s`
@@ -183,7 +181,7 @@ export const fmtDur = (ms: number) => {
   return s % 60 ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${m} min`
 }
 
-/** Libellé de jour lisible : aujourd'hui / hier / « vendredi 12 septembre ». */
+/** Readable day label: today / yesterday / "vendredi 12 septembre". */
 const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
@@ -198,7 +196,7 @@ export function dayLabel(ts: number, now = new Date()) {
   return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}${sameYear ? '' : ' ' + d.getFullYear()}`
 }
 
-/* ---------- confirmation à deux temps ---------- */
+/* ---------- two-step confirmation ---------- */
 export function useConfirm(delay = 3200): [boolean, () => boolean] {
   const [armed, setArmed] = useState(false)
   const t = useRef<number | undefined>(undefined)

@@ -1,10 +1,9 @@
-/* Plans d'ambiance de la démo (texte → vidéo, LTX-2.5, avec le son) :
-   les plans de coupe des quatre lieux des photos — sans personnage.
+/* Demo ambience shots (text → video, LTX-2.5, with sound): cutaways of the
+   four photo locations, without a character.
 
-   node scripts/demo/ambiance.mjs [url du studio] [brouillon]
+   node scripts/demo/ambiance.mjs [studio url] [brouillon]
 
-   Les rendus partent dans la file du studio ; le personnage actif ne change
-   pas (un plan d'ambiance n'en porte aucun). */
+   Renders go to the studio queue; the active character is left unchanged. */
 const BASE = process.argv[2] || 'http://127.0.0.1:8787'
 const BROUILLON = process.argv[3] === 'brouillon'
 

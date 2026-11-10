@@ -1,7 +1,7 @@
 /* ============================================================
-   Orbe de voix : réagit au volume du micro pendant l'enregistrement
-   (API Web Audio, valeur RMS lue à chaque image), avec un vu-mètre en
-   barres. Mouvement réduit : l'orbe ne pulse plus, le vu-mètre reste.
+   Voice orb: reacts to mic volume while recording
+   (Web Audio API, RMS read each frame), with a bar
+   VU meter. Reduced motion: the orb does not pulse, the VU meter stays.
    ============================================================ */
 import { useEffect, useRef } from 'react'
 import { t } from '../i18n'

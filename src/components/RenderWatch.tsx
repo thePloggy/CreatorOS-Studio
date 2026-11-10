@@ -1,10 +1,10 @@
-/* Suivre un rendu sans rester devant la galerie.
-   - useTabTitle : le titre de l'onglet porte le nombre de rendus en cours, puis
-     le nombre de rendus arrivés pendant que l'onglet était en arrière-plan ;
-   - RenderIsland : pastille flottante « rendu · 42 % », puis « prêt → voir »
-     quand un rendu arrive, là où la galerie n'est pas visible (visionneuse
-     ouverte, autre section, autre espace du mobile) ;
-   - jobFraction : avancement d'un job de 0 à 1, mesure ComfyUI sinon écoulé / estimé. */
+/* Following a render without staying on the gallery.
+   - useTabTitle: the tab title shows the number of running renders, then
+     the number of renders that arrived while the tab was in the background;
+   - RenderIsland: floating badge "rendering · 42 %", then "ready → view"
+     when a render arrives, where the gallery is not visible (viewer open,
+     other section, other mobile space);
+   - jobFraction: job progress from 0 to 1, ComfyUI measurement or else elapsed / estimated. */
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { STATUTS_ACTIFS, STATUTS_EN_CALCUL } from '../types'
@@ -18,7 +18,7 @@ export function jobFraction(j: Job): number {
   return 0
 }
 
-/** Le rendu actuellement en calcul, s'il y en a un. */
+/** The render currently computing, if any. */
 export function useRunningJob(): Job | null {
   const jobs = useAppStore(s => s.jobs)
   const [, tick] = useState(0)
@@ -31,7 +31,7 @@ export function useRunningJob(): Job | null {
   return j
 }
 
-/** Les assets arrivés depuis le montage du composant (le plus récent d'abord). */
+/** Assets that arrived since the component mounted (most recent first). */
 function useArrivals(onArrive: (a: Asset) => void) {
   const assets = useAppStore(s => s.assets)
   const connus = useRef<Set<string> | null>(null)
@@ -91,7 +91,7 @@ export function RenderIsland({ visible, top = 70, onOpen }: { visible: boolean; 
   )
 }
 
-/** Anneau d'avancement à poser autour d'une icône (bouton Créer du mobile). */
+/** Progress ring to place around an icon (mobile Create button). */
 export function RenderRing({ size = 34 }: { size?: number }) {
   const j = useRunningJob()
   if (!j) return null
@@ -102,10 +102,10 @@ export function RenderRing({ size = 34 }: { size?: number }) {
     mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px))' }} />
 }
 
-/* ---------- pastille de la barre du haut ----------
-   Toujours visible pendant un rendu : l'étape en clair, les pas, le temps écoulé et restant,
-   le nombre de rendus en attente, un bouton Arrêter. Si rien n'avance depuis 2 min (ni les pas
-   ni l'étape), elle prévient que le rendu semble bloqué. Un clic déplie la liste des rendus. */
+/* ---------- top-bar badge ----------
+   Always visible during a render: the step in plain text, steps, elapsed and remaining time,
+   the number of queued renders, a Stop button. If nothing moves for 2 min (neither steps
+   nor step name), it warns that the render seems stuck. A click expands the render list. */
 const fmt = (s: number) => s >= 60 ? `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')}` : `${Math.round(s)} s`
 export function PastilleRendu() {
   const j = useRunningJob()
@@ -113,7 +113,7 @@ export function PastilleRendu() {
   const annuler = useAppStore(s => s.cancelJob)
   const [ouvert, setOuvert] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
-  // dernier signal de vie : les pas ou l'étape qui changent
+  // last sign of life: steps or step name changing
   const signal = useRef<{ cle: string; at: number }>({ cle: '', at: Date.now() })
   const cle = j ? `${j.id}|${j.progress?.value ?? ''}|${j.phase ?? ''}|${j.status}` : ''
   if (cle !== signal.current.cle) signal.current = { cle, at: Date.now() }

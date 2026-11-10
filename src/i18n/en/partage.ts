@@ -1,4 +1,4 @@
-/* Traductions anglaises — zone « partage ». Clé = texte français exact passé à t(). */
+/* English translations — "partage" area. Key = exact French text passed to t(). */
 export const partage: Record<string, string> = {
   'verrou fermé — valeur fixe pour tout le lot': 'locked — fixed value for the whole batch',
   'verrou ouvert — varie à chaque image (carrousel)': 'unlocked — varies with each image (carousel)',
@@ -440,7 +440,7 @@ export const partage: Record<string, string> = {
   '{nom} n’a pas de LoRA Klein : son visage ne sera pas tenu': '{nom} has no Klein LoRA: the face won’t be kept',
   '« {nom} » déposée, mais elle semble entraînée pour un autre modèle ({arch}) : vérifie la liste.': '“{nom}” uploaded, but it looks trained for another model ({arch}): check the list.',
 
-  // Tri des dossiers (lib/folders.ts)
+  // Folder sorting (lib/folders.ts)
   'Plus récents en haut': 'Newest first',
   'récents': 'newest',
   'Plus anciens en haut': 'Oldest first',
@@ -449,7 +449,7 @@ export const partage: Record<string, string> = {
   'Nom (Z → A)': 'Name (Z → A)',
   'Les plus remplis': 'Fullest first',
   'remplis': 'fullest',
-  // Phase du rendu en cours, envoyée par le serveur (server/comfy.js, PHASES)
+  // Current render phase, sent by the server (server/comfy.js, PHASES)
   'calcul des images': 'computing frames',
   'décodage': 'decoding',
   'encodage': 'encoding',
@@ -458,6 +458,6 @@ export const partage: Record<string, string> = {
   'agrandissement': 'upscaling',
   'enregistrement': 'saving',
   'calcul': 'computing',
-  // Composeur (core/composer.ts)
+  // Composer (core/composer.ts)
   'le modèle n’a rien produit': 'the model produced nothing',
 }

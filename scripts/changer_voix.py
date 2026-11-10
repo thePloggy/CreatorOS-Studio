@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Changeur de voix : Chatterbox VC (Resemble AI, MIT) redit un enregistrement avec un autre
-timbre ; les mots, le rythme et les pauses restent. Traité par tranches de 20 s.
-La sortie porte le filigrane audio Perth du modèle.
-Usage : changer_voix.py <source> <voix_cible.wav> <sortie.wav>"""
+"""Voice changer: Chatterbox VC (Resemble AI, MIT) re-voices a recording with another
+timbre, keeping words, rhythm and pauses. Processed in 20 s chunks.
+The output carries the model's Perth audio watermark.
+Usage: changer_voix.py <source> <voix_cible.wav> <sortie.wav>"""
 import os
 import sys
 import tempfile
@@ -14,7 +14,7 @@ import torchaudio as ta
 from chatterbox.vc import ChatterboxVC
 
 source, cible, sortie = sys.argv[1], sys.argv[2], sys.argv[3]
-# la carte peut être prise entière par ComfyUI : repli sur le processeur, plus lent mais sûr
+# ComfyUI may hold the whole GPU: fall back to CPU, slower but safe
 try:
     modele = ChatterboxVC.from_pretrained('cuda') if torch.cuda.is_available() else ChatterboxVC.from_pretrained('cpu')
 except (RuntimeError, torch.cuda.OutOfMemoryError):

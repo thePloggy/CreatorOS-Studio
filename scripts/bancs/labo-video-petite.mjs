@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /* ============================================================
-   Labo, volet vidéo petites cartes : rejoue le graphe Wan 2.2 du labo
-   (relu dans la provenance du rendu de référence video_wan) sur un ComfyUI
-   de test bridé à la taille de la carte (scripts/bancs/comfy-bride.py), avec :
-     - les deux experts Wan 2.2 A14B en GGUF Q4_K_S au lieu du fp8 (ou fp8 si --fp8),
-     - éventuellement une résolution plafonnée (--cote 832 : 480p en 9:16).
-   La crête mesurée est celle du processus ComfyUI de test (COMFY_TEST_PID), contexte CUDA compris.
+   Lab, small-card video part: replays the lab's Wan 2.2 graph
+   (read back from the provenance of the video_wan reference render) on a
+   test ComfyUI capped to the card size (scripts/bancs/comfy-bride.py), with:
+     - both Wan 2.2 A14B experts in GGUF Q4_K_S instead of fp8 (or fp8 with --fp8),
+     - optionally a capped resolution (--cote 832: 480p at 9:16).
+   The measured peak is that of the test ComfyUI process (COMFY_TEST_PID), CUDA context included.
 
    COMFY_TEST=http://127.0.0.1:8190 COMFY_TEST_OUT=… node scripts/bancs/labo-video-petite.mjs 16 [--cote 832] [--fp8]
-   Ajoute une ligne « video_wan_<profil>go[_480p][_fp8] » à docs/lab/resultats.json.
+   Appends a "video_wan_<profil>go[_480p][_fp8]" row to docs/lab/resultats.json.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -24,8 +24,8 @@ const FICHIER = path.join(RACINE, 'docs', 'lab', 'resultats.json')
 const STUDIO = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
 const CLE = process.env.CREATOROS_OWNER_KEY
 const sleep = ms => new Promise(r => setTimeout(r, ms))
-/* Mémoire du seul ComfyUI de test (COMFY_TEST_PID), contexte CUDA compris : c'est ce qu'il faut sur une vraie carte.
-   Sans PID, la carte entière moins le repos (faux si un autre ComfyUI garde des modèles chargés). */
+/* Memory of the test ComfyUI only (COMFY_TEST_PID), CUDA context included: what a real card needs.
+   Without a PID, the whole card minus idle (wrong if another ComfyUI keeps models loaded). */
 const PID = process.env.COMFY_TEST_PID
 const vramMo = () => PID
   ? Number(execFileSync('nvidia-smi', ['--query-compute-apps=pid,used_memory', '--format=csv,noheader,nounits'], { encoding: 'utf8' })

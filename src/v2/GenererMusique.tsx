@@ -1,4 +1,4 @@
-/* Musique et bruitages générés : ACE-Step 1.5 sur la carte, le morceau rejoint la liste des musiques. */
+/* Generated music and sound effects: ACE-Step 1.5 on the GPU; the track joins the music list. */
 import { useState } from 'react'
 import { t, tServeur } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -15,14 +15,14 @@ export function GenererMusique({ surPret }: { surPret: () => void }) {
     const r = await fetch('/api/musique', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, paroles, secondes: genre === 'bruitage' ? Math.min(secondes, 20) : secondes, genre }) })
     const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
     if (!r.ok || !d.jobId) { setMsg(tServeur(d.error) ?? `HTTP ${r.status}`); setOccupe(false); return }
-    // le rendu rejoint la file du studio : sa carte « en cours » s'affiche dans la liste audio
+    // the render joins the studio queue: its "in progress" card shows in the audio list
     void useAppStore.getState().adoptServerJob(d.jobId)
     const attendre = async (): Promise<void> => {
-      // la route rend { job, assets } : l'état est dans job
+      // the route returns { job, assets }: the state is in job
       const r = await (await fetch(`/api/jobs/${encodeURIComponent(d.jobId!)}`)).json().catch(() => ({})) as { job?: { status?: string; error?: string } }
       const j = r.job ?? {}
       if (j.status === 'done') { surPret(); setMsg(t('Prêt, choisis-le dans la liste.')); setOccupe(false); return }
-      // fin sans fichier : échec, blocage ou annulation (sinon le sondage tournerait sans fin)
+      // finished without a file: failure, stall or cancellation (otherwise polling would never end)
       if (j.status === 'blocked' || j.status === 'failed' || j.status === 'cancelled') { setMsg(j.status === 'cancelled' ? t('Rendu annulé.') : tServeur(j.error) ?? t('échec')); setOccupe(false); return }
       await new Promise(p => setTimeout(p, 1500)); return attendre()
     }

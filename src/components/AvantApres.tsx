@@ -1,11 +1,11 @@
-/* Curseur avant / après — juger un agrandissement (Photo HD, upscale vidéo) à l'œil,
-   sur le même cadre, au lieu de basculer entre deux assets. L'« après » est dessous,
-   l'« avant » dessus, rogné à gauche du curseur. Deux vidéos sont tenues calées. */
+/* Before / after slider: judge an upscale (HD photo, video upscale) by eye on
+   the same frame. "After" is underneath, "before" on top, clipped left of the
+   slider. Two videos are kept in sync. */
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { t } from '../i18n'
 
-/** Un côté du comparateur : un asset, ou une simple source (fichier envoyé). */
+/** One side of the comparison: an asset, or a plain source (uploaded file). */
 type Cote = Pick<Asset, 'id' | 'uri'> & Partial<Pick<Asset, 'mediaType' | 'width' | 'height'>>
 
 export function AvantApres({ avant, apres, className, style }: { avant: Cote; apres: Cote; className?: string; style?: React.CSSProperties }) {
@@ -13,7 +13,7 @@ export function AvantApres({ avant, apres, className, style }: { avant: Cote; ap
   const boite = useRef<HTMLDivElement>(null)
   const vAvant = useRef<HTMLVideoElement>(null), vApres = useRef<HTMLVideoElement>(null)
   const video = apres.mediaType === 'video'
-  // la vidéo « après » mène : l'« avant » la suit dès qu'elle s'en écarte
+  // the "after" video leads: "before" follows it whenever it drifts
   useEffect(() => {
     if (!video) return
     const iv = window.setInterval(() => {

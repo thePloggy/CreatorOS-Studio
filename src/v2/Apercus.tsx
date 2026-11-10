@@ -1,8 +1,8 @@
 /* ============================================================
-   Aperçus de l'accueil : chaque outil montre ce qu'il fait, sur de vrais
-   rendus rangés dans public/vitrine. Un avant/après se lit en glissant la
-   souris. Une vidéo marquée `auto` joue dès qu'elle est à l'écran, les
-   autres au survol.
+   Home page previews: each tool shows what it does using real renders
+   stored in public/vitrine. A before/after compares by dragging the
+   mouse. A video marked `auto` plays as soon as it is on screen, the
+   others on hover.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
@@ -24,7 +24,7 @@ const compareVideo = (nom: string, legA: string, legB: string): Apercu => ({ ...
 
 export const BANDEAU_CAMERA = anime('camera-w', { puces: ['Orbite', 'Dolly zoom', 'Crash zoom', 'Drone', 'Arc', 'Bullet time'], auto: true })
 
-/** Clé : le libellé de l'outil dans GROUPES. */
+/** Key: the tool label in GROUPES. */
 export const APERCUS: Record<string, Apercu> = {
   'Edit Image': { type: 'media', image: v('v2-edit-v.webp'), video: v('v2-edit-v.mp4'), auto: true, puces: ['Robe rouge', 'Blond platine', 'Neige'] },
   'Inpaint': { type: 'compare', a: v('v2-inpaint-a.webp'), b: v('v2-inpaint-b.webp'), legA: 'Photo', legB: 'Panier repeint' },
@@ -88,18 +88,18 @@ export const APERCUS: Record<string, Apercu> = {
   'Social Check': { type: 'media', image: v('analyse.webp'), puces: ['Accroche 8/10', 'Sujet 9/10', 'Image 9/10', 'Histoire 7/10'] },
 }
 
-/** Réglages montrés par un aperçu : affichés sous l'image, jamais posés dessus. */
+/** Settings shown by a preview: displayed under the image, never over it. */
 export const pucesDe = (a?: Apercu) => (a && a.type === 'media' ? a.puces ?? [] : [])
 
 export function ApercuOutil({ apercu }: { apercu?: Apercu }) {
   const racine = useRef<HTMLSpanElement>(null)
-  // toute vidéo d'aperçu joue en boucle dès qu'elle est à l'écran, sans attendre le survol
+  // every preview video loops as soon as it is on screen, without waiting for hover
   const auto = !!apercu && (apercu.type === 'compare' ? !!(apercu.videoA || apercu.videoB) : !!apercu.video)
-  /* Les vidéos (et leurs affiches) ne sont créées qu'à l'approche de l'écran : avant, une image en chargement
-     différé. Sans ça, une page de 50 aperçus télécharge toutes les affiches et ouvre 50 lecteurs d'un coup. */
+  /* Videos (and their posters) are created only when near the viewport; before that, a lazy-loaded image.
+     This keeps a page of 50 previews from downloading every poster and opening 50 players at once. */
   const aVideo = !!apercu && (apercu.type === 'compare' ? !!(apercu.videoA || apercu.videoB) : !!apercu.video)
   const [proche, setProche] = useState(false)
-  // le volet d'une comparaison photo balaie seul ; au survol, il suit le pointeur
+  // a photo comparison slider sweeps on its own; on hover it follows the pointer
   const [survol, setSurvol] = useState(false)
   useEffect(() => {
     const el = racine.current

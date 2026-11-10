@@ -1,9 +1,6 @@
-/* ============================================================
-   File d'exécution — un seul GPU, donc un seul job à la fois.
-   Les jobs sont sérialisés dans l'ordre d'arrivée ; l'état vit
-   en SQLite (pas en mémoire) : un redémarrage ne perd rien de
-   ce qui est déjà produit.
-   ============================================================ */
+/* Job queue: one GPU, so one job at a time.
+   Jobs run in arrival order; state lives in SQLite (not memory), so a
+   restart loses nothing already produced. */
 import { PROFILS, profilDuJob } from './allege.js'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -17,7 +14,7 @@ import { demoPublique, etatH3 } from './h3.js'
 import { aiToolkitPret, arreterEntrainement, dureeEstimeeMs, entrainer, moteurEntrainementPret, MOTEURS_ENTRAINEMENT, preparerEntrainement } from './entrainement.js'
 
 export const H3_MESSAGE_DEMO = 'MiniMax H3 n’est pas disponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour l’utiliser.'
-/* État H3 relu toutes les 30 s : l'enqueue reste synchrone. */
+/* H3 availability refreshed every 30 s so enqueue stays synchronous. */
 let h3Disponible = false
 const relireH3 = () => etatH3().then(e => { h3Disponible = e.disponible }).catch(() => {})
 relireH3(); setInterval(relireH3, 30_000).unref()
@@ -37,48 +34,41 @@ import { MUSIQUES_DIR } from './montage.js'
 
 const CLIENT_ID = 'creatoros-' + crypto.randomUUID()
 
-/* ---------- recette photo ----------
-   Un seul registre (SFW), une recette par moteur de diffusion photo :
-   Krea 2 par défaut, FLUX.2 Klein 9B en option (CREATOROS_PHOTO_ENGINE=klein).
-   La LoRA de la persona n'est PAS dans la recette : le serveur l'empile au
-   moment du job (cf. server/persona.js), une recette tourne donc aussi sans.
+/* ---------- photo recipe ----------
+   One register (SFW), one recipe per photo diffusion engine:
+   Krea 2 by default, FLUX.2 Klein 9B optional (CREATOROS_PHOTO_ENGINE=klein).
+   The persona LoRA is NOT in the recipe: the server stacks it at job time
+   (see server/persona.js), so a recipe also runs without it.
 
-   Le champ `workflowFile` d'un job surcharge cette table. */
+   A job's `workflowFile` field overrides this table. */
 export const RECIPES_PAR_MOTEUR = {
   klein: { sfw: 'PROD_gen_sfw.json' },
   krea: { sfw: 'PROD_gen_krea_sfw.json' },
-  // MOSS Image : Apache-2.0, sans LoRA d'identité ; demande un ComfyUI récent (type de CLIP moss_image)
+  // MOSS Image: Apache-2.0, no identity LoRA; needs a recent ComfyUI (moss_image CLIP type)
   moss: { sfw: 'PROD_gen_moss_sfw.json' },
-  // FLUX 3 Image Klein (distillé, int8) : FLUX Kommunity License, filtre de contenu actif ; sans LoRA d'identité
+  // FLUX 3 Image Klein (distilled, int8): FLUX Kommunity License, content filter active; no identity LoRA
   flux3: { sfw: 'PROD_gen_flux3_sfw.json' },
 }
 export const PHOTO_ENGINE = CONFIG.photoEngine
 export const RECIPES = RECIPES_PAR_MOTEUR[PHOTO_ENGINE] ?? RECIPES_PAR_MOTEUR.krea
 
-/* ---------- vidéo image-to-video ----------
-   Trois moteurs, choisis À LA MAIN dans la console. Aucun n'est « le
-   meilleur » : ils perdent chacun sur un axe différent, et c'est l'opérateur
-   qui sait lequel compte pour le plan qu'il fabrique.
+/* ---------- image-to-video ----------
+   Engines are picked manually in the console; each has different trade-offs.
 
-   `speed` : facteur de durée à GÉNÉRER pour livrer la durée demandée.
-   Pas de correction globale sur les moteurs AVEC VOIX : MiniMax et LTX
-   parlent en temps réel même quand le corps traîne, et `atempo` x1,8
-   ferait débiter le personnage deux fois trop vite. Aucun facteur global ne peut
-   corriger le geste sans abîmer la parole : le ralenti se combat AU PROMPT
-   (rythme, énergie, « real-time pace »). Wan, muet, garde sa correction
-   dans la recette même — ses images valent 1/16 s, lues à 24 fps, x1,5 sans
-   ré-encodage. `speed` reste dans la table (et `conformVideo` en aval) pour
-   le jour où un moteur muet le justifierait. */
+   `speed`: factor applied to the GENERATED duration to deliver the requested
+   one. No global correction on engines WITH VOICE (MiniMax, LTX): they speak in
+   real time, and `atempo` would make speech too fast, so slow motion is handled
+   in the prompt. Wan (silent) carries its correction in the recipe itself
+   (frames are 1/16 s, played at 24 fps). `speed` stays in the table (and
+   `conformVideo` downstream) for silent engines that need it. */
 export const VIDEO_ENGINES = {
   wan: {
     maxSeconds: 12,
-    /* Au-delà de directSeconds, la recette à FENÊTRES DE CONTEXTE prend le
-       relais (fenêtres 33/8 sur les deux étages) : l'attention n'est plus
-       calculée sur toute la séquence d'un coup, et 10 s passent en 720×1280
-       — sondé : 241 images rendues en 30 min, sujet stable. En
-       direct, 8 s est la limite VRAM ferme. */
+    /* Above directSeconds, the CONTEXT WINDOW recipe takes over (windows 33/8 on
+       both stages): attention is no longer computed over the whole sequence, so
+       longer clips fit at 720x1280. In direct mode 8 s is the hard VRAM limit. */
     directSeconds: 8,
-    // 12 s en contexte sondés : 289 images, 30 min, pic 28,9 Go.
+    // 12 s in context mode: 289 frames, ~30 min, ~29 GB peak.
     fileCtx: 'PROD_video_wan_ctx.json',
     file: 'PROD_video_wan.json',
     label: 'Wan 2.2 (I2V A14B)',
@@ -86,34 +76,30 @@ export const VIDEO_ENGINES = {
     audio: false,
     speed: 1,
     minutes: 9,
-    /* Brouillon : dimensions littérales ramenées à 0,4 MP (480×848 en 9:16,
-       la surface de la prévisu motion). Même promesse que sur MiniMax :
-       juger le prompt, pas le plan. Mesuré : 5 s en 126 s.
-       Le brouillon tourne en 2 + 2 pas (moitié moins de temps). Le rendu final
-       reste en 4 + 4 : en 2 + 2, des yeux vitreux peuvent apparaître. */
+    /* Draft: literal dimensions scaled to 0.4 MP (480x848 in 9:16), to judge
+       the prompt, not the shot. Draft runs 2 + 2 steps; the final render stays at
+       4 + 4 (2 + 2 can produce glassy eyes). */
     draft: { megapixels: 0.4, steps: 4, minutes: 2 },
   },
   ltx_hq: {
-    // Sondé à 1,4 MP : 12 s en 6 min (27 Go), 16 s en 9 min
-    // (30,9 Go). 20 s non sondé — probablement au ras des 32 Go.
+    // At 1.4 MP: 12 s ~6 min (27 GB), 16 s ~9 min (30.9 GB).
     maxSeconds: 16,
     file: 'PROD_video_ltx_hq.json',
     label: 'LTX-2.5 (22B)',
     force: 'avec le son, rapide — 896×1600 en plusieurs passes',
     audio: true,
-    /* La recette porte son propre interrupteur « Switch to Text to Video? » :
-       l'image de départ est alors ignorée. Sert aux plans d'ambiance (T2V). */
+    /* The recipe has its own "Switch to Text to Video?" toggle, which ignores the
+       start image. Used for ambient (T2V) shots. */
     t2v: true,
     speed: 1,
     minutes: 5,
-    // Brouillon : 0,7 MP au lieu de 1,4 — les passes supplémentaires restent.
-    // Mesuré : 6 s en 98 s (704×1024).
+    // Draft: 0.7 MP instead of 1.4; the extra passes remain.
     draft: { megapixels: 0.7, minutes: 2 },
   },
 }
 
-/* MiniMax H3 : moteur optionnel, poids fournis par le propriétaire d'une installation
-   locale (licence, cf. h3.js). Recette sans LoRA de contenu, keyframe d'arrivée possible. */
+/* MiniMax H3: optional engine, weights supplied by the owner of a local install
+   (license, see h3.js). Recipe without content LoRA; arrival keyframe supported. */
 VIDEO_ENGINES.minimax = {
   maxSeconds: 12,
   file: 'PROD_video_minimax.json',
@@ -126,12 +112,11 @@ VIDEO_ENGINES.minimax = {
   draft: { megapixels: 0.4, minutes: 4 },
 }
 
-/* Wan 2.2 T2V-A14B : texte → vidéo AVEC un
-   personnage dont l'identité tient dans une paire de LoRA Wan haut / bas bruit
-   (Aisha). Pas d'image du tout : WanImageToVideo sans start_image rend un latent
-   vide, et toute l'injection Wan (durée, format, brouillon) reste valable.
-   Recette : lightx2v T2V, 4 + 4 pas euler, shift 5. Le modèle
-   anime à 16 i/s ; la fluidité RIFE ×2 suit au harvest. */
+/* Wan 2.2 T2V-A14B: text to video WITH a character whose identity is held by a
+   Wan high/low noise LoRA pair. No image: WanImageToVideo without start_image
+   yields an empty latent, and all Wan injection (duration, aspect, draft) still
+   applies. Recipe: lightx2v T2V, 4 + 4 euler steps, shift 5. The model animates
+   at 16 fps; RIFE x2 interpolation follows at harvest. */
 VIDEO_ENGINES.wan_t2v = {
   maxSeconds: 5,
   file: 'PROD_video_wan_t2v.json',
@@ -139,17 +124,16 @@ VIDEO_ENGINES.wan_t2v = {
   force: 'le personnage depuis le texte seul, quand son identité est une LoRA Wan',
   audio: false,
   t2v: true,
-  // pas d'interrupteur « Text to Video » ni d'image neutre : la recette part du texte
+  // no "Text to Video" toggle or neutral image: the recipe starts from text
   t2vNatif: true,
   speed: 1,
   minutes: 6,
   draft: { megapixels: 0.3, minutes: 2 },
 }
 
-/* Wan 2.1 I2V 14B 480p : la base des LoRA d'effets et de caméra de
-   Remade-AI et d'ostris (Apache-2.0), entraînées sur ce modèle-là. Recette
-   courte : lightx2v 4 pas, 480×832, 16 i/s, RIFE ×2 au harvest. Sert la galerie
-   « Caméra & effets », pas le sélecteur de moteur. */
+/* Wan 2.1 I2V 14B 480p: the base model of the Apache-2.0 effect and camera LoRAs
+   trained on it. Short recipe: lightx2v 4 steps, 480x832, 16 fps, RIFE x2 at
+   harvest. Serves the "Camera & effects" gallery, not the engine picker. */
 VIDEO_ENGINES.wan21 = {
   maxSeconds: 5,
   file: 'PROD_video_wan21_effets.json',
@@ -159,10 +143,9 @@ VIDEO_ENGINES.wan21 = {
   speed: 1,
   minutes: 2,
 }
-/* Variante « Remade » pour les EFFETS : sans lightx2v, 28 pas uni_pc,
-   cfg 6, shift 5 — le réglage de Remade-AI. Le
-   4 pas distillé n'applique pas l'effet au sujet (elle passe derrière, le ballon
-   gonfle devant elle) ; à 28 pas l'effet porte sur elle. ~8 min le clip de 5 s. */
+/* EFFECTS variant: no lightx2v, 28 uni_pc steps, cfg 6, shift 5. The distilled
+   4-step setting does not apply the effect to the subject; 28 steps does.
+   ~8 min per 5 s clip. */
 VIDEO_ENGINES.wan21_hq = {
   ...VIDEO_ENGINES.wan21,
   file: 'PROD_video_wan21_effets_hq.json',
@@ -170,8 +153,8 @@ VIDEO_ENGINES.wan21_hq = {
   minutes: 8,
 }
 
-/* Wan 2.2 Fun Camera : la caméra suit une trajectoire (WanCameraEmbedding) au lieu
-   d'une LoRA. Sert les presets de la galerie qui nomment une pose (`camera`). */
+/* Wan 2.2 Fun Camera: the camera follows a trajectory (WanCameraEmbedding) instead
+   of a LoRA. Serves gallery presets that name a pose (`camera`). */
 VIDEO_ENGINES.wan_funcam = {
   maxSeconds: 5,
   file: 'PROD_video_funcam.json',
@@ -185,32 +168,28 @@ export const POSES_CAMERA = ['Static', 'Pan Up', 'Pan Down', 'Pan Left', 'Pan Ri
 
 export const DEFAULT_VIDEO_ENGINE = 'wan'
 
-/* ---------- estimation du temps de rendu ----------
-   Coefficients MESURÉS sur une RTX de 32 Go, pas déduits. Une seule source,
-   exposée au front par /api/health pour l'estimation avant envoi ; le job
-   porte son estimation (`estimatedMs`) calculée ici à l'enqueue.
-   - photo Klein 20 pas : ~7 s
-   - i2v : secondes de rendu par seconde de vidéo — MiniMax 0,9 MP 8 s = 14 min
-     (105 s/s), brouillon 0,4 MP 8 s = 3,5 min (27 s/s), Wan 720p 8 s = 20 min
-     et 12 s ctx = 30 min (150 s/s), LTX 8 s = 72 s (9 s/s), LTX HQ 8 s =
-     4,5 min (34 s/s)
-   - motion (Wan-Animate-2) : par IMAGE du driver à 24 fps — 720p 121 images =
-     12 min (6 s/image), 480p ≈ moitié (3 s/image). Le temps suit la longueur
-     du driver une pour une : 30 s = 722 images ≈ 70 min en 720p. */
+/* ---------- render time estimate ----------
+   Coefficients MEASURED on a 32 GB RTX. Single source, exposed to the front
+   end via /api/health for pre-submit estimates; each job carries its estimate
+   (`estimatedMs`) computed here at enqueue.
+   - photo: ~7 s
+   - i2v: render seconds per video second, per engine (see videoSecPerSec)
+   - motion (Wan-Animate-2): per driver FRAME; time scales linearly with the
+     driver length. */
 export const RENDER_RATES = {
   photoMs: 7000,
-  // Passe Qwen-edit 2511 (20 pas, ~1 MP) — provisoire, à recaler sur mesure.
+  // Qwen-edit 2511 pass (20 steps, ~1 MP); provisional value.
   qwenFixMs: 60000,
-  /* Approximation assumée : la charge fixe (chargement du modèle et des VAE)
-     ne dépend pas de la durée du clip, alors qu'une cadence « par seconde »
-     l'étale. `measuredEstimate` reprend la main dès qu'il y a un historique. */
+  /* Approximation: the fixed cost (model and VAE loading) does not depend on clip
+     length, while a per-second rate spreads it. `measuredEstimate` takes over
+     once there is history. */
   videoSecPerSec: { wan: 150, ltx: 9, ltx_hq: 34, minimax: 105 },
   draftSecPerSec: { minimax: 27, wan: 75, ltx_hq: 17 },
   motionSecPerFrame: { final: 9.0, preview: 4.5 },
 }
 
-/** Durée et images d'un driver, telles que la chaîne motion les verra
- *  (ré-échantillonné à 24 fps au-delà de 30). null si illisible. */
+/** Duration and frame count of a driver as the motion chain will see them.
+ *  null if unreadable. */
 export function driverMeta(file) {
   try {
     const p = path.join(CONFIG.comfyInput, path.basename(file))
@@ -220,22 +199,18 @@ export function driverMeta(file) {
     const [n, d] = String(out[0]).split('/').map(Number); const fps = d ? n / d : n
     const seconds = Number(out[1])
     if (!Number.isFinite(seconds)) return null
-    // Le driver est ramené à 16 fps avant transfert (cf. probeDriver) : le
-    // nombre d'images vues par le modèle — et donc le coût — suit 16 fps.
+    // The driver is resampled to 16 fps before transfer (see probeDriver), so the
+    // frame count seen by the model, and the cost, follow 16 fps.
     const effFps = 16
     return { seconds, fps, frames: Math.max(1, Math.round(seconds * effFps)) }
   } catch { return null }
 }
 
-/* Moyenne des DERNIERS jobs terminés de même recette et même profil :
-   l'estimation vit sur la machine réelle, pas sur une table figée. La table
-   RENDER_RATES reste le REPLI (première exécution d'une recette, base vidée).
-   Profil = brouillon, audio — mélanger un draft et un
-   plein donnerait une moyenne qui ment aux deux. Normalisation : une vidéo
-   s'estime en ms par seconde GÉNÉRÉE (les durées demandées varient), une
-   photo en ms directs. Le motion garde la table : les images du driver ne
-   sont pas dans le payload des jobs passés, une moyenne brute mélangerait
-   des drivers de 3 s et de 30 s. */
+/* Average of the LAST finished jobs with the same recipe and profile, so the
+   estimate reflects the real machine. RENDER_RATES is the FALLBACK (first run,
+   empty database). Profile = draft, audio (mixing them would skew the average).
+   Video is normalized in ms per GENERATED second, photo in plain ms. Motion
+   uses the table: driver frame counts are not in past job payloads. */
 const ESTIMATE_SAMPLES = 5
 function measuredEstimate(row) {
   if (row.videoEngine === 'motion') return null
@@ -265,8 +240,8 @@ function measuredEstimate(row) {
   return Number.isFinite(gen) && gen > 0 ? Math.round(avg * gen) : null
 }
 
-/** Estimation en ms d'un job tel qu'enfilé — mesurée si l'historique du
- *  workflow le permet, table de repli sinon. */
+/** Estimate in ms for a job as enqueued: measured if the workflow has history,
+ *  fallback table otherwise. */
 export function estimateMs(row) {
   const measured = measuredEstimate(row)
   if (measured != null) return measured
@@ -284,49 +259,44 @@ export function estimateMs(row) {
 }
 
 /* ---------- Motion Control ----------
-   Wan-Animate-2 anime une STILL de référence (fournie par l'opérateur) sur
-   toute la durée d'une vidéo « driver » : le mouvement est copié image à
-   image, l'apparence vient de la still. Aucun échange de visage : la vidéo
-   source ne prête que son mouvement.
+   Wan-Animate-2 animates a reference STILL (supplied by the operator) over the
+   whole length of a "driver" video: motion is copied frame by frame, appearance
+   comes from the still. No face swap: the source video only lends its motion.
 
-   Le mouvement est copié image à image aux fps du driver : pas de slow-mo,
-   pas de retiming. Fenêtres de contexte natives ou morceaux enchaînés pour
-   la durée pleine ; cache Animate-2 en RAM (en VRAM il ne cohabite pas avec
-   le modèle). */
-/* Refine V2V (affinage vidéo à faible denoise, mouvement conservé) : sert à
-   l'agrandissement d'un brouillon. La variante MASQUÉE ne re-diffuse que la
-   zone d'un masque : c'est la base de la retouche vidéo au pinceau. */
+   Motion is copied at the driver's fps (no slow-mo, no retiming). Native
+   context windows or chained chunks cover the full length; the Animate-2 cache
+   lives in RAM (it does not fit in VRAM alongside the model). */
+/* V2V refine (low-denoise video refinement, motion kept): used to upscale a
+   draft. The MASKED variant re-diffuses only a mask's area; it backs video
+   brush retouching. */
 export const REFINE_RECIPE = 'PROD_v2v_refine.json'
 export const REFINE_MASKED_RECIPE = 'PROD_v2v_refine_masked.json'
-/* Upscale de brouillon : denoise doux — plus haut, l'affinage réinvente
-   l'expression (le sourire ne survivait qu'à 0,30 toutes seeds). */
+/* Draft upscale: gentle denoise; higher values reinvent the facial expression. */
 const UPSCALE_DENOISE = 0.30
 
-/* ---------- « Passer en HD » PHOTO ----------
-   · agrandissement DOUX obligatoire — 4x-UltraSharp piquait les taches de
-     rousseur en points noirs AVANT même l'affinage ;
-   · affinage Klein : 0,20 est le meilleur compromis ; au-delà de 0,26 les
-     taches foncent ;
-   · le VISAGE est repris de la source via un masque détecté (face_yolov8m) :
-     c'est le seul endroit où l'affinage dégrade ;
-   · les couleurs sont recalées sur la source (l'affinage assombrit). */
+/* ---------- photo "Go HD" ----------
+   - GENTLE upscale is mandatory (sharp upscalers turn freckles into black dots);
+   - Klein refine at 0.20 denoise (above ~0.26 skin spots darken);
+   - the FACE is taken back from the source via a detected mask (face_yolov8m),
+     the only area where refining degrades;
+   - colors are matched to the source (refining darkens). */
 export const PHOTO_HD_WORKFLOW = 'PROD_photo_hd.json'
 const PHOTO_HD_DENOISE = 0.20
-/** Moteurs dont le nœud i2v prend des keyframes (MiniMaxH3ImageToVideo). */
+/** Engines whose i2v node accepts keyframes (MiniMaxH3ImageToVideo). */
 const H3_KEYFRAMES = ['minimax']
 export const MOTION_RECIPES = {
-  preview: 'PROD_motion_480.json',   // ~2x plus rapide, pour juger le geste
-  final: 'PROD_motion_720.json',     // 720x1280, la qualité de livraison
+  preview: 'PROD_motion_480.json',   // ~2x faster, to judge the motion
+  final: 'PROD_motion_720.json',     // 720x1280, delivery quality
 }
-/* Mix : WanAnimate 2.2 en remplacement (WanVideoWrapper),
-   SAM2 suit le sujet du driver et le personnage de la still prend sa place dans le
-   décor d'origine. L'identité tient par la LoRA vidéo Wan du personnage (haut et
-   bas bruit) ; sans elle, par la still seule. */
+/* Mix: WanAnimate 2.2 in replace mode (WanVideoWrapper); SAM2 tracks the
+   driver's subject and the still's character takes its place in the original
+   scene. Identity is held by the character's Wan video LoRA (high and low
+   noise), or by the still alone without it. */
 export const MIX_RECIPE = 'PROD_wananimate_mix.json'
 const COMFY_PY = path.join(CONFIG.comfyDir, 'venv', 'bin', 'python')
 const GDINO_POINTS = path.join(path.dirname(new URL(import.meta.url).pathname), 'gdino_points.py')
 
-/** Recadrage « face tracking » en place (scripts/suivi_visage.py, Python de ComfyUI, processeur). */
+/** In-place face-tracking crop (scripts/suivi_visage.py, ComfyUI's Python, CPU). */
 function suiviVisage(full) {
   try {
     const out = execFileSync(path.join(CONFIG.comfyDir, 'venv', 'bin', 'python'),
@@ -336,32 +306,30 @@ function suiviVisage(full) {
   } catch (e) { return { ok: false, raison: String(e.message || e).slice(0, 160) } }
 }
 
-/* Identifiants des nœuds pilotés dans les recettes motion. La recette est à
-   NOUS (export figé du template officiel) : les ids sont stables, et les
-   nommer ici vaut mieux qu'une heuristique — ce graphe ne ressemble à aucun
-   autre (le conditionnement passe par WanAnimate2ToVideo, pas par un
-   KSampler, et l'injection générique ne le reconnaît pas). */
+/* Ids of the controlled nodes in the motion recipes. The recipe is ours (a
+   frozen export of the official template), so ids are stable; naming them is
+   safer than a heuristic (conditioning goes through WanAnimate2ToVideo, not a
+   KSampler, so generic injection does not recognize it). */
 const MOTION_NODES = {
-  ref: '189',          // LoadImage — la still de référence
-  driver: '240',       // LoadVideo — la vidéo source
-  animate: '261:247',  // WanAnimate2ToVideo — length
-  prompt: '261:3',     // CLIPTextEncode — personnage + décor
-  motion: '261:222',   // CLIPTextEncode — le mouvement seul
-  seed: '261:19',      // SamplerCustom — noise_seed
+  ref: '189',          // LoadImage: the reference still
+  driver: '240',       // LoadVideo: the source video
+  animate: '261:247',  // WanAnimate2ToVideo: length
+  prompt: '261:3',     // CLIPTextEncode: character + scene
+  motion: '261:222',   // CLIPTextEncode: motion only
+  seed: '261:19',      // SamplerCustom: noise_seed
   save: '246',         // SaveVideo
-  context: '261:257',  // ContextWindowsManual — overlap (continuité entre fenêtres)
-  contextSwitch: '261:258', // ComfySwitchNode — avec ou sans fenêtres de contexte
+  context: '261:257',  // ContextWindowsManual: overlap (continuity between windows)
+  contextSwitch: '261:258', // ComfySwitchNode: with or without context windows
 }
 
-/* Clips longs : enchaînement par morceaux.
-   Au-delà de 81 images, les fenêtres de contexte font sauter le décor à
-   la fin de chaque fenêtre (vers l'image 86-114). On coupe les fenêtres et on rend des
-   morceaux de 81 images : chacun repart des dernières images du précédent
-   (`continue_motion`) et de sa position dans le driver (`video_frame_offset`).
-   C'est l'enchaînement prévu par le nœud. L'ancienne voie reste accessible :
-   `motionJoin: 'fenetres'` sur le job. */
+/* Long clips: chained chunks.
+   Beyond 81 frames, context windows make the background jump at the end of each
+   window. Instead windows are disabled and 81-frame chunks are rendered: each
+   continues from the previous chunk's last frames (`continue_motion`) and its
+   position in the driver (`video_frame_offset`), the chaining the node is
+   designed for. Context windows remain available via `motionJoin: 'fenetres'`. */
 const MOTION_CHUNK = 81
-const MOTION_CHUNK_NEW = 76   // images neuves par morceau suivant (5 reprises du précédent)
+const MOTION_CHUNK_NEW = 76   // new frames per subsequent chunk (5 carried over from the previous)
 export function chainMotionChunks(g, seed) {
   const A = MOTION_NODES.animate
   const total = g[A].inputs.length
@@ -383,7 +351,7 @@ export function chainMotionChunks(g, seed) {
       noise_seed: seed + i, positive: [w, 0], negative: [w, 1], latent_image: [w, 2] } }
     g[`chunk${i}:trim`] = { class_type: 'TrimVideoLatent', inputs: { trim_amount: [w, 3], samples: [`chunk${i}:sample`, 0] } }
     g[`chunk${i}:decode`] = { class_type: 'VAEDecode', inputs: { samples: [`chunk${i}:trim`, 0], vae } }
-    // on ne garde que les images neuves : le début du morceau reprend le précédent
+    // keep only the new frames: the chunk start repeats the previous one
     g[`chunk${i}:new`] = { class_type: 'ImageFromBatch', inputs: { image: [`chunk${i}:decode`, 0], batch_index: [w, 4], length: 4096 } }
     parts.push(`chunk${i}:new`)
     prev = { animate: w, decode: `chunk${i}:decode` }
@@ -394,28 +362,23 @@ export function chainMotionChunks(g, seed) {
   return parts.length
 }
 
-/* Formats proposés — ceux du nœud ResolutionSelector, plus rien d'autre : un
-   format hors liste serait rejeté par ComfyUI à l'exécution, pas ici. */
+/* Offered aspect ratios: exactly those of the ResolutionSelector node; anything
+   else would be rejected by ComfyUI at execution time. */
 export const VIDEO_ASPECTS = ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9']
 
-/* ---------- parole : la réplique, et rien d'autre ----------
-   Les moteurs à audio (MiniMax H3, LTX-2.5) débruitent la voix avec l'image :
-   quand le prompt raconte 6 s de gestes et place une réplique au milieu, le
-   modèle remplit le temps AVANT la réplique avec de la voix inventée (« du
-   yaourt »). Rien dans le
-   prompt ne lui dit que le personnage se tait le reste du temps. On l'ajoute ici,
-   après tirage et hors LLM, pour tout job vidéo sonore dont le texte porte
-   une réplique entre guillemets : la ligne est répétée telle quelle et le
-   silence autour est explicite. Sans réplique, on ne touche à rien (un brief
-   d'ambiance sans parole reste libre). */
+/* ---------- speech: the quoted line and nothing else ----------
+   Audio engines (MiniMax H3, LTX-2.5) denoise voice together with the image:
+   when the prompt describes several seconds of action with a line in the
+   middle, the model fills the time before it with invented mumbling. For any
+   audio video job whose text has a quoted line, a silence directive is added
+   here (after sampling, outside the LLM). Without a quoted line nothing changes. */
 const SPEECH_QUOTE_RE = /«\s*([^»]+?)\s*»|"([^"\n]+?)"|“([^”]+?)”/g
 export function speechGuard(text) {
   const lines = []
   for (const m of String(text).matchAll(SPEECH_QUOTE_RE)) lines.push((m[1] ?? m[2] ?? m[3]).trim())
   if (!lines.length) return null
-  /* La réplique n'est PAS répétée ici : la citer une seconde
-     fois dans la garde la ferait dire deux fois (« coucou toi ? coucou toi,
-     do you want… »). On ne décrit que le silence autour. */
+  /* The line is NOT repeated here: quoting it again would make it spoken twice.
+     Only the surrounding silence is described. */
   const guard = lines.length === 1
     ? 'The character speaks exactly once: the quoted line, and nothing else. Before and after it the character is silent — no other words, no mumbling, no humming, no off-screen voice.'
     : `The character speaks only the ${lines.length} quoted lines, in that order, and nothing else. Otherwise the character is silent — no other words, no mumbling, no humming, no off-screen voice.`
@@ -423,11 +386,8 @@ export function speechGuard(text) {
   return { text: `${base}. ${guard}`, note: `parole verrouillée sur ${lines.length === 1 ? 'la réplique' : `${lines.length} répliques`} : ${lines.map(l => `"${l}"`).join(' · ')}` }
 }
 
-/** Durée livrée, en secondes. Bornée par MOTEUR : la limite haute n'est pas
- *  une préférence mais la VRAM — 10 s sur Wan en direct, c'est 241 images en
- *  720×1280 et un OOM garanti au premier échantillonneur. Plafonds sondés moteur
- *  par moteur (voir chaque entrée de la table).
- *  Sous 2 s, rien à voir. */
+/** Delivered duration in seconds, capped per ENGINE: the upper limit is VRAM,
+ *  not preference (see each table entry). Below 2 s there is nothing to see. */
 const clampDuration = (v, engine) => {
   const n = Number(v)
   const cap = engine?.maxSeconds ?? 12
@@ -438,23 +398,22 @@ const clampDuration = (v, engine) => {
   return Math.max(2, Math.round(n))
 }
 
-/** Cadence du FICHIER livré. Elle ne change pas la génération : les trois
- *  moteurs animent à leur cadence native, et une valeur plus haute duplique
- *  des images à l'export — elle ne fabrique pas de mouvement. */
+/** Frame rate of the delivered FILE. Does not change generation: engines animate
+ *  at their native rate, and a higher value duplicates frames on export. */
 const clampFps = v => ([24, 30].includes(Number(v)) ? Number(v) : 24)
 
 
-/* Recettes retirées : conservées dans la table pour qu'un job archivé dont la
-   provenance les nomme soit signalé, pas rejoué en silence. */
+/* Retired recipes: kept in the table so an archived job naming them in its
+   provenance is flagged rather than silently replayed. */
 export const DEPRECATED_RECIPES = {}
 
-/* Retouche par instruction (tâche photo `edit`) — Qwen-Image-Edit 2511 :
-   image source (upload ou still galerie) + instruction libre composée par le
-   LLM (« la robe devient rouge »). L'injection écrit la source dans l'unique
-   LoadImage et l'instruction dans l'encodeur TextEncodeQwenImageEdit. */
+/* Instruction-based retouch (photo task `edit`), Qwen-Image-Edit 2511:
+   source image (upload or gallery still) + free instruction composed by the
+   LLM. Injection writes the source into the single LoadImage and the
+   instruction into the TextEncodeQwenImageEdit encoder. */
 export const EDIT_WORKFLOW = 'PROD_edit.json'
-/** Styles de la retouche : une LoRA Qwen-Image-Edit chacun. Le job ne nomme que l'id,
- *  jamais un fichier : la retouche n'accepte aucune autre LoRA. */
+/** Retouch styles: one Qwen-Image-Edit LoRA each. The job names only the id,
+ *  never a file: retouch accepts no other LoRA. */
 export const STYLES_EDITION = {
   action: 'qwen-styles/QWEN_EDIT_ACTION_V1.safetensors',
   'noir-comic': 'qwen-styles/Noir-Comic-Book-Panel_20.safetensors',
@@ -462,30 +421,29 @@ export const STYLES_EDITION = {
   manga: 'qwen-styles/tone001.safetensors',
 }
 
-/** Les recettes réellement SERVIES par cette instance (moteur photo courant,
- *  moteurs vidéo, chaînes annexes) — ce que le diagnostic doit contrôler. */
+/** Recipes actually SERVED by this instance (current photo engine, video engines,
+ *  side chains): what diagnostics must check. */
 export function recettesServies() {
   const video = Object.values(VIDEO_ENGINES).flatMap(e => [e.file, e.fileCtx]).filter(Boolean)
   return [...new Set([...Object.values(RECIPES), ...video, ...Object.values(MOTION_RECIPES),
     REFINE_RECIPE, REFINE_MASKED_RECIPE, PHOTO_HD_WORKFLOW, EDIT_WORKFLOW, MIX_RECIPE, SWAP_SCAIL_RECIPE])]
 }
 
-/* Dimensions par défaut, surchargées par job. Le cadrage rapproché
-   utilise un format moins allongé : un 832×1216 sur un visage force un
-   cadrage large ou coupe le menton. */
-export const DEFAULT_SIZE = { width: 768, height: 1344 } // 9:16 par défaut
+/* Default dimensions, overridable per job. Close-up framing uses a less
+   elongated format so the face is not framed too wide or the chin cut off. */
+export const DEFAULT_SIZE = { width: 768, height: 1344 } // 9:16 by default
 export const CLOSEUP_SIZE = { width: 896, height: 1152 }
 
 const queue = []
 let running = false
-/* Le job en cours et son prompt ComfyUI — c'est ce qui permet de l'INTERROMPRE.
-   La file, elle, se vide par simple retrait. */
+/* The running job and its ComfyUI prompt, used to INTERRUPT it.
+   The queue itself is emptied by removal. */
 let current = null   // { jobId, promptId }
 
-/** Annule un job : retiré de la file s'il attend, interrompu s'il tourne.
- *  Rend ce qui a été fait, ou null si le job est inconnu ici (déjà fini). */
-/** Monte un job en attente en tête de la file. Ne touche pas au job en
- *  cours ; le tri par recette de `enqueue` ne s'applique plus après. */
+/** Cancels a job: removed from the queue if waiting, interrupted if running.
+ *  Returns what was done, or null if the job is unknown here (already finished). */
+/** Moves a waiting job to the head of the queue. Does not touch the running job;
+ *  `enqueue`'s recipe ordering no longer applies afterwards. */
 export function promoteJob(id) {
   const i = queue.findIndex(j => j.id === id)
   if (i < 0) return null
@@ -494,8 +452,8 @@ export function promoteJob(id) {
   return { id, position: 0, queued: queue.length }
 }
 
-/** Réordonne la file d'attente selon `ids` (jobs en attente seulement).
- *  Les jobs absents de la liste restent derrière, dans leur ordre actuel. */
+/** Reorders the waiting queue according to `ids` (waiting jobs only).
+ *  Jobs not listed stay behind, in their current order. */
 export function reorderQueue(ids) {
   const byId = new Map(queue.map(j => [j.id, j]))
   const picked = [...new Set(ids)].map(id => byId.get(id)).filter(Boolean)
@@ -505,8 +463,8 @@ export function reorderQueue(ids) {
   return { order: queue.map(j => j.id) }
 }
 
-/* Jobs annulés pendant leur exécution : l'interruption remonte en erreur de
-   ComfyUI, qu'il ne faut pas confondre avec un vrai échec (journal, alerte). */
+/* Jobs cancelled while running: the interruption surfaces as a ComfyUI error,
+   which must not be treated as a real failure (log, alert). */
 const annulesEnCours = new Set()
 
 export async function cancelJob(id) {
@@ -517,14 +475,13 @@ export async function cancelJob(id) {
     return { id, cancelled: 'queued' }
   }
   if (current?.jobId === id) {
-    // Deux gestes : retirer le prompt s'il attend encore côté ComfyUI, et
-    // interrompre s'il est déjà en exécution. Les deux sont sans effet quand
-    // ils ne s'appliquent pas — on envoie donc les deux.
+    // Remove the prompt if still pending in ComfyUI, and interrupt it if running.
+    // Each is a no-op when it does not apply, so both are sent.
     annulesEnCours.add(id)
     if (arreterEntrainement(id)) return { id, cancelled: 'running' }
     await comfy.deleteQueued(current.promptId).catch(() => {})
     await comfy.interrupt(current.promptId).catch(() => {})
-    // runJob verra l'exécution interrompue et la notera comme une annulation.
+    // runJob will see the interrupted execution and record it as a cancellation.
     return { id, cancelled: 'running' }
   }
   return null
@@ -537,29 +494,25 @@ function ratio(w, h) {
   return `${w / g}:${h / g}`
 }
 
-/** Reconstruit la file après un redémarrage. Les jobs encore « queued » en
- *  base repartent tels quels (payload complet) ; ceux morts en plein rendu
- *  sont ré-attachés à leur prompt s'il vit encore, re-soumis sinon. */
+/** Rebuilds the queue after a restart. Jobs still "queued" in the database
+ *  restart as is (full payload); those that died mid-render are re-attached to
+ *  their prompt if it still exists, resubmitted otherwise. */
 export async function recoverQueue() {
   const orphans = store.orphanedRunningRows()
   const rows = store.queuedPayloads()
   if (!orphans.length && !rows.length) return 0
 
-  /* Rien ne se décide avant que ComfyUI réponde : un « fetch failed » ici
-     n'est pas un échec de job, c'est un serveur qui n'écoute pas encore. */
+  /* Nothing is decided until ComfyUI answers: a "fetch failed" here is a server
+     not yet listening, not a job failure. */
   const waited = await comfy.waitReady()
   if (waited > 1500) console.log(`[reprise] ComfyUI joignable après ${(waited / 1000).toFixed(1)} s`)
 
-  /* RÉ-ATTACHEMENT : un job en vol au moment d'un redémarrage de CreatorOS
-     n'est pas mort — son prompt vit dans ComfyUI. On retrouve son prompt_id,
-     on attend la fin et on récolte par le chemin nominal. Sans ça, chaque
-     déploiement faucherait les rendus en cours alors que les fichiers arrivent
-     quand même.
+  /* RE-ATTACH: a job in flight when CreatorOS restarts is not dead; its prompt
+     lives in ComfyUI. Find its prompt_id, wait for completion and harvest via
+     the normal path.
 
-     Mais si ComfyUI LUI-MÊME a redémarré, sa
-     file en mémoire est partie avec lui : le prompt est inconnu, le rendu
-     réellement perdu. Là, on re-soumet depuis le payload — il n'y a rien à
-     doubler, le GPU n'a plus ce travail. */
+     If ComfyUI itself restarted, its in-memory queue is gone: the prompt is
+     unknown and the render is lost, so resubmit from the payload. */
   for (const row of orphans) {
     const job = row.payload
     if (!job) {
@@ -567,7 +520,7 @@ export async function recoverQueue() {
       console.warn(`[reprise] job ${row.id} sans payload, marqué en échec`)
       continue
     }
-    // export de montage : ffmpeg tournait dans l'ancien processus, rien à raccrocher
+    // editing export: ffmpeg ran in the old process, nothing to re-attach
     if (job.op === 'montage') {
       store.markFailed(row.id, 0, 'export interrompu par un redémarrage du service — relancer l’export')
       continue
@@ -589,9 +542,8 @@ export async function recoverQueue() {
           onPhase: ph => store.setStatus(row.id, ph === 'queued' ? 'queued-comfy' : ph),
         })
         const n = await harvestJob(job, row.comfy_prompt_id, history)
-        // Durée réelle depuis le départ enregistré en base : un job ré-attaché
-        // a bien rendu, sa durée n'a aucune raison d'être 0 (elle s'affiche
-        // sur l'asset en bibliothèque).
+        // Actual duration since the start time stored in the database (shown on the
+        // library asset).
         store.markFinished(row.id, row.started_at ? Date.now() - row.started_at : 0)
         console.log(`[reprise] job ${row.id} récolté — ${n} image(s)`)
       } catch (e) {
@@ -609,19 +561,17 @@ export async function recoverQueue() {
   return rows.length
 }
 
-/** Enregistre le job et le met en file. Retourne immédiatement :
- *  le front suit l'avancement par /api/jobs/:id. */
-/** Source d'une restauration, pour l'avant / après : seulement un chemin du studio. */
+/** Records the job and queues it. Returns immediately; the front end tracks
+ *  progress via /api/jobs/:id. */
+/** Source of a restoration, for before/after: studio paths only. */
 const origineValide = u => (typeof u === 'string' && /^\/(api\/uploads|media)\/[\w.%-]+$/.test(u) ? u : undefined)
 export function enqueue(job) {
-  if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: 'klein', workflowFile: undefined }   // seule la recette Klein prend des références
-  /* Idempotence d'envoi : si la clé du client a DÉJÀ produit un job, on rend
-     celui-là au lieu d'en créer un second. Le client mobile la génère avant
-     son premier POST et la réutilise sur toute reprise de transport (réponse
-     perdue, app suspendue par l'OS, reprise réseau) — sans elle, un doublon
-     vidéo coûte jusqu'à 15 min de GPU et bloque la file. L'unicité est
-     garantie par l'index unique en base, pas par ce test : celui-ci évite
-     seulement de lever une erreur SQL dans le cas normal. */
+  if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: 'klein', workflowFile: undefined }   // only the Klein recipe accepts references
+  /* Submission idempotency: if the client's key ALREADY produced a job, return
+     that one instead of creating a second. The mobile client generates the key
+     before its first POST and reuses it on every transport retry. Uniqueness is
+     enforced by the database's unique index; this check only avoids an SQL error
+     in the normal case. */
   const requestId = typeof job.requestId === 'string' && job.requestId.trim()
     ? job.requestId.trim().slice(0, 100) : null
   if (requestId) {
@@ -632,24 +582,23 @@ export function enqueue(job) {
   const seed = job.seed?.mode === 'lock' && Number.isFinite(job.seed?.value)
     ? Number(job.seed.value)
     : Math.floor(Math.random() * 0xffffffffffff)
-  /* Fonctions retirées de l'édition publique (échange de visage ou de tête,
-     remplacement de personnage dans une vidéo, passes de l'ancienne chaîne) :
-     refusées en le disant, jamais reroutées en silence vers autre chose. */
+  /* Features not in the public edition (face or head swap, character
+     replacement in a video, old chained passes) are refused explicitly, never
+     silently rerouted. */
   if (job.op === 'swap' || job.videoSwap)
     throw new Error('l’échange de visage ou de sujet n’existe pas dans cette édition')
   if (job.anatomyFix || job.bfsAfter)
     throw new Error('la passe de correction chaînée n’existe plus : utiliser la retouche (op « edit ») ou le pinceau')
   if (job.register && job.register !== 'sfw')
     throw new Error(`registre « ${job.register} » inconnu : seul le registre « sfw » existe`)
-  // `op` distingue une GÉNÉRATION d'une ÉDITION. Le média produit reste une
-  // photo dans les deux cas : `mode` ne peut pas porter cette distinction.
+  // `op` distinguishes GENERATION from EDIT; the output is a photo in both cases,
+  // so `mode` cannot carry the distinction.
   const op = job.op === 'edit' ? 'edit' : 'generate'
   const mode = job.mode ?? 'photo'
-  /* Le moteur vidéo est un CHOIX de l'opérateur, plus une conséquence de la
-     case « son ». Un nom inconnu est refusé plutôt que replié en silence :
-     livrer du Wan à qui a demandé du MiniMax, c'est livrer autre chose. */
-  // Motion Control : chaîne dédiée, pas un moteur i2v de plus. `motionDriver`
-  // est le NOM du fichier vidéo déposé par /api/upload.
+  /* The video engine is the operator's CHOICE. An unknown name is refused rather
+     than silently replaced by another engine. */
+  // Motion Control: dedicated chain, not another i2v engine. `motionDriver` is
+  // the FILE NAME of the video uploaded via /api/upload.
   const isMotion = mode === 'video'
     && typeof job.motionDriver === 'string' && job.motionDriver.trim()
   const engineKey = (mode === 'video' && !isMotion)
@@ -660,8 +609,8 @@ export function enqueue(job) {
       + Object.keys(VIDEO_ENGINES).join(', '))
   const engine = engineKey ? VIDEO_ENGINES[engineKey] : null
   if (engine?.optionnel === 'h3' && !h3Disponible) throw new Error(demoPublique() ? H3_MESSAGE_DEMO : 'MiniMax H3 n’est pas installé sur ce studio : Paramètres > Modèles optionnels')
-  // Wan n'a pas d'étage audio : demander du son sur lui n'est pas une erreur
-  // de l'opérateur (l'interface grise la case), mais l'API est ouverte.
+  // Wan has no audio stage: requesting audio on it is ignored (the UI disables
+  // the checkbox, but the API is open).
   const withAudio = mode === 'video' && !isMotion ? Boolean(job.withAudio) && engine.audio : null
   const workflowFile = job.workflowFile
     || (isMotion ? (job.motionPreview ? MOTION_RECIPES.preview : MOTION_RECIPES.final)
@@ -674,9 +623,9 @@ export function enqueue(job) {
   const sourceImage = typeof job.sourceImage === 'string' ? job.sourceImage.trim() : ''
 
   if (op === 'edit') {
-    // Retouche par instruction : les DEUX sont obligatoires — une image à
-    // éditer, et l'instruction qui dit quoi changer. Un chemin échapperait du
-    // dossier input de ComfyUI ; on n'accepte qu'un nom de fichier nu.
+    // Instruction-based retouch: BOTH a source image and an instruction are
+    // required. Only a bare file name is accepted (a path could escape ComfyUI's
+    // input folder).
     if (!sourceImage)
       throw new Error('retouche sans image source : rien à éditer '
         + '(sourceImage = nom de fichier dans le dossier input de ComfyUI)')
@@ -686,31 +635,29 @@ export function enqueue(job) {
       throw new Error('retouche sans instruction : décrire la modification '
         + '(« la robe devient rouge »)')
   } else if (isMotion) {
-    // Le driver est LA donnée du Motion Control : sans lui, rien à transférer.
+    // The driver is required for Motion Control.
     const d = job.motionDriver.trim()
     if (d.includes('/') || d.includes('\\') || d.startsWith('.'))
       throw new Error(`vidéo driver « ${d} » invalide : nom de fichier nu attendu`)
-    // La still est la référence d'apparence : les deux fichiers sont
-    // obligatoires — l'un sans l'autre n'a pas de sens.
-    // Mix : sans still, le serveur fabrique la référence du personnage (cf. refDuPersonnage).
+    // The still is the appearance reference: both files are required.
+    // Mix: without a still, the server builds the character reference (see refDuPersonnage).
     const r = String(job.motionRef ?? '').trim()
     if (!r && job.motionMode !== 'replace') throw new Error('still de référence manquante : le motion control '
       + 'anime UNE IMAGE — déposer la still en plus de la vidéo source')
     if (r.includes('/') || r.includes('\\') || r.startsWith('.'))
       throw new Error(`still « ${r} » invalide : nom de fichier nu attendu`)
   } else if (mode === 'video' && job.t2v === true) {
-    /* Plan d'ambiance (T2V) : pas d'image de départ, pas de personnage —
-       paysage, rue, plan de coupe. Seul un moteur dont la recette sait
-       partir du texte l'accepte ; refusé plutôt que rendu en i2v sur rien. */
+    /* Ambient shot (T2V): no start image, no character. Only an engine whose
+       recipe can start from text accepts it; otherwise refused. */
     if (!engine.t2v)
       throw new Error(`plan d'ambiance (texte → vidéo) indisponible sur « ${engineKey} » : `
         + Object.entries(VIDEO_ENGINES).filter(([, e]) => e.t2v).map(([k]) => k).join(', '))
     if (!positive) throw new Error('plan d’ambiance sans description : décrire le lieu et le mouvement de caméra')
   } else if (mode === 'video') {
-    /* Une recette i2v part d'une image. Exception : MiniMax H3 sait ARRIVER
-       sur une frame de fin sans frame de départ (first_frame et last_frame
-       sont deux keyframes optionnelles du même nœud). */
-    // Wan aussi (Prequel) : WanFirstLastFrameToVideo, cf. comfy.js
+    /* An i2v recipe starts from an image. Exception: MiniMax H3 can END on an end
+       frame without a start frame (first_frame and last_frame are two optional
+       keyframes of the same node). */
+    // Wan too (prequel): WanFirstLastFrameToVideo, see comfy.js
     const finOk = H3_KEYFRAMES.includes(engineKey) || engineKey === 'wan'
     const finSeule = finOk && typeof job.endImage === 'string' && job.endImage.trim()
     if (!sourceImage && !finSeule)
@@ -719,14 +666,14 @@ export function enqueue(job) {
     if (sourceImage && sourceImage.includes('/') || sourceImage.includes('\\') || sourceImage.startsWith('.'))
       throw new Error(`image de départ « ${sourceImage} » invalide : nom de fichier nu attendu`)
     if (!positive) throw new Error('brief de mouvement vide : rien à animer')
-    // Concat de l'extension vidéo : livrer AUSSI source + continuation en un
-    // fichier. `concatWith` = nom nu ; `concatFrom` dit où vit la source.
+    // Video extension concat: ALSO deliver source + continuation as one file.
+    // `concatWith` = bare name; `concatFrom` says where the source lives.
     if (typeof job.concatWith === 'string' && job.concatWith.trim()) {
       const c = job.concatWith.trim()
       if (c.includes('/') || c.includes('\\') || c.startsWith('.'))
         throw new Error(`vidéo à concaténer « ${c} » invalide : nom de fichier nu attendu`)
     }
-    // Image de fin optionnelle : même règle de nom nu que la still de départ.
+    // Optional end image: same bare-name rule as the start still.
     if (typeof job.endImage === 'string' && job.endImage.trim()) {
       const e = job.endImage.trim()
       if (e.includes('/') || e.includes('\\') || e.startsWith('.'))
@@ -736,8 +683,7 @@ export function enqueue(job) {
     throw new Error('prompt vide : rien à générer')
   }
 
-  // Le son n'a pas de recette : il produirait une image en se faisant passer
-  // pour autre chose. On refuse franchement plutôt que de livrer un asset faux.
+  // Only photo and video recipes exist; any other mode is refused.
   if (mode !== 'photo' && mode !== 'video')
     throw new Error(`mode « ${mode} » non câblé : seules les recettes photo et vidéo existent`)
 
@@ -750,46 +696,46 @@ export function enqueue(job) {
     t2v: mode === 'video' && !isMotion && job.t2v === true ? true : undefined,
     t2vPersonnage: mode === 'video' && !isMotion && job.t2v === true && job.t2vPersonnage === true ? true : undefined,
     origineUri: origineValide(job.origineUri),
-    // Keyframe d'arrivée (nom de fichier dans input/). Portée par MiniMax
-    // seulement ; les autres moteurs la signalent « non injectée ».
+    // Arrival keyframe (file name in input/). Only some engines support it; the
+    // others report it as "not injected".
     endImage: (mode === 'video' && !isMotion && typeof job.endImage === 'string' && job.endImage.trim())
       ? job.endImage.trim() : null,
-    // Images clés minutées (table de montage du Movie Studio) : LTX les pose chacune à son instant, cf. comfy.js
+    // Timed keyframes (Movie Studio timeline): LTX places each at its time, see comfy.js
     keyframes: (mode === 'video' && !isMotion && Array.isArray(job.keyframes))
       ? job.keyframes.filter(k => k && typeof k.image === 'string' && /^[\w.-]+$/.test(k.image.trim()) && Number.isFinite(Number(k.t)))
           .slice(0, 8).map(k => ({ image: k.image.trim(), t: Math.max(0, Math.min(20, Number(k.t))) }))
       : null,
-    // Continuation : vidéo des dernières images du plan précédent (nom nu dans input/), cf. comfy.js
+    // Continuation: video of the previous shot's last frames (bare name in input/), see comfy.js
     contexteVideo: (mode === 'video' && !isMotion && typeof job.contexteVideo === 'string' && /^[\w.-]+$/.test(job.contexteVideo.trim()))
       ? job.contexteVideo.trim() : null,
     concatWith: (mode === 'video' && !isMotion && typeof job.concatWith === 'string' && job.concatWith.trim())
       ? job.concatWith.trim() : null,
     concatFrom: job.concatFrom === 'input' ? 'input' : 'media',
-    // Prequel : le rendu ARRIVE sur la 1re frame de la source (endImage) et passe devant
+    // Prequel: the render ENDS on the source's first frame (endImage) and is placed before it
     prequel: mode === 'video' && !isMotion && job.prequel === true,
-    // recette photo demandée (Krea 2 / FLUX.2 Klein) : décide aussi des LoRA d'identité empilées
+    // requested photo recipe (Krea 2 / FLUX.2 Klein): also decides which identity LoRAs are stacked
     photoEngine: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) && job.references.length ? 'klein'
       : mode === 'photo' && op !== 'edit' && RECIPES_PAR_MOTEUR[job.photoEngine] ? job.photoEngine : undefined,
-    // jusqu'à 6 images de référence (FLUX.2 Klein), noms nus du dossier input
+    // up to 6 reference images (FLUX.2 Klein), bare names from the input folder
     references: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) ? job.references.filter(n => typeof n === 'string' && n && !/[\\/]/.test(n) && !n.startsWith('.')).slice(0, 6) : undefined,
-    // sans personnage, la personne de la première référence est le sujet (carrousel d'après une photo)
+    // without a character, the person in the first reference is the subject (carousel from a photo)
     refVisage: mode === 'photo' && op !== 'edit' && job.refVisage === true && Array.isArray(job.references) && job.references.length > 0,
-    // Mix à plusieurs : rang de la personne (de gauche à droite), nombre de personnes, personnages restants
+    // Multi-person Mix: person rank (left to right), number of people, remaining characters
     mixRang: isMotion && Number.isInteger(job.mixRang) ? job.mixRang : undefined,
     mixTotal: isMotion && Number.isInteger(job.mixTotal) ? job.mixTotal : undefined,
     mixSuite: isMotion && Array.isArray(job.mixSuite) ? job.mixSuite.map(String).slice(0, 2) : undefined,
-    // preset de caméra ou d'effet d'origine : le contrôle des clips y lit le mouvement attendu
+    // originating camera or effect preset: clip checking reads the expected motion from it
     presetId: typeof job.presetId === 'string' ? job.presetId.slice(0, 40) : undefined,
     cameraPose: POSES_CAMERA.includes(job.cameraPose) ? job.cameraPose : undefined,
-    // basse VRAM : profil forcé pour CE job (le serveur ne le laisse passer qu'au propriétaire)
+    // low VRAM: profile forced for THIS job (the server only allows it for the owner)
     profilVram: PROFILS.includes(Number(job.profilVram)) ? Number(job.profilVram) : undefined,
     motionDriver: isMotion ? job.motionDriver.trim() : null,
     motionPreview: isMotion ? Boolean(job.motionPreview) : null,
-    // Move (animate) : la still fournie rejoue le geste du driver.
-    // Mix (replace) : le personnage de la still prend la place de celui du driver, dans son décor.
+    // Move (animate): the supplied still replays the driver's motion.
+    // Mix (replace): the still's character replaces the driver's, in its scene.
     motionMode: isMotion ? (job.motionMode === 'replace' ? 'replace' : 'animate') : null,
     motionRef: isMotion ? String(job.motionRef ?? '').trim() || null : null,
-    // Leviers du motion control pur : bornés ici, l'API est ouverte.
+    // Raw motion control parameters: clamped here, since the API is open.
     motionSceneText: isMotion && typeof job.motionSceneText === 'string'
       ? job.motionSceneText.trim() || null : null,
     motionSansTurbo: isMotion && job.motionSansTurbo === true ? true : undefined,
@@ -800,7 +746,7 @@ export function enqueue(job) {
     swapAnimation: isMotion && job.swapAnimation === true ? true : undefined,
     swapLong: isMotion && Number.isInteger(job.swapLong) ? job.swapLong : undefined,
     swapBlocs: isMotion && Number.isInteger(job.swapBlocs) ? job.swapBlocs : undefined,
-    // bancs du propriétaire : forcer Wan Animate, prendre la pose d'une autre vidéo (ex. le mannequin 3D), garder la cadence du driver
+    // owner test options: force Wan Animate, take the pose from another video (e.g. a 3D mannequin), keep the driver's fps
     mixWanAnimate: isMotion && job.mixWanAnimate === true ? true : undefined,
     motionPoseDriver: isMotion && typeof job.motionPoseDriver === 'string' && /^[\w.-]+$/.test(job.motionPoseDriver) ? job.motionPoseDriver : undefined,
     motionFpsNatif: isMotion && job.motionFpsNatif === true ? true : undefined,
@@ -811,23 +757,21 @@ export function enqueue(job) {
       ? Math.min(1.5, Math.max(0.5, Number(job.motionPoseStrength ?? 1))) : null,
     motionRefStrength: isMotion
       ? Math.min(1, Math.max(0.5, Number(job.motionRefStrength ?? 1))) : null,
-    // Clips > 81 images : 'morceaux' (défaut) ou 'fenetres' (ancienne voie).
+    // Clips > 81 frames: 'morceaux' (chunks, default) or 'fenetres' (context windows).
     motionJoin: isMotion ? (job.motionJoin === 'fenetres' ? 'fenetres' : 'morceaux') : null,
-    /* Plan d'une source montée (cf. enqueueParPlans) : groupe, rang, durée exacte
-       du plan dans la source. Sert au recollage quand le dernier plan est livré. */
+    /* Shot of an edited source (see enqueueParPlans): group, rank, exact shot
+       duration in the source. Used to reassemble when the last shot is delivered. */
     motionPlan: isMotion && job.motionPlan?.group
       ? { group: String(job.motionPlan.group), index: Number(job.motionPlan.index), count: Number(job.motionPlan.count),
         seconds: Number(job.motionPlan.seconds), source: String(job.motionPlan.source ?? '') }
       : null,
-    /* Durée DEMANDÉE (celle du fichier livré) et durée à GÉNÉRER : les deux
-       diffèrent sur les moteurs qui animent au ralenti. */
-    // En motion, durée/format/cadence viennent du DRIVER — aucun réglage.
+    /* REQUESTED duration (that of the delivered file) and duration to GENERATE:
+       they differ on engines that animate in slow motion. */
+    // In motion mode, duration/aspect/fps come from the DRIVER.
     videoSeconds: mode === 'video' && !isMotion ? clampDuration(job.videoSeconds, engine) : null,
     videoFps: mode === 'video' && !isMotion ? clampFps(job.videoFps) : null,
-    // « origine » : ratio EXACT de la still — le snap sur un ratio du
-    // ResolutionSelector étirait la still. Les dims du front ne sont qu'un
-    // repli : le fichier réel est sondé au dispatch (dims périmées d'une still
-    // précédente sur le chemin clone).
+    // "origine": EXACT ratio of the still. Front-end dims are only a fallback:
+    // the actual file is probed at dispatch.
     videoAspect: mode === 'video' && !isMotion
       ? (job.videoAspect === 'origine'
           && (typeof job.sourceImage === 'string' && job.sourceImage
@@ -839,15 +783,14 @@ export function enqueue(job) {
     videoSrcW: mode === 'video' && !isMotion ? (Number(job.videoSrcW) || null) : null,
     videoSrcH: mode === 'video' && !isMotion ? (Number(job.videoSrcH) || null) : null,
     videoSpeed: engine?.speed ?? 1,
-    // Brouillon : refusé plutôt qu'ignoré sur un moteur qui ne le porte pas —
-    // l'opérateur attend un rendu court, il aurait le plein sans le savoir.
+    // Draft: refused rather than ignored on an engine that does not support it.
     videoDraft: mode === 'video' && !isMotion && Boolean(job.videoDraft)
       ? (engine.draft ? true
         : (() => { throw new Error(`mode brouillon indisponible sur « ${engineKey} » : `
           + Object.entries(VIDEO_ENGINES).filter(([, e]) => e.draft).map(([k]) => k).join(', ')) })())
       : null,
-    // ControlNet (tâche Génération) : image de référence déposée dans input/,
-    // modalité = préprocesseur, force = `strength` du nœud.
+    // ControlNet (Generate task): reference image uploaded to input/,
+    // modality = preprocessor, strength = the node's `strength`.
     controlNet: (typeof job.controlNet?.file === 'string'
       && job.controlNet.file.trim()
       && !/[\\/]/.test(job.controlNet.file))
@@ -859,22 +802,20 @@ export function enqueue(job) {
       }
       : null,
     userPrompt: job.userPrompt ?? null, userDirectives: job.userDirectives ?? null,
-    /* Brief d'origine écrasé à l'écran par « Remplacer » de l'Enhancer —
-       stocké seulement s'il diffère du prompt envoyé. */
+    /* Original brief overwritten on screen by the Enhancer's "Replace";
+       stored only if it differs from the submitted prompt. */
     initialBrief: (typeof job.initialBrief === 'string' && job.initialBrief.trim()
       && job.initialBrief.trim() !== String(positive ?? '').trim())
       ? job.initialBrief.trim() : null,
-    /* Description VLM de la still, telle qu'elle a été donnée au réécriveur.
-       Sans elle, relire un prompt composé ne dit pas POURQUOI il décrit cette
-       tenue ou cette pose : l'écart vient soit de l'image mal lue, soit de la
-       consigne mal suivie, et ça ne se corrige pas au même endroit. */
+    /* VLM description of the still, as given to the rewriter. Lets a reader tell
+       whether a composed prompt's discrepancy comes from a misread image or a
+       poorly followed directive. */
     promptVision: (typeof job.promptVision === 'string' && job.promptVision.trim())
       ? job.promptVision.trim() : null,
     composedPositive: positive, composedNegative: job.composedNegative ?? null,
     selections: job.selections ?? null,
-    // LoRA additionnelles (style), empilées après celles de la persona. Normalisées ici
-    // pour qu'un front qui envoie des chaînes marche comme un front qui envoie
-    // des objets — le contrat reste { name, strength }.
+    // Extra (style) LoRAs, stacked after the persona's. Normalized here so strings
+    // and objects are both accepted; the contract is { name, strength }.
     editStyle: op === 'edit' && Object.hasOwn(STYLES_EDITION, job.editStyle) ? job.editStyle : undefined,
     loras: (Array.isArray(job.loras) ? job.loras : [])
       .map(l => (typeof l === 'string' ? { name: l, strength: 1 } : l))
@@ -882,50 +823,47 @@ export function enqueue(job) {
       .map(l => ({
         name: l.name,
         strength: Number.isFinite(Number(l.strength)) ? Number(l.strength) : 1,
-        // Conserver la surcharge de déclencheur : c'est le seul recours pour
-        // les LoRA dont le fichier ne porte aucune métadonnée exploitable.
+        // Keep the trigger override: the only option for LoRAs whose file has no
+        // usable metadata.
         ...(typeof l.trigger === 'string' && l.trigger.trim() ? { trigger: l.trigger.trim() } : {}),
       })),
-    // LoRAs vidéo (turbo, style…) — même forme que `loras`,
-    // empilées sur la chaîne modèle de la recette vidéo (hors motion).
+    // Video LoRAs (turbo, style...): same shape as `loras`,
+    // stacked on the video recipe's model chain (not motion).
     videoLoras: (Array.isArray(job.videoLoras) ? job.videoLoras : [])
       .map(l => (typeof l === 'string' ? { name: l, strength: 1 } : l))
       .filter(l => l && typeof l.name === 'string' && l.name)
       .map(l => ({
         name: l.name,
         strength: Number.isFinite(Number(l.strength)) ? Number(l.strength) : 1,
-        // La plupart des LoRA H3 agissent sur simple présence, mais certaines
-        // portent un mot (realism → r34l1sm) : on le conserve pour le préfixer.
+        // Most H3 LoRAs work by presence alone, but some carry a word
+        // (realism -> r34l1sm): keep it so it can be prefixed.
         ...(typeof l.trigger === 'string' && l.trigger.trim() ? { trigger: l.trigger.trim() } : {}),
       })),
-    // Dimensions : explicites, sinon le format du cadrage, sinon le défaut.
-    // Non persistées en colonne — la valeur réelle est dans workflowJson.
+    // Dimensions: explicit, else from framing, else default.
+    // Not persisted as columns; the actual value is in workflowJson.
     width: Number(job.width) || (job.framing === 'closeup' ? CLOSEUP_SIZE.width : DEFAULT_SIZE.width),
     height: Number(job.height) || (job.framing === 'closeup' ? CLOSEUP_SIZE.height : DEFAULT_SIZE.height),
-    /* Lot : identifiant partagé par les jobs d'un même envoi — c'est lui
-       qui regroupe les rendus en une vignette-mosaïque. Perdu ici = perdu
-       partout (le row EST le payload persisté). */
+    /* Batch: id shared by the jobs of one submission; groups renders into one
+       mosaic thumbnail. Must be kept here (the row IS the persisted payload). */
     batchId: typeof job.batchId === 'string' && job.batchId ? job.batchId : null,
     carouselLocks: (job.carouselLocks && typeof job.carouselLocks === 'object') ? job.carouselLocks : null,
-    /* Prompt de l'opérateur à l'origine de la lignée : un carrousel lancé
-       depuis un plan de carrousel doit repartir de lui, pas de la
-       paraphrase VLM du plan (cf. server/carrousel.js). */
+    /* Operator prompt at the origin of the lineage: a carousel launched from a
+       carousel plan restarts from it, not from the VLM paraphrase (see server/carrousel.js). */
     promptRacine: typeof job.promptRacine === 'string' && job.promptRacine.trim() ? job.promptRacine.trim() : null,
-    // nouvelle prise lancée par le contrôle automatique (server/controle.js) : jamais relancée à son tour
+    // retake launched by automatic checking (server/controle.js): never retried itself
     priseDe: typeof job.priseDe === 'string' && job.priseDe ? job.priseDe : null,
   }
-  // Estimation de durée, calculée ici et portée par le job (payload) : la
-  // barre « écoulé / estimé » des interfaces s'en sert.
+  // Duration estimate, carried by the job (payload); used by the UI's
+  // "elapsed / estimated" bar.
   row.estimatedMs = estimateMs(row)
   row.requestId = requestId
   store.createJob(row)
   retenirCle(row.id)
   queue.push(row)
-  /* Regroupe les jobs de MÊME recette : deux modèles lourds ne cohabitent
-     pas en VRAM, et chaque bascule force un rechargement complet — et
-     ces rechargements alternés finissent en OOM au premier échantillonneur. Le tri
-     est STABLE : l'ordre d'arrivée est conservé à recette égale, et le job
-     en tête n'est jamais déplacé (il peut déjà être parti). */
+  /* Groups jobs with the SAME recipe: two heavy models do not fit in VRAM
+     together, and each switch forces a full reload (alternating reloads can
+     OOM). The sort is STABLE (arrival order kept for equal recipes) and the head
+     job is never moved (it may already have started). */
   if (queue.length > 2) {
     const head = queue.shift()
     queue.sort((a, b) => a.workflowFile === b.workflowFile ? 0
@@ -936,16 +874,15 @@ export function enqueue(job) {
   return { id, seed, workflowFile, queued: queue.length }
 }
 
-/* ---------- motion par plans (voir server/plans.js) ----------
-   Une vidéo de mouvement MONTÉE part en autant de jobs qu'elle a de plans : chaque
-   plan est animé à part sur la même still de référence, ce qui évite qu'une coupe
-   du montage tombe au milieu d'une fenêtre de contexte. Les jobs partagent un lot
-   (une seule vignette dans la galerie) et une graine ; le premier garde
-   l'identifiant de l'envoi, que l'interface suit déjà. `motionPlans: false` sur le
-   job garde le rendu d'un bloc. */
+/* ---------- motion by shots (see server/plans.js) ----------
+   An EDITED motion video is split into one job per shot: each shot is animated
+   separately on the same reference still, so a cut never falls in the middle
+   of a context window. Jobs share a batch (one gallery thumbnail) and a seed;
+   the first keeps the submission id the UI already tracks.
+   `motionPlans: false` on the job renders it in one block. */
 export async function enqueueParPlans(job) {
-  /* Mix : départ choisi dans la vidéo source. Le Mix ne garde que 9,6 s : la source est
-     recoupée à ce départ avant le dépôt, le reste du chemin (plans, masque, tenue) ne change pas. */
+  /* Mix: chosen start point in the source video. Mix keeps only 9.6 s: the source
+     is trimmed at this start before upload; the rest of the path is unchanged. */
   const debut = Number(job?.mixDebut)
   if (job?.motionMode === 'replace' && typeof job.motionDriver === 'string' && Number.isFinite(debut) && debut > 0) {
     const nom = `crs_debut${Math.round(debut * 10)}_${path.basename(job.motionDriver)}`
@@ -959,7 +896,7 @@ export async function enqueueParPlans(job) {
     && !job.motionPlan && job.motionPlans !== false
   if (!concerne) return enqueue(job)
   const rid = typeof job.requestId === 'string' && job.requestId.trim() ? job.requestId.trim().slice(0, 90) : null
-  if (rid && store.jobsByRequestId(rid).length) return enqueue(job)      // reprise d'un envoi déjà vu
+  if (rid && store.jobsByRequestId(rid).length) return enqueue(job)      // retry of an already-seen submission
   let liste = null
   try { liste = await plans.decouper(driver) } catch (e) {
     console.warn(`[plans] découpage impossible, rendu d'un bloc — ${String(e.message || e).slice(0, 200)}`)
@@ -977,21 +914,21 @@ export async function enqueueParPlans(job) {
   return { ...faits[0], ids: faits.map(r => r.id), plans: liste.length }
 }
 
-/** Dernier plan d'un groupe terminé : les plans livrés sont recollés en un seul
- *  fichier, livré comme asset du job qui clôt le groupe. Un plan en échec
- *  manque au montage, et la provenance le dit. */
+/** Last shot of a finished group: delivered shots are joined into one file,
+ *  delivered as an asset of the job closing the group. A failed shot is
+ *  missing from the result, and provenance says so. */
 async function assemblerPlans(job) {
   const g = job.motionPlan?.group
   if (!g) return
   const freres = store.jobsByPlanGroup(g)
-  if (freres.some(f => !['done', 'blocked'].includes(f.status))) return     // d'autres plans arrivent
+  if (freres.some(f => !['done', 'blocked'].includes(f.status))) return     // other shots still pending
   const livres = freres
     .map(f => ({ ...f, plan: (() => { try { return JSON.parse(f.payload).motionPlan } catch { return null } })() }))
     .filter(f => f.plan && f.status === 'done')
     .map(f => ({ id: f.id, index: f.plan.index, seconds: f.plan.seconds,
       fichier: store.jobAssetFiles(f.id).map(n => path.join(CONFIG.mediaDir, n)).find(n => n.endsWith('.mp4') && !n.includes('-montage-') && fs.existsSync(n)) }))
     .filter(f => f.fichier)
-    // un plan relancé remplace sa première tentative : on garde le dernier rendu de chaque rang
+    // a retried shot replaces its first attempt: keep the latest render per rank
     .reduce((m, f) => m.set(f.index, f), new Map()).values().toArray().sort((a, b) => a.index - b.index)
   if (livres.length < 2) return
   const rangs = new Set(freres.map(f => { try { return JSON.parse(f.payload).motionPlan?.index } catch { return null } }))
@@ -1013,20 +950,19 @@ async function assemblerPlans(job) {
         skipped: manquants ? [`${manquants} plan(s) absent(s) du montage (échec) — rangs présents : ${livres.map(f => f.index).join(', ')} sur ${rangs.size}`] : [],
       },
       workflowJson: null })
-  /* Les plans montés passent en « refusé » : ils restent en
-     galerie, grisés, derrière le montage. Un plan déjà validé à la main n'est pas touché. */
+  /* Assembled shots are marked "rejected": they stay in the gallery, greyed,
+     behind the assembly. Shots already approved manually are untouched. */
   for (const f of livres)
     for (const a of store.assetsOfJob(f.id))
       if (!String(a.id).endsWith('-montage') && (a.review_status ?? 'pending') === 'pending') store.setReview(a.id, 'rejected')
   console.log(`[plans] montage livré : ${nom} (${livres.length} plans sur ${rangs.size})`)
 }
 
-/* ---------- upscale d'un brouillon vidéo ----------
-   Le rendu brouillon validé repart en V2V refine (mouvement conservé,
-   détails réaffinés) à la résolution cible. File standard : un seul
-   GPU, l'upscale attend son tour comme tout le monde. */
-/** « Passer en HD » d'une PHOTO : agrandit à 2 MP et renforce le détail.
- *  `strength` = débruitage de l'affinage (0 = agrandissement seul). */
+/* ---------- video draft upscale ----------
+   An approved draft render goes through V2V refine (motion kept, details
+   refined) at the target resolution. Standard queue: one GPU. */
+/** "Go HD" for a PHOTO: upscales to 2 MP and enhances detail.
+ *  `strength` = refine denoise (0 = upscale only). */
 export function enqueuePhotoHd({ sourceFile, parentAssetId, prompt, strength }) {
   const id = `phd-${Date.now().toString(36)}`
   const denoise = Number.isFinite(strength) ? Math.min(0.4, Math.max(0, strength)) : PHOTO_HD_DENOISE
@@ -1041,7 +977,7 @@ export function enqueuePhotoHd({ sourceFile, parentAssetId, prompt, strength }) 
     userPrompt: null, userDirectives: null,
     composedPositive: prompt ?? null, composedNegative: null,
     selections: null, loras: [], videoLoras: [],
-    // mesuré : 35 à 45 s sur une source 760x1368 portée à 2 MP.
+    // ~35-45 s for a 760x1368 source taken to 2 MP.
     estimatedMs: 50000,
   }
   store.createJob(row)
@@ -1062,8 +998,8 @@ export function enqueueUpscale({ sourceFile, width, height, fps, videoEngine, pa
     sourceImage: null, videoEngine: videoEngine ?? null, withAudio: false,
     upscaleSource: sourceFile, upscaleW: width, upscaleH: height,
     upscaleH3: h3 === true || undefined,
-    // cadence SOURCE (pilote le graphe) et cadence de SORTIE (affichage) :
-    // les sources < 24 fps sont interpolées RIFE x2 vers 30 ; H3 natif = 24.
+    // SOURCE fps (drives the graph) and OUTPUT fps (display): sources < 24 fps
+    // are RIFE x2 interpolated to 30; native H3 = 24.
     upscaleSrcFps: Number(fps) || 16,
     videoFps: h3 === true ? 24 : (Number(fps) || 16) < 24 ? 30 : Number(fps),
     parentAssetId: parentAssetId ?? null,
@@ -1071,15 +1007,14 @@ export function enqueueUpscale({ sourceFile, width, height, fps, videoEngine, pa
     userPrompt: null, userDirectives: null,
     composedPositive: `upscale refine ${width}x${height} (denoise ${UPSCALE_DENOISE}) de ${sourceLabel ?? sourceFile}`,
     composedNegative: null, selections: null, loras: [], videoLoras: [],
-    /* mesuré : 81 frames (16 fps) ≈ 160 s ; 150 frames (30 fps) ≈ 430 s —
-       le coût par frame monte avec la longueur (offload VRAM). */
-    // H3 : pass1 replay (~60 s) + pass2 (~220 s) ; Wan : mi-cadence
+    /* ~160 s for 81 frames (16 fps); ~430 s for 150 frames (30 fps):
+       per-frame cost grows with length (VRAM offload). */
+    // H3: pass1 replay (~60 s) + pass2 (~220 s); Wan: half fps
     estimatedMs: h3 === true ? 290000
       : Math.round(160000 * Math.pow(((Number(fps) || 16) < 24 ? 15 : (Number(fps) || 16) / 2) / 15, 1.2)),
   }
-  /* Pas de clé d'idempotence ici : l'upscale est déclenché par un bouton
-     sur un asset précis, pas par un envoi de formulaire susceptible d'être
-     rejoué après une réponse perdue. */
+  /* No idempotency key here: upscale is triggered by a button on a specific
+     asset, not a form submission that could be replayed. */
   store.createJob(row)
   retenirCle(row.id)
   queue.push(row)
@@ -1087,14 +1022,14 @@ export function enqueueUpscale({ sourceFile, width, height, fps, videoEngine, pa
   return { id }
 }
 
-/* Upscale LATENT NATIF H3 (meilleur qu'un refine Wan) : rejoue la
-   passe 1 exacte du draft (workflowJson de provenance, même seed ⇒ même clip)
-   et enchaîne 2× learned → blur .5 → contrast .90 → pass2 4 steps → TRIM 2
-   frames (le token d'ancrage du VAE causal sort gaufré sur les frames 0-1). */
+/* NATIVE H3 LATENT upscale: replays the draft's exact pass 1 (provenance
+   workflowJson, same seed => same clip) then chains 2x learned -> blur .5 ->
+   contrast .90 -> pass2 4 steps -> TRIM 2 frames (the causal VAE's anchor
+   token comes out waffled on frames 0-1). */
 async function runUpscaleH3(job, t0) {
   const prov = store.getProvenance(job.parentAssetId)
   const g = JSON.parse(prov.workflow_json)
-  // liens génériques depuis le graphe pass1 (recette minimax)
+  // generic links from the pass1 graph (minimax recipe)
   const guiderId = Object.keys(g).find(k => g[k].class_type === 'BasicGuider')
   const samplerId = Object.keys(g).find(k => g[k].class_type === 'SamplerCustomAdvanced')
   const decodeId = Object.keys(g).find(k => g[k].class_type === 'VAEDecode')
@@ -1103,9 +1038,9 @@ async function runUpscaleH3(job, t0) {
   if (!guiderId || !samplerId || !decodeId || !audioDecId) throw new Error('graphe pass1 minimax incomplet en provenance')
   const modelLink = g[guiderId].inputs.model
   const condLink = g[guiderId].inputs.conditioning
-  // la passe 1 ne décode plus (son SaveVideo saute) : seul le latent compte
+  // pass 1 no longer decodes (its SaveVideo is removed): only the latent matters
   for (const k of Object.keys(g)) if (g[k].class_type === 'SaveVideo') delete g[k]
-  // denoise 0.45 : 0.5 altère légèrement l'expression, 0.35 dédouble
+  // denoise 0.45: 0.5 slightly alters the expression, 0.35 causes doubling
   g['s2'] = { class_type: 'MiniMaxH3Pass2StaggeredScheduler', inputs: { model: modelLink, steps: 4, denoise: 0.45, rho: 7.0, shape: 'karras' } }
   g['n2'] = { class_type: 'RandomNoise', inputs: { noise_seed: (Number(job.seed) || 42) + 1 } }
   g['up'] = { class_type: 'MiniMaxH3LatentUpscaleCombined', inputs: {
@@ -1124,7 +1059,7 @@ async function runUpscaleH3(job, t0) {
   g['trim'] = { class_type: 'ImageFromBatch', inputs: { image: ['dec2', 0], batch_index: 2, length: 4096 } }
   g['cv2'] = { class_type: 'CreateVideo', inputs: { fps: 24, bit_depth: 8, images: ['trim', 0], audio: ['aud2', 0] } }
   g['sv2'] = { class_type: 'SaveVideo', inputs: { filename_prefix: `creatoros/${job.id}/upscale`, format: 'auto', codec: 'auto', video: ['cv2', 0] } }
-  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  await comfy.freeMemory().catch(() => { /* non-fatal */ })
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -1140,14 +1075,13 @@ async function runUpscaleH3(job, t0) {
   return n
 }
 
-/* ---------- retouche au pinceau ----------
-   L'opérateur peint une zone, décrit ce qui doit s'y trouver ; seule cette zone est
-   refaite, le reste de l'image est recollé AU PIXEL PRÈS. Pas de recette à part : le
-   graphe part de la recette de génération (même modèle, lue telle quelle,
-   jamais modifiée, LoRA de la persona empilées) — l'image vide de départ y est
-   remplacée par l'image source encodée, masquée, puis le résultat est recomposé sur
-   la source. */
-const INPAINT_DENOISE = 0.9   // 0,75-0,8 garde la couleur d'origine
+/* ---------- brush retouch ----------
+   The operator paints an area and describes what belongs there; only that area
+   is redone, and the rest of the image is pasted back pixel-exact. No separate
+   recipe: the graph starts from the generation recipe (same model, read as is,
+   persona LoRAs stacked); its empty start latent is replaced by the encoded,
+   masked source image, then the result is composited onto the source. */
+const INPAINT_DENOISE = 0.9   // 0.75-0.8 keeps the original color
 export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, strength, personaId, agrandir }) {
   if (t0Hit(String(prompt ?? ''))) throw new Error('prompt refusé (liste T0)')
   const id = `inp-${Date.now().toString(36)}`
@@ -1159,9 +1093,8 @@ export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, st
     inpaintDenoise: Number.isFinite(strength) ? Math.min(1, Math.max(0.3, strength)) : INPAINT_DENOISE,
     parentAssetId: parentAssetId ?? null,
     userPrompt: String(prompt ?? '').trim() || null, userDirectives: null,
-    /* Le texte de l'opérateur SEUL : le prompt d'origine décrit ce qu'on veut justement
-       changer (« pull marine » + prompt d'origine « pull crème » → pull
-       resté crème). Le reste de l'image donne le contexte par lui-même. */
+    /* The operator's text ALONE: the original prompt describes what is being
+       changed. The rest of the image provides context by itself. */
     composedPositive: String(prompt ?? '').trim() || null,
     composedNegative: null, selections: null, loras: [], videoLoras: [], estimatedMs: 25000,
   }
@@ -1172,8 +1105,9 @@ export function enqueueInpaint({ sourceFile, maskFile, parentAssetId, prompt, st
   return { id }
 }
 
-/* Agrandir : Qwen Edit voit toute l'image élargie et ne redessine que les marges grises ;
-   la photo d'origine est recollée telle quelle. Sans LoRA ni préambule : le personnage est déjà dans l'image. */
+/* Outpaint: Qwen Edit sees the whole enlarged image and only redraws the grey
+   margins; the original photo is pasted back as is. No LoRA or preamble: the
+   character is already in the image. */
 function grapheAgrandir(job) {
   const g = comfy.loadWorkflow(job.workflowFile)
   g['10'].inputs.image = job.sourceImage
@@ -1210,12 +1144,12 @@ async function runInpaint(job, t0) {
   const texte = g[g[ks].inputs.positive?.[0]]
   if (texte?.class_type !== 'CLIPTextEncode') throw new Error('retouche au pinceau : prompt positif introuvable dans la recette')
   texte.inputs.text = `${preamble?.text ?? ''}${job.composedPositive ?? ''}`.trim()
-  // LoRA de la persona, empilées comme sur le chemin de génération
+  // persona LoRAs, stacked as on the generation path
   const pl = comfy.empilerLoras(g, lorasPhoto(persona(job.personaId), PHOTO_ENGINE)).applied
   g.inp_src = { class_type: 'LoadImage', inputs: { image: job.sourceImage } }
   g.inp_peint = { class_type: 'LoadImage', inputs: { image: job.inpaintMask } }
   g.inp_masque = { class_type: 'ImageToMask', inputs: { image: ['inp_peint', 0], channel: 'red' } }
-  // zone refaite un peu plus large que le trait, bord fondu : pas de couture visible au recollage
+  // redone area slightly wider than the stroke, feathered edge: no visible seam when compositing
   g.inp_bord = { class_type: 'GrowMaskWithBlur', inputs: { mask: ['inp_masque', 0], expand: 10, incremental_expandrate: 0, tapered_corners: true,
     flip_input: false, blur_radius: 8, lerp_alpha: 1, decay_factor: 1, fill_holes: false } }
   g.inp_enc = { class_type: 'VAEEncode', inputs: { pixels: ['inp_src', 0], vae: g[dec].inputs.vae } }
@@ -1238,26 +1172,25 @@ async function runInpaint(job, t0) {
   return n
 }
 
-/* ---------- retouche vidéo au pinceau ----------
-   Même geste que sur une photo : l'opérateur peint la zone sur la PREMIÈRE image du
-   clip et décrit ce qu'il veut. SAM3 suit la zone d'image en image à partir de ce
-   masque (`suivi`) — ou la zone reste fixe dans le cadre. La zone est redessinée par
-   le refine vidéo masqué (Wan T2V bas bruit, recette lue telle quelle), puis recollée
-   sur la source : hors zone, les images de la source. Cadence de travail 16 i/s,
-   fluidité RIFE ensuite. Un seul bloc : clips de ~10 s au plus (au-delà la retouche
-   manque de mémoire). */
+/* ---------- video brush retouch ----------
+   Same gesture as on a photo: the operator paints the area on the clip's FIRST
+   frame and describes what they want. SAM3 tracks the area frame by frame from
+   that mask (`suivi`), or the area stays fixed in the frame. The area is redrawn
+   by the masked video refine (Wan T2V low noise, recipe read as is), then
+   composited onto the source: outside the area, the source frames. Works at
+   16 fps, RIFE interpolation afterwards. Single block: clips up to ~10 s
+   (longer runs out of memory). */
 const INPAINT_VIDEO_DENOISE = 0.75
 const INPAINT_VIDEO_MAX_IMAGES = 161
-/* Édition au prompt : même chaîne, mais la zone n'est pas peinte — SAM3 la
-   trouve d'après `cible` (« dress », « sunglasses »…) sur chaque image et la suit ;
-   le prompt dit ce qui doit s'y trouver. Rien à modifier si la cible n'est pas à
-   l'image : on ne fait pas apparaître un objet absent. */
-/* Recadrage vidéo : le clip est posé au centre d'un cadre au nouveau format, les bords
-   (pré-remplis des seules couleurs du clip, sans formes qui deviendraient des fantômes) sont redessinés par la retouche Wan, zone fixe. */
+/* Prompt edit: same chain, but the area is not painted; SAM3 finds it from
+   `cible` ("dress", "sunglasses"...) on each frame and tracks it; the prompt
+   says what belongs there. Nothing changes if the target is not in the image. */
+/* Video reframe: the clip is placed at the center of a frame at the new aspect; the edges
+   (pre-filled with the clip's colors only, no shapes that would become ghosts) are redrawn by the Wan retouch, fixed area. */
 const FORMATS_RECADRAGE = { '9:16': 9 / 16, '16:9': 16 / 9, '1:1': 1, '4:5': 4 / 5 }
-/* Recadrage : Wan 2.2 Fun VACE voit le clip posé au centre d'une toile grise et génère les
-   bords image par image, en continuité du décor, de la perspective et du mouvement. Le clip
-   d'origine est ensuite recollé au centre (sa cadence, son son), jointure fondue. */
+/* Reframe: Wan 2.2 Fun VACE sees the clip centered on a grey canvas and generates the
+   edges frame by frame, continuing the scene, perspective and motion. The original
+   clip is then pasted back at the center (its fps, its audio), with a feathered seam. */
 const VACE_IMAGES = 81
 export function enqueueRecadrage({ source, format, prompt, parentAssetId, personaId }) {
   const ar = FORMATS_RECADRAGE[format]
@@ -1270,20 +1203,20 @@ export function enqueueRecadrage({ source, format, prompt, parentAssetId, person
   if (Math.abs(w / h - ar) < 0.02) throw new Error('le clip est déjà à ce format')
   if (!(duree > 0)) throw new Error('vidéo illisible')
   if (duree > 10.5) throw new Error('clip trop long pour le recadrage : 10 s au plus')
-  // toile finale : le clip garde sa taille, côté long plafonné à 1280 px ; toile de génération : côté long 1024
+  // final canvas: the clip keeps its size, long side capped at 1280 px; generation canvas: long side 1024
   const pair = v => Math.max(16, Math.round(v / 16) * 16)
   let W = w / h < ar ? h * ar : w, H = w / h < ar ? h : w / ar
   const k = Math.min(1, 1280 / Math.max(W, H)); W = pair(W * k); H = pair(H * k)
   const cw = Math.min(W, Math.round(w * k / 2) * 2), ch = Math.min(H, Math.round(h * k / 2) * 2)
   const kg = 1024 / Math.max(W, H), Wg = pair(W * kg), Hg = pair(H * kg)
   const cwg = Math.round(cw * Wg / W / 2) * 2, chg = Math.round(ch * Hg / H / 2) * 2
-  // 81 images couvrent tout le clip : au-delà de 5 s la cadence de génération baisse
+  // 81 frames cover the whole clip: beyond 5 s the generation fps drops
   const fpsGen = Math.min(16, (VACE_IMAGES - 1) / duree)
   const cle = Date.now().toString(36), ctrl = `RCD_${cle}.mp4`, masque = `RCD_${cle}_masque.png`
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', source, '-f', 'lavfi', '-i', `color=0x808080:s=${Wg}x${Hg}:r=${fpsGen}`, '-filter_complex',
     `[0:v]fps=${fpsGen},scale=${cwg}:${chg},setsar=1[c];[1:v][c]overlay=(W-w)/2:(H-h)/2:shortest=1,tpad=stop_mode=clone:stop=${VACE_IMAGES}[v]`,
     '-map', '[v]', '-frames:v', String(VACE_IMAGES), '-an', '-c:v', 'libx264', '-crf', '12', '-pix_fmt', 'yuv420p', path.join(CONFIG.comfyInput, ctrl)])
-  // masque : blanc = à générer ; le clip garde 6 px de recouvrement pour que les bords le prolongent
+  // mask: white = generate; the clip keeps a 6 px overlap so the edges extend it
   const m = 6
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=white:s=${Wg}x${Hg}`, '-vf',
     `drawbox=x=${(Wg - cwg) / 2 + m}:y=${(Hg - chg) / 2 + m}:w=${Math.max(2, cwg - 2 * m)}:h=${Math.max(2, chg - 2 * m)}:color=black:t=fill`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
@@ -1341,7 +1274,7 @@ async function runRecadrage(job, t0) {
   const sortie = Object.values(history.outputs ?? {}).flatMap(o => [...(o.images ?? []), ...(o.videos ?? []), ...(o.gifs ?? [])]).find(f => /\.mp4$/.test(f.filename))
   if (!sortie) throw new Error('recadrage : aucune vidéo en sortie')
   const bords = path.join(CONFIG.comfyOutput, sortie.subfolder ?? '', sortie.filename)
-  // le clip d'origine recollé au centre, à sa cadence, jointure fondue sur 12 px ; les bords suivent sa durée
+  // original clip pasted back at the center, at its fps, 12 px feathered seam; edges follow its duration
   const f = 12, tmp = `${bords}.final.mp4`
   await executer('ffmpeg', ['-v', 'error', '-y', '-i', r.source, '-i', bords, '-f', 'lavfi', '-i', `color=black:s=${r.cw}x${r.ch}`, '-filter_complex',
     `[0:v]scale=${r.cw}:${r.ch},setsar=1,format=yuva420p[c];` +
@@ -1369,13 +1302,13 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
     mode: 'video', purpose: 'creative', recipeId: 'inpaint_video@v1', workflowFile: REFINE_MASKED_RECIPE,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'inpaint_video', videoEngine: null,
     sourceImage: null, inpaintVideo: sourceFile, inpaintMask: maskFile ?? null, inpaintSuivi: suivi !== false, inpaintCible: zoneTexte,
-    // « changer le fond » : on suit la personne et on redessine tout SAUF elle (masque inversé)
+    // "change background": track the person and redraw everything EXCEPT them (inverted mask)
     inpaintInverser: !!inverser && !!zoneTexte,
-    // « retirer » : la zone est d'abord brouillée avec les couleurs voisines, sinon le modèle redessine l'objet
+    // "remove": the area is first blurred with neighboring colors, otherwise the model redraws the object
     inpaintRetirer: !!retirer && !!zoneTexte && !inverser,
-    // objet à poser : photo de référence (input) et nom pour SAM3 ; le collage se fond à force modérée
+    // object to place: reference photo (input) and name for SAM3; the paste blends at moderate strength
     inpaintObjet: objet ?? null, inpaintObjetNom: objet ? String(objetNom ?? '').trim().slice(0, 80) || 'main object' : null,
-    // au loin : l'objet reste derrière les personnes, suit la caméra, prend le flou de la distance
+    // far away: the object stays behind people, follows the camera, takes on distance blur
     inpaintLoin: !!objet && !!loin,
     inpaintDenoise: Number.isFinite(strength) ? Math.min(1, Math.max(0.3, strength)) : INPAINT_VIDEO_DENOISE,
     parentAssetId: parentAssetId ?? null,
@@ -1391,17 +1324,17 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
   return { id }
 }
 
-/* ---------- nouveau fond d'un clip (Wan 2.2 Fun VACE) ----------
-   1) Qwen-Image-Edit 2511 refait le décor de la 1re image en gardant la personne :
-      c'est l'image de référence du nouveau décor.
-   2) SAM3 suit la ou les personnes et BiRefNet les détoure dans cette zone (les jours
-      entre bras et corps en sortent) ; tout le reste devient gris dans la vidéo de
-      contrôle, et le masque (personne resserrée d'une douzaine de pixels, inversé) dit
-      à VACE quoi redessiner : les fentes entre bras et corps deviennent assez larges pour
-      qu'il y peigne le décor. VACE refait le décor sur tout le clip, guidé par la référence.
-   3) Les personnes de la source sont recollées par-dessus, à la définition de la
-      source (petit côté jusqu'à 720) : le détourage vient de BiRefNet (mèches de
-      cheveux, bords doux), limité à la zone que SAM3 suit pour ne garder que les personnes. */
+/* ---------- new background for a clip (Wan 2.2 Fun VACE) ----------
+   1) Qwen-Image-Edit 2511 redoes the first frame's scenery while keeping the
+      person: this is the reference image for the new scenery.
+   2) SAM3 tracks the person(s) and BiRefNet cuts them out within that area (gaps
+      between arms and body are excluded); everything else turns grey in the
+      control video, and the mask (person shrunk by ~12 px, inverted) tells VACE
+      what to redraw, so gaps are wide enough for it to paint scenery. VACE redoes
+      the scenery over the whole clip, guided by the reference.
+   3) The source's people are pasted back on top at source resolution (short side
+      up to 720): the cutout comes from BiRefNet (hair strands, soft edges),
+      limited to the area SAM3 tracks so only the people are kept. */
 const FOND_VACE_MAX_IMAGES = 161
 function grapheFondVace(job) {
   const src = path.join(CONFIG.comfyInput, path.basename(job.inpaintVideo))
@@ -1412,7 +1345,7 @@ function grapheFondVace(job) {
   const H = Math.max(256, Math.round(Math.sqrt(aire / ratio) / 16) * 16)
   const m = driverMeta(job.inpaintVideo)
   const N = Math.min(FOND_VACE_MAX_IMAGES, Math.floor(((m?.frames ?? 81) - 1) / 4) * 4 + 1)
-  // définition du collage : celle de la source, petit côté plafonné à 720
+  // paste resolution: the source's, short side capped at 720
   const k = Math.min(1, 720 / Math.max(1, Math.min(sw || W, sh || H)))
   const W2 = Math.round(((sw || W) * k) / 16) * 16, H2 = Math.round(((sh || H) * k) / 16) * 16
   const decor = String(job.composedPositive ?? '').trim()
@@ -1423,7 +1356,7 @@ function grapheFondVace(job) {
     start_at_step: a, end_at_step: b, return_with_leftover_noise: bruit ? 'enable' : 'disable' } })
   const g = {
     v: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W, custom_height: H, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
-    // 1) référence : la 1re image, décor refait par Qwen-Image-Edit
+    // 1) reference: the first frame, scenery redone by Qwen-Image-Edit
     qe_img: { class_type: 'ImageFromBatch', inputs: { image: ['v', 0], batch_index: 0, length: 1 } },
     qe_px: { class_type: 'ImageScaleToTotalPixels', inputs: { upscale_method: 'lanczos', megapixels: 1, resolution_steps: 1, image: ['qe_img', 0] } },
     qe_unet: { class_type: 'UNETLoader', inputs: { unet_name: 'qwen_image_edit_2511_fp8mixed.safetensors', weight_dtype: 'default' } },
@@ -1438,20 +1371,20 @@ function grapheFondVace(job) {
     qe_ks: { class_type: 'KSampler', inputs: { seed, denoise: 1, model: ['qe_norm', 0], positive: ['qe_pos', 0], negative: ['qe_neg', 0], latent_image: ['qe_lat', 0], steps: 20, cfg: 2.5, sampler_name: 'euler', scheduler: 'simple' } },
     qe_dec: { class_type: 'VAEDecode', inputs: { samples: ['qe_ks', 0], vae: ['qe_vae', 0] } },
     refs: { class_type: 'ImageScale', inputs: { image: ['qe_dec', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
-    // 2) suivi des personnes, vidéo de contrôle au décor gris
+    // 2) people tracking, control video with grey scenery
     sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
     txt: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam3', 1], text: cible } },
     trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['v', 0], model: ['sam3', 0], detection_threshold: 0.35, max_objects: 4, detect_interval: 1, conditioning: ['txt', 0] } },
     m: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '' } },
-    // la personne = détourage BiRefNet dans la zone suivie par SAM3 : les jours entre les bras et le corps,
-    // que le masque SAM3 englobe, en sortent et VACE les redessine aussi
+    // person = BiRefNet cutout within the SAM3-tracked area: gaps between arms and body,
+    // which the SAM3 mask includes, are excluded and VACE redraws them too
     bir: { class_type: 'LoadBackgroundRemovalModel', inputs: { bg_removal_name: 'birefnet.safetensors' } },
     detw: { class_type: 'RemoveBackground', inputs: { bg_removal_model: ['bir', 0], image: ['v', 0] } },
     zonew: { class_type: 'GrowMask', inputs: { mask: ['m', 0], expand: 4, tapered_corners: true } },
     pw: { class_type: 'MaskComposite', inputs: { destination: ['detw', 0], source: ['zonew', 0], x: 0, y: 0, operation: 'multiply' } },
     pb: { class_type: 'ThresholdMask', inputs: { mask: ['pw', 0], value: 0.5 } },
-    // VACE redessine aussi une bande autour de la personne : une fente de quelques pixels resterait grise ;
-    // la vraie personne est recollée par-dessus avec le détourage BiRefNet
+    // VACE also redraws a band around the person (a few-pixel gap would stay grey);
+    // the real person is pasted back on top with the BiRefNet cutout
     mg: { class_type: 'GrowMask', inputs: { mask: ['pb', 0], expand: -Math.max(6, Math.round(W / 70)), tapered_corners: true } },
     bg: { class_type: 'InvertMask', inputs: { mask: ['mg', 0] } },
     gris: { class_type: 'EmptyImage', inputs: { width: W, height: H, batch_size: N, color: 8355711 } },
@@ -1470,11 +1403,11 @@ function grapheFondVace(job) {
     kl: ks(['ml', 0], 10, 10000, ['kh', 0], false),
     trim: { class_type: 'TrimVideoLatent', inputs: { samples: ['kl', 0], trim_amount: ['vace', 3] } },
     dec: { class_type: 'VAEDecode', inputs: { samples: ['trim', 0], vae: ['vae', 0] } },
-    // 3) les personnes de la source recollées à sa définition : détourage BiRefNet dans la zone suivie par SAM3
+    // 3) source people pasted back at its resolution: BiRefNet cutout within the SAM3-tracked area
     vh: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: 16, custom_width: W2, custom_height: H2, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
     det: { class_type: 'RemoveBackground', inputs: { bg_removal_model: ['bir', 0], image: ['vh', 0] } },
     mh2: { class_type: 'ResizeMask', inputs: { mask: ['pb', 0], width: W2, height: H2, keep_proportions: false, upscale_method: 'bilinear', crop: 'disabled' } },
-    // zone serrée : élargie de quelques pixels seulement, sinon le jour entre le bras et le corps y entre et l'ancien sol revient
+    // tight area: grown by only a few pixels, otherwise the gap between arm and body lets the old ground back in
     zone: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mh2', 0], expand: Math.max(3, Math.round(W2 / 320)), incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 2, lerp_alpha: 1, decay_factor: 1 } },
     alpha: { class_type: 'MaskComposite', inputs: { destination: ['det', 0], source: ['zone', 0], x: 0, y: 0, operation: 'multiply' } },
     fond: { class_type: 'ImageScale', inputs: { image: ['dec', 0], upscale_method: 'lanczos', width: W2, height: H2, crop: 'disabled' } },
@@ -1485,14 +1418,14 @@ function grapheFondVace(job) {
   return { g, W, H, N }
 }
 
-/* ---------- colorisation d'un clip (Wan 2.2 Fun VACE) ----------
-   Le clip noir et blanc sert de guide (structure et mouvement), une image de référence
-   déjà colorisée (sa 1re image restaurée par Qwen-Image-Edit) donne les couleurs, et un
-   masque plein demande à VACE de repeindre toute l'image. Le mouvement et le cadrage
-   restent ceux du clip ; la HD vient ensuite (SeedVR2). */
+/* ---------- clip colorization (Wan 2.2 Fun VACE) ----------
+   The black and white clip is the guide (structure and motion), an already
+   colorized reference image (its first frame restored by Qwen-Image-Edit)
+   provides the colors, and a full mask makes VACE repaint the whole image.
+   Motion and framing stay the clip's; HD comes afterwards (SeedVR2). */
 const COLORISER_MAX_IMAGES = 161
 export function enqueueColorisationVideo({ source, reference, masque, bordsSeuls = false, parentAssetId, origineUri }) {
-  // bordsSeuls : pas de couleur, VACE ne reconstruit que les bords laissés vides par la stabilisation (masque obligatoire)
+  // bordsSeuls: no color, VACE only rebuilds the edges left empty by stabilization (mask required)
   for (const n of [source, ...(bordsSeuls ? [] : [reference]), ...(masque || bordsSeuls ? [masque] : [])]) if (!n || /[\\/]/.test(n) || n.startsWith('.')) throw new Error('fichier invalide')
   const src = path.join(CONFIG.comfyInput, source)
   if (!fs.existsSync(src)) throw new Error('clip introuvable')
@@ -1533,7 +1466,7 @@ function grapheColoriser(job) {
       ref0: { class_type: 'LoadImage', inputs: { image: job.colReference } },
       refs: { class_type: 'ImageScale', inputs: { image: ['ref0', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } },
     } : {}),
-    // bords vides laissés par la stabilisation (blanc = image d'origine) : gris dans le guide, à inventer par VACE
+    // empty edges left by stabilization (white = original image): grey in the guide, for VACE to invent
     ...(job.colMasque ? {
       mv: { class_type: 'VHS_LoadVideo', inputs: { video: job.colMasque, force_rate: 16, custom_width: W, custom_height: H, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'AnimateDiff' } },
       mvm: { class_type: 'ImageToMask', inputs: { image: ['mv', 0], channel: 'red' } },
@@ -1607,7 +1540,7 @@ async function runInpaintVideo(job, t0) {
   Object.assign(g['12'].inputs, { denoise: job.inpaintDenoise ?? INPAINT_VIDEO_DENOISE, seed: Number(job.seed) || 42 })
   let zone
   if (job.inpaintCible) {
-    // édition au prompt : SAM3 détecte et suit l'élément nommé, image par image
+    // prompt edit: SAM3 detects and tracks the named element, frame by frame
     g.cface.inputs.text = job.inpaintCible
     zone = ['m0', 0]
     if (job.inpaintInverser) {
@@ -1619,20 +1552,20 @@ async function runInpaintVideo(job, t0) {
   g.inp_peint = { class_type: 'LoadImage', inputs: { image: job.inpaintMask } }
   g.inp_masque = { class_type: 'ImageToMask', inputs: { image: ['inp_peint', 0], channel: 'red' } }
   if (job.inpaintSuivi) {
-    // la zone peinte sur la 1re image amorce le suivi ; plus de texte de détection
+    // the area painted on the first frame seeds tracking; no detection text
     Object.assign(g.trk.inputs, { initial_mask: ['inp_masque', 0], max_objects: 1 })
     delete g.trk.inputs.conditioning
     delete g.cface
     zone = ['m0', 0]
   } else {
-    // zone fixe dans le cadre : le masque peint, répété sur toutes les images
+    // fixed area in the frame: the painted mask, repeated on every frame
     for (const k of ['trk', 'm0', 'cface', 'sam3']) delete g[k]
     g.inp_compte = { class_type: 'GetImageSizeAndCount', inputs: { image: ['20', 0] } }
     g.inp_rep = { class_type: 'RepeatImageBatch', inputs: { image: ['inp_peint', 0], amount: ['inp_compte', 3] } }
     g.inp_masque.inputs.image = ['inp_rep', 0]
     zone = ['inp_masque', 0]
     if (job.inpaintLoin) {
-      // au loin : la retouche épargne les personnes, l'objet reste derrière elles
+      // far away: the retouch spares people, the object stays behind them
       Object.assign(g, {
         loin_sam: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
         loin_t: { class_type: 'CLIPTextEncode', inputs: { clip: ['loin_sam', 1], text: 'person' } },
@@ -1646,14 +1579,14 @@ async function runInpaintVideo(job, t0) {
   }
   }
   g.mg.inputs.mask = zone; g.mg.inputs.expand = 12
-  // nouveau fond : la zone refaite ne mord presque pas sur la personne, et le collage final se fond
-  // sur une bande large et douce, sans liseré de l'ancien décor ni contour redessiné
+  // new background: the redone area barely overlaps the person, and the final composite blends
+  // over a wide, soft band, without a fringe of the old scenery or a redrawn outline
   if (job.inpaintInverser) g.mg.inputs.expand = 4
   if (job.inpaintRetirer) {
-    /* Pré-remplissage : l'image réduite à 24 px puis agrandie et floutée ne garde que les
-       couleurs du décor ; collée dans la zone (élargie), elle efface l'objet avant l'encodage.
-       Le modèle redessine alors du décor au lieu de retrouver l'objet dans le latent. */
-    g.mg.inputs.expand = 40     // avale aussi ce qui « appelle » l'objet (une soucoupe redessine une tasse)
+    /* Pre-fill: the image scaled down to 24 px then up and blurred keeps only the
+       scenery's colors; pasted into the (enlarged) area, it erases the object before
+       encoding, so the model redraws scenery instead of recovering the object. */
+    g.mg.inputs.expand = 40     // also swallows what "suggests" the object (a saucer leads to a cup being redrawn)
     g.inp_taille = { class_type: 'GetImageSizeAndCount', inputs: { image: ['20', 0] } }
     g.inp_mini = { class_type: 'ImageScale', inputs: { image: ['20', 0], upscale_method: 'area', width: 24, height: 0, crop: 'disabled' } }
     g.inp_maxi = { class_type: 'ImageScale', inputs: { image: ['inp_mini', 0], upscale_method: 'bilinear', width: ['inp_taille', 1], height: ['inp_taille', 2], crop: 'disabled' } }
@@ -1684,13 +1617,13 @@ async function runInpaintVideo(job, t0) {
   return n
 }
 
-/* ---------- avatar parlant ----------
-   Une photo + un audio de voix → le personnage dit le texte, lèvres calées.
-   InfiniteTalk (MeiGen-AI, Apache-2.0) sur Wan 2.1 I2V 14B 480p, nœuds cœur de
-   ComfyUI. Un bloc rend 81 images à 25 i/s (3,24 s) ; le suivant reçoit toute la
-   vidéo déjà rendue, reprend l'audio là où elle s'arrête, et ses 9 premières
-   images doublonnent la fin du précédent : on les coupe avant de recoller. Le
-   graphe est construit ici, bloc par bloc, à la durée de l'audio. */
+/* ---------- talking avatar ----------
+   A photo + a voice audio -> the character says the text, lip-synced.
+   InfiniteTalk (MeiGen-AI, Apache-2.0) on Wan 2.1 I2V 14B 480p, ComfyUI core
+   nodes. One block renders 81 frames at 25 fps (3.24 s); the next receives the
+   whole video rendered so far, resumes the audio where it stops, and its first
+   9 frames duplicate the end of the previous one, so they are cut before
+   joining. The graph is built here, block by block, to the audio's duration. */
 const PAROLE_MAX_S = 20
 const PAROLE_BLOC = 81, PAROLE_RECOUVRE = 9
 export function enqueueParole({ image, audio, texte, parentAssetId, personaId }) {
@@ -1752,7 +1685,7 @@ export function grapheParole(job, w, h) {
       acc = [`acc${k}`, 0]
     }
   }
-  // le dernier bloc est entier : on coupe la vidéo à la durée de la voix
+  // the last block is full length: trim the video to the voice's duration
   g.coupe = { class_type: 'ImageFromBatch', inputs: { image: acc, batch_index: 0, length: Math.max(1, Math.ceil(job.paroleDuree * 25)) } }
   g.vid = { class_type: 'CreateVideo', inputs: { images: ['coupe', 0], fps: 25, audio: ['aud', 0] } }
   g.save = { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/parole`, format: 'auto', codec: 'auto' } }
@@ -1760,14 +1693,14 @@ export function grapheParole(job, w, h) {
 }
 
 async function runParole(job, t0) {
-  // 480p : la surface d'entraînement d'InfiniteTalk ; portrait, paysage ou carré selon la photo
+  // 480p: InfiniteTalk's training area; portrait, landscape or square depending on the photo
   let w = 480, h = 832
   try {
     const d = videoSize(path.join(CONFIG.comfyInput, job.sourceImage))
     if (d.width && d.height) {
       if (d.width > d.height * 1.15) { w = 832; h = 480 } else if (d.width * 1.15 >= d.height) { w = 640; h = 640 }
     }
-  } catch { /* format portrait par défaut */ }
+  } catch { /* portrait by default */ }
   const g = grapheParole(job, w, h)
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
@@ -1782,17 +1715,14 @@ async function runParole(job, t0) {
   return n
 }
 
-/* ---------- re-shoot : le même plan, vu d'ailleurs ----------
-   Un clip de la bibliothèque + un angle → le même instant filmé par une autre
-   caméra. MoGe-2 (géométrie métrique, nœud cœur) → CrossViewWarp (Cseti,
-   Apache-2.0) reprojette le clip dans la nouvelle vue, trous en magenta →
-   LTX-2.5 distillé + IC-LoRA CrossView-Warp v2 (Apache-2.0, entraînée sur
-   LTX-2.3) remplit les trous et rend le plan ; deux guides IC à la 1re passe
-   (le warp pour la géométrie, la source pour l'identité), la source seule à
-   la passe ×2. Force 1,3, pivot auto sur le sujet, caméra
-   qui garde la visée de la source ; ~2 min 15 pour 4 s. La variante MiniMax
-   H3 de la LoRA est écartée : sa licence exclut l'UE, le Royaume-Uni et les
-   États-Unis. */
+/* ---------- re-shoot: the same shot, seen from elsewhere ----------
+   A library clip + an angle -> the same moment filmed by another camera.
+   MoGe-2 (metric geometry, core node) -> CrossViewWarp (Cseti, Apache-2.0)
+   reprojects the clip into the new view, holes in magenta -> LTX-2.5 distilled
+   + IC-LoRA CrossView-Warp v2 (Apache-2.0, trained on LTX-2.3) fills the holes
+   and renders the shot; two IC guides on pass 1 (the warp for geometry, the
+   source for identity), the source alone on the x2 pass. Strength 1.3, auto
+   pivot on the subject, camera keeps the source's aim. */
 export const RESHOOT_ANGLES = {
   gauche: { az: -35, el: 0 },
   droite: { az: 35, el: 0 },
@@ -1810,12 +1740,12 @@ export function enqueueReshoot({ source, angle, azimut, elevation, cles, texte, 
   if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('fichier invalide')
   const duree = videoDurationOf(path.join(CONFIG.mediaDir, source))
   if (!duree) throw new Error('vidéo illisible')
-  // 8n+1 images à 24 i/s, 5 s au plus : la longueur que les guides IC acceptent
+  // 8n+1 frames at 24 fps, 5 s max: the length IC guides accept
   const images = Math.max(25, Math.min(121, Math.floor((Math.floor(duree * 24) - 1) / 8) * 8 + 1))
   const borne = (az, el) => ({ az: Math.max(-90, Math.min(90, az)), el: Math.max(-35, Math.min(45, el)) })
   let a = RESHOOT_ANGLES[angle]
   if (!a && Array.isArray(cles) && cles.length >= 2) {
-    // mouvement posé dans la vue 3D : 2 à 4 poses, t de 0 (début du clip) à 1 (fin)
+    // motion set in the 3D view: 2 to 4 poses, t from 0 (clip start) to 1 (end)
     const k = cles.slice(0, 4).map(c => ({ t: Number(c?.t), az: Number(c?.az), el: Number(c?.el) }))
     if (k.some(c => ![c.t, c.az, c.el].every(Number.isFinite))) throw new Error('mouvement invalide')
     k.sort((x, y) => x.t - y.t)
@@ -1843,13 +1773,13 @@ export function enqueueReshoot({ source, angle, azimut, elevation, cles, texte, 
   return { id, images }
 }
 
-/* Clean plate : retirer des personnes ou des véhicules d'un clip, le décor
-   reconstruit derrière. IC-LoRA officielle LTX-2.5 Clean-Plate (Lightricks, licence
-   LTX-2.x Community) sur le même graphe que Re-shoot, guidé par le clip lui-même au
-   lieu de sa vue déplacée. Le son de la prise d'origine est gardé. */
+/* Clean plate: remove people or vehicles from a clip, rebuilding the scenery
+   behind them. Official LTX-2.5 Clean-Plate IC-LoRA (Lightricks, LTX-2.x
+   Community license) on the same graph as Re-shoot, guided by the clip itself
+   instead of its shifted view. The original audio is kept. */
 const CLEANPLATE_LORA = 'ltx/ltx-2.5-22b-ic-lora-clean-plate-1.0.safetensors'
-/* Verrou : « Retirer » efface ce qu'on lui nomme ; nommer un vêtement reviendrait à dévêtir
-   quelqu'un. Un vêtement, un sous-vêtement ou une partie du corps est refusé, pour tout le monde. */
+/* Guard: "Remove" erases what it is told; naming clothing would undress someone.
+   Clothing, underwear or body parts are refused, for everyone. */
 const CIBLE_INTERDITE = /\b(cloth(es|ing)?|outfits?|garments?|dress(es)?|shirts?|t-?shirts?|tops?|blouses?|sweaters?|hoodies?|jackets?|coats?|skirts?|pants|trousers|jeans|shorts|leggings|tights|stockings|bikinis?|swimsuits?|swimwear|lingerie|underwear|panties|thongs?|bras?|towels?|robes?|sarongs?|veils?|hijabs?|fabric|skin|chest|breasts?|nipples?|butt|crotch|vêtements?|habits?|robes?|chemises?|jupes?|pantalons?|culottes?|soutien-?gorges?|maillots?|sous-vêtements?)\b/i
 export function enqueueCleanPlate({ source, cible, decor, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'people'
@@ -1860,7 +1790,7 @@ export function enqueueCleanPlate({ source, cible, decor, parentAssetId, persona
   const duree = videoDurationOf(path.join(CONFIG.mediaDir, source))
   if (!duree) throw new Error('vidéo illisible')
   const images = Math.max(25, Math.min(121, Math.floor((Math.floor(duree * 24) - 1) / 8) * 8 + 1))
-  // la forme des prompts de la fiche du modèle : le décor d'abord, puis ce qui ne doit plus y être
+  // prompt shape from the model card: the scenery first, then what must no longer be there
   const prompt = `An empty clean plate of the exact same scene${d ? `: ${d},` : ''} with the same background, lighting and camera movement as the source video, `
     + `but with no ${c} anywhere in the frame. No ${c}, and no cast shadows or reflections of ${c}. Photorealistic footage, high detail. Keep everything else intact.`
   const id = `cleanplate-${Date.now().toString(36)}`
@@ -1880,8 +1810,8 @@ export function enqueueCleanPlate({ source, cible, decor, parentAssetId, persona
   return { id, images }
 }
 
-/* Effets vidéo en un clic : les IC-LoRA officielles LTX-2.5 de Lightricks (licence LTX-2.x Community),
-   sur le même graphe que Clean plate (le clip guide seul, deux passes). Chaque effet = sa LoRA et sa phrase. */
+/* One-click video effects: the official LTX-2.5 IC-LoRAs from Lightricks (LTX-2.x Community license),
+   on the same graph as Clean plate (the clip as sole guide, two passes). Each effect = its LoRA and its phrase. */
 export const EFFETS_LTX = {
   'refine-details': { lora: 'ltx/ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors', nom: 'Refine Details',
     prompt: () => 'Sharp photographic detail, crisp textures, natural grain, high resolution footage. The exact same scene, motion and framing.' },
@@ -1891,24 +1821,24 @@ export const EFFETS_LTX = {
     prompt: () => 'The exact same footage, sharp and in focus, with no motion blur and no defocus. Same scene, same motion.' },
   'decompression': { lora: 'ltx/ltx-2.5-22b-ic-lora-decompression-0.9.safetensors', nom: 'Remove Compression',
     prompt: () => 'The exact same footage, clean, with no compression artifacts, no blocking and no banding. Same scene, same motion.' },
-  /* Les trois suivantes suivent leur fiche : une seule passe à la résolution de sortie (la 2e passe, guidée
-     par la source, ramène le gris ou efface l'eau) et un prompt qui décrit la scène : la description est
-     écrite par le modèle de vision sur la 1re image, au moment du rendu (`decrit`). */
+  /* The next three follow their model card: a single pass at output resolution (the 2nd pass, guided
+     by the source, brings back the grey or erases the water) and a prompt describing the scene,
+     written by the vision model from the first frame at render time (`decrit`). */
   'restore': { lora: 'ltx/ltx-2.5-22b-ic-lora-restore-1.0.safetensors', nom: 'Restore', unePasse: true, decrit: true,
     neg: 'logos, signage, lettering, modern vehicles, graffiti, modern buildings, blurry, soft, plastic, smeared detail, oversharpened halos, warped faces',
     prompt: (t, d) => `${d || 'The same scene'}${t ? ` ${t}.` : ''} Natural colour, sharp photographic detail, crisp faces and clothing texture, natural grain, high resolution footage.` },
   'colorize': { lora: 'ltx/ltx-2.5-22b-ic-lora-colorization-0.9.safetensors', nom: 'Colorize', unePasse: true, decrit: true,
     neg: 'blur, distorted face, text, subtitles, logo, watermark, monochrome, sepia, desaturated',
     prompt: (t, d) => `Reference shows ${d ? d.replace(/\.$/, '') : 'the scene'}, in black and white. Edited shows the same scene with natural colors restored. COLORIZE the same scene in vivid natural colors${t ? `: ${t}` : ', with realistic skin tones, true-to-life clothing and surroundings'}. Subject identity, framing, and background geometry are identical to the reference; only color information differs between reference and edited.` },
-  // force 1,25 : à 1 l'eau reste timide (quelques éclaboussures) ; la fiche situe les déformations à partir de 1,5
+  // strength 1.25: at 1 the water stays timid; the model card places distortions from 1.5
   'water': { lora: 'ltx/ltx-2.5-22b-ic-lora-water-simulation-0.9.safetensors', nom: 'Add Water', unePasse: true, decrit: true, force: 1.25,
     neg: '',
     prompt: (t, d) => `Reference shows ${d ? d.replace(/\.$/, '') : 'the scene'}. Edited shows the same scene with water added. ADD WATER ${t || 'the whole ground is flooded with ankle-deep clear water that ripples and surges, splashing up with white foam around every step and every wheel, the lights reflecting and dancing on its moving surface'}. Subject identity, clothing, framing, and background geometry are identical to the reference; only water-related elements differ between reference and edited.` },
 }
-/* Transitions générées du montage : LTX-2.5 relie la dernière image d'un plan à la première du suivant
-   (deux guides à 0,7 en 1re et dernière position), avec le son. Les effets sont écrits selon la règle « l'effet
-   couvre tout le cadre, la scène change pendant qu'il couvre, il se dissipe sur le plan suivant ». Les images de
-   bord arrivent déjà coupées et recadrées au format du montage (montage.cadresTransition). */
+/* Generated edit transitions: LTX-2.5 links one shot's last frame to the next shot's first
+   (two guides at 0.7 at first and last position), with audio. Effects follow the rule "the
+   effect covers the whole frame, the scene changes while it covers, it dissipates on the next
+   shot". Edge frames arrive already trimmed and cropped to the edit's aspect (montage.cadresTransition). */
 export const EFFETS_TRANSITION = {
   fondu: { nom: 'Morph', chemin: 'The first scene flows and morphs continuously into the second scene in one fluid movement, shapes and colours blending smoothly', camera: 'slow continuous push-in', son: 'a soft airy whoosh' },
   smoke: { nom: 'Smoke', chemin: 'Thick billowing smoke rolls in from the edges and swallows the first scene; the smoke swirls and thins, revealing the second scene as it clears', camera: 'slow push-in through the smoke', son: 'a deep whoosh of rolling smoke' },
@@ -1920,11 +1850,11 @@ export const EFFETS_TRANSITION = {
   eau: { nom: 'Water', chemin: 'The first scene liquefies into clear rushing water that rises as a tall wave, curls through the frame and reshapes itself into the second scene as the water settles', camera: 'static camera', son: 'rushing water and a soft splash' },
   melt: { nom: 'Melt', chemin: 'The first scene softens and melts downward in thick glossy drips, the whole frame liquefying into a swirling pool of color that rises and solidifies into the second scene', camera: 'static camera', son: 'viscous dripping and a low warm hum' },
 }
-// au format du montage, environ 0,9 Mpx, multiples de 32
+// at the edit's aspect, about 0.9 MP, multiples of 32
 const TAILLES_TRANSITION = { '9:16': [704, 1280], '16:9': [1280, 704], '1:1': [960, 960], '4:5': [832, 1024] }
 function promptTransition(effet, secondes) {
   const e = EFFETS_TRANSITION[effet]
-  // au-delà de 5 s, l'effet est tenu dans une fenêtre de 3 s au milieu : sans ça il s'étale sur toute la prise
+  // beyond 5 s, the effect is held in a 3 s window in the middle, otherwise it spreads over the whole take
   const lead = (secondes - 3) / 2
   const fenetre = secondes > 5 ? ` For the first ${lead} seconds the opening scene plays on with gentle natural motion. The transition happens between ${lead} and ${lead + 3} seconds. For the last ${lead} seconds the end scene plays on with gentle natural motion and settles on the final frame.` : ''
   return `Use the provided start image as the first frame and the provided end image as the final frame anchor.${fenetre} ${e.chemin}. Camera: ${e.camera}. The sound is ${e.son}. The video ends exactly on the end image.`
@@ -2026,8 +1956,8 @@ export function enqueueEffetLtx({ source, effet, texte, parentAssetId, personaId
   pump()
   return { id, images }
 }
-/* Restore, Colorize, Add Water : leur prompt décrit la scène. Le modèle de vision la lit sur la 1re image dès la
-   mise en file, dans un bloc Ollama : dans le job, la carte est tenue par le rendu et la vision passerait sur CPU. */
+/* Restore, Colorize, Add Water: their prompt describes the scene. The vision model reads it from the first
+   frame at enqueue time, in an Ollama block: during the job the GPU is held by the render and vision would run on CPU. */
 const descriptionsEffet = new Map()
 async function decrireSource(src, id) {
   const img = path.join(CONFIG.mediaDir, '.stage', `${id}_desc.jpg`)
@@ -2038,8 +1968,8 @@ async function decrireSource(src, id) {
   } catch { return null } finally { fs.rmSync(img, { force: true }) }
 }
 
-/* Détourer : SAM3 suit la personne, tout le reste passe sur fond vert uni, sans rien
-   redessiner. Sortie MP4 prête pour un incrustateur ; son d'origine gardé. CPU/GPU modestes. */
+/* Cutout: SAM3 tracks the person, everything else becomes a flat green background, nothing is
+   redrawn. MP4 output ready for a keyer; original audio kept. Modest CPU/GPU needs. */
 export function enqueueDetour({ source, cible, alpha, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'person'
   if (t0Hit(c)) throw new Error('texte refusé (liste T0)')
@@ -2057,10 +1987,10 @@ export function enqueueDetour({ source, cible, alpha, parentAssetId, personaId }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
-/* Netteté : SeedVR2 3B agrandit n'importe quel clip à 1080 de petit côté, sans changer
-   le mouvement. Apache-2.0. Le refine Wan reste la voie des brouillons. */
+/* Sharpness: SeedVR2 upscales any clip to a 1080 short side without changing the motion.
+   Apache-2.0. Wan refine remains the path for drafts. */
 const SEEDVR_COTE = 1080
-/** Chemin d'une source SeedVR2 : un média du studio, ou « input:<nom> » pour un clip envoyé par le propriétaire. */
+/** Path of a SeedVR2 source: a studio media file, or "input:<name>" for a clip uploaded by the owner. */
 const sourceSeedvr = source => source.startsWith('input:') ? path.join(CONFIG.comfyInput, source.slice(6)) : path.join(CONFIG.mediaDir, source)
 export function enqueueSeedvr({ source, parentAssetId, personaId, origineUri }) {
   if (!source || /[\\/]/.test(source) || source.replace(/^input:/, '').startsWith('.')) throw new Error('fichier invalide')
@@ -2079,7 +2009,7 @@ export function enqueueSeedvr({ source, parentAssetId, personaId, origineUri }) 
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
-/** Cadre utile d'une vidéo à bandes noires (détection sur les 2 premières secondes), ou null. */
+/** Useful frame of a letterboxed video (detected over the first 2 seconds), or null. */
 function bandesNoires(src) {
   try {
     const sortie = spawnSync('ffmpeg', ['-hide_banner', '-t', '2', '-i', src, '-vf', 'cropdetect=24:2:0', '-f', 'null', '-'], { encoding: 'utf8', timeout: 30_000 }).stderr ?? ''
@@ -2096,15 +2026,15 @@ function bandesNoires(src) {
 async function runSeedvr(job, t0) {
   const src = sourceSeedvr(job.reshootSource)
   let son = false, fps = 24
-  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* muet */ }
+  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* no audio */ }
   try {
     const [n, d] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().split('/').map(Number)
     if (n && d) fps = n / d
-  } catch { /* 24 par défaut */ }
-  // bandes noires retirées avant l'agrandissement : sinon elles sont agrandies avec le reste
+  } catch { /* 24 by default */ }
+  // black bars removed before upscaling, otherwise they get upscaled too
   const cadre = bandesNoires(src)
-  // modèle 7B : visages naturels là où le 3B les rend cireux ; petite source (moins de 360p) en deux passes,
-  // un saut x6 d'un coup ne reconstruit presque rien
+  // 7B model: natural faces where the 3B makes them waxy; small sources (under 360p) in two passes,
+  // since a single x6 jump reconstructs almost nothing
   const d = videoSize(src), petite = Math.min(d.width, d.height) < 360
   const modele = 'seedvr2_ema_7b_fp16.safetensors'
   const reglages = { dit: ['dit', 0], vae: ['vae', 0], seed: 42, batch_size: 33, uniform_batch_size: true, color_correction: 'lab', temporal_overlap: 3, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false }
@@ -2121,7 +2051,7 @@ async function runSeedvr(job, t0) {
     vid: { class_type: 'CreateVideo', inputs: { images: ['up', 0], ...(son ? { audio: ['src', 2] } : {}), fps } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/seedvr`, format: 'auto', codec: 'auto' } },
   }
-  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  await comfy.freeMemory().catch(() => { /* non-fatal */ })
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -2131,8 +2061,8 @@ async function runSeedvr(job, t0) {
   return n
 }
 
-/* Restauration HD d'une photo : SeedVR2 (modèle de restauration) l'agrandit en reconstruisant le
-   détail fin ; la retouche (rayures, couleur) se fait avant, par une passe d'édition ordinaire. */
+/* Photo HD restoration: SeedVR2 (a restoration model) upscales it, rebuilding fine detail;
+   retouching (scratches, color) is done beforehand by a regular edit pass. */
 export function enqueueRestaurationHd({ source, parentAssetId, personaId, cote, origineUri }) {
   if (!source || /[\\/]/.test(source) || source.startsWith('.')) throw new Error('image source invalide')
   const id = `rst-${Date.now().toString(36)}`
@@ -2154,7 +2084,7 @@ async function runRestaurationHd(job, t0) {
     up: { class_type: 'SeedVR2VideoUpscaler', inputs: { image: ['src', 0], dit: ['dit', 0], vae: ['vae', 0], seed: 42, resolution: job.restaurationCote, max_resolution: 4096, batch_size: 1, uniform_batch_size: false, color_correction: 'lab', temporal_overlap: 0, prepend_frames: 0, input_noise_scale: 0, latent_noise_scale: 0, offload_device: 'cpu', enable_debug: false } },
     save: { class_type: 'SaveImage', inputs: { images: ['up', 0], filename_prefix: `creatoros/${job.id}/restauration` } },
   }
-  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  await comfy.freeMemory().catch(() => { /* non-fatal */ })
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -2164,9 +2094,9 @@ async function runRestaurationHd(job, t0) {
   return n
 }
 
-/* Stage : une scène décrite par des nombres devient une maquette grise côté serveur
-   (scripts/stage_clay.py), puis un plan fini : IC-LoRA LTX-2.5 Layout-to-Render (Lightricks), même
-   graphe que Clean-Plate. Aucun fichier n'entre, le verrou d'envoi des visiteurs reste fermé. */
+/* Stage: a scene described by numbers becomes a grey mockup server-side
+   (scripts/stage_clay.py), then a finished shot: LTX-2.5 Layout-to-Render IC-LoRA (Lightricks), same
+   graph as Clean-Plate. No file is uploaded, so the visitor upload lock stays closed. */
 const STAGE_LORA = 'ltx/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors'
 const borne = (v, min, max, nom) => {
   const n = Number(v)
@@ -2215,11 +2145,11 @@ export function enqueueStage({ scene, prompt, format, secondes, personaId }) {
   return { id, images }
 }
 
-/* Danse en scène 3D : la danse Mixamo jouée par le mannequin dans un décor en volumes, filmée par une caméra
-   qui l'accompagne (scripts/scene_danse.py, Blender) ; la 1re image est repeinte avec le personnage de la photo
-   (Qwen Edit, deux images), puis LTX-2.5 + IC-LoRA Layout-to-Render en fait une vraie vidéo : le décor bouge
-   avec la caméra, la danseuse se déplace dedans. */
-/* Les studios de danse : la maquette est dans scripts/scene_danse.py (même identifiant), la phrase sert à repeindre la 1re image. */
+/* 3D dance: the Mixamo dance played by the mannequin in a blocky set, filmed by a following
+   camera (scripts/scene_danse.py, Blender); the first frame is repainted with the photo's character
+   (Qwen Edit, two images), then LTX-2.5 + Layout-to-Render IC-LoRA turns it into a real video: the set
+   moves with the camera, the dancer moves within it. */
+/* Dance studios: the mockup is in scripts/scene_danse.py (same id); the phrase is used to repaint the first frame. */
 export const STUDIOS_DANSE = {
   salon: { nom: 'Salon', texte: 'a bright apartment living room with white walls, a grey sofa with a low wooden coffee table in front of it, a small side table and a plant, light wooden floor' },
   ruelle: { nom: 'Ruelle hip-hop', texte: 'a narrow urban alley with colourful graffiti on brick walls, dark asphalt ground, a dumpster and wooden crates, completely deserted with nobody else anywhere' },
@@ -2255,11 +2185,11 @@ export function enqueueDanse3d({ fbx, still, decor, scene: description, personaI
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'danse3d', videoEngine: 'ltx_layout',
     reshootSource: path.join('.stage', `${id}.mp4`), danseFbx: fbx, danseStill: still, danseSuivi: suivi === true ? true : undefined, danseDecor: STUDIOS_DANSE[decor] ? decor : 'salon', stageForce: Number.isFinite(stageForce) ? stageForce : undefined,
     reshootAngle: 'danse 3d', reshootCamera: { az: 0, el: 0 },
-    /* Durée (propriétaire, comparatifs de capture) : 5 s par défaut ; LTX veut 8k+1 images à 24 i/s. « debut » : la
-       danse part de sa 1re image au lieu de l'image bras baissés choisie par la scène (pour la caler sur une source). */
+    /* Duration (owner option): 5 s by default; LTX needs 8k+1 frames at 24 fps. "debut": the dance
+       starts from its first frame instead of the arms-down frame picked by the scene (to align with a source). */
     reshootImages: Number.isFinite(secondes) ? Math.floor(Math.min(21, Math.max(5, secondes)) * 24 / 8) * 8 + 1 : 121,
     danseDebut: debut === true || undefined,
-    // propriétaire : pas de Swap enchaîné (banc : la vidéo LTX seule)
+    // owner option: no chained Swap (the LTX video alone)
     danseSansSwap: sansSwap === true || undefined,
     parentAssetId: null, userPrompt: d || 'a woman dancing', userDirectives: null,
     composedPositive: `A real video of the woman dancing with energy and a big smile${d ? `, ${d}` : ''}. Real smartphone footage, natural light, the camera follows her. She is the only person in the place: nobody else appears at any moment, no passers-by, no people in the background, not even tiny figures far away.`,
@@ -2274,8 +2204,8 @@ const SCRIPTS = path.join(path.dirname(new URL(import.meta.url).pathname), '..',
 const pythonComfy = () => (fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3')
 const rendreClay = (json, sortie) => executer(pythonComfy(), [path.join(SCRIPTS, 'stage_clay.py'), json, sortie], { timeout: 180_000 })
 
-/* Modèles de Stage : un objet 3D du studio (media/<job>.glb) ou un .glb importé par le
-   propriétaire (media/.stage/imp_*.glb). Le client ne donne qu'un nom, jamais un chemin. */
+/* Stage models: a studio 3D object (media/<job>.glb) or a .glb imported by the
+   owner (media/.stage/imp_*.glb). The client only gives a name, never a path. */
 export function cheminModele(nom) {
   const n = path.basename(String(nom))
   if (n !== nom || !/^[\w.-]+\.glb$/.test(n)) return null
@@ -2283,9 +2213,9 @@ export function cheminModele(nom) {
   return fs.existsSync(f) ? f : null
 }
 
-/* Objet 3D : une photo devient un GLB avec TRELLIS.2 (Microsoft, MIT), nœuds du cœur de
-   ComfyUI. SAM3 isole l'objet nommé (BiRefNet n'a pas de noyau pour les cartes récentes). Le GLB reste à côté du média ;
-   la bibliothèque reçoit un tour complet en maquette grise. */
+/* 3D object: a photo becomes a GLB with TRELLIS.2 (Microsoft, MIT), ComfyUI core
+   nodes. SAM3 isolates the named object (BiRefNet has no kernel for recent GPUs). The GLB stays next to the media;
+   the library receives a full turntable as a grey mockup. */
 export function enqueueObjet3d({ sourceFile, cible, parentAssetId, personaId }) {
   const c = String(cible ?? '').trim().slice(0, 80) || 'main object'
   if (t0Hit(c)) throw new Error('texte refusé (liste T0)')
@@ -2333,14 +2263,14 @@ function grapheObjet3d(job) {
     dt: { class_type: 'VaeDecodeTextureTrellis', inputs: { samples: ['k3', 0], vae: ['vt', 0], shape_subdivides: ['dm', 1] } },
     dec: { class_type: 'DecimateMesh', inputs: { mesh: ['dm', 0], target_face_count: 200000, placement_mode: 'midpoint' } },
     sm: { class_type: 'MeshSmoothNormals', inputs: { mesh: ['dec', 0], crease_angle: 180 } },
-    // vraie texture cuite : peintes sur les sommets, les couleurs sortent tachées
+    // real baked texture: vertex-painted colors come out blotchy
     uw: { class_type: 'UnwrapMesh', inputs: { mesh: ['sm', 0], segmenter: 'pec', resolution: 2048, padding: 1, weld_distance: 0.0002 } },
     bk: { class_type: 'BakeTextureFromVoxel', inputs: { mesh: ['uw', 0], voxel_colors: ['dt', 0], reference_mesh: ['dm', 0], texture_size: 2048 } },
     ap: { class_type: 'ApplyTextureToMesh', inputs: { mesh: ['uw', 0], base_color: ['bk', 0], metallic: ['bk', 1], roughness: ['bk', 2] } },
     save: { class_type: 'SaveGLB', inputs: { mesh: ['ap', 0], filename_prefix: `creatoros/${job.id}/objet` } },
   }
 }
-/** Le GLB de ComfyUI embarque le graphe et ses chemins dans asset.extras : on le retire avant de le servir. */
+/** ComfyUI's GLB embeds the graph and its paths in asset.extras: strip it before serving. */
 function glbPropre(b) {
   const lj = b.readUInt32LE(12)
   const js = JSON.parse(b.subarray(20, 20 + lj).toString('utf8'))
@@ -2361,13 +2291,13 @@ async function runObjet3d(job, t0) {
   if (!f) throw new Error('modèle 3D non produit')
   const glb = path.join(CONFIG.mediaDir, `${job.id}.glb`)
   fs.writeFileSync(glb, glbPropre(fs.readFileSync(path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename))))
-  // un tour complet en maquette grise pour la bibliothèque
+  // a full turntable as a grey mockup for the library
   const dossier = path.join(CONFIG.comfyOutput, 'creatoros', job.id)
   fs.mkdirSync(dossier, { recursive: true })
   const json = path.join(dossier, 'tour.json'), mp4 = path.join(dossier, 'tour.mp4')
   const camera = Array.from({ length: 13 }, (_, i) => { const a = i / 12 * 2 * Math.PI; return { t: i / 12, oeil: [3.4 * Math.sin(a), 1.3, 3.4 * Math.cos(a)], cible: [0, 0.75, 0], fov: 32 } })
   fs.writeFileSync(json, JSON.stringify({ largeur: 720, hauteur: 720, images: 97, objets: [{ type: 'modele', fichier: glb, x: 0, z: 0, h: 1.5 }], camera, lineaire: true }))
-  // le tour texturé (Blender, le GLB tel qu'il sort, couleurs comprises) ; la maquette grise en repli
+  // textured turntable (Blender, the GLB as output, colors included); grey mockup as fallback
   let texture = true
   try { await executer(path.join(os.homedir(), 'apps', 'blender', 'blender'), ['-b', '-P', path.join(SCRIPTS, 'tour_texture.py'), '--', glb, mp4, '97', '720'], { timeout: 600_000 }) }
   catch (e) { texture = false; console.warn(`[job ${job.id}] tour texturé impossible, maquette grise — ${String(e.message || e).slice(0, 200)}`); await rendreClay(json, mp4) }
@@ -2377,7 +2307,7 @@ async function runObjet3d(job, t0) {
   return n
 }
 
-/* Entraînement d'un personnage (cf. entrainement.js) : LoRA FLUX.2 Klein ajoutée au personnage. */
+/* Character training (see entrainement.js): FLUX.2 Klein LoRA added to the character. */
 export function enqueueEntrainement({ personaId, images, declencheur, pas, essai, moteur = 'klein', legendes = null }) {
   if (!aiToolkitPret(moteur)) throw new Error(moteur === 'flux3' ? 'ai-toolkit pour FLUX 3 introuvable : installe-le dans ~/ai-toolkit-flux3, ou indique son dossier dans CREATOROS_AI_TOOLKIT_FLUX3' : 'ai-toolkit introuvable : installe-le, ou indique son dossier dans CREATOROS_AI_TOOLKIT')
   if (!moteurEntrainementPret(moteur)) throw new Error(`entraînement ${MOTEURS_ENTRAINEMENT[moteur]?.nom ?? moteur} indisponible sur ce studio`)
@@ -2395,7 +2325,7 @@ export function enqueueEntrainement({ personaId, images, declencheur, pas, essai
   store.createJob(row); queue.push(row); pump()
   return { id }
 }
-/** Avancement des entraînements en cours (pas faits / pas prévus), pour l'écran du personnage. */
+/** Progress of running trainings (steps done / planned), for the character screen. */
 export const avancementEntrainements = new Map()
 async function runEntrainement(job, t0) {
   store.markStarted(job.id, null)
@@ -2421,9 +2351,9 @@ async function runEntrainement(job, t0) {
   return 0
 }
 
-/* Doublage : InfiniteTalk (Wan 2.1, Apache-2.0), nœuds du cœur de ComfyUI. Le clip est réencodé
-   et débruité en partie : la scène et le geste restent, les lèvres suivent la nouvelle voix.
-   81 images à 25 i/s, soit 3,2 s par passe : un clip plus long est doublé sur ses 3,2 premières secondes. */
+/* Dubbing: InfiniteTalk (Wan 2.1, Apache-2.0), ComfyUI core nodes. The clip is re-encoded
+   and partially denoised: scene and motion stay, lips follow the new voice.
+   81 frames at 25 fps, i.e. 3.2 s per pass: a longer clip is dubbed over its first 3.2 seconds. */
 export function enqueueDoublage({ source, audio, texte, parentAssetId, personaId }) {
   const cle = Date.now().toString(36)
   const video = `DUB_${cle}${path.extname(source) || '.mp4'}`, son = `DUB_${cle}${path.extname(audio) || '.wav'}`
@@ -2484,8 +2414,8 @@ async function runDoublage(job, t0) {
   return n
 }
 
-/* Relance d'un rendu spécialisé (doublage, recadrage, 3D, re-shoot…) avec ses réglages d'origine,
-   si ses fichiers d'entrée sont encore là. Les rendus photo et vidéo ordinaires passent par enqueue. */
+/* Reruns a specialized render (dubbing, reframe, 3D, re-shoot...) with its original settings,
+   if its input files still exist. Regular photo and video renders go through enqueue. */
 export const OPS_RELANCABLES = new Set(['transition', 'effetltx', 'inpaint', 'restauration_hd', 'inpaint_video', 'cleanplate', 'detour', 'doublage', 'musique', 'objet3d', 'parole', 'reshoot', 'seedvr', 'stage', 'interpolate', 'foley', 'essayage', 'photodump', 'style_ref', 'recadrage', 'transparent', 'profondeur', 'extension'])
 export function relancerSpecial(p) {
   if (!OPS_RELANCABLES.has(p.op)) throw new Error('ce rendu ne se relance pas ainsi')
@@ -2503,8 +2433,8 @@ export function relancerSpecial(p) {
   return { id: row.id }
 }
 
-/* Extension : un workflow ComfyUI fourni par une extension (cf. extensions.js), déjà rempli et
-   vérifié. Sa sortie est une image, une vidéo ou un son ; les sons rejoignent la bibliothèque audio. */
+/* Extension: a ComfyUI workflow provided by an extension (see extensions.js), already filled and
+   checked. Its output is an image, a video or a sound; sounds go to the audio library. */
 export function enqueueExtension({ graphe, sortie, nom, extensionId, personaId, parentAssetId, prompt }) {
   const id = `ext-${Date.now().toString(36)}`
   for (const n of Object.values(graphe)) {
@@ -2541,20 +2471,20 @@ async function runExtension(job, t0) {
   return n
 }
 
-/* Musique et bruitages : ACE-Step 1.5 turbo (MIT), nœuds du cœur de ComfyUI. Le morceau
-   rejoint le dossier des musiques du montage et du reel. */
-/* Réglages explicites d'un morceau, tous facultatifs : vides, le studio les déduit du style
-   (profilMusique) et des paroles (langueParoles). Listes blanches = les choix du nœud
-   TextEncodeAceStepAudio1.5. */
+/* Music and sound effects: ACE-Step 1.5 turbo (MIT), ComfyUI core nodes. The track
+   goes to the music folder used by editing and reels. */
+/* Explicit track settings, all optional: when empty, the studio infers them from the style
+   (profilMusique) and lyrics (langueParoles). Allowlists = the choices of the
+   TextEncodeAceStepAudio1.5 node. */
 const NOTES_MUSIQUE = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
 const TONALITES_MUSIQUE = new Set(NOTES_MUSIQUE.flatMap(n => [`${n} major`, `${n} minor`]))
 const MESURES_MUSIQUE = new Set(['2', '3', '4', '6'])
 const LANGUES_MUSIQUE = new Set(['ar', 'az', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es', 'fa', 'fi', 'fr', 'he', 'hi', 'hr', 'ht', 'hu', 'id', 'is', 'it', 'ja', 'ko', 'la', 'lt', 'ms', 'ne', 'nl', 'no', 'pa', 'pl', 'pt', 'ro', 'ru', 'sa', 'sk', 'sr', 'sv', 'sw', 'ta', 'te', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'yue', 'zh', 'unknown'])
-/* Type de voix chantée → étiquette ajoutée aux tags ACE-Step ; « none » rend le morceau instrumental. */
+/* Singing voice type -> label added to the ACE-Step tags; "none" makes the track instrumental. */
 const VOIX_CHANTEES = { female: 'female vocals', male: 'male vocals', duet: 'male and female duet vocals', choir: 'choir vocals', none: 'instrumental, no vocals' }
 const BPM_MIN = 40, BPM_MAX = 220
 
-/** Valide les réglages facultatifs d'un morceau ; un champ vide reste null (comportement automatique). */
+/** Validates a track's optional settings; an empty field stays null (automatic behavior). */
 function reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments }) {
   const vide = v => v === undefined || v === null || String(v).trim() === '' || String(v).trim() === 'auto'
   const r = { bpm: null, tonalite: null, mesure: null, langue: null, voix: null, instruments: [] }
@@ -2564,7 +2494,7 @@ function reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments }) {
     r.bpm = Math.min(BPM_MAX, Math.max(BPM_MIN, n))
   }
   if (!vide(tonalite)) {
-    // notation courte acceptée (« Dm », « F# », « Bbm ») : l'interface évite ainsi le mot « minor », refusé par le filtre de contenu
+    // short notation accepted ("Dm", "F#", "Bbm"), so the UI avoids the word "minor", which the content filter rejects
     const court = /^([A-Ga-g][#b]?)(m?)$/.exec(String(tonalite).trim())
     const k = court ? `${court[1][0].toUpperCase()}${court[1].slice(1)} ${court[2] ? 'minor' : 'major'}`
       : String(tonalite).trim().replace(/\s+/g, ' ').replace(/^([a-g])/, c => c.toUpperCase()).replace(/ (Major|Minor)$/i, m => m.toLowerCase())
@@ -2594,7 +2524,7 @@ function reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments }) {
 export function enqueueMusique({ prompt, paroles, secondes, genre, personaId, bpm, tonalite, mesure, langue, voix, instruments }) {
   const bruit = genre === 'bruitage'
   const texte = String(prompt ?? '').trim().slice(0, 400)
-  // un bruitage n'a que sa description : ni paroles, ni voix, ni réglages musicaux
+  // a sound effect only has its description: no lyrics, voice or musical settings
   const reglages = bruit ? reglagesMusique({}) : reglagesMusique({ bpm, tonalite, mesure, langue, voix, instruments })
   const mots = bruit || reglages.voix === 'none' ? '' : String(paroles ?? '').trim().slice(0, 3000)
   if (!texte && !reglages.instruments.length) throw new Error(bruit ? 'décris le son' : 'décris le morceau')
@@ -2614,14 +2544,14 @@ export function enqueueMusique({ prompt, paroles, secondes, genre, personaId, bp
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
-/** Tags ACE-Step : le style, puis les instruments, puis le type de voix chantée. */
+/** ACE-Step tags: the style, then instruments, then the singing voice type. */
 function tagsMusique(job) {
   if (job.musiqueBruitage) return `sound effect, foley, no music, no vocals, ${job.userPrompt}`
   const instr = (job.musiqueInstruments ?? []).filter(x => !String(job.userPrompt).toLowerCase().includes(String(x).toLowerCase()))
   return [job.userPrompt, ...instr, job.musiqueVoix ? VOIX_CHANTEES[job.musiqueVoix] : null].filter(Boolean).join(', ')
 }
-/* Tempo et tonalité du morceau d'après le style décrit : le premier genre reconnu donne son tempo
-   et une tonalité courante du genre ; un tempo écrit dans la consigne (« 128 bpm ») l'emporte. */
+/* Track tempo and key from the described style: the first recognized genre gives its tempo
+   and a common key for the genre; a tempo written in the prompt ("128 bpm") wins. */
 const PROFILS_MUSIQUE = [
   [/drum ?(and|&|n) ?bass|\bdnb\b|jungle/, 174, 'D minor'],
   [/\btrap\b|drill/, 140, 'C minor'],
@@ -2651,7 +2581,7 @@ function profilMusique(style) {
   return { bpm, keyscale: trouve?.[2] ?? 'E minor' }
 }
 
-/* La langue chantée, reconnue aux mots-outils les plus fréquents des paroles (anglais par défaut). */
+/* Sung language, detected from the most frequent function words in the lyrics (English by default). */
 const MOTS_LANGUE = {
   fr: /\b(je|tu|nous|vous|les|des|est|une|pas|que|qui|dans|pour|avec|mon|ton|toi|moi|et)\b/g,
   es: /\b(yo|tú|que|los|las|una|por|con|para|mi|tu|es|el|la|y|corazón|amor)\b/g,
@@ -2674,9 +2604,9 @@ function langueParoles(paroles) {
   return meilleure
 }
 
-/* Des paroles sans balises sont structurées pour ACE-Step : les strophes séparées par une ligne vide
-   alternent [Verse] / [Chorus] (la 2e est le refrain, reprise après le 2e couplet) ; un bloc d'un seul
-   tenant est coupé en strophes de 4 lignes. Des paroles déjà balisées restent telles quelles. */
+/* Untagged lyrics are structured for ACE-Step: stanzas separated by a blank line alternate
+   [Verse] / [Chorus] (the 2nd is the chorus, repeated after the 2nd verse); a single block
+   is split into 4-line stanzas. Already tagged lyrics are kept as is. */
 function structurerParoles(paroles) {
   const t = String(paroles ?? '').trim()
   if (!t || /^\s*\[/m.test(t)) return t || '[instrumental]'
@@ -2693,12 +2623,12 @@ function structurerParoles(paroles) {
   return sortie.join('\n\n')
 }
 
-const PRISES_MUSIQUE = 2   // deux prises par demande (graines différentes) : l'opérateur garde la meilleure
+const PRISES_MUSIQUE = 2   // two takes per request (different seeds): the operator keeps the best
 
 async function runMusique(job, t0) {
   const d = job.musiqueSecondes, s = Number(job.seed) || 42
   const tags = tagsMusique(job)
-  // un réglage explicite l'emporte ; sinon tempo et tonalité viennent du style, la langue des paroles
+  // an explicit setting wins; otherwise tempo and key come from the style, language from the lyrics
   const auto = profilMusique(job.userPrompt)
   const bpm = job.musiqueBpm ?? auto.bpm, keyscale = job.musiqueTonalite ?? auto.keyscale, timesignature = job.musiqueMesure ?? '4'
   const lyrics = job.musiqueBruitage || job.musiqueVoix === 'none' ? '[instrumental]' : structurerParoles(job.musiqueParoles)
@@ -2710,7 +2640,7 @@ async function runMusique(job, t0) {
     vae: { class_type: 'VAELoader', inputs: { vae_name: 'ace_1.5_vae.safetensors' } },
     lat: { class_type: 'EmptyAceStep1.5LatentAudio', inputs: { seconds: d, batch_size: 1 } },
   }
-  // une branche par prise : chacune a sa graine, donc ses propres codes audio
+  // one branch per take: each has its own seed, hence its own audio codes
   for (let p = 0; p < PRISES_MUSIQUE; p++) {
     const sp = (s + p * 7919) % 0xffffffff
     g[`txt${p}`] = { class_type: 'TextEncodeAceStepAudio1.5', inputs: { clip: ['clip', 0], tags, lyrics, seed: sp, bpm, duration: d, timesignature, language, keyscale, generate_audio_codes: true, cfg_scale: 2, temperature: 0.85, top_p: 0.9, top_k: 0, min_p: 0 } }
@@ -2727,8 +2657,8 @@ async function runMusique(job, t0) {
   if (!sorties.length) throw new Error('aucun son en sortie')
   const racine = job.userPrompt.normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'musique'
   fs.mkdirSync(MUSIQUES_DIR, { recursive: true })
-  // ACE-Step sort à 0 dB : niveau ramené à celui d'une musique de fond, sans saturation.
-  // La 1re prise garde le nom attendu par les reels (…_<id>.mp3), les suivantes prennent _2, _3…
+  // ACE-Step outputs at 0 dB: level brought down to background music level, without clipping.
+  // The first take keeps the name expected by reels (..._<id>.mp3), later ones get _2, _3...
   for (const [p, f] of sorties.entries()) {
     const nom = `${racine}_${job.id.slice(-6)}${p ? `_${p + 1}` : ''}.mp3`
     await executer('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.comfyOutput, f.subfolder ?? '', f.filename), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '48000', '-c:a', 'libmp3lame', '-q:a', '2', path.join(MUSIQUES_DIR, nom)], { timeout: 60_000 })
@@ -2737,8 +2667,8 @@ async function runMusique(job, t0) {
   return 1
 }
 
-/* Objet peint dans un clip : la zone peinte est suivie par SAM3, l'objet de la photo de
-   référence y est détouré et collé image par image, puis la retouche Wan le fond dans la scène. */
+/* Object painted into a clip: the painted area is tracked by SAM3, the object from the reference
+   photo is cut out and pasted frame by frame, then the Wan retouch blends it into the scene. */
 async function preparerObjet(job) {
   const dossier = `creatoros/${job.id}`
   const g = {
@@ -2775,15 +2705,15 @@ async function preparerObjet(job) {
 }
 
 const sujetDetour = v => { const x = String(v ?? '').toLowerCase().replace(/[^a-z \-]/g, '').trim().slice(0, 40); return x || 'person' }
-/* Fond transparent : SAM3 donne le masque de la personne (ou de l'objet nommé), la photo sort en PNG avec alpha,
-   rien n'est redessiné. BiRefNet n'a pas de noyau pour les cartes récentes (« no kernel image »). */
+/* Transparent background: SAM3 gives the mask of the person (or the named object), the photo is
+   output as PNG with alpha, nothing is redrawn. BiRefNet has no kernel for recent GPUs ("no kernel image"). */
 export function enqueueTransparent({ sourceFile, parentAssetId, personaId, sujet }) {
   const id = `transp-${Date.now().toString(36)}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
     mode: 'photo', purpose: 'creative', recipeId: 'transparent@v1', workflowFile: null,
     seed: 1, op: 'transparent', sourceImage: sourceFile, parentAssetId: parentAssetId ?? null,
-    // ce que SAM3 garde : une personne par défaut, ou l'objet nommé (« perfume bottle »)
+    // what SAM3 keeps: a person by default, or the named object ("perfume bottle")
     detourSujet: sujetDetour(sujet),
     userPrompt: 'transparent background', userDirectives: null, composedPositive: null, composedNegative: null,
     selections: null, loras: [], videoLoras: [], estimatedMs: 8000,
@@ -2791,8 +2721,8 @@ export function enqueueTransparent({ sourceFile, parentAssetId, personaId, sujet
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
 }
-/* Carte de profondeur : Depth Anything V2 sur la photo, en niveaux de gris (proche = clair),
-   à la résolution de la photo ; sert au compositing, au relief et aux ControlNet. */
+/* Depth map: Depth Anything V2 on the photo, in greyscale (near = bright), at the
+   photo's resolution; used for compositing, relief and ControlNet. */
 export function enqueueProfondeur({ sourceFile, parentAssetId, personaId }) {
   const id = `depth-${Date.now().toString(36)}`
   const row = {
@@ -2821,12 +2751,12 @@ async function runProfondeur(job, t0) {
   store.markFinished(job.id, Date.now() - t0)
   if (!n) throw new Error('la carte de profondeur n’a rendu aucune image')
 }
-/* ---------- Klein par références : essayage, photodump ----------
-   ESSAYAGE (`essayage`) : la personne de la photo porte le vêtement d'une seconde photo
-   (vêtement seul, à plat ou sur cintre). FLUX Klein reçoit les deux images en références
-   (ReferenceMultiLatent) ; la sortie garde le cadre de la photo de la personne.
-   PHOTODUMP (`photodump`) : quatre photos du quotidien de la même personne, d'après une
-   seule photo (rue, café, bord de l'eau, selfie miroir), en 2:3. */
+/* ---------- Klein with references: try-on, photodump ----------
+   TRY-ON (`essayage`): the person in the photo wears the garment from a second photo
+   (garment alone, flat or on a hanger). FLUX Klein receives both images as references
+   (ReferenceMultiLatent); the output keeps the person photo's framing.
+   PHOTODUMP (`photodump`): four everyday photos of the same person from a single photo
+   (street, café, waterside, mirror selfie), in 2:3. */
 const KLEIN_REF = { unet: 'flux3-image-klein-int8-convrot.safetensors', clip: 'qwen3vl_4b_int8_convrot.safetensors', vae: 'flux2-vae.safetensors' }
 const PHOTODUMP_SCENES = [
   'full body, walking across a sunlit city street at golden hour, candid mid-stride, shop fronts and trees behind',
@@ -2902,8 +2832,8 @@ async function runKleinRef(job, t0) {
   if (!n) throw new Error('aucune image rendue')
 }
 
-/* ---------- référence de style : Krea 2 Turbo + LoRA style-reference ----------
-   La photo choisie ne donne que le STYLE (trait, palette, matière) ; la scène vient du texte. */
+/* ---------- style reference: Krea 2 Turbo + style-reference LoRA ----------
+   The chosen photo only provides the STYLE (line, palette, texture); the scene comes from the text. */
 const FORMATS_STYLE_REF = { '16:9': [1344, 768], '9:16': [768, 1344], '1:1': [1024, 1024], '4:5': [896, 1120] }
 export function enqueueStyleRef({ reference, texte, format, parentAssetId, personaId }) {
   const scene = lettre(texte, 600)
@@ -2972,7 +2902,7 @@ async function runDetour(job, t0) {
   const src = path.join(CONFIG.mediaDir, job.reshootSource), d = videoSize(src)
   const W = (d.width || 720) & ~1, H = (d.height || 1280) & ~1, N = job.reshootImages
   let son = false
-  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* muet */ }
+  try { son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* no audio */ }
   const g = {
     src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 24, custom_width: 0, custom_height: 0, frame_load_cap: N, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
     sam3: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
@@ -2984,7 +2914,7 @@ async function runDetour(job, t0) {
     vid: { class_type: 'CreateVideo', inputs: { images: ['comp', 0], ...(son ? { audio: ['src', 2] } : {}), fps: 24 } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/detour`, format: 'auto', codec: 'auto' } },
   }
-  /* Fond transparent : même suivi, sortie WebM VP9 avec alpha, lisible dans un navigateur et OBS. */
+  /* Transparent background: same tracking, WebM VP9 output with alpha, playable in a browser and OBS. */
   if (job.detourAlpha) {
     delete g.vert; delete g.comp; delete g.vid; delete g.save
     g.inv = { class_type: 'InvertMask', inputs: { mask: ['m0', 0] } }
@@ -2995,20 +2925,19 @@ async function runDetour(job, t0) {
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
-  // VHS range ses vidéos sous `gifs`, le ramassage ne lit que `images`
+  // VHS stores its videos under `gifs`; harvesting only reads `images`
   if (job.detourAlpha) for (const o of Object.values(history.outputs ?? {})) if (o.gifs) o.images = o.gifs.filter(f => /\.webm$/i.test(f.filename))
   const n = await harvestJob(job, promptId, history, { applied: [`détourage : SAM3 suit « ${job.userPrompt} », ${job.detourAlpha ? 'WebM avec alpha' : 'fond vert'}, ${N} images ${W}×${H}`], skipped: [], finalWorkflow: g })
   store.markFinished(job.id, Date.now() - t0)
   return n
 }
 
-/* Scène 3D d'un clip pour la vue Re-shoot : MoGe-2 sur la 1re image, maillage
-   texturé (MoGePointMapToMesh) en GLB, à la même demi-taille que le warp — les
-   angles posés à la souris tombent donc sur la géométrie que verra le nœud.
-   Mise en cache par clip. Le GLB de ComfyUI embarque le graphe (chemins
-   absolus compris) dans asset.extras : on le retire avant de le servir. */
+/* 3D scene of a clip for the Re-shoot view: MoGe-2 on the first frame, textured mesh
+   (MoGePointMapToMesh) as GLB, at the same half size as the warp, so angles set with the
+   mouse land on the geometry the node will see. Cached per clip. ComfyUI's GLB embeds the
+   graph (including absolute paths) in asset.extras: it is stripped before serving. */
 const scenesEnCours = new Map()
-/** Le graphe de la scène 3D : MoGe-2 sur la 1re image, maillage texturé, GLB. */
+/** The 3D scene graph: MoGe-2 on the first frame, textured mesh, GLB. */
 export function grapheScene(src, W, H, prefixe) {
   return {
     src: { class_type: 'VHS_LoadVideoPath', inputs: { video: src, force_rate: 24, custom_width: 0, custom_height: 0, frame_load_cap: 1, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
@@ -3103,20 +3032,20 @@ export function grapheReshoot(job, W, H, sonSource) {
     crop2: { class_type: 'LTXVCropGuides', inputs: { positive: ['g3', 0], negative: ['g3', 1], latent: ['sep2', 0] } },
     dec: { class_type: 'VAEDecodeTiled', inputs: { samples: ['crop2', 2], vae: ['vae', 0], tile_size: 512, overlap: 64, temporal_size: 64, temporal_overlap: 16 } },
     adec: { class_type: 'LTXVAudioVAEDecode', inputs: { samples: ['sep2', 1], audio_vae: ['avae', 0] } },
-    // le même instant : le son de la prise d'origine quand elle en a un
+    // same moment: the original take's audio when it has one
     vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], audio: sonSource ? ['src', 2] : ['adec', 0], fps: 24 } },
     save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/reshoot`, format: 'auto', codec: 'auto' } },
   }
   if (job.op === 'stage' || job.op === 'danse3d') {
-    // la maquette grise guide seule : pas de géométrie ni de vue déplacée
+    // the grey mockup is the only guide: no geometry or shifted view
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
-    // force de l'IC-LoRA de mise en scène : 1 par défaut ; plus haut (banc du propriétaire), LTX colle davantage au mannequin
+    // staging IC-LoRA strength: 1 by default; higher (owner option) makes LTX follow the mannequin more closely
     Object.assign(g.lora.inputs, { lora_name: STAGE_LORA, strength_model: Number.isFinite(job.stageForce) ? Math.min(2, Math.max(0.5, job.stageForce)) : 1 })
     g.pos.inputs.text = String(job.composedPositive ?? '')
     g.neg.inputs.text = 'grey clay, mannequin, blocks, untextured, text, subtitles, logo, watermark, distorted face'
     g.g2.inputs.positive = ['cond', 0]; g.g2.inputs.negative = ['cond', 1]; g.g2.inputs.latent = ['lat1', 0]
     g.save.inputs.filename_prefix = `creatoros/${job.id}/stage`
-    // l'image de style, posée en images-clés aux deux passes : le modèle prend son aspect de cette 1re image
+    // the style image, set as a keyframe on both passes: the model takes its look from this first frame
     g.look = { class_type: 'LoadImage', inputs: { image: job.stageLook } }
     g.lookw2 = { class_type: 'ImageScale', inputs: { image: ['look', 0], upscale_method: 'lanczos', width: w2, height: h2, crop: 'center' } }
     g.lookw = { class_type: 'ImageScale', inputs: { image: ['look', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'center' } }
@@ -3130,7 +3059,7 @@ export function grapheReshoot(job, W, H, sonSource) {
     Object.assign(g.crop2.inputs, { positive: ['gl2', 0], negative: ['gl2', 1] })
   }
   if (job.op === 'effetltx' && EFFETS_LTX[job.effetLtx]) {
-    // un effet : le clip guide seul, comme clean plate, avec la LoRA de l'effet
+    // an effect: the clip as sole guide, like clean plate, with the effect's LoRA
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
     const e = EFFETS_LTX[job.effetLtx]
     Object.assign(g.lora.inputs, { lora_name: e.lora, strength_model: e.force ?? 1 })
@@ -3139,7 +3068,7 @@ export function grapheReshoot(job, W, H, sonSource) {
     g.g2.inputs.positive = ['cond', 0]; g.g2.inputs.negative = ['cond', 1]; g.g2.inputs.latent = ['lat1', 0]
     g.save.inputs.filename_prefix = `creatoros/${job.id}/effet`
     if (e.unePasse) {
-      // une seule passe, à la taille de sortie : la source guide tout le débruitage, rien ne la redessine ensuite
+      // single pass at output size: the source guides the whole denoise, nothing redraws it afterwards
       Object.assign(g.lat1.inputs, { width: W, height: H })
       g.g2.inputs.image = ['full', 0]
       g.dec.inputs.samples = ['crop1', 2]
@@ -3148,7 +3077,7 @@ export function grapheReshoot(job, W, H, sonSource) {
     }
   }
   if (job.op === 'cleanplate') {
-    // clean plate : pas de géométrie ni de vue déplacée, le clip guide seul (facteur de réduction 1)
+    // clean plate: no geometry or shifted view, the clip as sole guide (scale factor 1)
     for (const k of ['mogem', 'moge', 'warp', 'g1']) delete g[k]
     Object.assign(g.lora.inputs, { lora_name: CLEANPLATE_LORA, strength_model: 1 })
     g.pos.inputs.text = String(job.composedPositive ?? '')
@@ -3159,9 +3088,9 @@ export function grapheReshoot(job, W, H, sonSource) {
   return g
 }
 
-/* La 1re image de Stage : Qwen Edit peint la maquette, à la même place, avec le même cadre. */
+/* Stage's first frame: Qwen Edit paints the mockup, in the same place, with the same framing. */
 async function peindreLook(job) {
-  // la maquette se dessine ici : avec des modèles 3D elle prend plusieurs secondes
+  // the mockup is rendered here: with 3D models it takes several seconds
   await rendreClay(job.stageScene, path.join(CONFIG.mediaDir, job.reshootSource))
   const clay = `STAGE_${job.id}.png`
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', path.join(CONFIG.mediaDir, job.reshootSource), '-frames:v', '1', path.join(CONFIG.comfyInput, clay)], { timeout: 30_000 })
@@ -3185,16 +3114,16 @@ async function peindreLook(job) {
 
 async function preparerDanse3d(job) {
   const brut = path.join(CONFIG.mediaDir, '.stage', `${job.id}_30.mp4`), maquette = path.join(CONFIG.mediaDir, job.reshootSource)
-  // le teint de la personne de la photo : le mannequin le prend, quelle que soit sa couleur de peau
+  // the skin tone of the person in the photo: the mannequin takes it, whatever the skin color
   let teint = '0.620,0.360,0.250'
-  try { teint = (await executer(pythonComfy(), [path.join(SCRIPTS, 'teint.py'), path.join(CONFIG.comfyInput, job.danseStill), path.join(CONFIG.dataDir, 'modeles-controle')], { timeout: 60_000 })).stdout.trim().split('\n').pop() || teint } catch { /* teint moyen */ }
+  try { teint = (await executer(pythonComfy(), [path.join(SCRIPTS, 'teint.py'), path.join(CONFIG.comfyInput, job.danseStill), path.join(CONFIG.dataDir, 'modeles-controle')], { timeout: 60_000 })).stdout.trim().split('\n').pop() || teint } catch { /* average skin tone */ }
   const nImages = job.reshootImages || 121, secondesScene = String(Math.ceil((nImages - 1) / 24) + 0.2)
   await executer(path.join(os.homedir(), 'apps', 'blender', 'blender'), ['-b', '-P', path.join(SCRIPTS, 'scene_danse.py'), '--', job.danseFbx, brut, secondesScene, job.danseDecor, teint, 'portrait', job.danseDebut ? 'debut' : 'auto'], { timeout: 900_000 })
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', brut, '-vf', 'fps=24', '-frames:v', String(nImages), '-an', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', maquette], { timeout: 60_000 })
   const clay = `STAGE_${job.id}.png`
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', maquette, '-frames:v', '1', path.join(CONFIG.comfyInput, clay)], { timeout: 30_000 })
-  /* Le personnage est posé à la place exacte du mannequin (même taille, pieds au même endroit) : une retouche
-     à deux images recopiait le cadrage de la photo et donnait une 2e personne, le vrai danseur, derrière elle. */
+  /* The character is placed at the mannequin's exact position (same size, feet at the same spot);
+     a two-image edit would copy the photo's framing and add a second person behind her. */
   const sam = {
     1: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
     2: { class_type: 'CLIPTextEncode', inputs: { clip: ['1', 1], text: 'person' } },
@@ -3227,9 +3156,9 @@ async function preparerDanse3d(job) {
     g['40'].inputs.seed = Number(job.seed) || 42
     g['90'].inputs.filename_prefix = `creatoros/${job.id}/look`
   } else {
-    /* FLUX 3 Klein : la maquette posée en 1re référence (cadrage, place), la photo du personnage en 2e
-       (visage, cheveux, tenue). Préféré à Qwen-Edit au banc du 07/11 : visage net, décor plus fidèle à la maquette.
-       Mêmes fichiers que la recette photo FLUX 3 (allege.js les remplace sur petite carte ou ROCm). */
+    /* FLUX 3 Klein: the posed mockup as first reference (framing, position), the character photo as second
+       (face, hair, outfit). Gives a sharper face and scenery more faithful to the mockup than Qwen-Edit.
+       Same files as the FLUX 3 photo recipe (allege.js swaps them on small GPUs or ROCm). */
     const r = comfy.loadWorkflow('PROD_gen_flux3_sfw.json')
     const de = cls => Object.values(r).find(n => n.class_type === cls)?.inputs ?? {}
     g = {
@@ -3261,13 +3190,13 @@ async function runReshoot(job, t0) {
   if (job.op === 'danse3d') job.stageLook = await preparerDanse3d(job)
   const src = path.join(CONFIG.mediaDir, job.reshootSource)
   const d = videoSize(src)
-  // côté long 1280, multiples de 64 (la passe ×2 part d'une demi-taille multiple de 32)
+  // long side 1280, multiples of 64 (the x2 pass starts from a half size that is a multiple of 32)
   let W = 704, H = 1280
   if (d.width && d.height) {
     if (d.width > d.height * 1.15) { W = 1280; H = 704 } else if (d.width * 1.15 >= d.height) { W = 960; H = 960 }
   }
   if (job.op === 'effetltx' && EFFETS_LTX[job.effetLtx]?.decrit && descriptionsEffet.has(job.id)) {
-    // la description lancée à la mise en file (au plus 4 min d'attente) ; une relance garde le prompt déjà écrit
+    // the description started at enqueue (up to 4 min wait); a rerun keeps the prompt already written
     const desc = await Promise.race([descriptionsEffet.get(job.id), new Promise(r => setTimeout(() => r(null), 240_000))])
     descriptionsEffet.delete(job.id)
     if (desc) {
@@ -3277,7 +3206,7 @@ async function runReshoot(job, t0) {
     }
   }
   let sonSource = false
-  try { sonSource = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* pas de son */ }
+  try { sonSource = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src], { encoding: 'utf8' }).trim().length > 0 } catch { /* no audio */ }
   const g = grapheReshoot(job, W, H, sonSource)
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
@@ -3299,23 +3228,23 @@ async function runReshoot(job, t0) {
   return n
 }
 
-/* Danse 3D, 2e passe : LTX a fait le décor, la caméra et la danse ; le Swap (SCAIL-2) redessine la danseuse d'après
-   la photo (visage, peau, chaussures). La référence est remise à l'échelle de la danseuse de la vidéo, sinon le Swap la
-   dessine plus grande, trop près ; 1280 px : les mains et le tissu tiennent mieux qu'en 896. */
+/* 3D dance, 2nd pass: LTX produced the set, camera and dance; Swap (SCAIL-2) redraws the dancer from
+   the photo (face, skin, shoes). The reference is rescaled to the dancer's size in the video, otherwise
+   Swap draws her bigger and too close; 1280 px keeps hands and fabric better than 896. */
 function enchainerSwapDanse(job) {
   const a = store.assetsOfJob(job.id).find(x => x.media_type === 'video')
   if (!a) throw new Error('rendu LTX introuvable')
   const driver = `crs_${job.id}_drv.mp4`
-  /* La 1re seconde part de la 1re image repeinte : la danseuse y glisse jusqu'à sa place de danse. Coupée avant le
-     Swap, elle n'apparaît pas dans le rendu final (CREATOROS_DANSE_COUPE en secondes, 0 pour la garder). */
+  /* The first second starts from the repainted first frame, where the dancer slides into her dance spot.
+     It is cut before Swap so it does not appear in the final render (CREATOROS_DANSE_COUPE in seconds, 0 to keep it). */
   const coupe = Math.max(0, Number(process.env.CREATOROS_DANSE_COUPE ?? 1) || 0)
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename))
   if (coupe > 0) execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-ss', String(coupe), '-i', src, '-map', '0:v', '-map', '0:a?', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', '-c:a', 'aac', path.join(CONFIG.comfyInput, driver)], { timeout: 120_000 })
   else fs.copyFileSync(src, path.join(CONFIG.comfyInput, driver))
   store.noterInput(driver, 'danse')
-  /* La référence du Swap : la 1re image repeinte (STAGE_…_look.png). La danseuse y est déjà à l'échelle de la vidéo et
-     sous la lumière du studio (néons, coucher de soleil…) ; avec la photo d'origine, le Swap recollait sa lumière à elle,
-     plate, sur une scène qui n'a pas la même. Repli : la photo remise à l'échelle. */
+  /* Swap reference: the repainted first frame (STAGE_..._look.png). The dancer there is already at the video's
+     scale and under the studio's lighting (neon, sunset...); with the original photo, Swap would paste her own
+     flat lighting onto a scene with different light. Fallback: the rescaled photo. */
   let ref = job.stageLook && fs.existsSync(path.join(CONFIG.comfyInput, job.stageLook)) ? job.stageLook : null
   if (ref) store.noterInput(ref, 'genere')
   if (!ref) ref = refAEchelle(job)
@@ -3327,8 +3256,8 @@ function enchainerSwapDanse(job) {
   console.log(`[job ${job.id}] Swap enchaîné : ${job.id}-swap (référence ${ref})`)
 }
 
-/* Danse 3D finie : seule la version redessinée (…-swap) reste en bibliothèque. La vidéo intermédiaire de la scène part
-   à la corbeille (récupérable), et sa provenance (scène, 1re image, graphe LTX) est jointe à celle du résultat final. */
+/* Finished 3D dance: only the redrawn version (...-swap) stays in the library. The intermediate scene video goes
+   to the trash (recoverable), and its provenance (scene, first frame, LTX graph) is attached to the final result's. */
 function finaliserDanse3d(job) {
   const parentId = job.id.replace(/-swap$/, '')
   const final = store.assetsOfJob(job.id).find(x => x.media_type === 'video')
@@ -3384,14 +3313,13 @@ async function runPhotoHd(job, t0) {
   return n
 }
 
-/* ---------- finitions d'un clip existant : bruitage et fluidité ----------
-   BRUITAGE (`foley`) : un clip muet (Wan, motion) reçoit une piste d'ambiance
-   générée par LTX-2.5 à partir de ses images. Le clip est encodé dans le
-   latent vidéo avec un masque de bruit NUL : le modèle le garde tel quel et
-   ne génère que l'audio, calé sur ce qu'il voit (45 s pour
-   5 s, images restituées à 31 dB). Les images livrées sont celles du clip
-   d'origine — seule la piste son est ajoutée. Pas de voix ni de musique.
-   FLUIDITÉ (`interpolate`) : RIFE ×2 sur le clip (24 → 48 i/s), son conservé. */
+/* ---------- finishing an existing clip: foley and smoothness ----------
+   FOLEY (`foley`): a silent clip (Wan, motion) gets an ambient track generated
+   by LTX-2.5 from its frames. The clip is encoded into the video latent with a
+   ZERO noise mask: the model keeps it as is and only generates audio, matched to
+   what it sees. Delivered frames are those of the original clip; only the audio
+   track is added. No voice or music.
+   SMOOTHNESS (`interpolate`): RIFE x2 on the clip (24 -> 48 fps), audio kept. */
 const FOLEY_NEGATIF = 'music, singing, speech, voice, talking, narration'
 const roundTo = (v, m) => Math.max(m, Math.round(v / m) * m)
 
@@ -3415,8 +3343,8 @@ export function enqueueFinition({ op, asset, prompt }) {
   fs.copyFileSync(src, path.join(CONFIG.comfyInput, inputName))
   let guideName = null, frames = null
   if (op === 'foley') {
-    /* Copie de travail pour LTX : 24 i/s, 8n+1 images, côtés multiples de 32,
-       ~0,25 MP — l'audio n'a besoin que de « voir » la scène. */
+    /* Working copy for LTX: 24 fps, 8n+1 frames, sides multiple of 32, ~0.25 MP;
+       audio only needs to "see" the scene. */
     frames = Math.floor(seconds * 24 / 8) * 8 + 1
     const k = Math.sqrt(250000 / ((v.width || 704) * (v.height || 1248)))
     const w = roundTo((v.width || 704) * k, 32), h = roundTo((v.height || 1248) * k, 32)
@@ -3476,7 +3404,7 @@ async function runFinition(job, t0) {
       19: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['16', 0], guider: ['15', 0], sampler: ['17', 0], sigmas: ['18', 0], latent_image: ['11', 0] } },
       20: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['19', 0] } },
       21: { class_type: 'LTXVAudioVAEDecode', inputs: { samples: ['20', 1], audio_vae: ['4', 0] } },
-      // les images livrées sont celles du clip d'ORIGINE, à sa cadence
+      // delivered frames are those of the ORIGINAL clip, at its fps
       30: { class_type: 'LoadVideo', inputs: { file: job.finitionSource } },
       31: { class_type: 'GetVideoComponents', inputs: { video: ['30', 0] } },
       32: { class_type: 'CreateVideo', inputs: { images: ['31', 0], fps: job.finitionFps, audio: ['21', 0] } },
@@ -3494,12 +3422,12 @@ async function runFinition(job, t0) {
       5: { class_type: 'SaveVideo', inputs: { video: ['4', 0], filename_prefix: prefix, format: 'auto', codec: 'auto' } },
     }
   }
-  if (job.op === 'foley') await comfy.freeMemory().catch(() => { /* non fatal */ })
+  if (job.op === 'foley') await comfy.freeMemory().catch(() => { /* non-fatal */ })
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
   console.log(`[job ${job.id}] ${job.op === 'foley' ? 'BRUITAGE LTX' : 'FLUIDITÉ RIFE ×2'} sur ${job.finitionSource} prompt_id=${promptId}`)
-  // copies de travail laissées dans input/ (comme l'upscale) : une relance les relit
+  // working copies stay in input/ (like upscale) so a rerun can reread them
   const history = await comfy.waitForPrompt(promptId, {
     onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p),
   })
@@ -3509,8 +3437,8 @@ async function runFinition(job, t0) {
       : job.composedPositive],
     skipped: [], finalWorkflow: g,
   })
-  /* La piste générée sort environ 30 dB trop bas (-53 dB de moyenne, mesuré le 07/11) : on la ramène à -18 LUFS,
-     l'image n'est pas réencodée. */
+  /* The generated track comes out about 30 dB too quiet: normalize it to -18 LUFS,
+     without re-encoding the video. */
   if (job.op === 'foley') {
     for (const a of store.assetsOfJob(job.id).filter(x => x.media_type === 'video')) {
       const f = path.join(CONFIG.mediaDir, path.basename(a.filename)), tmp = `${f}.norm.mp4`
@@ -3529,28 +3457,26 @@ async function runUpscale(job, t0) {
   g['20'].inputs.video = job.upscaleSource
   g['20'].inputs.custom_width = job.upscaleW
   g['20'].inputs.custom_height = job.upscaleH
-  /* L'AUDIO du brouillon suit l'upscale — mais SEULEMENT s'il existe.
-     VHS_LoadVideo tente d'extraire la piste dès qu'on branche sa sortie
-     audio, et échoue tout le job sur un clip muet (« VHS failed to extract
-     audio ») : c'est le cas de tous les rendus Wan, qui n'ont pas d'étage
-     audio. On sonde la source avant de câbler. */
+  /* The draft's AUDIO follows the upscale, but ONLY if it exists. VHS_LoadVideo
+     tries to extract the track as soon as its audio output is wired, and fails
+     the whole job on a silent clip (e.g. all Wan renders, which have no audio
+     stage). So the source is probed before wiring. */
   const srcPath = path.join(CONFIG.comfyInput, job.upscaleSource)
   let hasAudio = false
   try {
     hasAudio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a:0',
       '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', srcPath],
       { encoding: 'utf8' }).trim().length > 0
-  } catch { /* sonde impossible : on reste muet, c'est le cas sûr */ }
+  } catch { /* probe failed: stay silent, the safe case */ }
   if (g['15'] && hasAudio) g['15'].inputs.audio = ['20', 2]
   else if (g['15']) delete g['15'].inputs.audio
   console.log(`[job ${job.id}] upscale : source ${hasAudio ? 'avec' : 'SANS'} piste audio`)
-  /* Cadence : sortie 30 fps MINIMUM (16 fps se voit).
-     Source < 24 fps (Wan draft 16) : refine à 15 fps puis RIFE x2 → 30 exact,
-     l'interpolation se fait APRÈS le refine (2x moins de frames à échantillonner).
-     Source >= 24 : cadence native conservée (24/25/30). */
-  /* Mi-cadence UNIVERSELLE + RIFE x2 : on refine moitié moins de frames
-     (150→75 sur une source 30 fps ≈ 2x plus vite) et RIFE reconstitue la
-     cadence — sortie 30 pour les sources < 24, cadence native sinon. */
+  /* Frame rate: output 30 fps MINIMUM (16 fps is visible).
+     Source < 24 fps (Wan draft 16): refine at 15 fps then RIFE x2 -> exactly 30;
+     interpolation happens AFTER the refine (half as many frames to sample).
+     Source >= 24: native rate kept (24/25/30). */
+  /* UNIVERSAL half rate + RIFE x2: refine half as many frames (about 2x faster)
+     and RIFE restores the rate: output 30 for sources < 24, native otherwise. */
   const srcFps = job.upscaleSrcFps ?? job.videoFps ?? 16
   const half = srcFps < 24 ? 15 : srcFps / 2
   g['20'].inputs.force_rate = half
@@ -3562,8 +3488,8 @@ async function runUpscale(job, t0) {
   g['12'].inputs.seed = Number(job.seed) || 42
   for (const id of Object.keys(g))
     if (g[id].class_type === 'SaveVideo') g[id].inputs.filename_prefix = `creatoros/${job.id}/upscale`
-  // VRAM libre pour le refine Wan (sinon 87 % du modèle offloadé en RAM)
-  await comfy.freeMemory().catch(() => { /* non fatal */ })
+  // free VRAM for the Wan refine (otherwise most of the model is offloaded to RAM)
+  await comfy.freeMemory().catch(() => { /* non-fatal */ })
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -3579,11 +3505,11 @@ async function runUpscale(job, t0) {
   return n
 }
 
-/** Fluidité des rendus motion : WanAnimate travaille et livre à 16 i/s,
- *  ce qui se voit. RIFE ×2 double les images APRÈS le rendu : le modèle reste à
- *  sa cadence d'entraînement, la sortie passe à 32 i/s. Pas de retour à 30 :
- *  jeter 1 image sur 16 recréerait une cadence boiteuse (cf. probeDriver).
- *  Non fatal — en cas d'échec le rendu à 16 i/s est livré tel quel. */
+/** Smoothness for motion renders: WanAnimate works and outputs at 16 fps, which
+ *  is visible. RIFE x2 doubles frames AFTER rendering: the model stays at its
+ *  training rate, output goes to 32 fps. No conversion to 30: dropping 1 frame in
+ *  16 would create an uneven cadence (see probeDriver).
+ *  Non-fatal: on failure the 16 fps render is delivered as is. */
 async function fluidifier(file, jobId) {
   const inName = `rife_${jobId}.mp4`
   const inPath = path.join(CONFIG.comfyInput, inName)
@@ -3591,7 +3517,7 @@ async function fluidifier(file, jobId) {
     const fps = Number(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0',
       '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', file],
       { encoding: 'utf8' }).trim().split('/').reduce((a, b) => Number(a) / Number(b)))
-    if (!Number.isFinite(fps) || fps >= 24) return null   // déjà fluide : rien à faire
+    if (!Number.isFinite(fps) || fps >= 24) return null   // already smooth: nothing to do
     fs.copyFileSync(file, inPath)
     const g = {
       1: { class_type: 'LoadVideo', inputs: { file: inName } },
@@ -3616,23 +3542,19 @@ async function fluidifier(file, jobId) {
   }
 }
 
-/* ---------- mise en conformité du fichier livré ----------
-   Deux corrections, dans la même passe ffmpeg pour ne ré-encoder qu'une fois :
+/* ---------- conforming the delivered file ----------
+   Two corrections in one ffmpeg pass, so the file is re-encoded once:
 
-   VITESSE. Les modèles animent à ~60 % de la vitesse naturelle. Plutôt que
-   d'appliquer un facteur théorique, on MESURE la durée rendue et on ramène à
-   la durée demandée. C'est ce qui rend le réglage honnête : MiniMax quantifie
-   son nombre d'images sur 17 et LTX n'accepte qu'un entier de secondes, donc
-   aucun des deux ne rend exactement la longueur qu'on lui demande. Wan, lui,
-   génère déjà la bonne durée — l'écart tombe sous le seuil et rien n'est fait.
+   SPEED. The rendered duration is MEASURED and brought back to the requested
+   duration (MiniMax quantizes its frame count to 17 and LTX only accepts whole
+   seconds, so neither renders the exact requested length). When the gap is under
+   the threshold (e.g. Wan) nothing is done.
 
-   `atempo` et pas seulement `setpts` : accélérer la vidéo sans traiter le son
-   le transposerait vers l'aigu, et la voix générée doit rester la même voix.
-   `atempo` accepte 0,5 à 2,0 ; au-delà il faut l'enchaîner.
+   `atempo` and not just `setpts`: speeding up video without processing audio
+   would pitch it up. `atempo` accepts 0.5 to 2.0; beyond that it is chained.
 
-   CADENCE. `-r` fixe la cadence du fichier. Au-dessus de la cadence native
-   cela DUPLIQUE des images — ça n'invente pas de mouvement, et l'interface le
-   dit plutôt que de laisser croire à une fluidité gagnée. */
+   FRAME RATE. `-r` sets the file's frame rate. Above the native rate this
+   DUPLICATES frames; it does not create motion. */
 function conformVideo(file, targetSeconds, targetFps) {
   let actual = null, srcFps = null
   try {
@@ -3647,8 +3569,7 @@ function conformVideo(file, targetSeconds, targetFps) {
 
   const factor = Number.isFinite(targetSeconds) && targetSeconds > 0 ? actual / targetSeconds : 1
   const fps = Number.isFinite(targetFps) ? targetFps : srcFps
-  // 2 % de tolérance : un ré-encodage pour corriger un centième de seconde
-  // coûterait de la qualité sans rien apporter.
+  // 2% tolerance: re-encoding to fix a hundredth of a second would cost quality for nothing.
   const needSpeed = Math.abs(factor - 1) > 0.02
   const needFps = Number.isFinite(fps) && Number.isFinite(srcFps) && Math.abs(fps - srcFps) > 0.01
   if (!needSpeed && !needFps) return null
@@ -3657,7 +3578,7 @@ function conformVideo(file, targetSeconds, targetFps) {
   try {
     const hasAudio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a',
       '-show_entries', 'stream=index', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim() !== ''
-    // atempo est borné à [0,5 ; 2] : on l'enchaîne pour les facteurs plus grands.
+    // atempo is limited to [0.5, 2]: chain it for larger factors.
     const tempo = []
     for (let f = factor; f > 2.0001; f /= 2) tempo.push('atempo=2.0')
     tempo.push(`atempo=${(factor / 2 ** tempo.length).toFixed(6)}`)
@@ -3675,33 +3596,28 @@ function conformVideo(file, targetSeconds, targetFps) {
     return `conformé : ${actual.toFixed(2)} s → ${(actual / factor).toFixed(2)} s`
       + ` (x${factor.toFixed(2)})${needFps ? ` · ${srcFps.toFixed(0)} → ${fps} fps` : ''}`
   } catch (e) {
-    // Un clip au ralenti reste un clip : on le livre, en le disant. Le perdre
-    // pour un ffmpeg absent serait pire.
+    // A slowed clip is still a clip: deliver it and report it.
     fs.rmSync(tmp, { force: true })
     console.warn(`[conform] ${path.basename(file)} livré tel quel — ${e.message || e}`)
     return null
   }
 }
 
-/* Passe MATE : dé-brillance (compression des hautes lumières via `curves`) +
-   micro-grain. Les modèles distillés (MiniMax H3, WanAnimate) sortent une peau
-   glossy/plastique ; cette passe la mate sans assombrir l'image ni toucher
-   l'identité. C'est SIMULÉ (pas de texture native regagnée) mais ça sort le
-   rendu du plastique sans toucher au sampler. AUDIO PRÉSERVÉ : MiniMax H3 a
-   du son natif — on ne le coupe que s'il n'y en a pas. Non fatal. */
+/* MATTE pass: de-gloss (highlight compression via `curves`) + micro grain.
+   Distilled models (MiniMax H3, WanAnimate) output glossy/plastic skin; this
+   pass mattes it without darkening the image or touching identity. AUDIO KEPT:
+   it is only dropped if there is none. Non-fatal. */
 function matteVideo(file) {
   const tmp = file.replace(/(\.\w+)$/, '.matte$1')
-  // Courbe ADOUCIE : plus forte (blancs→0.82, mids −17 %), elle rend les
-  // i2v « ternes » — highlights écrasés + désaturation (mesuré : Ymax
-  // plafonné ~194, SAT −18 % vs brut). De-gloss léger (blancs
-  // →0.94) + saturation +10 % pour garder du pop, en conservant le grain
-  // anti-plastique. Les extensions ne sont pas matées (voir harvest).
+  // Gentle curve: a stronger one crushes highlights and desaturates i2v renders.
+  // Light de-gloss (whites -> 0.94) + saturation +10% to keep some pop, with
+  // anti-plastic grain. Extensions are not matted (see harvest).
   const vf = "curves=all='0/0 0.5/0.49 0.75/0.70 0.9/0.86 1/0.94',eq=saturation=1.10,noise=alls=4:allf=t"
   let hasAudio = false
   try {
     hasAudio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a',
       '-show_entries', 'stream=index', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim() !== ''
-  } catch { /* pas d'audio détectable → muet */ }
+  } catch { /* no detectable audio -> silent */ }
   try {
     const args = ['-y', '-v', 'error', '-i', file, '-vf', vf,
       '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p']
@@ -3711,15 +3627,15 @@ function matteVideo(file) {
     fs.renameSync(tmp, file)
     return 'mate : dé-brillance + grain' + (hasAudio ? ' (audio conservé)' : '')
   } catch (e) {
-    // Réversible et non fatal : sans la passe on livre le rendu tel quel.
+    // Non-fatal: without the pass the render is delivered as is.
     fs.rmSync(tmp, { force: true })
     console.warn(`[matte] ${path.basename(file)} livré tel quel — ${e.message || e}`)
     return null
   }
 }
 
-/* Luma/saturation moyennes d'une fenêtre (signalstats). Sert à mesurer la
-   MARCHE de couleur à la couture d'extension. Null si illisible. */
+/* Mean luma/saturation over a window (signalstats). Used to measure the color
+   STEP at the extension seam. Null if unreadable. */
 function meanYSat(file, ss, dur) {
   try {
     const out = execFileSync('ffmpeg', ['-v', 'error', '-ss', String(ss), '-t', String(dur),
@@ -3735,16 +3651,15 @@ function meanYSat(file, ss, dur) {
   } catch { return null }
 }
 
-/* Correction couleur de la continuation pour matcher la QUEUE de la source.
-   L'i2v ré-expose plus sombre + désature que l'image
-   de conditionnement (mesuré : ~−13 luma, ~−3 sat dès la 1re frame), d'où une
-   marche visible à la couture. On aligne la tête de continuation sur la fin de
-   source par un gain luma + échelle de saturation, bornés pour qu'une mesure
-   aberrante (flash/fondu au raccord) ne dérègle pas tout le plan. Chaîne de
-   filtre vide si non mesurable → concat brut inchangé. */
+/* Color correction of the continuation to match the source's TAIL.
+   i2v re-exposes darker and less saturated than the conditioning image, leaving
+   a visible step at the seam. The continuation's head is aligned to the source's
+   end with a luma gain + saturation scale, clamped so an outlier measurement
+   (flash/fade at the cut) does not throw off the whole shot. Empty filter chain
+   if not measurable -> raw concat unchanged. */
 function seamMatchFilter(srcPath, contPath, prequel = false) {
-  /* Prequel : le rendu passe DEVANT la source — la couture est entre
-     la QUEUE du rendu et la TÊTE de la source. */
+  /* Prequel: the render goes BEFORE the source, so the seam is between the
+     render's TAIL and the source's HEAD. */
   const src = prequel ? meanYSat(srcPath, 0, 0.5)
     : meanYSat(srcPath, Math.max(0, videoDurationOf(srcPath) - 0.5), 0.5)
   const cont = prequel ? meanYSat(contPath, Math.max(0, videoDurationOf(contPath) - 0.5), 0.5)
@@ -3753,20 +3668,14 @@ function seamMatchFilter(srcPath, contPath, prequel = false) {
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
   const gain = clamp(src.y / cont.y, 0.9, 1.3)
   const sat = clamp(src.s / cont.s, 0.9, 1.25)
-  // Chroma (teinte / balance des blancs) : l'i2v ne shifte pas que la luma, il
-  // décale aussi la MOYENNE U/V (mesuré : hue 135→118, V 140→135) → tons plus
-  // froids. eq=saturation scale la chroma autour de 128, ce qui déplace déjà la
-  // moyenne ; on calcule l'offset résiduel APRÈS ce scale pour recaler la
-  // moyenne U/V post-sat sur celle de la source. Offsets bornés ±12 pour qu'un
-  // raccord atypique ne vire pas la colorimétrie.
-  // Chroma matchée en scale+offset DANS lutyuv (pas via eq : le déplacement de
-  // moyenne d'eq=saturation est opaque et cassait la calibration de l'offset).
-  // Pour chaque canal : out = (val-128)*sat + 128 + offset. L'offset recale la
-  // moyenne post-scale sur celle de la source ; bornes ±12 anti-dérive.
+  // Chroma (hue / white balance): i2v also shifts the U/V MEAN (cooler tones).
+  // Chroma is matched with scale + offset inside lutyuv (not eq, whose mean shift
+  // is opaque). Per channel: out = (val-128)*sat + 128 + offset. The offset
+  // realigns the post-scale mean with the source's; clamped to +-12 to avoid drift.
   const postSat = (m) => (m - 128) * sat + 128
   const du = clamp(src.u - postSat(cont.u), -12, 12)
   const dv = clamp(src.v - postSat(cont.v), -12, 12)
-  // Rien à corriger si tout est négligeable (luma/sat < 2 %, chroma < 1 niveau).
+  // Nothing to correct if everything is negligible (luma/sat < 2%, chroma < 1 level).
   if (Math.abs(gain - 1) < 0.02 && Math.abs(sat - 1) < 0.02
       && Math.abs(du) < 1 && Math.abs(dv) < 1) return ''
   const off = (d) => (d >= 0 ? '+' : '-') + Math.abs(d).toFixed(2)
@@ -3783,14 +3692,13 @@ function videoDurationOf(file) {
   } catch { return 0 }
 }
 
-/* Recolore EN PLACE le clip de continuation pour matcher la queue de la source
-   (même calcul que le seam du concat, mais appliqué à l'asset livré `-0`, pas
-   seulement au `-full`). Ainsi le clip standalone d'une extension n'apparaît
-   plus plus sombre/terne que la source en galerie. Audio préservé, non fatal :
-   un échec laisse le rendu brut. Une fois corrigé ici, le seam du concat mesure
-   ~0 et se saute (garde < 2 %), pas de double correction. */
+/* Recolors the continuation clip IN PLACE to match the source's tail (same
+   computation as the concat seam, applied to the delivered `-0` asset, not just
+   `-full`), so an extension's standalone clip does not look darker than the
+   source. Audio kept, non-fatal: on failure the raw render stays. Once corrected
+   here, the concat seam measures ~0 and is skipped (< 2% guard). */
 function seamMatchInPlace(contFile, srcPath, prequel = false) {
-  const suffix = seamMatchFilter(srcPath, contFile, prequel)   // ",eq=...,lutyuv=..." ou ""
+  const suffix = seamMatchFilter(srcPath, contFile, prequel)   // ",eq=...,lutyuv=..." or ""
   if (!suffix) return null
   const vf = suffix.replace(/^,/, '')
   const tmp = contFile.replace(/(\.\w+)$/, '.seam$1')
@@ -3798,7 +3706,7 @@ function seamMatchInPlace(contFile, srcPath, prequel = false) {
   try {
     hasAudio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a',
       '-show_entries', 'stream=index', '-of', 'csv=p=0', contFile], { encoding: 'utf8' }).trim() !== ''
-  } catch { /* muet */ }
+  } catch { /* no audio */ }
   try {
     const args = ['-y', '-v', 'error', '-i', contFile, '-vf', vf,
       '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p']
@@ -3813,12 +3721,11 @@ function seamMatchInPlace(contFile, srcPath, prequel = false) {
   }
 }
 
-/* ---------- concat extension : source + continuation en un fichier ----------
-   Ré-encodage obligatoire (codecs et résolutions différents) : les deux
-   segments sont normalisés à la RÉSOLUTION DE LA CONTINUATION (le rendu
-   neuf), 24 fps, yuv420p. La continuation est recolorée pour matcher la fin de
-   la source (couture seamless). L'audio n'est concaténé que si LES DEUX en ont
-   — sinon le fichier est muet plutôt que d'inventer un silence désynchronisé. */
+/* ---------- extension concat: source + continuation in one file ----------
+   Re-encoding is required (different codecs and resolutions): both segments are
+   normalized to the CONTINUATION's resolution, 24 fps, yuv420p. The continuation
+   is recolored to match the end of the source (seamless join). Audio is
+   concatenated only if BOTH have it; otherwise the file is silent. */
 function concatVideos(srcPath, contPath, outPath, { seam: avecSeam = true } = {}) {
   const hasAudio = f => execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a',
     '-show_entries', 'stream=index', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim() !== ''
@@ -3833,8 +3740,7 @@ function concatVideos(srcPath, contPath, outPath, { seam: avecSeam = true } = {}
   execFileSync('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] })
 }
 
-/** Dimensions d'un média vidéo. `pngSize` ne sait pas les lire dans un mp4 et
- *  rendrait null : la galerie n'aurait plus de format d'affichage. */
+/** Dimensions of a video file (`pngSize` cannot read an mp4). */
 function videoSize(file) {
   try {
     const out = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0',
@@ -3845,14 +3751,14 @@ function videoSize(file) {
   } catch { return { width: null, height: null } }
 }
 
-/* ---------- clé Comfy Cloud du visiteur ----------
-   Posée par la requête de dépôt (en-tête X-Comfy-Key, cf. index.js), gardée
-   EN MÉMOIRE seulement, jusqu'à la fin du job : jamais en base, jamais dans
-   le payload, jamais dans un journal. Un redémarrage du serveur la perd — le
-   job repris repart alors sur le transport local, ou échoue sans lui. */
+/* ---------- visitor's Comfy Cloud key ----------
+   Set by the submit request (X-Comfy-Key header, see index.js), kept IN MEMORY
+   only until the job ends: never in the database, payload or logs. A server
+   restart loses it; the resumed job then falls back to the local transport, or
+   fails without it. */
 const depot = new AsyncLocalStorage()
-const clesComfy = new Map()   // jobId → clé
-/** Exécute un dépôt (enqueue…) en rattachant `cle` aux jobs qu'il crée. */
+const clesComfy = new Map()   // jobId -> key
+/** Runs a submission (enqueue...) attaching `cle` to the jobs it creates. */
 export const deposerAvecCle = (cle, fn) => depot.run(cle || null, fn)
 function retenirCle(id) { const c = depot.getStore(); if (c) clesComfy.set(id, c) }
 
@@ -3862,10 +3768,10 @@ async function pump() {
   if (!job) return
   running = true
   enCours = { estimatedMs: job.estimatedMs, debut: Date.now() }
-  /* La carte est prise pour ComfyUI le temps du job (cf. server/gpu.js). */
-  /* Clé de visiteur → Comfy Cloud par le SDK ; transport SDK global → proxy
-     local ; sinon ComfyUI local, la carte arbitrée avec Ollama (gpu.js). */
-  // TRELLIS.2 et ACE-Step tournent ici, avec des fichiers d'ici : jamais sur le cloud du visiteur
+  /* The GPU is reserved for ComfyUI for the job's duration (see server/gpu.js). */
+  /* Visitor key -> Comfy Cloud via the SDK; global SDK transport -> local proxy;
+     otherwise local ComfyUI, with the GPU arbitrated against Ollama (gpu.js). */
+  // TRELLIS.2 and ACE-Step run here, with local files: never on the visitor's cloud
   const cle = ['objet3d', 'musique'].includes(job.op) ? null : clesComfy.get(job.id)
   try {
     const lancer = () => profilDuJob.run(job.profilVram ?? null, () => runJob(job))
@@ -3879,10 +3785,9 @@ async function pump() {
   pump()
 }
 
-/** Inventaire du driver : nombre d'images et cadence, par lecture réelle.
- *  Les drivers au-dessus de 30 fps sont d'abord RAMENÉS à 24 : le mouvement
- *  n'y gagne rien et le coût est linéaire en images — un iPhone à 60 fps
- *  doublerait le rendu (513 images pour 8,5 s). */
+/** Driver inventory: frame count and frame rate, from the actual file.
+ *  Drivers above 30 fps are first brought down to 24: motion gains nothing and
+ *  cost is linear in frames. */
 async function probeDriver(job) {
   let driverPath = path.join(CONFIG.comfyInput, job.motionDriver)
   if (!fs.existsSync(driverPath))
@@ -3890,26 +3795,21 @@ async function probeDriver(job) {
   const fps0 = Number(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0',
     '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', driverPath],
     { encoding: 'utf8' }).trim().split('/').reduce((a, b) => Number(a) / Number(b)))
-  /* WAN-Animate-2 est entraîné à 16 fps : un driver à 30 fps lui donne ~2×
-     le mouvement inter-image attendu, il sous-suit les gestes rapides et
-     l'action « n'arrive pas au bout » dans chaque fenêtre. On ramène TOUT driver ≠ 16 fps à 16 fps avant
-     transfert — recadre le mouvement sur la cadence d'entraînement. */
-  /* PAR INTERPOLATION, pas en jetant des images.
-     « -r 16 » garde l'image la plus proche : sur une source à 24 i/s les images
-     retenues sont espacées de 1, 2, 1, 2 intervalles, le mouvement avance à pas
-     inégaux et le modèle reproduit cette cadence boiteuse (mesuré : images par
-     paires dans la sortie brute, rapport 3,6 ; 1,1 à 1,4 sur les sources à
-     30 i/s, où le pas court ne revient qu'une fois sur 8). minterpolate fabrique
-     des images réellement intermédiaires, régulièrement espacées. Coût : 12 à
-     27 s sur le processeur, une fois par driver. */
+  /* WAN-Animate-2 is trained at 16 fps: a 30 fps driver gives it ~2x the expected
+     inter-frame motion, so it under-follows fast gestures. EVERY driver != 16 fps
+     is brought to 16 fps before transfer to match the training rate. */
+  /* BY INTERPOLATION, not by dropping frames. "-r 16" keeps the nearest frame,
+     giving uneven steps (1, 2, 1, 2 intervals) that the model reproduces as a
+     limping cadence. minterpolate creates truly intermediate, evenly spaced frames.
+     Costs some CPU time, once per driver. */
   if (Number.isFinite(fps0) && Math.abs(fps0 - 16) > 0.5 && job.motionFpsNatif !== true) {
     const resampled = driverPath.replace(/(\.\w+)$/, '_16fps_mci.mp4')
     if (!fs.existsSync(resampled)) {
-      // asynchrone : jusqu'à 27 s de calcul, le serveur doit continuer de répondre aux interfaces
+      // asynchronous: this can take tens of seconds and the server must keep answering the UI
       await new Promise((ok, ko) => execFile('ffmpeg', ['-y', '-v', 'error', '-i', driverPath,
         '-vf', 'minterpolate=fps=16:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1', '-an',
         '-c:v', 'libx264', '-crf', '17', resampled + '.tmp.mp4'], { timeout: 600_000 }, e => e ? ko(e) : ok()))
-      fs.renameSync(resampled + '.tmp.mp4', resampled)   // jamais de fichier partiel réutilisé au rendu suivant
+      fs.renameSync(resampled + '.tmp.mp4', resampled)   // never reuse a partial file on the next render
       console.log(`[job ${job.id}] driver ${fps0.toFixed(0)} fps → 16 fps (${path.basename(resampled)})`)
     }
     driverPath = resampled
@@ -3926,8 +3826,7 @@ async function probeDriver(job) {
   return { driverPath, frames, fps }
 }
 
-/** Référence du Motion Control : la still déposée par l'opérateur, telle
- *  quelle, et l'inventaire du driver. */
+/** Motion Control reference: the operator's still as is, plus the driver inventory. */
 async function buildMotionRef(job) {
   const { driverPath, frames, fps } = await probeDriver(job)
   if (!job.motionRef && job.motionMode === 'replace') return { refName: await refDuPersonnage(job, driverPath, frames, fps), frames, fps, driverPath }
@@ -3935,12 +3834,11 @@ async function buildMotionRef(job) {
   return { refName: job.motionRef, frames, fps, driverPath }
 }
 
-/* Mix depuis la vidéo seule : la référence d'apparence est fabriquée ici.
-   Pas d'échange de tête sur une image du driver (LoRA BFS, licence sans usage
-   hébergé). Ici : l'image la plus nette de la première
-   seconde, sa tenue lue par le VLM, et le personnage actif rendu en pied dans
-   cette tenue par la recette photo (sa LoRA d'identité). WanAnimate garde ensuite
-   le décor et le geste du driver. */
+/* Mix from the video alone: the appearance reference is built here.
+   No head swap on a driver frame. Instead: the sharpest frame of the first
+   second, its outfit read by the VLM, and the active character rendered full
+   body in that outfit by the photo recipe (with its identity LoRA). WanAnimate
+   then keeps the driver's scene and motion. */
 async function refDuPersonnage(job, driverPath, frames, fps) {
   const src = `mx_${job.id}_src.png`, ref = `mx_${job.id}_ref.png`
   let idx = 0
@@ -3950,15 +3848,15 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
     const notes = [...meta.matchAll(/signalstats\.YAVG=([0-9.]+)/g)].map(m => Number(m[1]))
     for (let i = 1; i < notes.length; i++) if (notes[i] > notes[idx]) idx = i
   } catch { idx = 0 }
-  // Mix à plusieurs : la tenue se lit sur la bande de la personne visée, pas sur celle de sa voisine
+  // Multi-person Mix: read the outfit from the targeted person's strip, not the neighbor's
   const bande = job.mixTotal ? `,crop=iw/${job.mixTotal}:ih:iw*${job.mixRang ?? 0}/${job.mixTotal}:0` : ''
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', driverPath, '-vf', `select=eq(n\\,${idx})${bande}`, '-vframes', '1',
     path.join(CONFIG.comfyInput, src)], { stdio: ['ignore', 'ignore', 'pipe'] })
   store.setStatus(job.id, 'rendering')
   const tenue = await vision.describeOutfit(path.join(CONFIG.comfyInput, src))
   const p = persona(job.personaId)
-  /* Verrou SFW de la référence : la tenue lue peut n'avoir qu'un bas (« blue jeans ») ou qu'un
-     haut (« satin camisole ») ; la pièce manquante est demandée et la tenue entière reste opaque. */
+  /* SFW lock for the reference: the outfit read may have only a bottom ("blue jeans") or only a
+     top ("satin camisole"); the missing piece is requested and the whole outfit stays opaque. */
   const haut = /\b(shirt|t-?shirt|tee|top|blouse|sweater|jumper|hoodie|sweatshirt|pullover|jacket|coat|raincoat|parka|blazer|cardigan|vest|dress|jumpsuit|overalls|tunic|suit|bikini|swimsuit)\b/i.test(tenue ?? '')
   const bas = /\b(jeans|trousers|pants|shorts|skirt|leggings|dress|jumpsuit|overalls|suit|bikini|swimsuit)\b/i.test(tenue ?? '')
   const vetements = [tenue, !haut && 'a plain opaque top', !bas && 'plain opaque trousers'].filter(Boolean).join(', ')
@@ -3978,19 +3876,19 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
   return ref
 }
 
-/* Swap d'une personne : SCAIL-2 (Wan 2.1 14B, MIT), recette officielle de ComfyUI
-   (remplacement de personnage, 6 pas, lightx2v, LoRA DPO). SAM3 suit la personne du clip
-   et celle de la référence ; le clip est rendu par blocs de 81 images (deux au plus),
-   le second recoloré sur la fin du premier. Au-delà, WanAnimate garde la main. */
+/* Person Swap: SCAIL-2 (Wan 2.1 14B, MIT), official ComfyUI recipe
+   (character replacement, 6 steps, lightx2v, DPO LoRA). SAM3 tracks the person in the clip
+   and in the reference; the clip is rendered in 81-frame blocks, each later block
+   color-matched to the end of the first. Beyond that, WanAnimate is used. */
 export const SWAP_SCAIL_RECIPE = 'PROD_swap_scail2.json'
-/* Blocs de 81 images, pas de 76 (5 d'ancrage) : 2 blocs = 157 images comme la recette, 6 blocs = 461 images,
-   environ 29 s à 16 i/s. Au-delà, la mémoire vive (toutes les images décodées restent en RAM) devient le risque. */
+/* Blocks of 81 frames, not 76 (5 anchor frames): 2 blocks = 157 frames like the recipe, 6 blocks = 461 frames,
+   about 29 s at 16 fps. Beyond that, RAM becomes the risk (all decoded frames stay in RAM). */
 const SCAIL_BLOCS_MAX = 6
 const scailBlocs = n => Math.max(2, 1 + Math.ceil(Math.max(0, n - 81) / 76))
-/* Deux blocs (environ 10 s) pour tout le monde, comme la recette ; jusqu'à six pour la danse enchaînée (durée fixée
-   par le serveur) et pour le propriétaire (swapBlocs) : sur la démo, un visiteur ne retient pas la carte 15 minutes. */
+/* Two blocks (about 10 s) for everyone, like the recipe; up to six for the chained dance (duration set
+   by the server) and for the owner (swapBlocs): on the demo, a visitor must not hold the GPU for 15 minutes. */
 const scailBlocsPermis = job => Math.min(SCAIL_BLOCS_MAX, Math.max(2, Number.isInteger(job.swapBlocs) ? job.swapBlocs : 2))
-// le modèle SCAIL-2 est-il vu par ComfyUI (où qu'il soit rangé) ? lu une fois par minute
+// is the SCAIL-2 model visible to ComfyUI (wherever it is stored)? checked once a minute
 let scailVu = { quand: 0, ok: false }
 async function scailDisponible() {
   if (Date.now() - scailVu.quand < 60_000) return scailVu.ok
@@ -4011,10 +3909,10 @@ function grapheSwapScail(job, motion, applied) {
   for (const k of ['213:3', '262:258']) g[k].inputs.text = scene
   for (const k of ['213:191', '262:242']) g[k].inputs.text = 'person'
   for (const k of ['213:19', '262:227']) g[k].inputs.noise_seed = Number(job.seed) || 42
-  // cadre : le côté long à 896, l'autre à l'échelle, multiples de 32
+  // frame: long side 896, the other scaled, multiples of 32
   const { width: w, height: h } = videoSize(motion.driverPath)
   const paysage = !(h > w)
-  // 896 par défaut ; le propriétaire peut monter à 1280 (banc) : moins de défauts visibles sur un plan proche
+  // 896 by default; the owner can go up to 1280: fewer visible defects on a close shot
   const long = Number.isInteger(job.swapLong) ? Math.min(1280, Math.max(640, job.swapLong)) : 896
   const court = Math.round((long * (paysage ? (h || 9) / (w || 16) : (w || 9) / (h || 16))) / 32) * 32
   for (const [lw, lh] of [['213:178', '213:179'], ['262:236', '262:237']]) {
@@ -4022,10 +3920,10 @@ function grapheSwapScail(job, motion, applied) {
     g[lh].inputs.value = paysage ? court : long
   }
   g['271'].inputs.filename_prefix = `creatoros/${job.id}/out`
-  /* Plans longs : la recette s'arrête à deux blocs (157 images). SCAIL-2 sait enchaîner : chaque bloc repart des
-     5 dernières images DÉCODÉES du précédent (previous_frames), le geste continue au lieu de recoller deux rendus
-     indépendants. On clone donc le second bloc autant de fois qu'il faut ; modèles, encodeurs et suivi de la
-     référence restent partagés, la couleur de chaque bloc est recalée sur la fin du premier comme dans la recette. */
+  /* Long shots: the recipe stops at two blocks (157 frames). SCAIL-2 can chain: each block starts from
+     the previous block's last 5 DECODED frames (previous_frames), so motion continues instead of joining two
+     independent renders. The second block is cloned as many times as needed; models, encoders and reference
+     tracking stay shared, and each block's color is matched to the end of the first as in the recipe. */
   const blocs = scailBlocs(motion.frames)
   const PAR_BLOC = ['235', '240', '241', '218', '220', '244', '245', '259', '227', '250', '251', '252']
   for (let k = 3; k <= blocs; k++) {
@@ -4042,8 +3940,8 @@ function grapheSwapScail(job, motion, applied) {
     g['269'].inputs[`images.image${k - 1}`] = [`${pre}252`, 0]
   }
   if (blocs > 2) applied.push(`SCAIL-2 : ${blocs} blocs enchaînés (${motion.frames} images), chacun ancré sur les 5 dernières images du précédent`)
-  /* Mode animation (banc du propriétaire) : le personnage de la still reste dans SON décor et reprend
-     les gestes du driver, au lieu de remplacer la personne du driver dans le décor du driver. */
+  /* Animation mode (owner option): the still's character stays in ITS scene and takes on
+     the driver's motion, instead of replacing the driver's person in the driver's scene. */
   if (job.swapAnimation === true && g['213:203'] && g['262:247']) {
     g['213:203'].inputs.value = false; g['262:247'].inputs.value = false
     applied.push('SCAIL-2 en mode animation (décor de la still)')
@@ -4053,12 +3951,12 @@ function grapheSwapScail(job, motion, applied) {
   return g
 }
 
-/** Mix : la recette de remplacement, injectée par ids (cf. MIX_RECIPE). */
+/** Mix: the replacement recipe, injected by node ids (see MIX_RECIPE). */
 async function grapheMix(job, motion, applied, skipped) {
   const mg = comfy.loadWorkflow(MIX_RECIPE)
   mg['63'].inputs.video = job.motionDriver
-  /* Pose prise sur une autre vidéo cadrée pareil (banc : le mannequin de la scène 3D, dont le mouvement est exact) ;
-     le décor et le masque restent ceux du driver. */
+  /* Pose taken from another video with the same framing (e.g. the 3D scene mannequin, whose motion is exact);
+     scene and mask stay the driver's. */
   if (job.motionPoseDriver && fs.existsSync(path.join(CONFIG.comfyInput, job.motionPoseDriver))) {
     mg.poseSrc = JSON.parse(JSON.stringify(mg['63']))
     mg.poseSrc.inputs.video = job.motionPoseDriver
@@ -4067,18 +3965,18 @@ async function grapheMix(job, motion, applied, skipped) {
   }
   mg['57'].inputs.image = motion.refName
   mg['65'].inputs.positive_prompt = job.motionSceneText || (job.composedPositive || '').trim()
-  /* Verrou SFW du Mix : sans consigne de tenue, un driver en maillot peut rendre un corps
-     dévêtu. Chaque Mix dit que le personnage reste habillé et refuse la nudité. Ne pas retirer. */
+  /* Mix SFW lock: without an outfit directive, a driver in swimwear can render an undressed
+     body. Every Mix states the character stays clothed and rejects nudity. Do not remove. */
   mg['65'].inputs.positive_prompt = `${mg['65'].inputs.positive_prompt}, an adult woman, fully clothed, same outfit coverage on every frame`.replace(/^, /, '')
   mg['65'].inputs.negative_prompt = `${mg['65'].inputs.negative_prompt ?? ''}, nude, naked, nudity, topless, bottomless, bare breasts, bare crotch, genitals`.replace(/^, /, '')
     || 'a young woman, photorealistic, natural skin, cinematic'
   mg['27'].inputs.seed = job.seed
   mg['998'].inputs.filename_prefix = `creatoros/${job.id}/out`
-  /* Réglages : pas de relight, distill assoupli (0.8), 28 pas,
-     UNE fenêtre qui couvre tout le driver (plusieurs fenêtres désynchronisent le fond). */
+  /* Settings: no relight, relaxed distill (0.8), 28 steps,
+     ONE window covering the whole driver (several windows desync the background). */
   const wan = persona(job.personaId).videoLoras.filter(l => /wan/i.test(l.name) && !/wan.?2\.?1|wan21|ltx/i.test(l.name))
   const haut = wan.find(l => /high/i.test(l.name)), bas = wan.find(l => /low/i.test(l.name))
-  // la LoRA de relight de la recette dégrade le rendu (couleurs et visage) : elle reste coupée
+  // the recipe's relight LoRA degrades the render (colors and face): it stays off
   if (!job.mixRelight) mg['171'].inputs.lora_0 = 'none'
   else applied.push('relight WanAnimate : lumière du décor appliquée au personnage')
   mg['171'].inputs.strength_1 = 0.8
@@ -4088,31 +3986,28 @@ async function grapheMix(job, motion, applied, skipped) {
     applied.push(`LoRA d'identité Wan du personnage : ${haut.name} · ${bas.name} (0.9)`)
   } else skipped.push('pas de LoRA d’identité Wan (haut + bas bruit) pour ce personnage : l’identité ne tient que par la still')
   mg['27'].inputs.steps = 28
-  /* Visage du driver suivi (DWPose), mais à mi-force :
-     à 1, la bouche du driver se plaque en tache sombre sur le visage de la still ;
-     sans la branche visage, le visage sort flou et sans traits. */
+  /* Driver face tracked (DWPose), but at half strength:
+     at 1 the driver's mouth shows as a dark patch on the still's face;
+     without the face branch the face comes out blurry and featureless. */
   mg['73'].inputs.detect_face = 'enable'
   mg['62'].inputs.face_strength = 0.5
-  /* Longueur : un driver de 30 s (481 images) en une seule
-     fenêtre ne tient pas sur la carte, 104 s par pas puis panne de mémoire. Le
-     driver est coupé à 153 images (9,6 s) ; jusqu'à 81 images une seule fenêtre,
-     plus propre sur un clip court, au-delà deux fenêtres qui se recouvrent d'une
-     image (2w − 1 ≥ n). Une fenêtre fixe de 77 sur 161 images en ferait trois,
-     et le clip livré durerait 14 s au lieu de 10. */
+  /* Length: a long driver in a single window does not fit on the GPU. The driver
+     is cut to 153 frames (9.6 s); up to 81 frames one window (cleaner on a short
+     clip), beyond that two windows overlapping by one frame (2w - 1 >= n). */
   const MIX_MAX_IMAGES = 153
   const n = Math.min(motion.frames, MIX_MAX_IMAGES)
   mg['63'].inputs.frame_load_cap = n
   const pas4 = k => Math.ceil((k - 1) / 4) * 4 + 1
   mg['62'].inputs.frame_window_size = n <= 81 ? pas4(n) : pas4((n + 1) / 2)
   if (n < motion.frames) skipped.push(`driver coupé à ${MIX_MAX_IMAGES} images (9,6 s) sur ${motion.frames} : limite du Mix sur la démo`)
-  // budget de pixels validé (~832×480), dans l'aspect du driver, multiple de 16
+  // validated pixel budget (~832x480), in the driver's aspect, multiple of 16
   const dv = videoSize(path.join(CONFIG.comfyInput, job.motionDriver))
   const BUDGET = 832 * 480, ar = dv.width && dv.height ? dv.width / dv.height : 480 / 832
   const mw = Math.max(16, Math.round(Math.sqrt(BUDGET * ar) / 16) * 16), mh = Math.max(16, Math.round(BUDGET / mw / 16) * 16)
   mg['150'].inputs.value = mw; mg['151'].inputs.value = mh
-  // masque automatique : GroundingDINO trouve le sujet → points SAM2
+  // automatic mask: GroundingDINO finds the subject -> SAM2 points
   try {
-    // lancé sans bloquer le serveur : la détection peut durer jusqu'à 3 minutes
+    // run without blocking the server: detection can take up to 3 minutes
     const raw = (await executer(COMFY_PY, [GDINO_POINTS, path.join(CONFIG.comfyInput, job.motionDriver), String(mw), String(mh), job.mixTotal ? 'person' : 'woman', ...(job.mixTotal ? [String(job.mixRang ?? 0), String(job.mixTotal)] : [])],
       { encoding: 'utf8', timeout: 180000, env: { ...process.env, COMFY_DIR: CONFIG.comfyDir } })).stdout
     const pts = JSON.parse(raw.trim().split('\n').pop())
@@ -4128,10 +4023,10 @@ async function grapheMix(job, motion, applied, skipped) {
   return mg
 }
 
-/* Images de référence : chacune passe dans le latent et s'ajoute au conditionnement
-   (ReferenceLatent en chaîne), à la manière d'un plateau de FLUX.2. */
-/* Références sur Klein : un personnage sans LoRA Klein n'y garde pas son visage. Sa photo de
-   profil passe alors en première référence, et le prompt la désigne. */
+/* Reference images: each goes through the latent and is added to the conditioning
+   (chained ReferenceLatent), FLUX.2 style. */
+/* References on Klein: a character without a Klein LoRA does not keep their face there. Their profile
+   photo then becomes the first reference, and the prompt refers to it. */
 function visageDuPersonnage(job, g, applied) {
   const p = persona(job.personaId)
   if (!p || p.lorasKlein?.length || job.personaId === SANS_PERSONNAGE) return []
@@ -4163,7 +4058,7 @@ function appliquerReferences(g, noms, applied) {
   applied.push(`${noms.length} image(s) de référence sur FLUX.2 Klein (ReferenceLatent)`)
 }
 
-/** Mix à plusieurs : le clip rendu devient la source de la passe suivante, pour la personne d'à côté. */
+/** Multi-person Mix: the rendered clip becomes the source of the next pass, for the next person. */
 function lancerMixSuivant(job, livre) {
   const [perso, ...reste] = job.mixSuite
   const nom = `MIXS_${job.id}.mp4`
@@ -4179,7 +4074,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
   try {
     if (job.op === 'photo_hd') return await runPhotoHd(job, t0)
     if (job.op === 'inpaint') return await runInpaint(job, t0)
-    // ces clips sont contrôlés aussi, sans relance : ils ne se rejouent pas comme un clip ordinaire
+    // these clips are also checked, without retry: they cannot be replayed like a regular clip
     const controler = n => { void controlerJob(job, null).catch(e => console.warn(`[contrôle] ${String(e.message || e).slice(0, 200)}`)); return n }
     if (job.op === 'inpaint_video') return controler(await runInpaintVideo(job, t0))
     if (job.op === 'parole') return controler(await runParole(job, t0))
@@ -4205,46 +4100,39 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'upscale' && typeof job.upscaleSource === 'string')
       return await runUpscale(job, t0)
     const base = comfy.loadWorkflow(job.workflowFile)
-    // La retouche est une ÉDITION d'image source : pas de préambule d'identité
-    // (on modifie l'image donnée, on ne régénère pas le sujet), cadrage et
-    // LoRA hérités de la source, l'instruction composée est le texte d'édition.
+    // Retouch is an EDIT of a source image: no identity preamble (the given image is
+    // modified, the subject is not regenerated), framing and LoRAs come from the
+    // source, the composed instruction is the edit text.
     const isEdit = job.op === 'edit'
-    /* La vidéo est une recette de PROLONGATION : identité, morphologie, tenue
-       et décor sont déjà dans l'image de départ. Lui préfixer le préambule
-       d'identité noie le brief de mouvement sous une description que le
-       moteur n'a aucune raison de suivre, et le mot déclencheur d'une LoRA
-       photo ne veut rien dire pour l'encodeur de LTX ou de MiniMax. */
+    /* Video is a CONTINUATION recipe: identity, body, outfit and scenery are already
+       in the start image. Prefixing the identity preamble drowns the motion brief,
+       and a photo LoRA's trigger word means nothing to the LTX or MiniMax encoder. */
     const isVideo = job.mode === 'video'
-    // le personnage du DÉPÔT, pas l'actif : on a pu en changer depuis
+    // the character from the SUBMISSION, not the active one (it may have changed since)
     const p = persona(job.personaId)
-    /* Exception : une LoRA d'identité VIDÉO de la persona a appris le mot
-       déclencheur — sans lui elle reste inerte. Le mot seul, sans préambule. */
-    /* Plan d'ambiance (T2V) : AUCUN personnage — ni mot déclencheur, ni LoRA
-       d'identité. C'est un plan de coupe, pas un plan d'elle. */
-    /* Texte → vidéo AVEC le personnage (`t2vPersonnage`) : seulement s'il a une
-       LoRA vidéo — c'est elle qui porte l'identité, il n'y a pas d'image. */
-    /* LoRA vidéo du personnage FILTRÉES par famille de moteur : une LoRA
-       LTX (« mila_ltx23… ») n'a rien à faire sur un graphe Wan, ni une Wan 2.2
-       sur le Wan 2.1 des effets. Le nom dit la famille ; sans indice, la LoRA
-       passe partout. */
+    /* Exception: a persona's VIDEO identity LoRA has learned the trigger word and
+       is inert without it. The word alone, no preamble. */
+    /* Ambient shot (T2V): NO character, no trigger word, no identity LoRA. */
+    /* Text to video WITH the character (`t2vPersonnage`): only if it has a video
+       LoRA, which carries the identity since there is no image. */
+    /* The character's video LoRAs FILTERED by engine family: an LTX LoRA does not
+       belong on a Wan graph, nor a Wan 2.2 one on the Wan 2.1 effects graph. The
+       name gives the family; with no hint, the LoRA is allowed everywhere. */
     const familleLora = n => /ltx/i.test(n) ? 'ltx' : /wan.?2\.?1|wan21/i.test(n) ? 'wan21' : /wan/i.test(n) ? 'wan' : null
     const familleMoteur = /^ltx/.test(job.videoEngine ?? '') ? 'ltx' : /^wan21/.test(job.videoEngine ?? '') ? 'wan21' : /^wan/.test(job.videoEngine ?? '') ? 'wan' : null
     const persoVideo = p.videoLoras.filter(l => { const f = familleLora(String(l.name)); return !f || !familleMoteur || f === familleMoteur })
     const texteSeul = isVideo && job.t2v === true
     const ambiance = texteSeul && !(job.t2vPersonnage === true && persoVideo.length)
     const preamble = isEdit || ambiance ? null
-      /* + le préambule du personnage : certaines LoRA vidéo ont appris une
-         phrase entière (« Aisha-AW, she has dark hair »), que le champ mot
-         déclencheur, réduit à un jeton, ne peut pas porter. */
+      /* + the character's preamble: some video LoRAs learned a whole phrase
+         ("Aisha-AW, she has dark hair") that the single-token trigger field cannot hold. */
       : isVideo ? (persoVideo.length && p.trigger ? { key: 'persona-video', file: null, text: `${p.trigger}, ${p.preamble ? `${p.preamble}, ` : ''}an adult woman in her mid-twenties, ` } : null)
       : identityPreambleFor(job.personaId, job.mode === 'photo' ? (job.photoEngine ?? CONFIG.photoEngine) : undefined, `${job.userPrompt ?? ''} ${job.composedPositive ?? ''}`)
 
-    // Mots déclencheurs des LoRA empilées par le JOB. C'est LE point qui décide
-    // si une LoRA agit : sans son mot dans le prompt, elle est chargée, occupe
-    // de la VRAM et ne fait rien — l'image sort plausible et on croit la LoRA
-    // faible. Le serveur résout le mot depuis le fichier ; un mot fourni par le
-    // job le surcharge (l'opérateur a pu le corriger). Les LoRA de la persona
-    // n'en ont pas besoin : leur mot est déjà en tête du préambule.
+    // Trigger words of the LoRAs stacked by the JOB. Without its word in the prompt
+    // a LoRA is loaded but has no effect. The server resolves the word from the
+    // file; a word supplied by the job overrides it. Persona LoRAs do not need it:
+    // their word already leads the preamble.
     const triggers = []
     const triggerLoras = isVideo ? (job.videoLoras ?? []) : (job.loras ?? [])
     for (const l of triggerLoras) {
@@ -4256,17 +4144,15 @@ async function runJob(job, isRetry = false, connRetried = false) {
         l.triggerSource = l.trigger && !info?.trigger ? 'job' : info?.triggerSource ?? 'job'
       }
     }
-    /* Un trigger peut être une PHRASE d'activation complète (table) : on la
-       laisse finir en point ; les mots courts restent joints par virgule. */
+    /* A trigger may be a full activation PHRASE (table): let it end with its period;
+       short words are joined with commas. */
     const triggerTxt = triggers.map(t => (/[.!?]$/.test(t) ? t + ' ' : t + ', ')).join('')
-    /* Tirage des items « 🎲 au hasard » avec la seed du job : reproductible,
-       et la ligne tirée finit en provenance. Puis T0 rejoué sur le texte
-       RÉSOLU — le front n'a vu que le token. Un terme bloqué fait échouer
-       le job en le disant, plutôt que de rendre une image qu'on ne peut
-       pas livrer. */
+    /* Wildcard draws use the job's seed: reproducible, and the drawn line is
+       recorded in provenance. Then T0 is rerun on the RESOLVED text (the front end
+       only saw the token). A blocked term fails the job explicitly. */
     let drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
-    /* FLUX 3 : la scène passe par le réécriveur officiel (description complète), le déclencheur du
-       personnage reste en tête. Repli sur le texte d'origine si le LLM échoue : le rendu part quand même. */
+    /* FLUX 3: the scene goes through the official rewriter (full description), the character's trigger
+       stays first. Falls back to the original text if the LLM fails, so the render still runs. */
     const flux3Photo = job.mode === 'photo' && !isEdit && (job.photoEngine === 'flux3' || /flux3/.test(String(job.workflowFile ?? '')))
     const personnageFlux3 = !!job.personaId && job.personaId !== SANS_PERSONNAGE && lorasPhoto(persona(job.personaId), 'flux3').length > 0
     if (flux3Photo && !job.flux3Brut) {
@@ -4281,23 +4167,23 @@ async function runJob(job, isRetry = false, connRetried = false) {
         } catch (e) { console.warn(`[job ${job.id}] FLUX 3 : réécriveur indisponible, prompt d'origine (${e.message})`) }
       }
     }
-    // Vidéo avec son : la réplique est la SEULE parole (voir speechGuard).
+    // Video with audio: the quoted line is the ONLY speech (see speechGuard).
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
-    // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
-    // (sans les mots du filtre T0, que le prompt final traverse ensuite)
-    /* Mode adulte (installation locale) : seulement quand AUCUN visage ne peut venir d'une vraie personne — pas
-       de personnage, aucune LoRA (une LoRA importée peut porter un visage réel), aucune photo importée (une
-       source d'origine inconnue compte comme importée). Le plancher « mineurs » reste toujours. */
+    // SFW photo: the recipe runs without an effective negative prompt (cfg 1), so an opaque outfit is requested explicitly
+    // (without T0 filter words, which the final prompt then goes through)
+    /* Adult mode (local install): only when NO face can come from a real person: no character, no LoRA
+       (an imported LoRA may carry a real face), no imported photo (a source of unknown origin counts as
+       imported). The minors floor always applies. */
     const entrees = [job.sourceImage, job.endImage, ...(job.references ?? []), ...(job.keyframes ?? []).map(k => k.image)].filter(x => typeof x === 'string' && x.trim())
     const adulteLibre = CONFIG.contenuAdulte && (!job.personaId || job.personaId === SANS_PERSONNAGE)
       && !(job.loras ?? []).length && !(job.videoLoras ?? []).length
       && entrees.every(n => store.origineInput(path.basename(n)) === 'genere')
-    /* La consigne de tenue ne vaut que s'il y a quelqu'un à habiller : sur un paysage vide, « fully covered » faisait
-       dessiner une silhouette drapée de blanc au milieu de la neige (08/11). */
+    /* The outfit directive only applies if there is someone to dress: on an empty landscape,
+       "fully covered" makes the model draw a draped figure. */
     const quelquun = (job.personaId && job.personaId !== SANS_PERSONNAGE) || HUMAIN.test(`${job.userPrompt ?? ''} ${job.composedPositive ?? ''}`)
     const vetuOpaque = !adulteLibre && !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo' && quelquun
     const texteBrut = speech?.text ?? drawn.text
-    // un maillot sur une adulte reste permis : la consigne ne demande alors que des tissus opaques
+    // swimwear on an adult is allowed: the directive then only asks for opaque fabric
     const maillot = /\b(bikini|swimsuit|swimwear|one-piece|swim trunks)\b/i.test(texteBrut)
     const positive = vetuOpaque ? `${texteBrut}, ${maillot ? '' : 'fully clothed, '}opaque fabric, fully covered` : texteBrut
     const wildcardNotes = [
@@ -4308,13 +4194,11 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (blocked)
       throw new Error(`T0 : terme bloqué « ${blocked} »`
         + (drawn.draws.length ? ' — apparu dans un tirage wildcard' : ' dans le prompt'))
-    /* Format « origine » : sonder le fichier RÉEL de la still — les dims du
-       front peuvent être périmées (still annoncée 768×1344 après un clone, en
-       réalité 832×1216 : écrasement de 16 %). Le payload ne sert que de repli
-       si la sonde échoue. */
+    /* "Source" aspect: probe the still's ACTUAL file; front-end dims may be stale
+       (e.g. after a clone). The payload is only a fallback if probing fails. */
     let videoSrcDims
     if (job.mode === 'video' && job.videoAspect === 'origine') {
-      // Frame de fin seule : c'est elle qui donne le format.
+      // End frame only: it defines the aspect.
       const cadre = job.sourceImage || job.endImage
       if (cadre) {
         const d = videoSize(path.join(CONFIG.comfyInput, cadre))
@@ -4323,12 +4207,12 @@ async function runJob(job, isRetry = false, connRetried = false) {
       if (!videoSrcDims && job.videoSrcW && job.videoSrcH)
         videoSrcDims = { w: job.videoSrcW, h: job.videoSrcH }
     }
-    /* LoRA de la persona d'abord (identité), puis celles du job (style). */
+    /* Persona LoRAs first (identity), then the job's (style). */
     const photoLoras = [...lorasPhoto(p, job.photoEngine ?? PHOTO_ENGINE), ...(job.loras ?? [])]
     const videoLorasEff = [...(ambiance ? [] : persoVideo), ...(job.videoLoras ?? [])]
-    /* Le graphe motion n'est pas injectable génériquement (le conditionnement
-       passe par WanAnimate2ToVideo, pas par un KSampler) : son chemin dédié
-       écrit les nœuds nommés plus bas, l'injection générique ne tourne pas. */
+    /* The motion graph cannot be injected generically (conditioning goes through
+       WanAnimate2ToVideo, not a KSampler): its dedicated path writes the named
+       nodes below, and generic injection does not run. */
     const { workflow, applied, skipped } = job.videoEngine === 'motion'
       ? { workflow: base, applied: [], skipped: [] }
       : comfy.injectJob(base, {
@@ -4339,31 +4223,30 @@ async function runJob(job, isRetry = false, connRetried = false) {
       seed: job.seed,
       jobId: job.id,
       identityPreamble: preamble,
-      // Une recette d'édition tient son cadrage de l'image source : lui
-      // imposer des dimensions la recadrerait.
+      // An edit recipe takes its framing from the source image: forcing dimensions
+      // would crop it.
       width: (isEdit || isVideo) ? undefined : job.width,
       height: (isEdit || isVideo) ? undefined : job.height,
-      // Photo : persona + LoRA du job. Vidéo (hors motion) : persona vidéo +
-      // LoRA du job, empilées sur la chaîne modèle de la recette. Édition : aucune.
+      // Photo: persona + job LoRAs. Video (not motion): video persona + job LoRAs,
+      // stacked on the recipe's model chain. Edit: style LoRA only.
       loras: isEdit ? (STYLES_EDITION[job.editStyle] ? [{ name: STYLES_EDITION[job.editStyle], strength: 1 }] : undefined) : isVideo ? videoLorasEff : photoLoras,
       sourceImage: texteSeul ? (VIDEO_ENGINES[job.videoEngine]?.t2vNatif ? undefined : comfy.imageVideT2v()) : job.sourceImage ?? undefined,
       t2v: texteSeul && !VIDEO_ENGINES[job.videoEngine]?.t2vNatif,
       controlNet: job.controlNet ?? undefined,
-      // `false` explicite = « coupe l'étage audio » ; `undefined` = recette
-      // telle quelle. Une recette photo ne doit pas recevoir la consigne.
+      // Explicit `false` = "drop the audio stage"; `undefined` = recipe as is.
+      // A photo recipe must not receive the directive.
       withAudio: job.mode === 'video' ? job.withAudio === true : undefined,
-      // Durée à GÉNÉRER, pas durée livrée : sur un moteur au ralenti il faut
-      // produire plus long pour livrer la bonne longueur après correction.
+      // Duration to GENERATE, not delivered duration: on a slow-motion engine a longer
+      // clip must be produced to deliver the right length after correction.
       videoSeconds: job.mode === 'video'
         ? job.videoSeconds * (job.videoSpeed ?? 1) : undefined,
       videoAspect: job.mode === 'video' ? (job.videoAspect ?? undefined) : undefined,
       videoSrcDims,
-      // Brouillon : la surface du ResolutionSelector, et le nombre de pas.
+      // Draft: the ResolutionSelector area and the step count.
       videoMegapixels: job.videoDraft
         ? VIDEO_ENGINES[job.videoEngine]?.draft?.megapixels : undefined,
-      /* Pas d'échantillonnage : brouillon d'abord, sinon la valeur de
-         production du moteur. `undefined` si le moteur n'en déclare pas —
-         la recette garde alors la sienne. */
+      /* Sampling steps: draft first, otherwise the engine's production value.
+         `undefined` if the engine declares none, so the recipe keeps its own. */
       videoSteps: job.videoDraft
         ? VIDEO_ENGINES[job.videoEngine]?.draft?.steps
         : VIDEO_ENGINES[job.videoEngine]?.steps,
@@ -4371,23 +4254,22 @@ async function runJob(job, isRetry = false, connRetried = false) {
       contexteVideo: job.mode === 'video' ? (job.contexteVideo ?? undefined) : undefined,
       keyframes: job.mode === 'video' && Array.isArray(job.keyframes) ? job.keyframes : undefined,
     })
-    // Entrées déclarées dans <recette>.pilotage.json : appliquées après le câblage (sans fichier, rien ne change).
+    // Inputs declared in <recipe>.pilotage.json: applied after wiring (no file, no change).
     if (job.videoEngine !== 'motion')
       comfy.appliquerPilotage(job.workflowFile, workflow, { prompt: positive, negative: job.composedNegative, seed: job.seed,
         width: (isEdit || isVideo) ? undefined : job.width, height: (isEdit || isVideo) ? undefined : job.height,
         sourceImage: job.sourceImage ?? undefined }, applied, skipped)
-    /* Photos Krea générées : rendu direct en 2 MP (voir comfy.rendre2MP).
-       Pas sur les retouches (elles ont leur propre graphe) ;
-       CREATOROS_PHOTO_2MP=0 revient au 1 MP. */
+    /* Generated Krea photos: direct 2 MP render (see comfy.rendre2MP).
+       Not on retouches (they have their own graph); CREATOROS_PHOTO_2MP=0 reverts to 1 MP. */
     if (job.mode === 'photo' && !isEdit && /^PROD_gen_krea/.test(job.workflowFile ?? '')
         && process.env.CREATOROS_PHOTO_2MP !== '0') {
       const r = comfy.rendre2MP(workflow)
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
     }
-    /* FLUX 3 avec la LoRA du personnage : un visage petit dans le cadre (plan large) sort flou et générique.
-       FaceDetailer (Impact Pack) le détecte, le redessine à 1024 px avec la même LoRA puis le recolle :
-       la pose, la lumière et le décor ne bougent pas. CREATOROS_FLUX3_VISAGE=0 le coupe. */
+    /* FLUX 3 with the character LoRA: a small face in the frame (wide shot) comes out blurry and generic.
+       FaceDetailer (Impact Pack) detects it, redraws it at 1024 px with the same LoRA and pastes it back:
+       pose, light and scenery are unchanged. CREATOROS_FLUX3_VISAGE=0 disables it. */
     if (flux3Photo && personnageFlux3 && process.env.CREATOROS_FLUX3_VISAGE !== '0') {
       const ks = Object.entries(workflow).find(([, n]) => n.class_type === 'KSampler')
       const save = Object.entries(workflow).find(([, n]) => n.class_type === 'SaveImage')
@@ -4407,7 +4289,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
         applied.push('FLUX 3 : visage redessiné à 1024 px avec la LoRA du personnage (FaceDetailer, denoise 0,6)')
       }
     }
-    // Klein sans LoRA du personnage : sa photo de profil tient le visage, références ou non
+    // Klein without a character LoRA: the profile photo holds the face, with or without references
     const kleinSansLora = job.mode === 'photo' && job.photoEngine === 'klein' && !isEdit
     if (job.references?.length || kleinSansLora) {
       const refs = [...visageDuPersonnage(job, workflow, applied), ...(job.references ?? [])].slice(0, 6)
@@ -4423,7 +4305,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (drawn.draws.length) applied.unshift(...wildcardNotes.filter(n => n.startsWith('tirage')))
     if (drawn.unknown.length) skipped.push(...wildcardNotes.filter(n => !n.startsWith('tirage')))
     if (triggers.length) applied.unshift(`déclencheurs LoRA préfixés au prompt : ${triggers.join(' · ')}`)
-    // Une LoRA sans déclencheur est le cas qui échoue en silence : on le crie.
+    // A LoRA without a trigger fails silently: report it loudly.
     for (const l of job.loras ?? []) {
       if (!l.trigger)
         skipped.push(`LoRA « ${l.name} » empilée SANS mot déclencheur — elle sera chargée `
@@ -4431,49 +4313,45 @@ async function runJob(job, isRetry = false, connRetried = false) {
     }
     skipped.forEach(s => console.warn(`[job ${job.id}] non injecté — ${s}`))
 
-    /* Motion Control : le graphe générique injecté ci-dessus ne convient
-       pas — ce n'est même pas lui qu'on exécute. On repart de la recette et
-       on écrit les nœuds NOMMÉS (cf. MOTION_NODES). */
+    /* Motion Control: the generic graph injected above does not apply (it is not
+       the one executed). Start again from the recipe and write the NAMED nodes
+       (see MOTION_NODES). */
     let finalWorkflow = workflow
     if (job.videoEngine === 'motion' && job.motionMode === 'replace') {
       const ref = await buildMotionRef(job)
-      // une personne et un clip court : SCAIL-2 ; à plusieurs ou plus long : WanAnimate
+      // one person and a short clip: SCAIL-2; several people or longer: WanAnimate
       const scail = !job.mixTotal && !job.mixWanAnimate && scailBlocs(ref.frames) <= scailBlocsPermis(job) && await scailDisponible()
       finalWorkflow = scail ? grapheSwapScail(job, ref, applied) : await grapheMix(job, ref, applied, skipped)
-      /* Carte vidée avant Wan-Animate : derrière le rendu Krea
-         de la référence, ou un rendu interrompu, les modèles restés chargés ne
-         laissent que des miettes au WanVideoWrapper — 104 s par pas puis panne
-         de mémoire au 10e pas. */
-      await comfy.freeMemory().catch(() => { /* non fatal */ })
+      /* Free the GPU before Wan-Animate: models left loaded (e.g. by the reference
+         render or an interrupted render) leave too little memory for WanVideoWrapper. */
+      await comfy.freeMemory().catch(() => { /* non-fatal */ })
     } else if (job.videoEngine === 'motion') {
       const motion = await buildMotionRef(job)
       const g = structuredClone(base)
       g[MOTION_NODES.ref].inputs.image = motion.refName
       g[MOTION_NODES.driver].inputs.file = job.motionDriver
-      // 4k+1 ≤ images du driver : le pas temporel du latent est de 4 images.
+      // 4k+1 <= driver frames: the latent's time step is 4 frames.
       g[MOTION_NODES.animate].inputs.length = Math.max(9, Math.floor((motion.frames - 1) / 4) * 4 + 1)
-      // Le prompt décrit CE QUE LA RÉF MONTRE — jamais un personnage
-      // générique, c'est ce qui fait muter l'identité. Le texte opérateur
-      // ne porte que le MOUVEMENT ; sans lui, une consigne neutre.
+      // The prompt describes WHAT THE REFERENCE SHOWS, never a generic character
+      // (that makes identity drift). The operator text only carries the MOTION;
+      // without it, a neutral directive.
       const motionTxt = (job.composedPositive || '').trim()
         || 'The person moves naturally'
-      /* Le prompt PRINCIPAL décrit personnage + décor + interaction — c'est
-         le seul canal qui parle du CONTEXTE (un objet tenu, un décor qui
-         change) : la branche geste ne suit que le sujet principal du driver.
-         L'opérateur peut le fournir en entier (motionSceneText), VERBATIM :
-         c'est là qu'il décrit l'action réelle du driver (« she takes off her
-         jacket », « she walks away »). Sans texte scène, une amorce neutre. */
+      /* The MAIN prompt describes character + scene + interaction: the only channel
+         for CONTEXT (a held object, a changing scene), since the motion branch only
+         follows the driver's main subject. The operator can provide it in full
+         (motionSceneText), VERBATIM, to describe the driver's actual action. Without
+         scene text, a neutral opener. */
       g[MOTION_NODES.prompt].inputs.text = job.motionSceneText
         ? job.motionSceneText.trim()
         : 'The person from the reference image. ' + motionTxt
       g[MOTION_NODES.motion].inputs.text = motionTxt
-      /* Continuité entre fenêtres de contexte : l'overlap natif (8) laissait
-         des « cut » visibles tous les ~1,7 s sur les mouvements amples. On le
-         relève à 12 (fenêtre = 21 latents) — moins de coutures, sans toucher
-         à la ressemblance (contrairement à reference_image_strength). */
+      /* Continuity between context windows: overlap raised to 12 (window = 21
+         latents) for fewer visible seams on large motions, without affecting likeness
+         (unlike reference_image_strength). */
       if (g[MOTION_NODES.context]?.inputs) g[MOTION_NODES.context].inputs.context_overlap = 12
-      /* Sans accélérateur : la LoRA de distillation (6 pas, cfg 1) lisse les textures.
-         Sans elle, échantillonnage standard de Wan : 20 pas, cfg 5, uni_pc (≈ 6× plus long). */
+      /* Without accelerator: the distillation LoRA (6 steps, cfg 1) smooths textures.
+         Without it, standard Wan sampling: 20 steps, cfg 5, uni_pc (about 6x longer). */
       if (job.motionSansTurbo === true && g['261:11'] && g['261:18'] && g['261:19']) {
         for (const n of Object.values(g)) for (const [k, v] of Object.entries(n.inputs ?? {}))
           if (Array.isArray(v) && v[0] === '261:11') n.inputs[k] = ['261:239', 0]
@@ -4484,10 +4362,10 @@ async function runJob(job, isRetry = false, connRetried = false) {
         applied.push('motion sans accélérateur : 20 pas, cfg 5, uni_pc')
       } else if (job.motionDistill !== false && !Number.isFinite(job.motionTurbo) && !Number.isInteger(job.motionPas)
         && g['261:239'] && g['261:11'] && g['261:18'] && g['261:19']) {
-        /* Par défaut : le modèle Wan Animate 2 DISTILLÉ (celui du gabarit officiel de ComfyUI). Il se suffit,
-           sans LoRA d'accélération : 10 pas, cfg 1, lcm. Plus propre que le modèle de base + LoRA lightx2v
-           (peau et tissus moins lissés, aucun effet « images de synthèse »), pour le même temps.
-           motionDistill: false, ou un réglage d'accélérateur, revient au modèle de base (bancs du propriétaire). */
+        /* Default: the DISTILLED Wan Animate 2 model (from the official ComfyUI template). It needs no
+           acceleration LoRA: 10 steps, cfg 1, lcm. Cleaner than base model + lightx2v LoRA (less smoothed
+           skin and fabric) for the same time. motionDistill: false, or an accelerator setting, reverts to
+           the base model (owner options). */
         g['261:239'].inputs.unet_name = 'wan_animate_2_distill_int8_convrot.safetensors'
         for (const n of Object.values(g)) for (const [k, v] of Object.entries(n.inputs ?? {}))
           if (Array.isArray(v) && v[0] === '261:11') n.inputs[k] = ['261:239', 0]
@@ -4495,18 +4373,18 @@ async function runJob(job, isRetry = false, connRetried = false) {
         g['261:18'].inputs.steps = 10; g['261:19'].inputs.cfg = 1; g['261:27'].inputs.sampler_name = 'lcm'
         applied.push('motion : Wan Animate 2 distillé, sans LoRA, 10 pas, cfg 1, lcm')
       } else if (g['261:11'] && g['261:18'] && g['261:19']) {
-        /* Accélérateur adouci par défaut : à pleine force (6 pas) il lisse tissus et peau ; à 0,7 sur 10 pas
-           les plis reviennent sans perdre le mouvement (≈ 1,5× plus long). Réglable par le propriétaire. */
+        /* Accelerator softened by default: at full strength (6 steps) it smooths fabric and skin; at 0.7 over
+           10 steps folds come back without losing motion (about 1.5x longer). Owner-adjustable. */
         g['261:11'].inputs.strength_model = Number.isFinite(job.motionTurbo) ? job.motionTurbo : 0.7
         g['261:18'].inputs.steps = Number.isInteger(job.motionPas) ? job.motionPas : 10
         if (Number.isFinite(job.motionCfg)) g['261:19'].inputs.cfg = job.motionCfg
         applied.push(`motion : accélérateur ${g['261:11'].inputs.strength_model}, ${g['261:18'].inputs.steps} pas, cfg ${g['261:19'].inputs.cfg}`)
       }
-      /* Branche « mouvement » : par défaut elle reçoit aussi l'image CLIP de la 1re image du driver.
-         Un driver de synthèse (mannequin 3D) y transmet son rendu « images de synthèse » au personnage.
-         motionVisionRef : la branche mouvement voit la still à la place ; motionPoseFin : l'influence
-         du driver s'arrête avant la fin de l'échantillonnage (la chorégraphie est posée tôt, le détail
-         vient alors de la still). Réglages de banc du propriétaire. */
+      /* Motion branch: by default it also receives the CLIP image of the driver's first frame. A synthetic
+         driver (3D mannequin) passes its CGI look on to the character that way.
+         motionVisionRef: the motion branch sees the still instead; motionPoseFin: the driver's influence
+         stops before the end of sampling (choreography is set early, detail then comes from the still).
+         Owner test settings. */
       if (job.motionVisionRef === true && g[MOTION_NODES.animate]?.inputs?.clip_vision_output)
         g[MOTION_NODES.animate].inputs.clip_vision_output_pose = g[MOTION_NODES.animate].inputs.clip_vision_output
       if (Number.isFinite(job.motionPoseFin)) g[MOTION_NODES.animate].inputs.pose_end_percent = job.motionPoseFin
@@ -4532,22 +4410,21 @@ async function runJob(job, isRetry = false, connRetried = false) {
       finalWorkflow = g
     }
 
-    /* PAS de décharge VRAM ici : POST /free décharge TOUT (free_memory
-       implique unload_all_models), et le rechargement à froid qui suit fait
-       un OOM de fragmentation au premier échantillonneur sur les recettes
-       lourdes. La gestion progressive de ComfyUI fait mieux quand les
-       modèles restent résidents ; la protection contre l'alternance est le
-       tri de file par recette. */
+    /* NO VRAM unload here: POST /free unloads EVERYTHING (free_memory implies
+       unload_all_models), and the cold reload that follows can hit a fragmentation
+       OOM at the first sampler on heavy recipes. ComfyUI's progressive management
+       works better with resident models; alternation is avoided by sorting the
+       queue by recipe. */
     const promptId = await comfy.submitPrompt(finalWorkflow, CLIENT_ID)
     current = { jobId: job.id, promptId }
     store.markStarted(job.id, promptId)
     console.log(`[job ${job.id}] ComfyUI prompt_id=${promptId}`)
 
     const history = await comfy.waitForPrompt(promptId, {
-      /* « queued » côté ComfyUI ≠ « queued » côté CreatorOS : le prompt est
-         DÉJÀ soumis. Le distinguer évite qu'au redémarrage recoverQueue le
-         re-soumette (queuedPayloads ne ramasse que 'queued') au lieu de le
-         ré-attacher (orphanedRunningRows connaît 'queued-comfy'). */
+      /* ComfyUI "queued" != CreatorOS "queued": the prompt is ALREADY submitted.
+         Distinguishing them lets recoverQueue re-attach it on restart
+         (orphanedRunningRows knows 'queued-comfy') instead of resubmitting it
+         (queuedPayloads only picks up 'queued'). */
       onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p),
     })
     const n = await harvestJob(job, promptId, history,
@@ -4555,16 +4432,15 @@ async function runJob(job, isRetry = false, connRetried = false) {
     const ms = Date.now() - t0
     store.markFinished(job.id, ms)
     console.log(`[job ${job.id}] terminé en ${(ms / 1000).toFixed(1)} s — ${n} image(s)`)
-    // contrôle du clip, hors du chemin critique : la file repart sans l'attendre
+    // clip checking, off the critical path: the queue continues without waiting for it
     void controlerJob(job, p => enqueue(p)).catch(e => console.warn(`[contrôle] ${String(e.message || e).slice(0, 200)}`))
     if (/^danse3d-[a-z0-9]+-swap$/.test(job.id)) {
       try { finaliserDanse3d(job) } catch (e) { console.warn(`[job ${job.id}] finition de la danse 3D — ${e.message || e}`) }
     }
   } catch (e) {
-    /* ComfyUI injoignable (redémarrage, crash relancé par le superviseur) :
-       ce n'est pas le job qui est en cause. On attend qu'il réponde et on
-       rejoue UNE fois — sans quoi toute la file se vide en « blocked » le
-       temps d'un redémarrage de ComfyUI. */
+    /* ComfyUI unreachable (restart, crash restarted by the supervisor): the job is
+       not at fault. Wait for it to answer and retry ONCE, otherwise the whole queue
+       would drain as "blocked" during a ComfyUI restart. */
     if (annulesEnCours.delete(job.id)) {
       store.markFailed(job.id, Date.now() - t0, 'annulé par l’utilisateur pendant le rendu')
       console.log(`[job ${job.id}] annulé pendant le rendu`)
@@ -4582,9 +4458,9 @@ async function runJob(job, isRetry = false, connRetried = false) {
       }
       return runJob(job, isRetry, true)
     }
-    /* OOM vidéo : UN retry après une pause. Le premier passage peut tomber
-       selon ce que ComfyUI a encore en VRAM, le second passe en général
-       (l'OOM lui-même libère). Un double échec est un vrai dépassement. */
+    /* Video OOM: ONE retry after a pause. The first run can fail depending on what
+       ComfyUI still holds in VRAM; the second usually succeeds (the OOM itself frees
+       memory). A double failure is a real overflow. */
     const isOom = /out of memory|OutOfMemory|Allocation on device/i.test(String(e.message || e))
     if (isOom && job.mode === 'video' && !isRetry) {
       console.warn(`[job ${job.id}] OOM — retry unique dans 45 s`)
@@ -4601,9 +4477,9 @@ async function runJob(job, isRetry = false, connRetried = false) {
   }
 }
 
-/** Écrit les sorties d'un prompt TERMINÉ : fichiers, post-traitements,
- *  assets + provenance. Extraite de runJob pour que la reprise au démarrage
- *  puisse récolter un rendu orphelin par le MÊME chemin que le nominal. */
+/** Writes the outputs of a FINISHED prompt: files, post-processing, assets +
+ *  provenance. Separate from runJob so restart recovery can harvest an orphaned
+ *  render through the SAME path. */
 async function harvestJob(job, promptId, history, extras = {}) {
   const { applied = [], skipped = [], preamble = null, clause = '', finalWorkflow = null } = extras
   store.setStatus(job.id, 'post-process')
@@ -4612,7 +4488,7 @@ async function harvestJob(job, promptId, history, extras = {}) {
     if (!images.length) throw new Error('exécution terminée mais aucune image en sortie')
     const resolvedText = comfy.textsOf(history)
 
-    let deliveredFirst = null   // premier fichier livré (la continuation)
+    let deliveredFirst = null   // first delivered file (the continuation)
     for (const [i, img] of images.entries()) {
       const buf = await comfy.readImage(img)
       const ext = path.extname(img.filename) || '.png'
@@ -4621,10 +4497,9 @@ async function harvestJob(job, promptId, history, extras = {}) {
       fs.writeFileSync(full, buf)
       let { width, height } = comfy.pngSize(buf)
       if (job.mode === 'video') {
-        /* Le retiming ne sert qu'à corriger un moteur au ralenti (speed ≠ 1).
-           À speed 1, la durée générée EST la durée livrée, à l'arrondi du
-           moteur près : MiniMax quantifie 6 s en 158 images (6,58 s), et
-           recompresser à 6,00 accélérerait encore la voix de 10 %. Seule la cadence reste conformée. */
+        /* Retiming only corrects a slow-motion engine (speed != 1). At speed 1 the
+           generated duration IS the delivered duration, up to the engine's rounding;
+           compressing it would speed up the voice. Only the frame rate is conformed. */
         const r = conformVideo(full,
           (job.videoSpeed ?? 1) !== 1 ? job.videoSeconds : null, job.videoFps)
         if (r) console.log(`[job ${job.id}] ${r}`)
@@ -4634,16 +4509,15 @@ async function harvestJob(job, promptId, history, extras = {}) {
           else if (fl) applied.push(fl)
         }
         if (job.videoEngine === 'motion') {
-          // prévisu ET final : coût mesuré sous la minute
+          // preview AND final: cost under a minute
           const fl = await fluidifier(full, job.id)
           if (fl?.echec) skipped.push(`fluidité (RIFE) NON appliquée, rendu livré à 16 i/s — ${fl.echec}`)
           else if (fl) { console.log(`[job ${job.id}] ${fl}`); applied.push(fl) }
         }
-        // Passe MATE (dé-brillance + grain) sur les rendus qui sortent glossy :
-        // motion (WanAnimate) ET i2v minimax (distill H3). Pas wan/ltx.
-        // Extensions : PAS de matte. Le matte aplatit la
-        // continuation, et le seam color-match ci-dessous aligne déjà son grade
-        // sur la source — double traitement inutile qui ternit le plan.
+        // MATTE pass (de-gloss + grain) on renders that come out glossy: motion
+        // (WanAnimate) AND minimax i2v (distilled H3). Not wan/ltx. Not on extensions:
+        // matte flattens the continuation, and the seam color match below already
+        // aligns its grade with the source.
         const isExtension = typeof job.concatWith === 'string' && job.concatWith.trim()
         const applyMatte = !isExtension
           && ((typeof job.motionDriver === 'string' && job.motionDriver.trim())
@@ -4652,16 +4526,15 @@ async function harvestJob(job, promptId, history, extras = {}) {
           const dg = matteVideo(full)
           if (dg) console.log(`[job ${job.id}] ${dg}`)
         }
-        // Danse en « face tracking » : la caméra reste verrouillée sur le visage (recadrage suivi)
+        // "Face tracking" dance: the camera stays locked on the face (tracked crop)
         if (job.danseSuivi === true) {
           const sv = suiviVisage(full)
           if (sv.ok) applied.push(`cadrage suivi du visage (zoom ${sv.zoom})`)
           else skipped.push(`cadrage suivi du visage NON appliqué — ${sv.raison}`)
         }
-        // Extension : recoloration du clip de continuation sur la queue de la
-        // source, pour que l'asset `-0` livré ne soit pas plus sombre que la
-        // source (l'i2v ré-expose plus bas). Après le matte pour comparer des
-        // grades finaux comparables. Le concat aval mesurera ~0 → se sautera.
+        // Extension: recolor the continuation clip to the source's tail so the
+        // delivered `-0` asset is not darker than the source. Done after the matte so
+        // final grades are compared. The downstream concat will then measure ~0 and skip.
         if (job.concatWith && typeof job.concatWith === 'string' && job.concatWith.trim()) {
           const srcDir = job.concatFrom === 'input' ? CONFIG.comfyInput : CONFIG.mediaDir
           const srcPath = path.join(srcDir, path.basename(job.concatWith.trim()))
@@ -4672,8 +4545,8 @@ async function harvestJob(job, promptId, history, extras = {}) {
         }
         const d = videoSize(full)
         width = d.width; height = d.height
-        // Vignette pour les grilles (iOS n'en tire aucune du <video>).
-        // Non bloquant, non fatal : la route la régénère à la demande.
+        // Thumbnail for grids (iOS does not extract one from <video>).
+        // Non-blocking, non-fatal: the route regenerates it on demand.
         void ensurePoster(filename).catch(() => {})
       }
       const bytes = fs.statSync(full).size
@@ -4684,24 +4557,20 @@ async function harvestJob(job, promptId, history, extras = {}) {
           mediaType: job.mode, uri: `/media/${filename}`, filename,
           bytes, width, height, aspect: ratio(width, height),
           register: 'sfw',
-          // Fonction de l'asset : c'est ce qui permet aux galeries de montrer
-          // LEUR catégorie (t2i / retouche / i2v / motion).
+          // Asset function: lets galleries show THEIR category (t2i / retouch / i2v / motion).
           op: job.op ?? 'generate', videoEngine: job.videoEngine ?? null,
         },
         {
           recipeId: job.recipeId, workflowFile: job.workflowFile,
           comfyPromptId: promptId, seed: job.seed,
           composedPositive: job.composedPositive, composedNegative: job.composedNegative,
-          // Prompt BRUT + directives : sans eux « Cloner » ne peut pas
-          // repeupler la colonne 3 du front.
+          // RAW prompt + directives: needed by "Clone" to repopulate the front end's column 3.
           userPrompt: job.userPrompt, userDirectives: job.userDirectives,
           selections: job.selections, resolvedText,
-          // Le préambule est une entrée de production au même titre que le
-          // prompt : sans lui en provenance, un asset n'est pas rejouable.
+          // The preamble is a production input like the prompt: needed to replay the asset.
           identityPreamble: preamble,
           registerClause: clause || null,
-          // Pour une édition, l'image d'entrée EST une donnée de production :
-          // sans elle en provenance, l'asset n'est pas rejouable.
+          // For an edit, the input image IS production data: needed to replay the asset.
           sourceImage: job.sourceImage ?? null,
           extraLoras: job.loras?.length ? job.loras : null,
           injections: { applied, skipped },
@@ -4713,10 +4582,9 @@ async function harvestJob(job, promptId, history, extras = {}) {
 
   if (job.mixSuite?.length && deliveredFirst) lancerMixSuivant(job, deliveredFirst)
 
-  /* Extension vidéo, plan complet : source + continuation concaténées en un
-     fichier, livré comme SECOND asset du job (id `a-<job>-full`). Un échec de
-     concat n'annule pas la continuation — il est journalisé en provenance
-     du job suivant et en console. */
+  /* Video extension, full shot: source + continuation concatenated into one
+     file, delivered as the job's SECOND asset (id `a-<job>-full`). A concat
+     failure does not cancel the continuation; it is logged. */
   if (job.concatWith && job.mode === 'video' && deliveredFirst) {
     const srcDir = job.concatFrom === 'input' ? CONFIG.comfyInput : CONFIG.mediaDir
     const srcPath = path.join(srcDir, path.basename(job.concatWith))
@@ -4726,8 +4594,8 @@ async function harvestJob(job, promptId, history, extras = {}) {
       try {
         const cname = `${job.id}-full-${crypto.randomBytes(4).toString('hex')}.mp4`
         const cfull = path.join(CONFIG.mediaDir, cname)
-        /* Prequel : rendu PUIS source, et pas de seam sur la source (le rendu
-           a déjà été recoloré sur sa tête, ci-dessus). */
+        /* Prequel: render THEN source, and no seam on the source (the render was
+           already recolored to its head above). */
         if (job.prequel === true) concatVideos(deliveredFirst.full, srcPath, cfull, { seam: false })
         else concatVideos(srcPath, deliveredFirst.full, cfull)
         void ensurePoster(cname).catch(() => {})
@@ -4748,9 +4616,9 @@ async function harvestJob(job, promptId, history, extras = {}) {
               : 'plan complet : source + continuation concaténées (24 fps, résolution de la continuation)'], skipped: [] },
             workflowJson: null })
         console.log(`[job ${job.id}] plan complet livré : ${cname}`)
-        /* Une suite livre le montage (origine + suite), pas la suite seule : celle-ci part à la
-           corbeille (30 jours, restaurable) une fois le montage écrit. Si le montage échoue, on
-           n'arrive pas ici et la suite seule reste livrée. */
+        /* A sequel delivers the joined result (original + sequel), not the sequel alone: the latter goes to the
+           trash (30 days, restorable) once the join is written. If the join fails, this code is not reached
+           and the sequel alone stays delivered. */
         const corbeille = path.join(CONFIG.mediaDir, '.corbeille')
         for (const a of store.listAssetsByJob(job.id)) {
           if (a.id === `a-${job.id}-full`) continue
@@ -4771,9 +4639,9 @@ async function harvestJob(job, promptId, history, extras = {}) {
 
 export const queueDepth = () => queue.length + (running ? 1 : 0)
 
-/* Place d'un job en attente, pour l'afficher au visiteur : son rang
-   (1 = le prochain), et l'attente avant son départ estimée par les durées
-   prévues du job en cours (ce qu'il lui reste) et de ceux qui le précèdent. */
+/* A waiting job's place, to show the visitor: its rank (1 = next), and the wait
+   before it starts, estimated from the running job's remaining time and the
+   expected durations of the jobs ahead. */
 let enCours = null   // { estimatedMs, debut }
 const DUREE_PAR_DEFAUT = 60_000
 export function placeDansFile(id) {

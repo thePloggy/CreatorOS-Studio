@@ -1,19 +1,19 @@
 /* ============================================================
-   Transport « Comfy SDK » — les rendus partent par l'API Comfy v2
-   (@comfyorg/sdk) au lieu de l'API locale de ComfyUI.
+   "Comfy SDK" transport: renders go through the Comfy v2 API
+   (@comfyorg/sdk) instead of ComfyUI's local API.
 
-   Deux cibles, même code :
-   - Comfy Cloud, avec la clé du VISITEUR (en-tête X-Comfy-Key) : ses
-     crédits, son compte ; rien ne tourne sur la machine qui sert l'appli ;
-   - un ComfyUI local derrière `comfy-api-proxy` (CREATOROS_TRANSPORT=sdk,
-     COMFY_BASE_URL=http://127.0.0.1:8189), sans clé.
+   Two targets, same code:
+   - Comfy Cloud, with the VISITOR's key (X-Comfy-Key header): their
+     credits, their account; nothing runs on the machine serving the app;
+   - a local ComfyUI behind `comfy-api-proxy` (CREATOROS_TRANSPORT=sdk,
+     COMFY_BASE_URL=http://127.0.0.1:8189), without a key.
 
-   La clé n'est jamais écrite : ni en base, ni dans le payload du job, ni
-   dans les journaux. Elle vit en mémoire le temps du job (cf. jobs.js).
+   The key is never written: not in the database, the job payload or the
+   logs. It lives in memory for the job's duration (see jobs.js).
 
-   Le reste du serveur ne voit pas la différence : submitPrompt rend un
-   identifiant « sdk:<id> », waitForPrompt rend une entrée d'historique au
-   format de ComfyUI, readImage lit les octets par le SDK.
+   The rest of the server sees no difference: submitPrompt returns an id
+   "sdk:<id>", waitForPrompt returns a ComfyUI-format history entry,
+   readImage reads the bytes through the SDK.
    ============================================================ */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
@@ -21,23 +21,23 @@ import path from 'node:path'
 import { Comfy } from '@comfyorg/sdk'
 import { CONFIG } from './config.js'
 
-/** Transport de TOUS les jobs : 'local' (API de ComfyUI) ou 'sdk' (proxy v2). */
+/** Transport for ALL jobs: 'local' (ComfyUI API) or 'sdk' (v2 proxy). */
 export const TRANSPORT = (process.env.CREATOROS_TRANSPORT || 'local').trim().toLowerCase() === 'sdk' ? 'sdk' : 'local'
 const BASE_LOCALE = (process.env.COMFY_BASE_URL || 'http://127.0.0.1:8189').trim()
 
-/* Le contexte du job en cours : { cle } pour Comfy Cloud, {} pour le proxy local. */
+/* Current job context: { cle } for Comfy Cloud, {} for the local proxy. */
 const contexte = new AsyncLocalStorage()
-/** Exécute `fn` (un job) sur le transport SDK. `cle` absente = proxy local. */
+/** Runs `fn` (a job) on the SDK transport. No `cle` = local proxy. */
 export const avecSdk = (cle, fn) => contexte.run({ cle: cle || null }, fn)
-/** Le job courant passe-t-il par le SDK ? */
+/** Does the current job go through the SDK? */
 export const surSdk = () => Boolean(contexte.getStore()) || TRANSPORT === 'sdk'
-/** … et vers Comfy Cloud (clé de visiteur) ? */
+/** … and to Comfy Cloud (visitor key)? */
 export const surCloud = () => Boolean(contexte.getStore()?.cle)
 
 function client() {
   const cle = contexte.getStore()?.cle ?? null
-  /* La cible se lit dans COMFY_BASE_URL à la construction (contrat du SDK) :
-     absente = Comfy Cloud. On la pose le temps du constructeur, synchrone. */
+  /* The target is read from COMFY_BASE_URL at construction (SDK contract):
+     absent = Comfy Cloud. It is set for the synchronous constructor call only. */
   const avant = process.env.COMFY_BASE_URL
   try {
     if (cle) delete process.env.COMFY_BASE_URL
@@ -49,9 +49,9 @@ function client() {
   }
 }
 
-/* ---------- différences de catalogue Comfy Cloud ----------
-   Mêmes modèles, parfois un autre nom de fichier ; et pas de nœud GGUF :
-   le chargeur est remplacé par un UNETLoader sur l'équivalent fp8. */
+/* ---------- Comfy Cloud catalog differences ----------
+   Same models, sometimes a different file name; and no GGUF node: the
+   loader is replaced by a UNETLoader on the fp8 equivalent. */
 let tableCloud = null
 function catalogueCloud() {
   if (tableCloud) return tableCloud
@@ -75,12 +75,12 @@ function adapterAuCloud(graphe) {
   }
 }
 
-/* Champs « nom de fichier d'entrée » des chargeurs : le fichier est dans le
-   dossier input/ du ComfyUI local ; par le SDK il est TÉLÉVERSÉ (dédupliqué
-   par empreinte, un fichier déjà connu du serveur ne repart pas). */
+/* Loader "input file name" fields: the file is in the local ComfyUI's
+   input/ folder; through the SDK it is UPLOADED (deduplicated by hash, a file
+   already known to the server is not resent). */
 const ENTREES = { LoadImage: 'image', VHS_LoadVideo: 'video', LoadVideo: 'file', LoadImageMask: 'image' }
 
-const jobs = new Map()   // 'sdk:<id>' → Job du SDK
+const jobs = new Map()   // 'sdk:<id>' → SDK Job
 
 export async function soumettre(workflow) {
   const c = client()
@@ -104,7 +104,7 @@ export async function soumettre(workflow) {
 
 const attendre = ms => new Promise(r => setTimeout(r, ms))
 
-/** Attend la fin du job ; rend une entrée d'historique au format ComfyUI. */
+/** Waits for the job to finish; returns a ComfyUI-format history entry. */
 export async function attendreFin(pid, { onPhase, timeoutMs } = {}) {
   const job = jobs.get(pid)
   if (!job) throw new Error('job Comfy SDK inconnu (serveur redémarré pendant le rendu ?)')
@@ -123,8 +123,8 @@ export async function attendreFin(pid, { onPhase, timeoutMs } = {}) {
     const detail = e ? [e.code, e.message, e.class_type && `nœud ${e.class_type}${e.node_id ? ` #${e.node_id}` : ''}`].filter(Boolean).join(' — ') : job.status
     return { status: { completed: false, status_str: job.status, messages: [['execution_error', { exception_message: detail }]] }, outputs: {} }
   }
-  /* Sorties regroupées par nœud, toutes sous `images` comme le fait
-     ComfyUI pour SaveImage et SaveVideo (outputsOf ne lit que là). */
+  /* Outputs grouped by node, all under `images` as ComfyUI does for
+     SaveImage and SaveVideo (outputsOf only reads there). */
   const outputs = {}
   for (const o of job.outputs) {
     if (o.type === 'text' || o.type === 'latent') continue

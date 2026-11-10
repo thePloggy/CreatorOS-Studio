@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /* ============================================================
-   Serveur MCP du studio : Claude Code, Claude Desktop, Cursor ou tout
-   client MCP peut lancer photos, vidéos et reels sur un studio qui tourne.
+   Studio MCP server: any MCP client can launch photos, videos and
+   reels on a running studio.
 
-   Transport stdio, JSON-RPC 2.0, une ligne par message. Écrit à la main
-   (initialize, tools/list, tools/call, ping) pour ne pas ajouter de dépendance.
-   Les outils ne font qu'appeler l'API HTTP du studio (client.mjs) : mêmes
-   contrôles que l'interface (filtre de contenu, file, quota).
+   stdio transport, JSON-RPC 2.0, one line per message. Hand-written
+   (initialize, tools/list, tools/call, ping) to avoid a dependency.
+   Tools only call the studio's HTTP API (client.mjs): same checks
+   as the UI (content filter, queue, quota).
 
    claude mcp add creatoros-studio -- node /chemin/vers/scripts/agent/mcp.mjs
    ============================================================ */
@@ -109,7 +109,7 @@ const ecrire = m => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...m }
 
 async function traiter(m) {
   const { id, method, params } = m
-  if (id === undefined) return   // notification (notifications/initialized…) : rien à rendre
+  if (id === undefined) return   // notification (notifications/initialized…): no response
   try {
     if (method === 'initialize')
       return ecrire({ id, result: { protocolVersion: params?.protocolVersion ?? VERSION_PROTOCOLE, capabilities: { tools: {} },
@@ -124,7 +124,7 @@ async function traiter(m) {
         const r = await o.lancer(params.arguments ?? {})
         return ecrire({ id, result: { content: [{ type: 'text', text: JSON.stringify(r, null, 1) }], structuredContent: Array.isArray(r) ? { items: r } : r } })
       } catch (e) {
-        // une erreur d'outil (filtre, studio absent) est un résultat lisible par le modèle, pas une erreur de protocole
+        // a tool error (filter, studio down) is a result the model can read, not a protocol error
         return ecrire({ id, result: { content: [{ type: 'text', text: String(e.message || e) }], isError: true } })
       }
     }

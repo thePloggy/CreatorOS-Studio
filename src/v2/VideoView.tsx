@@ -1,8 +1,8 @@
 /* ============================================================
-   v2 — vue Vidéo : sidebar de création (100% de la zone sous header) + la
-   bibliothèque vidéo. Onglets Créer (i2v) / Rejouer (motion control :
-   une still rejoue le geste d'une vidéo) / Étendre.
-   Tâches : i2v=Créer · motion_pure=Rejouer · extend=Étendre.
+   v2 — Video view: creation sidebar (full area under header) + the
+   video library. Tabs Create (i2v) / Replay (motion control:
+   a still replays a video's motion) / Extend.
+   Tasks: i2v=Create · motion_pure=Replay · extend=Extend.
    ============================================================ */
 import { SANS_PERSONNAGE } from '../lib/personnage'
 import { LoraStacks, LoraSwitch, loraFamily } from '../components/LoraStacks'
@@ -22,7 +22,7 @@ import { getLang, t, tp } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { StagePanel } from './StagePanel'
 
-/* Filmer un geste au téléphone : un QR code à usage unique, 10 min (cf. /api/telephone). */
+/* Film a motion with a phone: a single-use QR code, valid 10 min (see /api/telephone). */
 function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: { filename: string; durationS?: number; frames?: number }) => void }) {
   const [q, setQ] = useState<{ jeton: string; svg: string; local: boolean } | null>(null)
   const [err, setErr] = useState('')
@@ -45,13 +45,12 @@ function TelephonePopup({ onClose, onRecu }: { onClose: () => void; onRecu: (e: 
   )
 }
 
-/* Durées proposées, filtrées au rendu par le plafond du moteur choisi
-   (`engineInfo().maxSeconds`, fourni par le serveur). Une liste figée
-   masquerait les durées qu'un moteur sait tenir. Même liste que le mobile. */
+/* Offered durations, filtered at render by the chosen engine's cap
+   (`engineInfo().maxSeconds`, provided by the server). Same list as mobile. */
 const DUR = [3, 4, 5, 6, 8, 10, 12, 16, 20]
 
-/* Menu contextuel générique des pills vidéo (durée/fps/format) — même
-   facture que les menus de l'îlot image : portal .v2, ancré bas, exclusif. */
+/* Generic context menu for video pills (duration/fps/format), same
+   style as the image island menus: .v2 portal, anchored bottom, exclusive. */
 function PickMenu<T extends string | number>({ at, onClose, options, current, fmt, onPick }: {
   at: { x: number; bottom: number }; onClose: () => void
   options: readonly T[]; current: T; fmt: (v: T) => string; onPick: (v: T) => void
@@ -74,7 +73,7 @@ const ASPECTS: VideoAspect[] = ['origine', '9:16', '2:3', '3:4', '1:1', '16:9']
 type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre' | 'stage'
 
 export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
-  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  // arriving without an image from a click: empty slots (start, end, edit source…)
   useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const [prises, setPrises] = useState<string | null>(null)
   const edition = useEdition()
@@ -106,9 +105,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
   const v = s.video
   const surStage = s.stageOuvert
-  // part de l'écran donnée à la scène 3D (le reste à la bibliothèque), réglée par la poignée et retenue
+  // screen share given to the 3D scene (the rest to the library), set by the handle and persisted
   const [hautStage, setHautStageBrut] = useState(() => { try { return Number(localStorage.getItem('creatoros-haut-stage')) || 55 } catch { return 55 } })
-  const setHautStage = (v: number | ((h: number) => number)) => setHautStageBrut(h => { const n = typeof v === 'function' ? v(h) : v; try { localStorage.setItem('creatoros-haut-stage', String(Math.round(n))) } catch { /* stockage refusé */ } return n })
+  const setHautStage = (v: number | ((h: number) => number)) => setHautStageBrut(h => { const n = typeof v === 'function' ? v(h) : v; try { localStorage.setItem('creatoros-haut-stage', String(Math.round(n))) } catch { /* storage refused */ } return n })
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
@@ -138,7 +137,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   return (
     <div className="flex-1 min-h-0 flex layer1 vwrap2" style={{ overflow: 'hidden' }}>
       {briefs.panel}
-      {/* ---------- création : sidebar (desktop) / sheet à crans (mobile) ---------- */}
+      {/* ---------- creation: sidebar (desktop) / snapping sheet (mobile) ---------- */}
       {(() => { const side = (<>
         {tab !== 'stage' && <h2 className="titre-outil">{tab === 'creer' ? 'Image to Video' : tab === 'ambiance' ? 'Text to Video' : tab === 'rejouer' ? 'Swap' : 'Extend'}</h2>}
         <div className="flex gap-1 rounded-[11px] p-[3px]" style={{ background: 'var(--lv2)' }}>
@@ -154,7 +153,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
 
         {tab === 'stage' && <StagePanel />}
 
-        {/* ============ CRÉER (i2v) ============ */}
+        {/* ============ CREATE (i2v) ============ */}
         {tab === 'creer' && (<>
           <div className="flex gap-2">
             <button className={`slot ${startUri ? 'filled' : ''}`} onClick={() => (isMobile ? setSelecting('start') : setFramePick('start'))}>
@@ -179,7 +178,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           <div className="varea">
             <ChoixPersonnage />
             <textarea placeholder={t('Mouvement — une action claire, temps réel…')}
-              // une photo de la bibliothèque glissée ici devient l'image de départ
+              // a library photo dropped here becomes the start image
               onDragOver={e => { if (e.dataTransfer.types.includes('text/asset-id')) e.preventDefault() }}
               onDrop={e => { const id = e.dataTransfer.getData('text/asset-id'); const a = id && s.assets.find(x => x.id === id && x.mediaType === 'photo'); if (a) { e.preventDefault(); void s.pickStartFrame(a.id) } }}
               value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} onKeyDown={briefs.onKeyDown} />
@@ -240,7 +239,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </div>
         </>)}
 
-        {/* ============ AMBIANCE (texte → vidéo, LTX-2.5) ============ */}
+        {/* ============ AMBIENCE (text → video, LTX-2.5) ============ */}
         {tab === 'ambiance' && (() => { const avecPerso = Boolean(v.t2vPersonnage && s.personaVideo); return (<>
           <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
             {avecPerso
@@ -299,7 +298,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           )}
         </>) })()}
 
-        {/* ============ REJOUER (motion control) ============ */}
+        {/* ============ REPLAY (motion control) ============ */}
         {tab === 'rejouer' && (<>
           <div className="modes">
             <button className={`mode ${v.motionMode !== 'replace' ? 'on' : ''}`} onClick={() => s.updateVideo({ motionMode: 'animate' })}>
@@ -330,7 +329,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               </button>
             )}
           </div>
-          {/* Mix borné à 153 images (server/jobs.js, MIX_MAX_IMAGES) : dit AVANT le lancement */}
+          {/* Mix is capped at 153 frames (server/jobs.js, MIX_MAX_IMAGES): shown before launch */}
           {v.motionMode === 'replace' && (
             <div className="text-[12px]" style={{ color: v.motionDriverSeconds > 9.6 ? 'var(--warn, #ffb648)' : 'var(--muted)', lineHeight: 1.5 }}>
               {v.motionDriverSeconds > 9.6
@@ -362,8 +361,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           {(v.motionDriverError || v.motionStillError) && (
             <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.motionDriverError || v.motionStillError}</div>
           )}
-          {/* Le texte PART au modèle : il doit être visible ici. Sans ce champ,
-              le prompt resté dans « Créer » serait envoyé à l'insu de l'opérateur. */}
+          {/* This text is sent to the model, so it must be visible here; otherwise
+              the prompt left in "Create" would be sent unseen. */}
           <div className="varea">
               <textarea placeholder={t('Facultatif — ce que montre la vidéo source : action, objets tenus. Vide = le geste seul.')}
                 value={s.userPrompt} onChange={e => s.setUserPrompt(e.target.value)} />
@@ -385,12 +384,12 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
             </button>
         </>)}
 
-        {/* ============ ÉTENDRE ============ */}
+        {/* ============ EXTEND ============ */}
         {tab === 'etendre' && (<>
-          {/* Prequel | Sequel : sequel =
-             dernière frame → frame de départ, le rendu suit le clip ; prequel =
-             1re frame → frame de FIN, le rendu arrive sur le clip et passe devant
-             (Wan : WanFirstLastFrameToVideo). */}
+          {/* Prequel | Sequel: sequel =
+             last frame → start frame, the render follows the clip; prequel =
+             first frame → END frame, the render leads into the clip and goes before it
+             (Wan: WanFirstLastFrameToVideo). */}
           <div className="wtabs" style={{ marginBottom: 2 }}>
             <button className={`wtab ${v.extendPrequel ? 'on' : ''}`} onClick={() => void s.setExtendPrequel(true)}
               title={t('le rendu arrive sur la 1re image du clip et se place devant lui')}>Prequel</button>
@@ -410,7 +409,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               ? t('Première frame extraite → frame de fin : le rendu arrive dessus et se place devant le clip. Moteur Wan.')
               : t('Dernière frame extraite → frame de départ. Couture : raccord couleur (luma + chroma) au harvest.')}
           </div>
-          {/* durée de la suite / du prequel : ce qui est généré, le montage l'ajoute au clip */}
+          {/* sequel / prequel duration: what is generated; editing appends it to the clip */}
           <div className="flex gap-1.5 items-center">
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{v.extendPrequel ? t('Durée du prequel') : t('Durée de la suite')}</span>
             <button className="pill" style={{ marginLeft: 'auto' }} onPointerDown={e => e.stopPropagation()}
@@ -440,9 +439,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         </>)}
 
         {s.t0Error && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{s.t0Error}</div>}
-        {/* Nombre de rendus — COMMUN aux 3 onglets : cantonné à « Créer », un
-            lot posé là resterait actif en Rejouer/Étendre sans moyen de le
-            corriger (le CTA annoncerait « 4 jobs » sans stepper visible). */}
+        {/* Render count, shared by the 3 tabs: a batch set in one tab stays
+            active in the others, so the stepper must be visible in all. */}
         {tab !== 'stage' && (<>
         <div className="flex items-center mt-auto mb-2">
           <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{t('nombre de rendus')}</span>
@@ -461,11 +459,11 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         ? <MobileSheet key={selecting ? 'sel' : 'norm'} initial={selecting ? 'mini' : 'half'}>{side}</MobileSheet>
         : <div className={`vside-place ${surStage ? 'fixe' : ''}`}><aside className="vside">{side}</aside></div> })()}
 
-      {/* ---------- bibliothèque vidéo ---------- */}
+      {/* ---------- video library ---------- */}
       <div className="flex-1 min-w-0 flex flex-col relative">
         {surStage && !isMobile && <>
           <div id="stage-vues" style={{ flex: `0 0 ${hautStage}vh`, minHeight: 0 }} />
-          {/* poignée : glisser vers le haut ou le bas partage la place entre la scène et la bibliothèque */}
+          {/* handle: dragging up or down splits the space between the scene and the library */}
           <div role="separator" aria-orientation="horizontal" title={t('Glisser pour agrandir la scène ou la bibliothèque')}
             onPointerDown={e => {
               const y0 = e.clientY, h0 = hautStage
@@ -489,7 +487,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         <div className="scrollwrap">{tab === 'creer' && <Inspirations mode="video" />}<div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
           ...activeJobs.map(j => ({ key: j.id, ratio: 9 / 16, node: <JobCard j={j} queueIds={queueIds} /> })),
-          // les prises d'un même lot (× N rendus) se replient en une carte ; le clic ouvre la comparaison
+          // takes from the same batch (× N renders) collapse into one card; click opens the comparison
           ...(selecting ? shown.map(a => ({ kind: 'asset' as const, a })) : groupBatches(shown)).map(g => g.kind === 'batch'
             ? { key: `lot-${g.id}`, ratio: ratioOf(g.items[0]), node: <BatchCard items={g.items} onOpen={() => setPrises(g.id)} /> }
             : (a => ({ key: a.id, ratio: ratioOf(a), node:
@@ -498,9 +496,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               onPick={id => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })}
               extra={<>
                 <button className="fbtn" title={t('étendre (prolonger la vidéo)')} onClick={e => { e.stopPropagation(); s.updateVideo({ task: 'extend' }); void s.pickExtendClip(a.id) }}><Ic n="extend" /></button>
-                {/* Upscale (brouillons seulement) : job serveur V2V refine —
-                   le MÊME clip (mouvement conservé) réimprimé en ~1200p,
-                   denoise 0.30 (seul réglage qui respecte l'expression). */}
+                {/* Upscale (drafts only): server V2V refine job,
+                   the same clip (motion kept) re-rendered at ~1200p,
+                   denoise 0.30 (keeps the expression). */}
                 {a.videoDraft && (
                   <button className="fbtn" title={t('upscale : ce clip en haute résolution (mouvement conservé)')}
                     onClick={e => {
@@ -528,16 +526,14 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
       <TriagePopup open={triage} onClose={() => setTriage(false)} assets={s.assets.filter(a => a.mediaType === 'video')} />
       <EnhancerPopup open={enh} onClose={() => setEnh(false)}
         mode="video" engine={tab === 'rejouer' ? 'motion' : v.engine} userPrompt={s.userPrompt}
-        /* La still que le rendu utilisera VRAIMENT comme première frame.
-           Le choix suit `video.task`, EXACTEMENT comme la construction du job
-           (motion_pure → motionRef, i2v → sourceImage). Une précédence
-           aveugle `motionStillFile || startFrameFile` a fait décrire au VLM
-           une still restée d'une sélection précédente pendant qu'un job i2v
-           partait sur une autre image. */
+        /* The still the render will actually use as first frame.
+           Selection follows `video.task`, exactly like job construction
+           (motion_pure → motionRef, i2v → sourceImage), so the VLM never
+           describes a stale still from a previous selection. */
         anchorFile={v.task === 'motion_pure' ? (v.motionStillFile || null) : (v.startFrameFile || null)}
-        /* Étendre : le prompt du clip prolongé, relu dans sa provenance. Un
-           clip déposé depuis le disque n'en a pas — la suite se fait alors
-           sur la seule image. */
+        /* Extend: the extended clip's prompt, read from its provenance. A
+           clip dropped from disk has none; the sequel then relies on
+           the image alone. */
         previousPrompt={tab === 'etendre' && v.extendAssetId
           ? ((p => p?.composedPositive || p?.userPrompt || null)(s.assets.find(a => a.id === v.extendAssetId)?.provenance))
           : null}
@@ -579,9 +575,9 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   )
 }
 
-/* Petite croix d'une vignette de frame (au survol ; toujours visible au
-   doigt). Un <span> et pas un <button> : elle vit DANS le bouton de la
-   vignette, et le clic ne doit pas ouvrir le sélecteur. */
+/* Small cross on a frame thumbnail (on hover; always visible on
+   touch). A <span>, not a <button>: it lives inside the thumbnail
+   button, and its click must not open the picker. */
 function RetirerFrame({ titre, onRetirer }: { titre: string; onRetirer: () => void }) {
   return (
     <span className="retirer" role="button" title={titre} aria-label={titre}
@@ -589,12 +585,12 @@ function RetirerFrame({ titre, onRetirer }: { titre: string; onRetirer: () => vo
   )
 }
 
-/* ---------- dépliant LoRA vidéo (comme le sélecteur de moteur) ----------
-   Liste GET /api/loras via le store (loadLoras/loraCatalog). Masque les
-   LoRAs déjà intégrées aux recettes MiniMax (turbo). */
-/* Popup LoRA vidéo — prétriée par le moteur sélectionné :
-   minimax → h3 ; wan → fichiers Wan ; ltx/ltx_hq → fichiers LTX.
-   Empile dans videoLoras (le même store que le pli de la sidebar). */
+/* ---------- video LoRA dropdown (like the engine picker) ----------
+   Lists GET /api/loras via the store (loadLoras/loraCatalog). Hides
+   LoRAs already built into the MiniMax (turbo) recipes. */
+/* Video LoRA popup, pre-sorted by the selected engine:
+   minimax → h3; wan → Wan files; ltx/ltx_hq → LTX files.
+   Stacks into videoLoras (same store as the sidebar fold). */
 const ENGINE_LORAS: Record<string, (l: { arch: string; name: string }) => boolean> = {
   minimax: l => l.arch === 'h3',
   wan: l => /wan/i.test(l.name),

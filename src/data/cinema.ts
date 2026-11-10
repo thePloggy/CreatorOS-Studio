@@ -1,10 +1,10 @@
 /* ============================================================
-   Studio ciné — vocabulaire de la fiche de plan.
+   Cinema studio — shot sheet vocabulary.
 
-   Chaque option a un libellé (français, traduit par t()) et un fragment de
-   prompt (anglais, ce que lit Krea 2 ou Klein). La fiche compose une phrase
-   naturelle : le moteur photo lit mieux une description de tournage qu'une
-   liste de mots-clés.
+   Each option has a label (French, translated by t()) and a prompt
+   fragment (English, read by Krea 2 or Klein). The sheet composes a
+   natural sentence: the photo engine reads a shoot description better
+   than a keyword list.
    ============================================================ */
 
 export interface Opt { id: string; label: string; prompt: string }
@@ -58,7 +58,7 @@ export const LUMIERES: Opt[] = [
   { id: 'studio', label: 'Studio trois points', prompt: 'three-point studio lighting, clean key, fill and rim' },
 ]
 
-/* « Même plan, 4 lumières » : quatre lumières qui se distinguent à coup sûr. */
+/* "Same shot, 4 lights": four clearly distinct lighting setups. */
 export const BALAYAGE = ['heure-doree', 'heure-bleue', 'neon', 'clair-obscur']
 
 export const PELLICULES: Opt[] = [
@@ -95,7 +95,7 @@ export interface Fiche {
   scene: string
   boitier: string; optique: string; focale: string; ouverture: string
   plan: string; lumiere: string; pellicule: string; look: string; etalonnage: string
-  palette: string[]          // #rrggbb, 8 au plus
+  palette: string[]          // #rrggbb, at most 8
 }
 
 export const FICHE_DEFAUT: Fiche = {
@@ -103,7 +103,7 @@ export const FICHE_DEFAUT: Fiche = {
   plan: 'poitrine', lumiere: 'heure-doree', pellicule: 'aucune', look: 'drame', etalonnage: 'naturel', palette: [],
 }
 
-/* Plans de départ : une fiche complète, à retoucher. */
+/* Starting shots: complete sheets to adjust. */
 export const DEPARTS: { id: string; label: string; fiche: Partial<Fiche> }[] = [
   { id: 'terrasse', label: 'Terrasse à l’heure dorée', fiche: { scene: 'sitting at a café terrace in an old European street, holding a cup of coffee', boitier: 'cine-num', optique: 'anamorphique', focale: '85mm', ouverture: 'f1.4', plan: 'poitrine', lumiere: 'heure-doree', pellicule: 'portra', look: 'romance', etalonnage: 'chaud' } },
   { id: 'neon', label: 'Rue de néons', fiche: { scene: 'standing in a rainy city street at night, wet pavement reflecting the signs', boitier: 'cine-num', optique: 'anamorphique', focale: '35mm', ouverture: 'f1.4', plan: 'americain', lumiere: 'neon', pellicule: 'cine-500', look: 'sf', etalonnage: 'teal-orange' } },
@@ -115,7 +115,7 @@ export const DEPARTS: { id: string; label: string; fiche: Partial<Fiche> }[] = [
 
 const pick = (l: Opt[], id: string) => l.find(o => o.id === id) ?? l[0]
 
-/* Couleurs nommées : le moteur lit mieux « dusty rose » qu'un code hexadécimal. */
+/* Named colors: the engine reads "dusty rose" better than a hex code. */
 const NOMMEES: [string, number, number, number][] = [
   ['black', 15, 15, 18], ['charcoal', 54, 57, 64], ['slate grey', 112, 128, 144], ['silver', 192, 192, 196], ['white', 245, 245, 240],
   ['ivory', 240, 232, 210], ['beige', 214, 196, 160], ['sand', 194, 170, 120], ['tan', 170, 130, 90], ['brown', 110, 70, 40],
@@ -135,7 +135,7 @@ export function nomCouleur(hex: string): string {
   return best[0]
 }
 
-/** La phrase envoyée au moteur photo. `lumiere` remplace celle de la fiche (balayage). */
+/** Sentence sent to the photo engine. `lumiere` overrides the sheet's light (sweep). */
 export function composerFiche(f: Fiche, lumiere?: string): string {
   const parts = [
     f.scene.trim().replace(/[.\s]+$/, ''),
@@ -150,7 +150,7 @@ export function composerFiche(f: Fiche, lumiere?: string): string {
   return parts.join('. ') + '.'
 }
 
-/** Couleurs dominantes d'une image (8 au plus), par seaux de 4 bits et écart minimal. */
+/** Dominant colors of an image (at most 8), via 4-bit buckets and a minimum distance. */
 export async function couleursDominantes(src: string, n = 5): Promise<string[]> {
   const img = new Image(); img.crossOrigin = 'anonymous'; img.src = src
   await img.decode()

@@ -1,6 +1,6 @@
-/* Stage : on place des blocs et des personnes vus de dessus, on pose le début et la fin
-   de la caméra, et le serveur en tire une maquette grise puis un plan fini (POST /api/stage).
-   Rien que des nombres partent : aucun fichier, le verrou d'envoi des visiteurs reste fermé. */
+/* Stage: place blocks and people from a top view, set the camera start and end,
+   and the server derives a gray mockup then a finished shot (POST /api/stage).
+   Only numbers are sent: no file, so the visitor upload lock stays closed. */
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
@@ -15,7 +15,7 @@ type Point = { x: number; z: number }
 
 const rond = (n: number) => Math.round(n * 10) / 10
 
-/* Les mouvements : les deux poses de caméra, position au sol et hauteur. */
+/* Moves: the two camera poses, ground position and height. */
 type Mouvement = { id: string; label: string; cam: [Point, Point]; h: [number, number] }
 const MOUVEMENTS: Mouvement[] = [
   { id: 'avance', label: 'Avancer', cam: [{ x: 0, z: 3.6 }, { x: 0, z: 1.6 }], h: [1.5, 1.5] },
@@ -120,7 +120,7 @@ export function StagePanel() {
       onBouger={(id, x, z) => setObjets(l => l.map(o => o.id === id ? { ...o, x, z } : o))}
       onCam={(n, x, z) => setCam(c => (n === 0 ? [{ x, z }, c[1]] : [c[0], { x, z }]))} />
   )
-  /* Le plateau occupe la grande zone de droite (cf. #stage-vues dans VideoView) ; sur téléphone, le volet. */
+  /* The set fills the large right area (see #stage-vues in VideoView); on phones, the pane. */
   const vues = (
     <div className="flex flex-col gap-2" style={{ height: cible ? '100%' : 460, padding: cible ? '12px 16px 6px' : 0, minHeight: 0 }}>
       <div className="flex gap-4 items-center text-[12px]">

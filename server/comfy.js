@@ -1,14 +1,9 @@
-/* ============================================================
-   Client ComfyUI — charge une recette au format API, y injecte
-   le job CreatorOS, la poste, suit son exécution et récupère
-   l'image produite.
+/* ComfyUI client: loads an API-format recipe, injects the CreatorOS job,
+   posts it, tracks its execution and fetches the output.
 
-   POINT CRITIQUE — ImpactWildcardProcessor :
-   le mode « populate » est exécuté par le NAVIGATEUR avant l'envoi ;
-   le nœud, lui, ne lit que `populated_text` (impact_pack.py, doit()).
-   Injecter dans `wildcard_text` via l'API ne changerait donc RIEN :
-   on écrit dans `populated_text` et on bascule `mode` sur « fixed ».
-   ============================================================ */
+   ImpactWildcardProcessor: "populate" mode runs in the browser before
+   submission; the node itself only reads `populated_text`. So we write
+   `populated_text` and switch `mode` to "fixed". */
 import { definirClientStudio } from './gpu.js'
 import fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -21,11 +16,11 @@ import { alleger } from './allege.js'
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-/* ---------- chargement des recettes ---------- */
+/* ---------- recipe loading ---------- */
 
 export function loadWorkflow(file) {
   const full = path.join(CONFIG.workflowsDir, file)
-  // Empêche toute sortie du dossier des workflows via un nom forgé.
+  // Reject names that would escape the workflows directory.
   if (!full.startsWith(CONFIG.workflowsDir + path.sep)) throw new Error('workflow hors périmètre')
   const wf = JSON.parse(fs.readFileSync(full, 'utf8'))
   const bad = Object.entries(wf).filter(([, n]) => !n || typeof n !== 'object' || !n.class_type)
@@ -36,11 +31,8 @@ export function loadWorkflow(file) {
 export const listWorkflows = () =>
   fs.readdirSync(CONFIG.workflowsDir).filter(f => f.endsWith('.json') && !f.endsWith('.pilotage.json')).sort()
 
-/** Résumé lisible d'une recette : moteur, LoRA, échantillonnage.
- *  Calculé ici parce que le serveur lit déjà le fichier — le front n'a pas à
- *  télécharger 5 à 15 Ko de JSON par ligne de liste pour afficher un
- *  sous-titre. Tolérant : une recette exotique rend un résumé partiel plutôt
- *  qu'une erreur. */
+/** Readable summary of a recipe: base model, LoRAs, sampling.
+ *  Tolerant: an unusual recipe yields a partial summary rather than an error. */
 export function summarize(file) {
   try {
     const wf = loadWorkflow(file)
@@ -58,14 +50,13 @@ export function summarize(file) {
   }
 }
 
-/* ---------- édition des recettes depuis le Workbench ----------
-   Le Workbench édite les fichiers SERVIS, pas une copie. `loadWorkflow` relit
-   le disque à chaque job (aucun cache) : une écriture prend donc effet au job
-   suivant, sans redémarrage. C'est le comportement voulu — c'est aussi ce qui
-   rend la validation obligatoire ici plutôt qu'à l'exécution. */
+/* ---------- recipe editing from the Workbench ----------
+   The Workbench edits the served files directly. `loadWorkflow` rereads the
+   disk on every job (no cache), so a write takes effect on the next job;
+   hence validation is mandatory on write. */
 
-/** Chemin absolu d'une recette, avec la garde de périmètre.
- *  Un nom nu uniquement : ni séparateur, ni `..`, ni chemin absolu. */
+/** Absolute path of a recipe, with the scope guard.
+ *  Bare file name only: no separator, no `..`, no absolute path. */
 export function workflowPath(file) {
   if (typeof file !== 'string' || !file.endsWith('.json'))
     throw new Error('nom de recette invalide : un fichier .json est attendu')
@@ -76,17 +67,16 @@ export function workflowPath(file) {
   return full
 }
 
-/** Contenu brut + horodatage. Le `mtimeMs` sert de jeton de concurrence :
- *  il permet de refuser une écriture basée sur une version périmée plutôt que
- *  d'écraser en silence une modification faite sur le disque. */
+/** Raw content + mtime. `mtimeMs` is a concurrency token used to reject a
+ *  write based on a stale version. */
 export function readWorkflowRaw(file) {
   const full = workflowPath(file)
   const st = fs.statSync(full)
   return { file, text: fs.readFileSync(full, 'utf8'), mtimeMs: st.mtimeMs, bytes: st.size }
 }
 
-/** Vérifie qu'un texte est une recette ComfyUI au format API jouable.
- *  Retourne un résumé, ou lève avec un message adressé à un humain. */
+/** Checks that a text is a playable ComfyUI API-format recipe.
+ *  Returns a summary, or throws with a human-readable message. */
 export function validateWorkflowText(text) {
   let wf
   try { wf = JSON.parse(text) }
@@ -103,8 +93,7 @@ export function validateWorkflowText(text) {
       throw new Error(`nœud ${id} : « class_type » manquant — ce n’est pas le format API`)
     if (n.inputs != null && (typeof n.inputs !== 'object' || Array.isArray(n.inputs)))
       throw new Error(`nœud ${id} : « inputs » doit être un objet`)
-    // Un lien vers un nœud absent passe la validation de ComfyUI puis casse à
-    // l'exécution, plusieurs minutes plus tard, sur un job de l'opérateur.
+    // A link to a missing node passes ComfyUI validation but fails at execution.
     for (const [k, v] of Object.entries(n.inputs ?? {})) {
       if (Array.isArray(v) && v.length === 2 && !(String(v[0]) in wf))
         throw new Error(`nœud ${id}, entrée « ${k} » : lien vers le nœud ${v[0]}, qui n’existe pas`)
@@ -116,10 +105,10 @@ export function validateWorkflowText(text) {
   return { nodes: ids.length, outputs: sinks.length, classes: [...new Set(Object.values(wf).map(n => n.class_type))].length }
 }
 
-/** Écriture d'une recette. Trois garde-fous, dans cet ordre :
- *  1. validation — on n'écrit jamais une recette injouable ;
- *  2. concurrence — refus si le fichier a bougé depuis la lecture ;
- *  3. sauvegarde horodatée avant écrasement, puis écriture atomique. */
+/** Writes a recipe, in order:
+ *  1. validation: never write an unplayable recipe;
+ *  2. concurrency: refuse if the file changed since it was read;
+ *  3. timestamped backup, then atomic write. */
 export function writeWorkflow(file, text, baseMtimeMs) {
   const full = workflowPath(file)
   const summary = validateWorkflowText(text)
@@ -127,7 +116,7 @@ export function writeWorkflow(file, text, baseMtimeMs) {
   const exists = fs.existsSync(full)
   if (exists && Number.isFinite(baseMtimeMs)) {
     const cur = fs.statSync(full).mtimeMs
-    // Tolérance d'une milliseconde : certains systèmes de fichiers arrondissent.
+    // 1 ms tolerance: some file systems round mtimes.
     if (Math.abs(cur - baseMtimeMs) > 1) {
       const e = new Error('la recette a été modifiée sur le disque depuis son ouverture')
       e.code = 'CONFLIT'
@@ -156,9 +145,8 @@ const findByClass = (wf, cls) =>
 
 /* ---------- injection ---------- */
 
-/** Encodeurs de texte réellement câblés sur l'entrée POSITIVE d'un
- *  échantillonneur. Sans ça, une recette à deux CLIPTextEncode verrait
- *  le prompt atterrir au hasard — potentiellement dans le négatif. */
+/** Text encoders wired directly to a sampler's POSITIVE input, so the prompt
+ *  never lands in the negative encoder. */
 function positiveTextEncoders(out) {
   const ids = new Set()
   for (const n of Object.values(out)) {
@@ -171,18 +159,12 @@ function positiveTextEncoders(out) {
     out[id]?.class_type === 'CLIPTextEncode' && typeof out[id].inputs?.text === 'string')
 }
 
-/* ---------- où écrire le prompt, par le CÂBLAGE ----------
-   `positiveTextEncoders` ne reconnaît qu'un encodeur branché DIRECTEMENT sur
-   un KSampler. Les recettes vidéo n'ont ni l'un ni l'autre : LTX passe par un
-   LTXVDualCFGGuider, MiniMax par un BasicGuider, Wan interpose un
-   WanImageToVideo. Toutes tomberaient donc sur le repli « premier CLIPTextEncode
-   littéral » — qui, sur LTX, est le NÉGATIF. Le prompt de mouvement partirait
-   dans le négatif et le rendu aurait l'air simplement raté.
-
-   On remonte donc le graphe depuis les échantillonneurs, en ne suivant que
-   les entrées qui portent le conditionnement POSITIF. Traverser toutes les
-   entrées en aveugle rattraperait le négatif : LTXVConditioning et
-   WanImageToVideo portent les deux côtés. */
+/* ---------- locating the prompt by wiring ----------
+   `positiveTextEncoders` only finds an encoder wired directly to a KSampler.
+   Video recipes go through guiders (LTXVDualCFGGuider, BasicGuider) or
+   WanImageToVideo, and the first literal CLIPTextEncode on LTX is the negative.
+   So we walk the graph up from the samplers, following only the inputs that
+   carry POSITIVE conditioning (LTXVConditioning and WanImageToVideo carry both). */
 const POSITIVE_IN = {
   KSampler: ['positive'],
   KSamplerAdvanced: ['positive'],
@@ -200,7 +182,7 @@ const POSITIVE_IN = {
   ConditioningSetTimestepRange: ['conditioning'],
 }
 
-/** Nœuds terminaux qui portent le texte, et le nom du champ à écrire. */
+/** Terminal nodes that hold the text, and the field to write. */
 const TEXT_SLOT = {
   CLIPTextEncode: 'text',
   MiniMaxH3ImageToVideo: 'prompt',
@@ -209,9 +191,9 @@ const TEXT_SLOT = {
   String: 'value',
 }
 
-/** Emplacements d'écriture du prompt positif, sous la forme `id.champ`.
- *  Remonte depuis chaque échantillonneur ; suit le lien quand le texte d'un
- *  encodeur vient d'un nœud primitif (cas de LTX). */
+/** Write targets for the positive prompt, as `id.field`.
+ *  Walks up from each sampler; follows the link when an encoder's text comes
+ *  from a primitive node (LTX). */
 function positiveTextSlots(out) {
   const slots = new Set()
   const seen = new Set()
@@ -227,12 +209,12 @@ function positiveTextSlots(out) {
     if (field) {
       const v = n.inputs?.[field]
       if (typeof v === 'string') { slots.add(`${id}.${field}`); return }
-      // Le texte est LIÉ : la vraie saisie est en amont (PrimitiveStringMultiline).
+      // Linked text: the actual input is upstream (PrimitiveStringMultiline).
       if (Array.isArray(v)) { visit(String(v[0]), v[1]); return }
       return
     }
-    // LTXVConditioning rend positif en 0 et négatif en 1 : on ne remonte que
-    // le côté par lequel on est arrivé.
+    // LTXVConditioning outputs positive on 0 and negative on 1: only follow the
+    // side we came from.
     const ins = n.class_type === 'LTXVConditioning'
       ? [outSlot === 1 ? 'negative' : 'positive']
       : POSITIVE_IN[n.class_type]
@@ -251,24 +233,20 @@ function positiveTextSlots(out) {
   return [...slots]
 }
 
-/* ---------- durée et format ----------
-   Les trois recettes n'exposent pas la durée au même endroit, et aucune ne
-   l'expose de la même façon :
+/* ---------- duration and aspect ----------
+   Each recipe exposes duration differently:
 
-     Wan      WanImageToVideo.length — un NOMBRE D'IMAGES littéral
-     LTX      EmptyLTXVLatentVideo.length ← ComfyMathExpression « a * b + 1 »
-              où a = secondes et b = fps, tous deux des primitives
-     MiniMax  MiniMaxH3ImageToVideo.length ← une expression qui quantifie sur
-              17 (le pas temporel de son latent)
+     Wan      WanImageToVideo.length: a literal FRAME COUNT
+     LTX      EmptyLTXVLatentVideo.length <- ComfyMathExpression "a * b + 1"
+              where a = seconds and b = fps, both primitives
+     MiniMax  MiniMaxH3ImageToVideo.length <- an expression quantized to 17
+              (its latent time step)
 
-   D'où une remontée plutôt qu'une table de nœuds en dur : le Workbench permet
-   d'éditer les recettes, et des identifiants figés ici se périmeraient en
-   silence. On ne suit que `values.a` d'une expression — `values.b` porte les
-   fps, l'écraser avec des secondes donnerait un clip de 9 images. */
+   Hence a graph walk rather than hard-coded node ids (recipes are editable).
+   Only `values.a` of an expression is followed: `values.b` holds the fps. */
 
-/** Écrit la durée de GÉNÉRATION. Rend un compte rendu, ou null si la recette
- *  n'expose aucune durée reconnaissable — auquel cas on le dit plutôt que de
- *  laisser croire au réglage. */
+/** Sets the GENERATION duration. Returns a note, or null if the recipe exposes
+ *  no recognizable duration. */
 function setVideoDuration(out, seconds) {
   const holders = Object.entries(out).filter(([, n]) =>
     'length' in (n.inputs ?? {}) && /ImageToVideo|LatentVideo/.test(n.class_type))
@@ -277,26 +255,25 @@ function setVideoDuration(out, seconds) {
   for (const [id, n] of holders) {
     const len = n.inputs.length
     if (!Array.isArray(len)) {
-      /* Compte d'images littéral (Wan). La cadence de lecture est celle du
-         nœud d'assemblage — sur Wan c'est 24 alors que le modèle anime à 16,
-         et c'est précisément ce décalage qui corrige la vitesse. On lit donc
-         le fps réel du graphe au lieu de supposer 24. */
+      /* Literal frame count (Wan). Playback fps is the one of the assembly node
+         (24 on Wan while the model animates at 16, which corrects speed), so read
+         the graph's actual fps instead of assuming 24. */
       const fps = Object.values(out).find(x => x.class_type === 'CreateVideo'
         && typeof x.inputs?.fps === 'number')?.inputs.fps ?? 24
-      // Les modèles vidéo travaillent par blocs de 4 images + 1.
+      // Video models work in blocks of 4 frames + 1.
       const frames = Math.max(5, Math.round((seconds * fps - 1) / 4) * 4 + 1)
       out[id].inputs.length = frames
       return `#${id} ${n.class_type}.length = ${frames} images (${(frames / fps).toFixed(2)} s à ${fps} fps)`
     }
-    // Durée en SECONDES, en amont d'une ou plusieurs expressions.
+    // Duration in SECONDS, upstream of one or more expressions.
     let cur = String(len[0])
     for (let hop = 0; hop < 6; hop++) {
       const node = out[cur]
       if (!node) break
       const v = node.inputs?.value
       if (typeof v === 'number') {
-        // PrimitiveInt n'accepte pas 8,75 : on arrondit, et la correction de
-        // vitesse se fera sur la durée RÉELLE mesurée après rendu.
+        // PrimitiveInt rejects fractions: round; speed correction is applied later
+        // on the actual measured duration.
         out[cur].inputs.value = node.class_type === 'PrimitiveInt' ? Math.round(seconds) : seconds
         return `#${cur} ${node.class_type}.value = ${out[cur].inputs.value} s (génération)`
       }
@@ -308,7 +285,7 @@ function setVideoDuration(out, seconds) {
   return null
 }
 
-/** Options du nœud ResolutionSelector, dans l'ordre de son COMBO. */
+/** ResolutionSelector node options, in its COMBO order. */
 const ASPECT_LABEL = {
   '1:1': '1:1 (Square)', '2:3': '2:3 (Portrait Photo)', '3:2': '3:2 (Photo)',
   '3:4': '3:4 (Portrait Standard)', '4:3': '4:3 (Standard)',
@@ -316,10 +293,9 @@ const ASPECT_LABEL = {
   '21:9': '21:9 (Ultrawide)',
 }
 
-/** Écrit le format. Deux mécaniques selon la recette : un ResolutionSelector
- *  (LTX, MiniMax) ou des dimensions littérales (Wan). Dans le second cas on
- *  conserve la SURFACE de la recette — changer le format ne doit pas changer
- *  le coût du rendu. */
+/** Sets the aspect ratio. Either via a ResolutionSelector (LTX, MiniMax) or
+ *  literal dimensions (Wan); in the latter case the recipe's pixel AREA is kept
+ *  so the render cost does not change. */
 function setVideoAspect(out, ratio) {
   const label = ASPECT_LABEL[ratio]
   if (!label) return []
@@ -343,14 +319,12 @@ function setVideoAspect(out, ratio) {
   return notes
 }
 
-/** Format « origine » : dimensions calées sur le ratio EXACT de la still.
- *  Le ResolutionSelector ne connaît que ses ratios ronds : snapper une still
- *  4:7 (768×1344) sur 9:16 puis arrondir aux multiples de 32 donnerait 480×864
- *  (5:9) — la still étirée de ~3 % en largeur. Ici on
- *  calcule des dimensions multiples de 32 à la surface visée, au plus près du
- *  ratio de la still, et on remplace les LIENS vers le sélecteur (et les
- *  dimensions littérales type Wan) par ces littéraux. `mp` (brouillon) est
- *  intégré au calcul : le bloc setVideoMegapixels ne doit PAS repasser derrière. */
+/** "Source" aspect: dimensions matching the still's EXACT ratio.
+ *  ResolutionSelector only knows round ratios, which would stretch the still.
+ *  Computes multiple-of-32 dimensions at the target area, closest to the still's
+ *  ratio, and replaces LINKS to the selector (and Wan-style literal dimensions)
+ *  with these literals. `mp` (draft) is included here: setVideoMegapixels must
+ *  NOT run afterwards. */
 function setVideoExactDims(out, srcW, srcH, mp) {
   const notes = []
   const target = srcW / srcH
@@ -373,8 +347,7 @@ function setVideoExactDims(out, srcW, srcH, mp) {
       H: Math.max(256, Math.round(h0 / 32) * 32),
     }
   }
-  // Surface visée : le brouillon si demandé, sinon celle du sélecteur de la
-  // recette (0,9 MP par défaut mesuré sur MiniMax/LTX).
+  // Target area: the draft if requested, else the recipe selector's (0.9 MP default).
   const selMp = selectors.length && typeof selectors[0][1].inputs?.megapixels === 'number'
     ? selectors[0][1].inputs.megapixels : 0.9
   const selBest = bestDims((Number.isFinite(mp) ? mp : selMp) * 1e6)
@@ -387,7 +360,7 @@ function setVideoExactDims(out, srcW, srcH, mp) {
         touched = true
       }
     }
-    // relais entier (PrimitiveInt) branché sur une sortie du sélecteur : 0 = largeur, 1 = hauteur
+    // Integer relay (PrimitiveInt) wired to a selector output: 0 = width, 1 = height
     if (Array.isArray(ins.value) && selIds.has(String(ins.value[0]))) {
       ins.value = ins.value[1] === 0 ? selBest.W : selBest.H
       notes.push(`#${id} ${n.class_type} = ${ins.value} (${ins.value === selBest.W ? 'largeur' : 'hauteur'}, origine ${srcW}×${srcH})`)
@@ -398,8 +371,7 @@ function setVideoExactDims(out, srcW, srcH, mp) {
         + `${Number.isFinite(mp) ? `, brouillon ${mp} MP` : ''})`)
       continue
     }
-    // Dimensions littérales (Wan) : même surface que la recette (ou brouillon),
-    // ratio de la still.
+    // Literal dimensions (Wan): same area as the recipe (or draft), still's ratio.
     if (/ImageToVideo/.test(n.class_type)
       && typeof ins.width === 'number' && typeof ins.height === 'number') {
       const lit = bestDims(Number.isFinite(mp) ? mp * 1e6 : ins.width * ins.height)
@@ -412,11 +384,9 @@ function setVideoExactDims(out, srcW, srcH, mp) {
   return notes
 }
 
-/** Surface de rendu, en mégapixels, sur les recettes à ResolutionSelector
- *  (LTX, MiniMax). Le mode brouillon passe par là. On ne touche PAS aux
- *  autres nœuds qui portent un `megapixels` (ImageScaleToTotalPixels de la
- *  still, par exemple) : ils n'alimentent pas le modèle, et le premier plan
- *  gagne à rester net. */
+/** Render area in megapixels for ResolutionSelector recipes (LTX, MiniMax);
+ *  used by draft mode. Other nodes with a `megapixels` input (e.g. the still's
+ *  ImageScaleToTotalPixels) are left alone: they do not feed the model. */
 function setVideoMegapixels(out, mp) {
   const notes = []
   for (const [id, n] of Object.entries(out)) {
@@ -424,8 +394,7 @@ function setVideoMegapixels(out, mp) {
       out[id].inputs.megapixels = mp
       notes.push(`#${id} ResolutionSelector.megapixels = ${mp} (brouillon)`)
     }
-    // Dimensions littérales (Wan) : même ratio, surface ramenée à `mp`,
-    // multiples de 16 — exactement ce que fait setVideoAspect pour le format.
+    // Literal dimensions (Wan): same ratio, area scaled to `mp`, multiples of 16.
     if (/ImageToVideo/.test(n.class_type)
       && typeof n.inputs?.width === 'number' && typeof n.inputs?.height === 'number') {
       const k = Math.sqrt((mp * 1e6) / (n.inputs.width * n.inputs.height))
@@ -438,17 +407,14 @@ function setVideoMegapixels(out, mp) {
   return notes
 }
 
-/* ---------- rendu muet : on saute l'ÉTAGE DE DÉCODAGE audio ----------
-   Précision qui compte, parce qu'elle borne le gain : dans LTX-2.5 comme dans
-   MiniMax H3, l'audio est débruité DANS LE MÊME latent que l'image. Il n'y a
-   pas de passe audio séparable à supprimer — seulement son décodage (VAE audio
-   + LTXVAudioVAEDecode / VAEDecodeAudio). C'est ce qu'on retire ici, avec les
-   nœuds qui n'alimentent plus rien. Le fichier livré n'a donc aucune piste
-   audio, et le graphe ne charge plus le VAE audio.
+/* ---------- silent render: drop the audio DECODE stage ----------
+   In LTX-2.5 and MiniMax H3 audio is denoised in the same latent as the image,
+   so only its decoding (audio VAE + LTXVAudioVAEDecode / VAEDecodeAudio) can be
+   removed. This removes it plus the nodes that no longer feed anything; the
+   output file has no audio track.
 
-   Élagage par ATTEIGNABILITÉ, pas par liste de classes : on part des nœuds de
-   sortie (personne ne les référence) et on garde ce qui les alimente. Une
-   liste en dur raterait le VAELoader devenu orphelin. */
+   Pruning is by REACHABILITY, not by class list, so orphaned loaders
+   (e.g. the audio VAELoader) are caught too. */
 function stripAudioStage(out) {
   const notes = []
   const orphans = []
@@ -461,9 +427,8 @@ function stripAudioStage(out) {
   }
   if (!orphans.length) return notes
 
-  /* Remontée depuis le décodeur détaché uniquement. On ne part PAS des nœuds
-     « que personne ne référence » : le décodeur audio vient justement d'entrer
-     dans cette catégorie, il se serait pris lui-même pour une sortie. */
+  /* Walk up from the detached decoder only; starting from "unreferenced" nodes
+     would treat the detached decoder itself as an output. */
   const refCount = () => {
     const m = new Map()
     for (const n of Object.values(out))
@@ -475,10 +440,9 @@ function stripAudioStage(out) {
     const id = orphans.shift()
     const n = out[id]
     if (!n) continue
-    // Garde-fou : une sortie ne s'élague jamais, même sans consommateur — par
-    // définition personne ne la référence.
+    // Guard: output nodes are never pruned.
     if (/^(Save|Preview)/.test(n.class_type)) continue
-    if (refCount().get(id)) continue          // encore consommé ailleurs
+    if (refCount().get(id)) continue          // still consumed elsewhere
     for (const v of Object.values(n.inputs || {}))
       if (Array.isArray(v)) orphans.push(String(v[0]))
     delete out[id]
@@ -487,14 +451,12 @@ function stripAudioStage(out) {
   return notes
 }
 
-/** Recettes à INSTRUCTION (Qwen-Image-Edit) : le texte n'y décrit pas une
- *  image à créer mais une ÉDITION à appliquer, et la recette en porte déjà la
- *  base figée — identité du sujet, cheveux, consigne de conservation. Le
- *  prompt de la console s'y AJOUTE, il ne la remplace pas.
+/** INSTRUCTION recipes (Qwen-Image-Edit): the text describes an EDIT, and the
+ *  recipe already holds a fixed base (subject identity, hair, preservation
+ *  directive). The console prompt is APPENDED to it, not substituted.
  *
- *  Détection par le câblage, jamais par le nom de fichier : c'est ce qui
- *  distingue l'encodeur d'instruction (#30) de son jumeau négatif (#31), qui
- *  porte la même classe et les mêmes images. */
+ *  Detected by wiring, never by file name: this distinguishes the instruction
+ *  encoder from its negative twin, which has the same class and images. */
 function instructionEncoders(out) {
   const ids = new Set()
   for (const n of Object.values(out)) {
@@ -503,13 +465,11 @@ function instructionEncoders(out) {
     const p = n.inputs?.positive
     if (Array.isArray(p)) ids.add(String(p[0]))
   }
-  /* Deux signatures de recette d'édition, avec leur champ d'écriture :
-       1. Qwen : l'encodeur TextEncodeQwenImageEdit* porte `prompt`.
-       2. Klein (édition par référence) : un CLIPTextEncode ordinaire (`text`), mais
-          dont le conditionnement DESCEND vers l'échantillonneur à travers au
-          moins un ReferenceLatent — la marque d'une édition guidée par
-          images de référence. Un CLIPTextEncode branché en direct reste une
-          recette de génération et n'est pas reconnu ici. */
+  /* Two edit-recipe signatures, with their write field:
+       1. Qwen: the TextEncodeQwenImageEdit* encoder holds `prompt`.
+       2. Klein (reference edit): a plain CLIPTextEncode (`text`) whose
+          conditioning reaches the sampler through at least one ReferenceLatent.
+          A CLIPTextEncode wired directly is a generation recipe, not matched here. */
   const found = []
   for (const start of ids) {
     let id = start, hops = 0
@@ -528,18 +488,16 @@ function instructionEncoders(out) {
   return found
 }
 
-/** Écrit prompt, négatif, seed, dimensions et LoRA additionnelles dans une
- *  COPIE de la recette. Retourne la recette injectée et le JOURNAL des
- *  injections : ce qui a été écrit, et ce qui n'a PAS pu l'être — signalé,
- *  jamais masqué. */
-/* ---------- pilotage DÉCLARÉ d'une recette ----------
-   L'injection suit le câblage du graphe (injectJob). Une recette d'essai ou un
-   moteur nouveau peut en plus DÉCLARER, dans un fichier voisin
-   `<recette>.pilotage.json`, quelle entrée de quel nœud reçoit chaque valeur :
+/** Writes prompt, negative, seed, dimensions and extra LoRAs into a COPY of the
+ *  recipe. Returns the injected recipe and the injection log: what was written,
+ *  and what could NOT be written (reported, never hidden). */
+/* ---------- DECLARED recipe control ----------
+   Besides wiring-based injection (injectJob), a recipe may DECLARE in a sibling
+   file `<recipe>.pilotage.json` which node input receives each value:
      { "prompt": ["6", "text"], "negative": ["7", "text"], "seed": ["3", "seed"],
        "width": ["5", "width"], "height": ["5", "height"], "sourceImage": ["10", "image"] }
-   La déclaration s'applique APRÈS le câblage et l'emporte. Sans fichier, rien
-   ne change : aucune recette de production n'en a. */
+   The declaration is applied AFTER the wiring and wins. Without the file,
+   nothing changes. */
 export const CLES_PILOTAGE = ['prompt', 'negative', 'seed', 'width', 'height', 'sourceImage']
 export function readPilotage(file) {
   const p = workflowPath(file).replace(/\.json$/i, '') + '.pilotage.json'
@@ -562,19 +520,17 @@ export function appliquerPilotage(file, wf, valeurs, applied = [], skipped = [])
   return wf
 }
 
-/** Insère des LoraLoaderModelOnly en fin de chaîne MODEL (après la dernière
- *  LoRA de la recette, sinon sur l'UNETLoader). Exportée pour les graphes
- *  construits en code (pinceau). Modifie `out` en place. */
+/** Inserts LoraLoaderModelOnly nodes at the end of the MODEL chain (after the
+ *  recipe's last LoRA, else on the UNETLoader). Exported for graphs built in code
+ *  (brush). Mutates `out` in place. */
 export function empilerLoras(out, loras, applied = [], skipped = []) {
-  // Ancre = dernière LoraLoaderModelOnly de la recette (turbo, accélération).
-  // À défaut — recette sans aucune LoRA — on empile directement sur
-  // l'UNETLoader (chaîne MODEL de départ). Ainsi les LoRA s'appliquent même
-  // sur une recette nue.
-  /* Paire Wan haut / bas bruit : une LoRA dont le NOM dit son étage
-     (« …high_noise… », « …low_noise… ») va sur la chaîne de cet étage, une à la
-     fois. Les autres gardent l'ancrage historique ci-dessous. */
+  // Anchor = the recipe's last LoraLoaderModelOnly; if the recipe has none,
+  // stack directly on the UNETLoader so LoRAs apply to a bare recipe too.
+  /* Wan high/low noise pair: a LoRA whose NAME states its stage
+     ("...high_noise...", "...low_noise...") goes on that stage's chain.
+     Others use the default anchoring below. */
   const etage = n => /high[_-]?noise/i.test(n) ? 'high' : /low[_-]?noise/i.test(n) ? 'low' : null
-  // UNETLoader ou UnetLoaderGGUF : la recette T2V charge son étage bas bruit en GGUF Q8
+  // UNETLoader or UnetLoaderGGUF (the T2V recipe loads its low-noise stage as GGUF Q8)
   const unets = [...findByClass(out, 'UNETLoader'), ...findByClass(out, 'UnetLoaderGGUF')]
   const unetDe = e => unets.find(id => (e === 'high' ? /high[_-]?noise/i : /low[_-]?noise/i).test(String(out[id].inputs?.unet_name ?? '')))
   const nomDe = l => typeof l === 'string' ? l : l?.name
@@ -582,7 +538,7 @@ export function empilerLoras(out, loras, applied = [], skipped = []) {
     const parEtage = { high: [], low: [] }, communes = []
     for (const l of loras) { const e = etage(String(nomDe(l) ?? '')); (e ? parEtage[e] : communes).push(l) }
     for (const e of ['high', 'low']) {
-      // bout de la chaîne MODEL de cet étage : on descend les LoraLoaderModelOnly
+      // end of this stage's MODEL chain: follow the LoraLoaderModelOnly nodes down
       let bout = unetDe(e)
       for (;;) {
         const suiv = Object.entries(out).find(([, n]) => n.class_type === 'LoraLoaderModelOnly'
@@ -606,18 +562,17 @@ export function empilerLoras(out, loras, applied = [], skipped = []) {
 function empilerSur(out, anchor, loras, applied, skipped) {
   {
     let upstream = anchor
-    // Les recettes vidéo (minimax) portent des ids non numériques hérités
-    // d'un sous-graphe : « 105:6 », « vbvr ». Number() les rend NaN, et un
-    // seul NaN empoisonne Math.max → id « NaN » qui écrase. On ne garde que
-    // les ids finis pour choisir le prochain entier libre (0 = plancher).
+    // Some recipes carry non-numeric ids from subgraphs ("105:6", "vbvr");
+    // Number() makes them NaN and a single NaN poisons Math.max. Only finite ids
+    // are used to pick the next free integer (floor 0).
     let nextId = Math.max(0, ...Object.keys(out).map(Number).filter(Number.isFinite)) + 1
     for (const l of loras) {
       const name = typeof l === 'string' ? l : l?.name
       const strength = Number(typeof l === 'string' ? 1 : l?.strength)
       if (!name) { skipped.push('LoRA additionnelle sans nom — ignorée'); continue }
       const id = String(nextId++)
-      // Rebrancher les consommateurs de `upstream` AVANT d'ajouter le nœud,
-      // sinon on rebrancherait aussi sa propre entrée sur lui-même.
+      // Rewire the consumers of `upstream` BEFORE adding the node, otherwise its own
+      // input would be rewired to itself.
       for (const n of Object.values(out)) {
         for (const [k, v] of Object.entries(n.inputs || {}))
           if (Array.isArray(v) && String(v[0]) === upstream && v[1] === 0) n.inputs[k] = [id, 0]
@@ -637,7 +592,7 @@ function empilerSur(out, anchor, loras, applied, skipped) {
   }
 }
 
-/* Étages d'échantillonnage LTX : LTXVImgToVideoInplace → LTXVConcatAVLatent → SamplerCustomAdvanced (guider LTXVDualCFGGuider). */
+/* LTX sampling stages: LTXVImgToVideoInplace -> LTXVConcatAVLatent -> SamplerCustomAdvanced (LTXVDualCFGGuider guider). */
 function ltxEtages(out) {
   const r = []
   for (const [sampler, n] of Object.entries(out)) {
@@ -651,13 +606,13 @@ function ltxEtages(out) {
   return r
 }
 
-/* Images clés LTX (recette communautaire LTX-2.5 first/last frame, UCHIJ) : chaque image entre par LTXVAddGuide à son
-   index (multiple de 8, -1 = dernière image), la still de départ comprise (LTXVImgToVideoInplace contourné). Forces
-   0,7 au 1er étage, 1 à l'affinage ; compression 18. Les latents de guide sont retirés (LTXVCropGuides) avant l'étage
-   suivant et le décodage. Collée dans le latent (Inplace) avec une fin guidée, la fin coupait, gelait ou se fondait. */
+/* LTX keyframes (LTX-2.5 first/last frame pattern): each image enters through LTXVAddGuide at its
+   index (multiple of 8, -1 = last frame), including the start still (LTXVImgToVideoInplace bypassed).
+   Strengths 0.7 on stage 1, 1 on refinement; compression 18. Guide latents are removed
+   (LTXVCropGuides) before the next stage and decoding. */
 function ltxImagesCles(out, cles, secondes) {
   const etages = ltxEtages(out)
-  const total = Math.round((Number(secondes) || 5) * 24 / 8) * 8   // dernière image = index total
+  const total = Math.round((Number(secondes) || 5) * 24 / 8) * 8   // last frame = index total
   const liste = cles.map(k => {
     const t = Number(k.t)
     const idx = !Number.isFinite(t) || t * 24 >= total - 4 ? -1 : Math.max(0, Math.min(total - 8, Math.round(t * 24 / 8) * 8))
@@ -681,8 +636,8 @@ function ltxImagesCles(out, cles, secondes) {
     let pos = guider.inputs.positive, neg = guider.inputs.negative, lat = concat.inputs.video_latent
     liste.forEach((c, i) => {
       const id = `kf_g${k}_${i}`
-      /* Première et dernière image : 0,7 puis 1 (elles tiennent le cadre). Images intermédiaires plus souples, 0,5 puis 0,3 :
-         à 0,7 / 1, LTX les rejoignait par un fondu quand il n'avait pas trouvé de mouvement (table de montage, dragon, 08/11). */
+      /* First and last frames: 0.7 then 1 (they hold the frame). Intermediate frames are softer,
+         0.5 then 0.3, so LTX does not cross-fade into them when it finds no motion. */
       const bord = c.idx === 0 || c.idx === -1
       out[id] = { class_type: 'LTXVAddGuide', inputs: { positive: pos, negative: neg, vae: e.inputs.vae, latent: lat, image: c.img, frame_idx: c.idx, strength: bord ? (k === 0 ? 0.7 : 1) : (k === 0 ? 0.5 : 0.3) } }
       pos = [id, 0]; neg = [id, 1]; lat = [id, 2]
@@ -705,13 +660,10 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
   const applied = []
   const skipped = []
 
-  /* -- nombre de pas d'échantillonnage --
-     Piloté par le moteur (et par le mode brouillon) plutôt que figé dans la
-     recette, pour que brouillon et production ne soient pas deux fichiers à
-     tenir synchronisés. On n'écrit QUE si l'appelant le demande : un moteur
-     qui ne déclare rien garde la valeur de sa recette, inchangée.
-     Toute écriture est journalisée — sur une recette à deux étages, le compte
-     de nœuds touchés doit sauter aux yeux en provenance. */
+  /* -- sampling step count --
+     Driven by the engine (and draft mode) rather than fixed in the recipe, so
+     draft and production share one file. Written ONLY when the caller asks;
+     otherwise the recipe value is kept. Every write is logged. */
   if (Number.isFinite(videoSteps) && videoSteps > 0) {
     const n = Math.max(1, Math.round(videoSteps))
     for (const [id, node] of Object.entries(out))
@@ -719,8 +671,8 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
         const avant = node.inputs.steps
         node.inputs.steps = n
         applied.push(`#${id} ${node.class_type}.steps = ${n} (recette : ${avant})`)
-        /* Recette à deux étages (haut bruit puis bas bruit) : la frontière suit
-           le compte de pas, sinon le second étage démarrerait hors de la plage. */
+        /* Two-stage recipe (high noise then low noise): the stage boundary scales with
+           the step count so the second stage starts within range. */
         for (const borne of ['start_at_step', 'end_at_step']) {
           const v = node.inputs[borne]
           if (typeof v === 'number' && v > 0 && v <= avant && avant > 0) {
@@ -731,13 +683,13 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       }
   }
 
-  /* -- recette à instruction ? Décidé AVANT tout, parce que ça change la
-        nature du prompt : ajout à une base figée, et non écriture. -- */
+  /* -- instruction recipe? Decided first, since it changes how the prompt is
+        applied: appended to a fixed base rather than written. -- */
   const instruction = instructionEncoders(out)
 
-  /* -- image source : la seule entrée obligatoire d'une recette d'édition --
-     Un `LoadImage` unique lève l'ambiguïté ; s'il y en a plusieurs, écrire au
-     hasard éditerait la mauvaise image, donc on refuse. */
+  /* -- source image: the only required input of an edit recipe --
+     A single `LoadImage` is unambiguous; with several, writing would risk
+     editing the wrong image, so it is refused. */
   if (sourceImage) {
     const loaders = findByClass(out, 'LoadImage')
     if (loaders.length === 1) {
@@ -752,19 +704,17 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       + 'l’image littérale de la recette, pas celle de l’opérateur')
   }
 
-  /* -- préambule d'identité : celui de la persona, jamais un littéral de recette --
-     Deux emplacements possibles selon la recette :
-       1. un StringConcatenate qui colle un texte LITTÉRAL (string_a) devant une
-          entrée LIÉE (string_b, la sortie d'un réécriveur dans le graphe). On
-          ne se contente pas de « le premier trouvé ».
-       2. aucune : la recette encode le prompt directement. Le préambule est
-          alors préfixé au texte positif, ce qui revient au même à l'arrivée.
-     Voir server/persona.js. */
+  /* -- identity preamble: always the persona's, never a recipe literal --
+     Two possible locations depending on the recipe:
+       1. a StringConcatenate joining a LITERAL text (string_a) in front of a
+          LINKED input (string_b, the output of an in-graph rewriter).
+       2. none: the recipe encodes the prompt directly, so the preamble is
+          prefixed to the positive text.
+     See server/persona.js. */
   let preambleInText = false
   if (instruction.length) {
-    // Une instruction d'édition garde l'identité de l'image source. Lui
-    // préfixer une description du sujet la transformerait en description de
-    // scène — le modèle repeindrait le sujet au lieu de le conserver.
+    // An edit instruction keeps the source image's identity; prefixing a subject
+    // description would make the model repaint the subject.
     if (identityPreamble)
       skipped.push(`préambule ${identityPreamble.key} non applicable : recette à `
         + 'instruction, l’identité y vient de l’image source')
@@ -777,41 +727,36 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       out[slots[0]].inputs.string_a = identityPreamble.text
       applied.push(`#${slots[0]} StringConcatenate.string_a = <préambule ${identityPreamble.key}>`)
     } else if (slots.length > 1) {
-      // Plusieurs emplacements plausibles : injecter au hasard produirait un
-      // prompt faux mais crédible. On préfère la recette telle quelle, signalée.
+      // Several plausible locations: injecting at random would produce a wrong but
+      // credible prompt. Keep the recipe as is and report it.
       skipped.push(`préambule ${identityPreamble.key} NON injecté : ${slots.length} `
         + `StringConcatenate candidats (#${slots.join(', #')}) — emplacement ambigu`)
     } else {
       preambleInText = true
     }
   } else if (identityPreamble === undefined) {
-    // `null` est un choix (vidéo, édition, persona vide) et ne
-    // mérite pas d'avertissement ; seul l'OUBLI (undefined) en mérite un —
-    // la provenance de chaque vidéo portait ce faux « non injecté ».
+    // `null` is a deliberate choice (video, edit, empty persona) and gets no
+    // warning; only a missing value (undefined) does.
     skipped.push('aucun préambule d’identité fourni — la recette garde son littéral')
   }
 
   const finalPositive = preambleInText ? identityPreamble.text + positive : positive
 
-  /* -- prompt d'une recette à instruction : AJOUT à la base figée --
-     On n'écrase jamais `prompt` : la base peut porter une consigne de
-     conservation écrite dans la recette. Le prompt de la console s'y ajoute
-     (« and change the red dress to blue ») dans la même passe ; une base vide
-     reçoit l'instruction seule.
+  /* -- instruction recipe prompt: APPENDED to the fixed base --
+     `prompt` is never overwritten: the base may hold a preservation directive.
+     The console prompt is appended ("and change the red dress to blue"); an
+     empty base receives the instruction alone.
 
-     Les autres CLIPTextEncode de la recette ne sont PAS touchés : sans cette
-     garde, le repli générique ci-dessous y écrirait le prompt de la console
-     sans rien signaler. */
+     The recipe's other CLIPTextEncode nodes are NOT touched (the generic
+     fallback below would otherwise write the prompt into them). */
   if (instruction.length) {
     const suffix = (positive || '').trim()
     for (const { id, field } of instruction) {
       const base = out[id].inputs[field] || ''
       if (suffix) {
-        // La base se termine par un point ; un suffixe qui commence en
-        // minuscule est une CONTINUATION (« and change the red dress to
-        // blue »). Recoller tel quel donnerait « …background. and change… » :
-        // l'encodeur de Qwen est un modèle de langage, la ponctuation cassée
-        // lui coûte. On retire le point dans ce cas, jamais autrement.
+        // The base ends with a period; a suffix starting lowercase is a CONTINUATION
+        // ("and change the red dress to blue"). Drop the period in that case only,
+        // since Qwen's encoder is a language model and broken punctuation hurts it.
         const joined = /^[a-z]/.test(suffix) ? base.replace(/\.\s*$/, '') : base
         out[id].inputs[field] = `${joined} ${suffix}`.trim()
         applied.push(`#${id} ${out[id].class_type}.${field} = <base figée> + <suffixe opérateur>`)
@@ -828,14 +773,12 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     if (width || height)
       skipped.push(`dimensions ${width}×${height} ignorées : le cadrage d’une `
         + 'recette d’édition vient de l’image source')
-    // LoRA de style d'édition (choisies côté serveur dans une liste fermée)
+    // Edit style LoRAs (picked server-side from a closed list)
     if (Array.isArray(loras) && loras.length) empilerLoras(out, loras, applied, skipped)
 
-    // Seed et destination : le chemin générique est en aval du retour, il faut
-    // donc les écrire ici. Sans ça le job enregistrerait sa seed tirée au sort
-    // alors que le graphe garderait celle, figée, de la recette — la
-    // provenance mentirait, et deux jobs « différents » rendraient la même
-    // image. Un FaceDetailer éventuel a sa propre seed : elle suit.
+    // Seed and output prefix: the generic path is after this return, so write them
+    // here; otherwise the graph would keep the recipe's fixed seed and provenance
+    // would be wrong. A FaceDetailer's own seed follows too.
     for (const id of [...findByClass(out, 'KSampler'), ...findByClass(out, 'KSamplerAdvanced'),
       ...findByClass(out, 'LanPaint_KSampler'),
       ...findByClass(out, 'FaceDetailer')]) {
@@ -850,7 +793,7 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     return { workflow: out, applied, skipped }
   }
 
-  /* -- prompt : là où la recette accepte du texte libre -- */
+  /* -- prompt: wherever the recipe accepts free text -- */
   const wildcards = findByClass(out, 'ImpactWildcardProcessor')
   for (const id of wildcards) {
     out[id].inputs.populated_text = finalPositive
@@ -859,13 +802,11 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     applied.push(`#${id} ImpactWildcardProcessor.populated_text = <prompt> (mode=fixed, seed=${seed})`)
   }
   if (!wildcards.length) {
-    /* Trois niveaux, du plus sûr au plus approximatif :
-         1. remontée du câblage depuis l'échantillonneur (couvre photo ET vidéo)
-         2. encodeur branché en direct sur un KSampler
-         3. premier CLIPTextEncode littéral — signalé, parce que c'est un pari.
-       Le niveau 1 sert la vidéo : sans lui, LTX recevrait le prompt dans son
-       encodeur NÉGATIF et rendrait une vidéo plausible mais sans rapport avec
-       le brief. */
+    /* Three levels, from safest to most approximate:
+         1. walk up the wiring from the sampler (covers photo AND video)
+         2. encoder wired directly to a KSampler
+         3. first literal CLIPTextEncode (reported, since it is a guess).
+       Level 1 is required for video: on LTX the first encoder is the NEGATIVE. */
     const wired = positiveTextSlots(out)
     const encoders = positiveTextEncoders(out).map(id => `${id}.text`)
     const fallback = findByClass(out, 'CLIPTextEncode')
@@ -888,13 +829,11 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     applied.push(`préambule ${identityPreamble.key} préfixé au prompt (recette sans emplacement dédié)`)
   }
 
-  /* -- dimensions : paramétrables par job, valeur de recette en défaut -- */
+  /* -- dimensions: per job, recipe value as default -- */
   if (width || height) {
-    /* Reconnaissance par MOTIF, pas par liste fermée : chaque nouvelle
-       architecture apporte son propre nœud de latent vide
-       (EmptyFlux2LatentImage, EmptyHunyuanLatentVideo, EmptyLTXVLatentVideo…),
-       et une liste en dur les rate en silence — le job rendrait alors la
-       dimension de la recette en faisant croire que le réglage a porté. */
+    /* Matched by PATTERN, not a closed list: each architecture brings its own
+       empty latent node (EmptyFlux2LatentImage, EmptyHunyuanLatentVideo,
+       EmptyLTXVLatentVideo...). */
     const latents = Object.entries(out)
       .filter(([, n]) => /^Empty.*Latent/.test(n.class_type)
         && 'width' in (n.inputs ?? {}) && 'height' in (n.inputs ?? {}))
@@ -908,11 +847,10 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       skipped.push(`dimensions ${width}×${height} NON injectées : aucun nœud de latent vide reconnu`)
   }
 
-  /* -- négatif : injecté seulement si la recette a un encodeur qui l'écoute --
-     Les recettes Turbo et ZiTC tournent à cfg 1.0 avec ConditioningZeroOut : le
-     négatif y est structurellement inerte, on le dit plutôt que de l'écrire dans
-     un nœud sans effet. Le code sait néanmoins alimenter un vrai encodeur
-     négatif, si une recette à cfg>1 en présente un. */
+  /* -- negative: injected only if the recipe has an encoder that reads it --
+     Turbo and ZiTC recipes run at cfg 1.0 with ConditioningZeroOut, where the
+     negative is inert; this is reported instead of writing it into a no-op node.
+     A real negative encoder (cfg > 1 recipes) is fed. */
   if (negative) {
     const sources = new Set()
     for (const n of Object.values(out)) {
@@ -936,30 +874,27 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     }
   }
 
-  /* -- LoRA additionnelles (persona puis job) : empilées en fin de chaîne MODEL --
-     Un nœud est INSÉRÉ dans le graphe plutôt que prévu à l'avance dans la
-     recette : une LoraLoaderModelOnly présente mais à force 0 chargerait
-     quand même le fichier, et exigerait un nom valide même sans sélection.
+  /* -- extra LoRAs (persona then job): stacked at the end of the MODEL chain --
+     Nodes are INSERTED rather than pre-placed in the recipe: a LoraLoaderModelOnly
+     at strength 0 would still load the file and require a valid name.
 
-     Insertion : on reprend le dernier maillon de la chaîne MODEL partant de la
-     LoRA d'identité, et on réécrit ses consommateurs vers le nouveau nœud.
-     L'ordre compte — l'identité d'abord, le style/la pose ensuite. */
+     Insertion takes the last link of the MODEL chain from the identity LoRA and
+     rewires its consumers to the new node. Order matters: identity first, then
+     style/pose. */
   if (Array.isArray(loras) && loras.length) empilerLoras(out, loras, applied, skipped)
 
-  /* -- ControlNet Z-Image (Fun-CN) : INSÉRÉ, jamais prévu dans la recette --
-     Comme pour les LoRA additionnelles, le nœud est ajouté à la volée : le
-     laisser dans le fichier obligerait à fournir une image de référence à
-     chaque job, y compris ceux qui n'en veulent pas.
+  /* -- Z-Image ControlNet (Fun-CN): INSERTED, never pre-placed in the recipe --
+     Like extra LoRAs, the node is added on the fly so jobs without a reference
+     image need none.
 
-     Le « type » n'est pas un paramètre du nœud — le modèle Union déduit la
-     modalité de la carte reçue. Choisir depth ou openpose revient donc à
-     choisir le PRÉPROCESSEUR. Et `control_context_scale` s'appelle
-     `strength` ici : c'est le même curseur. */
+     The "type" is not a node parameter: the Union model infers the modality from
+     the map it receives, so choosing depth or openpose means choosing the
+     PREPROCESSOR. `control_context_scale` is called `strength` here. */
   if (controlNet?.file) {
     const { file, type = 'depth', strength = 0.7 } = controlNet
     const samplers = [...findByClass(out, 'KSampler'), ...findByClass(out, 'KSamplerAdvanced')]
-    // Le VAE est celui que la recette utilise déjà pour décoder : le nœud de
-    // contrôle encode la carte, il doit parler le même espace latent.
+    // Use the VAE the recipe already decodes with: the control node encodes the map
+    // and must use the same latent space.
     const decode = findByClass(out, 'VAEDecode')[0]
     const vae = decode ? out[decode].inputs.vae : null
     if (!samplers.length || !vae) {
@@ -983,10 +918,8 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       out[idPre] = PRE[type] ?? PRE.depth
       out[idPatch] = { class_type: 'ModelPatchLoader', inputs: { name: CONFIG.controlNetPatch } }
 
-      // On s'intercale sur l'entrée `model` de CHAQUE échantillonneur, en
-      // partant de ce qui l'alimentait — et pas du premier UNETLoader venu :
-      // les LoRA et le ModelSamplingAuraFlow sont en amont, les
-      // court-circuiter reviendrait à générer sans eux.
+      // Insert on the `model` input of EACH sampler, starting from what fed it (not
+      // the first UNETLoader), so upstream LoRAs and ModelSamplingAuraFlow are kept.
       const upstream = out[samplers[0]].inputs.model
       out[idCn] = {
         class_type: 'QwenImageDiffsynthControlnet',
@@ -999,21 +932,16 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     }
   }
 
-  /* -- seed d'échantillonnage -- */
+  /* -- sampling seed -- */
   const samplers = [
     ...findByClass(out, 'KSampler'),
     ...findByClass(out, 'KSamplerAdvanced'),
     ...findByClass(out, 'LanPaint_KSampler'),
-    // RES4LYF — ClownsharKSampler_Beta (res_2m/beta57) porte aussi un `seed`.
-    // Sans ça, la seed du job n'atteindrait pas le sampler et tous les rendus
-    // partageraient la seed figée de la recette.
+    // RES4LYF ClownsharKSampler_Beta also has a `seed` input.
     ...findByClass(out, 'ClownsharKSampler_Beta'),
   ]
   for (const id of samplers) {
-    /* KSamplerAdvanced lit `noise_seed`, pas `seed` : écrire `seed`
-       laissait ComfyUI sur la graine figée de la recette — tous les rendus Wan
-       partaient du même bruit, et la provenance affichait une graine qui
-       n'avait pas servi. */
+    /* KSamplerAdvanced reads `noise_seed`, not `seed`. */
     const champ = 'noise_seed' in (out[id].inputs ?? {}) ? 'noise_seed' : 'seed'
     out[id].inputs[champ] = seed
     applied.push(`#${id} ${out[id].class_type}.${champ} = ${seed}`)
@@ -1025,7 +953,7 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
   if (!samplers.length && !findByClass(out, 'RandomNoise').length)
     skipped.push('aucun échantillonneur reconnu — la seed n’a PAS été injectée')
 
-  /* -- durée et format de la vidéo -- */
+  /* -- video duration and aspect -- */
   if (Number.isFinite(videoSeconds)) {
     const note = setVideoDuration(out, videoSeconds)
     if (note) applied.push(note)
@@ -1046,23 +974,21 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       + 'ni dimensions littérales dans la recette')
   }
   let flfWan = null
-  /* Images clés LTX : [{ image, t (s) }]. Données par le job (table de montage du Movie Studio), ou
-     déduites de la première image et de l'image de fin. */
+  /* LTX keyframes: [{ image, t (s) }]. Provided by the job (Movie Studio timeline), or
+     derived from the first image and the end image. */
   let ltxCles = Array.isArray(keyframes) && keyframes.length ? keyframes : null
-  /* -- image de FIN (keyframe d'arrivée) --
-     Seul MiniMax H3 expose une entrée `last_frame` ; la recette servie ne la
-     câble pas (une seule LoadImage, sur `first_frame`). Quand le job fournit
-     `endImage`, on INSÈRE une LoadImage et on la branche sur `last_frame` du
-     nœud i2v — la recette sur disque ne change pas, l'insertion est
-     journalisée. Wan et LTX n'ont pas d'entrée équivalente : signalé, pas
-     inventé. */
+  /* -- END image (arrival keyframe) --
+     Only MiniMax H3 exposes a `last_frame` input; the served recipe does not wire
+     it (single LoadImage on `first_frame`). When the job provides `endImage`, a
+     LoadImage is INSERTED and wired to the i2v node's `last_frame`; the insertion
+     is logged. Other engines without an equivalent input are reported. */
   if (endImage) {
     const targets = Object.entries(out).filter(([, n]) => /ImageToVideo/.test(n.class_type)
       && (n.inputs && ('last_frame' in n.inputs || 'end_image' in n.inputs || n.class_type === 'MiniMaxH3ImageToVideo')))
-    /* Wan 2.2 (Prequel) : WanImageToVideo n'a pas d'entrée de fin, mais
-       le nœud cœur WanFirstLastFrameToVideo a les mêmes entrées PLUS end_image.
-       La bascule de classe se fait en fin de patch (flfWan) : les réglages de
-       durée et de format, plus bas, reconnaissent encore « ImageToVideo ». */
+    /* Wan 2.2: WanImageToVideo has no end input, but the core node
+       WanFirstLastFrameToVideo has the same inputs PLUS end_image. The class switch
+       happens at the end of the patch (flfWan) so the duration and aspect settings
+       below still match "ImageToVideo". */
     const wanI2v = !targets.length ? findByClass(out, 'WanImageToVideo') : []
     if (wanI2v.length) {
       const tid = wanI2v[0]
@@ -1074,7 +1000,7 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       applied.push(`#${idLoad} LoadImage.image = ${endImage} → #${tid} end_image (keyframe de fin, nœud WanFirstLastFrameToVideo)`
         + (sourceImage ? '' : ' ; start_image débranché (frame de fin seule)'))
     } else if (!targets.length && ltxEtages(out).length) {
-      // LTX : traité plus bas avec les images clés (première image et image de fin en guides)
+      // LTX: handled below with keyframes (first and end images as guides)
       ltxCles = [{ image: sourceImage, t: 0 }, { image: endImage, t: Infinity }].filter(k => k.image)
     } else if (!targets.length) {
       skipped.push(`image de fin « ${endImage} » NON injectée : aucune entrée last_frame/end_image dans la recette`)
@@ -1085,9 +1011,8 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       out[idLoad] = { class_type: 'LoadImage', inputs: { image: endImage } }
       out[tid].inputs[slot] = [idLoad, 0]
       applied.push(`#${idLoad} LoadImage.image = ${endImage} → #${tid} ${tn.class_type}.${slot} (keyframe de fin)`)
-      /* Frame de fin SEULE : on débranche first_frame, sinon le graphe
-         partirait de la still littérale de la recette. La LoadImage d'origine
-         n'alimente plus rien et n'est pas exécutée. */
+      /* End frame ONLY: unwire first_frame, otherwise the graph would start from the
+         recipe's literal still. The original LoadImage then feeds nothing and is not run. */
       if (!sourceImage && 'first_frame' in (out[tid].inputs || {})) {
         delete out[tid].inputs.first_frame
         applied.push(`#${tid} ${tn.class_type}.first_frame débranché (frame de fin seule)`)
@@ -1098,11 +1023,11 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     const n = ltxImagesCles(out, ltxCles, videoSeconds)
     applied.push(`LTX : ${n.length} image(s) clé(s) en guides (${n.map(k => `${k.image} @ ${k.idx === -1 ? 'fin' : `image ${k.idx}`}`).join(', ')}), forces 0,7 puis 1 aux bords, 0,5 puis 0,3 entre les deux, still de départ en guide`)
   }
-  /* -- contexte vidéo (continuation) : LTX --
-     Les dernières images du plan précédent (fichier vidéo de 8n+1 images dans input/) entrent comme guide à
-     l'image 0 de chaque étage : le plan reprend le mouvement, la vitesse et la caméra là où le précédent
-     s'arrêtait (les images de contexte, regénérées en tête, sont coupées au montage). La still de départ
-     n'est alors plus imposée (LTXVImgToVideoInplace contourné). */
+  /* -- video context (continuation): LTX --
+     The last frames of the previous shot (a video file of 8n+1 frames in input/) enter as a guide at
+     frame 0 of each stage, so the shot continues the previous one's motion, speed and camera (the
+     regenerated context frames are trimmed at edit time). The start still is then not enforced
+     (LTXVImgToVideoInplace bypassed). */
   if (contexteVideo) {
     const etages = ltxEtages(out)
     if (!etages.length) skipped.push(`contexte vidéo « ${contexteVideo} » NON injecté : recette sans étage LTX`)
@@ -1137,8 +1062,8 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
   }
 
 
-  // Format « origine » : le brouillon est déjà intégré aux dimensions exactes —
-  // repasser setVideoMegapixels re-scalerait les littéraux qu'on vient d'écrire.
+  // "Source" aspect: the draft is already included in the exact dimensions;
+  // setVideoMegapixels would rescale the literals just written.
   if (Number.isFinite(videoMegapixels) && !exactDimsApplied) {
     const notes = setVideoMegapixels(out, videoMegapixels)
     if (notes.length) applied.push(...notes)
@@ -1146,9 +1071,9 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       + 'dans la recette — rendu à la résolution pleine')
   }
 
-  /* -- texte → vidéo : l'interrupteur de la recette, trouvé par son titre --
-     L'image de départ (neutre) reste câblée mais n'est plus lue. Une recette
-     sans interrupteur ferait un i2v sur une image noire : on refuse. */
+  /* -- text to video: the recipe's switch, found by its title --
+     The (neutral) start image stays wired but is not read. A recipe without the
+     switch would do i2v on a black image, so it is refused. */
   if (t2v) {
     const ids = Object.entries(out).filter(([, n]) => n?.class_type === 'PrimitiveBoolean'
       && /text\s*to\s*video/i.test(n._meta?.title ?? '')).map(([id]) => id)
@@ -1156,10 +1081,8 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     for (const id of ids) { out[id].inputs.value = true; applied.push(`#${id} « ${out[id]._meta.title} » = true (texte → vidéo)`) }
   }
 
-  /* -- rendu muet sur un moteur sonore : l'étage de décodage audio saute --
-     Voir stripAudioStage : la diffusion audio n'est PAS séparable, seul son
-     décodage l'est. On ne le fait donc que si la recette a bien un étage
-     audio ; sur Wan, qui n'en a pas, l'appel ne trouve rien et ne dit rien. */
+  /* -- silent render on an audio-capable engine: skip the audio decode stage --
+     See stripAudioStage. On recipes without an audio stage (Wan) this is a no-op. */
   if (withAudio === false) {
     const notes = stripAudioStage(out)
     if (notes.length) applied.push(...notes)
@@ -1167,14 +1090,14 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
 
   if (flfWan) out[flfWan].class_type = 'WanFirstLastFrameToVideo'
 
-  /* -- destination des fichiers : un dossier par job, traçable -- */
+  /* -- output location: one folder per job -- */
   for (const id of [...findByClass(out, 'SaveImage'), ...findByClass(out, 'Image Save'),
     ...findByClass(out, 'SaveVideo'), ...findByClass(out, 'SaveWEBM')]) {
     out[id].inputs.filename_prefix = `creatoros/${jobId}/out`
     applied.push(`#${id} ${out[id].class_type}.filename_prefix = creatoros/${jobId}/out`)
   }
 
-  /* -- VRAM : décharge le LLM avant la diffusion (cf. CONFIG.ollamaUnload) -- */
+  /* -- VRAM: unload the LLM before diffusion (see CONFIG.ollamaUnload) -- */
   if (CONFIG.ollamaUnload) {
     for (const id of findByClass(out, 'OllamaConnectivityV2')) {
       out[id].inputs.keep_alive = 0
@@ -1182,7 +1105,7 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
     }
   }
 
-  /* -- trajectoire de caméra (Wan Fun Camera) : mêmes dimensions et durée que la vidéo -- */
+  /* -- camera trajectory (Wan Fun Camera): same dimensions and length as the video -- */
   for (const id of findByClass(out, 'WanCameraEmbedding')) {
     const v = Object.values(out).find(n => n.class_type === 'WanCameraImageToVideo')
     for (const k of ['width', 'height', 'length']) if (typeof v?.inputs?.[k] === 'number') out[id].inputs[k] = v.inputs[k]
@@ -1193,12 +1116,10 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
   return { workflow: out, applied, skipped }
 }
 
-/* ---------- rendu photo en 2 MP ----------
-   Krea rend DIRECTEMENT en 2 MP : le latent est agrandi au ratio demandé,
-   1088 de petit côté en portrait (recadré à 1080 de large — 1080 n'est pas
-   un multiple de 16), 1920 de large en paysage (cadrage
-   gardé). Ni doublon ni corps étiré, même cadrage qu'en 1 MP, ~14,6 s par
-   image, plus rapide qu'une chaîne SeedVR2 + visage (~18,5 s). */
+/* ---------- 2 MP photo render ----------
+   Krea renders DIRECTLY at 2 MP: the latent is enlarged to the requested ratio,
+   short side 1088 in portrait (cropped to 1080 wide, since 1080 is not a
+   multiple of 16), 1920 wide in landscape (framing kept). */
 export function rendre2MP(out) {
   const lat = [...findByClass(out, 'EmptySD3LatentImage'), ...findByClass(out, 'EmptyLatentImage')][0]
   const save = findByClass(out, 'SaveImage')[0]
@@ -1217,7 +1138,7 @@ export function rendre2MP(out) {
   return { notes }
 }
 
-/* ---------- dialogue HTTP avec ComfyUI ---------- */
+/* ---------- HTTP calls to ComfyUI ---------- */
 
 async function comfy(pathname, init) {
   const res = await fetch(CONFIG.comfyUrl + pathname, init)
@@ -1228,7 +1149,7 @@ async function comfy(pathname, init) {
   return res
 }
 
-/** Retire un prompt encore en attente dans la file de ComfyUI. */
+/** Removes a prompt still pending in ComfyUI's queue. */
 export async function deleteQueued(promptId) {
   if (String(promptId).startsWith('sdk:')) return sdk.annuler(promptId)
   await comfy('/queue', {
@@ -1237,18 +1158,16 @@ export async function deleteQueued(promptId) {
   })
 }
 
-/** Décharge les modèles résidents (VRAM) — avant un refine Wan, les modèles
- *  H3 encore chargés forcent l'offload CPU du refine (87 % offloadé mesuré,
- *  7 min au lieu de ~3). */
+/** Unloads resident models (VRAM), e.g. before a Wan refine, so leftover models
+ *  do not force CPU offload. */
 export async function freeMemory() {
-  if (sdk.surSdk()) return   // la mémoire de la carte n'est pas la nôtre
+  if (sdk.surSdk()) return   // the card's memory is not ours to manage
   await comfy('/free', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ unload_models: true, free_memory: true }) })
 }
 
-/** Interrompt un prompt précis s'il est en cours d'exécution. Avec un
- *  prompt_id, ComfyUI n'interrompt que lui : un ComfyUI partagé avec une autre
- *  application ne perd pas le rendu de celle-ci. */
+/** Interrupts a specific prompt if it is running. With a prompt_id ComfyUI
+ *  interrupts only that one, so another app sharing ComfyUI keeps its render. */
 export async function interrupt(promptId) {
   if (String(promptId).startsWith('sdk:')) return sdk.annuler(promptId)
   await comfy('/interrupt', {
@@ -1257,22 +1176,20 @@ export async function interrupt(promptId) {
   })
 }
 
-/* ---------- progression en direct ----------
-   ComfyUI pousse `progress` (value/max, par nœud) sur sa WebSocket. Ce n'est
-   pas une estimation fiable de bout en bout — value/max ne couvrent que le
-   nœud en cours — mais c'est exactement ce que l'interface de ComfyUI
-   affiche.
-   L'ETA est déduite du rythme observé sur le nœud courant. */
+/* ---------- live progress ----------
+   ComfyUI pushes `progress` (value/max, per node) on its WebSocket. value/max
+   only cover the current node, matching what the ComfyUI UI shows.
+   The ETA is derived from the pace observed on the current node. */
 const progressByPrompt = new Map()
 let ws = null
-/* Aperçu en direct. ComfyUI n'envoie ses images d'aperçu qu'au client qui a
-   soumis le rendu : l'écoute et les soumissions partagent donc le même identifiant.
-   L'aperçu est demandé rendu par rendu (`preview_method` dans extra_data), sans
-   toucher au lancement de ComfyUI. On garde la dernière image de chaque rendu. */
+/* Live preview. ComfyUI only sends preview images to the client that submitted
+   the render, so listening and submissions share the same client id.
+   Preview is requested per render (`preview_method` in extra_data). The latest
+   image of each render is kept. */
 const CLIENT_WS = 'creatoros-' + Math.random().toString(36).slice(2, 12)
-// l'arbitrage de la carte reconnaît ainsi les rendus du studio dans la file de ComfyUI (les autres = la production)
+// lets GPU arbitration recognize the studio's renders in ComfyUI's queue (others = production)
 definirClientStudio(CLIENT_WS)
-const apercus = new Map()              // prompt_id → { buf, mime, at }
+const apercus = new Map()              // prompt_id -> { buf, mime, at }
 let promptEnCours = null
 function noteApercu(data) {
   const b = Buffer.from(data)
@@ -1282,22 +1199,22 @@ function noteApercu(data) {
   if (type === 1) { mime = b.readUInt32BE(4) === 2 ? 'image/png' : 'image/jpeg'; image = b.subarray(8) }
   else if (type === 4) {
     const n = b.readUInt32BE(4)
-    try { const meta = JSON.parse(b.subarray(8, 8 + n).toString('utf8')); id = meta.prompt_id ?? id; mime = meta.image_type ?? mime } catch { /* métadonnées illisibles */ }
+    try { const meta = JSON.parse(b.subarray(8, 8 + n).toString('utf8')); id = meta.prompt_id ?? id; mime = meta.image_type ?? mime } catch { /* unreadable metadata */ }
     image = b.subarray(8 + n)
   }
   if (!id || !image?.length) return
   apercus.set(id, { buf: image, mime, at: Date.now() })
   if (apercus.size > 6) apercus.delete(apercus.keys().next().value)
 }
-/** Dernier aperçu d'un rendu, s'il a moins de deux minutes. */
+/** Latest preview of a render, if under two minutes old. */
 export const getApercu = promptId => { const a = apercus.get(promptId); return a && Date.now() - a.at < 120_000 ? a : null }
-/* Liaison avec ComfyUI : la WebSocket tombe quand il s'arrête et revient
-   quand il a redémarré. On en tire un état « redémarre » distinct de « en panne »,
-   et un signal de retour sur lequel le serveur relance le diagnostic. */
+/* ComfyUI link state: the WebSocket drops when ComfyUI stops and reconnects when it
+   restarts. This yields a "restarting" state distinct from "down", and a
+   reconnect signal on which the server reruns diagnostics. */
 const liaison = { coupeLe: null, revenuLe: null, coupureMs: null }
 const auRetour = []
 export const onRetourComfy = cb => { auRetour.push(cb) }
-/** 'ok' · 'redemarre' (coupé depuis moins de 3 min) · 'panne'. */
+/** 'ok' | 'redemarre' (down for under 3 min) | 'panne'. */
 export const etatLiaison = () => ({
   etat: !liaison.coupeLe ? 'ok' : Date.now() - liaison.coupeLe < 180_000 ? 'redemarre' : 'panne',
   coupeLe: liaison.coupeLe, revenuLe: liaison.revenuLe, coupureMs: liaison.coupureMs,
@@ -1323,12 +1240,12 @@ function connectProgress() {
           : { node: m.data.node ?? null, t0: now, v0: m.data.value }
         p.value = m.data.value; p.max = m.data.max; p.at = now
         progressByPrompt.set(id, p)
-        // Une entrée par rendu, purgée au fil de l'eau — pas de fuite.
+        // One entry per render, pruned as we go.
         if (progressByPrompt.size > 50) {
           const oldest = [...progressByPrompt.entries()].sort((a, b) => a[1].at - b[1].at)[0]
           progressByPrompt.delete(oldest[0])
         }
-      } catch { /* trame illisible : ignorée */ }
+      } catch { /* unreadable frame: ignored */ }
     })
     ws.addEventListener('open', () => {
       if (!liaison.coupeLe) return
@@ -1336,17 +1253,16 @@ function connectProgress() {
       for (const cb of auRetour) Promise.resolve().then(cb).catch(() => {})
     })
     ws.addEventListener('close', () => { liaison.coupeLe ??= Date.now(); setTimeout(connectProgress, 2000) })
-    ws.addEventListener('error', () => { try { ws.close() } catch { /* déjà fermée */ } })
+    ws.addEventListener('error', () => { try { ws.close() } catch { /* already closed */ } })
   } catch { setTimeout(connectProgress, 5000) }
 }
 connectProgress()
 
-/* ---------- phase en clair ----------
-   « rendu » ne dit rien sur une vidéo de 40 minutes : on nomme ce que fait le
-   nœud en cours, d'après sa classe dans le graphe soumis. Tant qu'aucun nœud
-   ne s'est signalé, les modèles se chargent. */
-const classesByPrompt = new Map()      // prompt_id → { nœud: classe }
-const noeudByPrompt = new Map()        // prompt_id → nœud en cours
+/* ---------- human-readable phase ----------
+   Names what the current node is doing, from its class in the submitted graph.
+   Until a node reports, models are loading. */
+const classesByPrompt = new Map()      // prompt_id -> { node: class }
+const noeudByPrompt = new Map()        // prompt_id -> current node
 function noteNoeud(id, node) {
   noeudByPrompt.set(id, String(node))
   if (noeudByPrompt.size > 50) noeudByPrompt.delete(noeudByPrompt.keys().next().value)
@@ -1370,7 +1286,7 @@ export function getPhase(promptId) {
   return PHASES.find(([re]) => re.test(cl))?.[1] ?? 'calcul'
 }
 
-/** Progression du prompt : { value, max, etaS } ou null. */
+/** Prompt progress: { value, max, etaS } or null. */
 export function getProgress(promptId) {
   const p = progressByPrompt.get(promptId)
   if (!p || !p.max) return null
@@ -1387,11 +1303,9 @@ export async function ping() {
   return r.json()
 }
 
-/** Attend que ComfyUI réponde. Au boot de la machine, les deux services
- *  partent ensemble : `After=comfyui.service` ne garantit que l'ORDRE de
- *  lancement, pas que le serveur écoute — ComfyUI met ~10 s à charger ses
- *  nœuds, CreatorOS 2 s à se construire : une reprise trop tôt finit en
- *  « fetch failed ». */
+/** Waits for ComfyUI to answer. At boot both services start together and
+ *  `After=comfyui.service` only guarantees start ORDER, not that the server
+ *  listens; ComfyUI takes a while to load its nodes. */
 export async function waitReady({ maxMs = 10 * 60 * 1000, everyMs = 2000 } = {}) {
   if (sdk.surSdk()) return 0
   const t0 = Date.now()
@@ -1405,12 +1319,11 @@ export async function waitReady({ maxMs = 10 * 60 * 1000, everyMs = 2000 } = {})
   }
 }
 
-/** Le prompt est-il encore CONNU de ComfyUI (en file, en cours, ou dans
- *  l'historique) ? Après un redémarrage de ComfyUI lui-même — coupure,
- *  crash — sa file en mémoire est perdue : un prompt inconnu ne finira
- *  jamais, il faut le re-soumettre, pas l'attendre. */
+/** Is the prompt still KNOWN to ComfyUI (queued, running, or in history)?
+ *  After a ComfyUI restart its in-memory queue is lost: an unknown prompt will
+ *  never finish and must be resubmitted. */
 export async function promptKnown(promptId) {
-  if (String(promptId).startsWith('sdk:')) return null   // le handle ne survit pas à un redémarrage
+  if (String(promptId).startsWith('sdk:')) return null   // the handle does not survive a restart
   const hist = await (await comfy(`/history/${promptId}`)).json()
   if (hist[promptId]) return 'history'
   const q = await (await comfy('/queue')).json()
@@ -1421,7 +1334,7 @@ export async function promptKnown(promptId) {
 
 export async function submitPrompt(workflow, clientId) {
   if (sdk.surSdk()) return sdk.soumettre(workflow)
-  // petite carte : chargeurs lourds remplacés par leurs variantes allégées (cf. allege.js)
+  // small GPU: heavy loaders replaced by their lightweight variants (see allege.js)
   const a = await alleger(workflow)
   if (a.remplaces.length) {
     workflow = a.graphe
@@ -1430,13 +1343,13 @@ export async function submitPrompt(workflow, clientId) {
   const res = await fetch(CONFIG.comfyUrl + '/prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // client_id = celui de l'écoute (aperçus) ; `clientId` de l'appelant n'a plus d'usage côté ComfyUI
+    // client_id = the listener's (previews); the caller's `clientId` is not used by ComfyUI
     body: JSON.stringify({ prompt: workflow, client_id: CLIENT_WS, extra_data: { preview_method: 'latent2rgb' } }),
   })
   const text = await res.text()
   if (!res.ok) {
-    // ComfyUI renvoie un 400 détaillé (node_errors) quand le graphe est invalide :
-    // dit en clair pour l'opérateur, entier dans le journal (cf. erreurs.js).
+    // ComfyUI returns a detailed 400 (node_errors) when the graph is invalid:
+    // summarized for the operator, logged in full (see erreurs.js).
     console.warn(`[comfy] refus HTTP ${res.status} : ${text.slice(0, 4000)}`)
     throw new Error(erreurSoumission(text))
   }
@@ -1445,13 +1358,13 @@ export async function submitPrompt(workflow, clientId) {
     console.warn(`[comfy] erreurs de nœuds : ${JSON.stringify(json.node_errors).slice(0, 4000)}`)
     throw new Error(erreurSoumission(json))
   }
-  // classes des nœuds du graphe, pour nommer la phase en cours (cf. getPhase)
+  // graph node classes, used to name the current phase (see getPhase)
   classesByPrompt.set(json.prompt_id, Object.fromEntries(Object.entries(workflow).map(([k, v]) => [k, v?.class_type ?? ''])))
   if (classesByPrompt.size > 50) classesByPrompt.delete(classesByPrompt.keys().next().value)
   return json.prompt_id
 }
 
-/** Attend la fin d'exécution. `onPhase` reçoit 'queued' puis 'rendering'. */
+/** Waits for execution to finish. `onPhase` receives 'queued' then 'rendering'. */
 export async function waitForPrompt(promptId, { onPhase, timeoutMs = CONFIG.jobTimeoutMs } = {}) {
   if (String(promptId).startsWith('sdk:')) return sdk.attendreFin(promptId, { onPhase, timeoutMs })
   const t0 = Date.now()
@@ -1466,24 +1379,22 @@ export async function waitForPrompt(promptId, { onPhase, timeoutMs = CONFIG.jobT
     const next = running ? 'rendering' : 'queued'
     if (next !== phase) { phase = next; onPhase?.(next) }
 
-    /* Le délai ne s'applique qu'à un prompt DISPARU sans historique — un
-       crash, pas un long rendu. Tant que ComfyUI le tient (en cours ou en
-       attente), on attend : un long rendu motion ne doit pas passer pour
-       « bloqué ». */
+    /* The timeout only applies to a prompt that VANISHED without history (a crash,
+       not a long render). While ComfyUI holds it (running or pending), keep waiting. */
     if (!running && !pending && Date.now() - t0 > timeoutMs)
       throw new Error(`délai dépassé (${Math.round(timeoutMs / 1000)} s) sans résultat`)
     await sleep(1000)
   }
 }
 
-/** Extrait les images d'une entrée d'historique, et remonte l'échec
- *  d'exécution s'il y en a un (statut non « success »). */
+/** Extracts the images of a history entry, and throws on execution failure
+ *  (status not "success"). */
 export function outputsOf(history) {
   const status = history.status || {}
   const images = []
   for (const out of Object.values(history.outputs || {}))
     for (const img of out.images || [])
-      // « temp » : aperçus ; « input » : le fichier d'entrée montré par un nœud de chargement, pas un rendu
+      // "temp": previews; "input": the input file shown by a loader node, not a render
       if (img.type !== 'temp' && img.type !== 'input') images.push(img)
 
   if (!status.completed) {
@@ -1496,10 +1407,9 @@ export function outputsOf(history) {
   return images
 }
 
-/** Textes renvoyés par le graphe (PreviewAny, ShowText…).
- *  Sur une recette qui réécrit le prompt dans le graphe, c'est le prompt
- *  final — donc la trace de ce qu'un token wildcard `__…__` a RÉELLEMENT donné.
- *  Sans ça, un tirage au hasard serait irreproductible à la lecture. */
+/** Texts returned by the graph (PreviewAny, ShowText...).
+ *  On recipes that rewrite the prompt in-graph, this is the final prompt, i.e.
+ *  what a `__...__` wildcard token actually resolved to. */
 export function textsOf(history) {
   const out = []
   for (const o of Object.values(history.outputs || {})) {
@@ -1511,8 +1421,8 @@ export function textsOf(history) {
   return out
 }
 
-/** Récupère les octets d'une image : disque local d'abord (même
- *  machine), endpoint /view en repli si l'arborescence diffère. */
+/** Fetches an image's bytes: local disk first (same machine), /view endpoint
+ *  as fallback if the layout differs. */
 export async function readImage(img) {
   if (img.__sdk) return sdk.lireSortie(img)
   const local = path.join(CONFIG.comfyOutput, img.subfolder || '', img.filename)
@@ -1523,48 +1433,42 @@ export async function readImage(img) {
   return Buffer.from(await (await comfy('/view?' + qs)).arrayBuffer())
 }
 
-/** Dimensions PNG lues dans l'IHDR (aucune dépendance image). */
+/** PNG dimensions read from the IHDR chunk (no image dependency). */
 export function pngSize(buf) {
   if (buf.length > 24 && buf.toString('ascii', 12, 16) === 'IHDR')
     return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
   return { width: null, height: null }
 }
 
-/* ---------- inventaire des LoRA ----------
-   Le front doit pouvoir CHOISIR une LoRA, donc il lui faut la liste réelle.
-   Deux pièges que cette fonction traite plutôt que de les laisser à l'appelant :
+/* ---------- LoRA inventory ----------
+   The front end needs the real list to pick a LoRA. Two concerns handled here:
 
-   1. Toutes les LoRA du dossier ne sont pas compatibles Z-Image. Une LoRA Flux
-      ou Wan chargée sur un graphe Z-Image ne produit pas une erreur franche —
-      ComfyUI applique ce qu'il peut et rend une image plausible mais fausse.
-      On classe donc par ARCHITECTURE, en lisant l'en-tête safetensors :
+   1. Not every LoRA in the folder matches the recipe's architecture. A
+      mismatched LoRA does not fail; ComfyUI applies what it can and renders a
+      plausible but wrong image. So LoRAs are classified by ARCHITECTURE from
+      the safetensors header:
         Z-Image : diffusion_model.layers.<n>.attention|feed_forward
         Flux 1  : lora_unet_double_blocks_*
         Flux 2  : diffusion_model.double_blocks.*
-      Le nom de fichier ne prouve rien.
+      The file name proves nothing.
 
-   2. Lire 150 en-têtes à chaque appel serait gâché : on mémorise par
-      (taille, mtime), donc un fichier remplacé est reclassé, pas servi périmé. */
+   2. Headers are cached by (size, mtime), so a replaced file is reclassified. */
 
 const loraCache = new Map()
 
-/** Lit l'en-tête safetensors UNE fois et en tire deux choses : l'architecture
- *  (par les clés de tenseurs) et le mot déclencheur (par les métadonnées).
+/** Reads the safetensors header ONCE and extracts the architecture (from tensor
+ *  keys) and the trigger word (from metadata).
  *
- *  LE DÉCLENCHEUR EST LE POINT SENSIBLE. Sans lui dans le prompt, une LoRA de
- *  pose est chargée, consomme de la VRAM, et n'agit pas — l'image sort
- *  plausible et l'opérateur croit que la LoRA est faible. Trois sources, par
- *  ordre de fiabilité DÉCROISSANTE, et `triggerSource` dit toujours laquelle :
+ *  Without its trigger in the prompt, a LoRA loads but has no effect. Three
+ *  sources, by DECREASING reliability; `triggerSource` says which:
  *
- *    `tags`   ss_tag_frequency — ce que les légendes contenaient réellement à
- *             l'entraînement. C'est une preuve, pas une supposition.
- *    `nom`    ss_output_name / name — plausible mais NON VÉRIFIÉ : rien ne dit
- *             que le nom de sortie était le mot des légendes. À afficher comme
- *             une proposition que l'opérateur confirme.
- *    `aucun`  ni l'un ni l'autre (LoRA exportées par diffusers, par exemple).
- *             L'opérateur DOIT le saisir, sinon la LoRA restera inerte.
+ *    `tags`   ss_tag_frequency: what the training captions actually contained.
+ *    `nom`    ss_output_name / name: plausible but UNVERIFIED; shown as a
+ *             suggestion for the operator to confirm.
+ *    `aucun`  neither (e.g. diffusers-exported LoRAs). The operator MUST enter
+ *             it, otherwise the LoRA stays inert.
  *
- *  Mémorisé par (taille, mtime) : un fichier remplacé est relu, pas servi périmé. */
+ *  Cached by (size, mtime). */
 function loraProbe(file) {
   let st
   try { st = fs.statSync(file) } catch { return { arch: 'illisible', trigger: null, triggerSource: 'aucun' } }
@@ -1579,57 +1483,52 @@ function loraProbe(file) {
       const len = Buffer.alloc(8)
       fs.readSync(fd, len, 0, 8, 0)
       const n = Number(len.readBigUInt64LE(0))
-      // Garde-fou : un en-tête safetensors sain fait quelques centaines de Ko.
+      // Guard: a sane safetensors header is a few hundred KB.
       if (n > 0 && n < 64 * 1024 * 1024) {
         const head = Buffer.alloc(n)
         fs.readSync(fd, head, 0, n, 8)
         const parsed = JSON.parse(head.toString('utf8'))
         const keys = Object.keys(parsed)
 
-        /* Krea 2 et FLUX.2 Klein : d'abord ce que le fichier déclare
-           (modelspec / kohya), puis les clés propres à Krea 2 (porte
-           d'attention `attn.gate` + `wk`, tours `txtfusion`). */
+        /* Krea 2 and FLUX.2 Klein: first what the file declares (modelspec / kohya),
+           then Krea 2 specific keys (attention gate `attn.gate` + `wk`, `txtfusion` towers). */
         const meta = parsed.__metadata__ || {}
         const decl = `${meta['modelspec.architecture'] ?? ''} ${meta.ss_base_model_version ?? ''} ${meta.ss_sd_model_name ?? ''}`.toLowerCase()
-        // FLUX 3 Image Klein (ai-toolkit : ss_base_model_version flux3, blocs content_mode_blocks)
+        // FLUX 3 Image Klein (ai-toolkit: ss_base_model_version flux3, content_mode_blocks)
         if (/flux[._-]?3/.test(decl) || keys.some(k => /content_mode_blocks\./.test(k))) probe.arch = 'flux3'
         else if (/krea/.test(decl) || keys.some(k => /(^|\.)txtfusion\.|blocks[._]\d+[._]attn[._]gate/.test(k))) probe.arch = 'krea2'
         else if (/klein|flux[._-]?2/.test(decl)) probe.arch = 'flux2'
         else if (keys.some(k => /^diffusion_model\.layers\.\d+\.(attention|feed_forward)/.test(k))) probe.arch = 'zimage'
         else if (keys.some(k => k.startsWith('lora_unet_double_blocks'))) probe.arch = 'flux1'
         else if (keys.some(k => k.startsWith('diffusion_model.double_blocks'))) probe.arch = 'flux2'
-        // MiniMax H3 (vidéo). Deux marqueurs propres à H3, dont au moins un
-        // suffit : attention à QKV FUSIONNÉ (`attn.qkv_proj` / `attn.out_proj`)
-        // et MLP nommé `mlp.fc1/fc2` (certaines H3, comme l'AIO, n'entraînent
-        // QUE les MLP). Discriminant face à Wan, qui partage le préfixe
-        // `diffusion_model.blocks.N.…` mais sépare `self_attn.q/k/v`, ajoute
-        // `cross_attn` et nomme son MLP `ffn.0/ffn.2` (jamais `attn.qkv_proj`
-        // ni `mlp.fc`). Sans ce resserrement, les LoRA Wan passaient pour des
-        // H3 et étaient proposées à l'empilage minimax — arch fausse, bruit.
+        // MiniMax H3 (video). Either of two H3-specific markers is enough: FUSED QKV
+        // attention (`attn.qkv_proj` / `attn.out_proj`) and MLP named `mlp.fc1/fc2`
+        // (some H3 LoRAs train only the MLPs). This tells it apart from Wan, which
+        // shares the `diffusion_model.blocks.N.` prefix but has separate
+        // `self_attn.q/k/v`, `cross_attn`, and `ffn.0/ffn.2`.
         else if (keys.some(k =>
           /^diffusion_model\.(token_refiner\.)?blocks\.\d+\.(attn\.(qkv_proj|out_proj)|mlp\.fc)/.test(k)
-          // Même arch H3 mais en nommage kohya/sd-scripts : `lora_unet_blocks_N_attn_qkv_proj`
-          // (underscores). Le `qkv_proj` FUSIONNÉ reste le discriminant face à Wan,
-          // et `blocks_` (non `double_blocks_`) le distingue de Flux.
+          // Same H3 arch with kohya/sd-scripts naming: `lora_unet_blocks_N_attn_qkv_proj`.
+          // FUSED `qkv_proj` distinguishes it from Wan, and `blocks_` (not
+          // `double_blocks_`) from Flux.
           || /^lora_unet_blocks_\d+_(attn_(qkv_proj|out_proj)|mlp_fc)/.test(k)
         )) probe.arch = 'h3'
 
         const m = parsed.__metadata__ || {}
-        // ss_tag_frequency : { "1_<tag>": { "<tag>": n } } — le préfixe « 1_ »
-        // est le nombre de répétitions du dossier, pas une partie du mot.
+        // ss_tag_frequency: { "1_<tag>": { "<tag>": n } }; the "1_" prefix is the
+        // folder's repeat count, not part of the word.
         try {
           const tf = typeof m.ss_tag_frequency === 'string'
             ? JSON.parse(m.ss_tag_frequency) : m.ss_tag_frequency
           const bucket = tf && Object.keys(tf)[0]
           const tag = bucket && Object.keys(tf[bucket] || {})[0]
           if (tag) { probe.trigger = tag; probe.triggerSource = 'tags' }
-        } catch { /* métadonnée illisible : on retombe sur le nom */ }
+        } catch { /* unreadable metadata: fall back to the name */ }
 
         if (!probe.trigger) {
           const named = m.ss_output_name || m.name
-          /* identifiants de job d'entraînement (Civitai « training_<id>-<ts> »,
-             « epoch_N ») : pas des déclencheurs — les injecter polluerait le
-             prompt pour rien. Mieux vaut aucun trigger. */
+          /* training job identifiers ("training_<id>-<ts>", "epoch_N") are not triggers;
+             no trigger is better than a polluted prompt. */
           if (typeof named === 'string' && named.trim()
               && !/^(training_\d+|epoch_\d+|last|lora)\b/i.test(named.trim())) {
             probe.trigger = named.trim()
@@ -1644,9 +1543,9 @@ function loraProbe(file) {
   return probe
 }
 
-/* Table de triggers opérateur (<données>/loras_triggers.json) : PRIORITAIRE
-   sur le header — les textes d'activation Civitai sont souvent absents du
-   fichier ou trop longs pour ses métadonnées. Relue sur mtime. */
+/* Operator trigger table (<data>/loras_triggers.json): takes PRIORITY over the
+   header, since activation texts are often missing from the file or too long
+   for its metadata. Reloaded on mtime change. */
 const TRIGGER_TABLE_FILE = path.join(CONFIG.dataDir, 'loras_triggers.json')
 let _trigTable = { mtime: 0, data: {} }
 function triggerTable() {
@@ -1662,18 +1561,15 @@ function withTable(name, probe) {
   return typeof t === 'string' && t.trim() ? { ...probe, trigger: t.trim(), triggerSource: 'table' } : probe
 }
 
-/** Rangement : une LoRA déclarée par la persona est son identité — elle n'a
- *  rien à faire dans un sélecteur de style, elle est déjà posée par le
- *  serveur. Tout le reste est offert sans restriction de registre. */
+/** Classification: a LoRA declared by a persona is its identity, set by the
+ *  server, and is excluded from style pickers. Everything else is offered. */
 function loraTags(name) {
   if (personaLoraNames().has(name)) return { kind: 'identite', scope: 'identite' }
   return { kind: 'style', scope: 'all' }
 }
 
-/** Fiche d'UNE LoRA par son nom de fichier. Le serveur résout ainsi le
- *  déclencheur lui-même plutôt que de faire confiance à ce que le front
- *  envoie — un front périmé enverrait un mot obsolète et la LoRA serait
- *  chargée pour rien. */
+/** Info for ONE LoRA by file name. The server resolves the trigger itself
+ *  rather than trusting what the front end sends. */
 export function loraInfo(name) {
   if (typeof name !== 'string' || !name || name.includes('/') || name.includes('\\')) return null
   const full = path.join(CONFIG.lorasDir, name)
@@ -1681,10 +1577,8 @@ export function loraInfo(name) {
   return { name, ...withTable(name, loraProbe(full)), ...loraTags(name) }
 }
 
-/** Liste des LoRA du dossier, classées. `arch` dit ce qui est réellement
- *  chargeable sur les recettes Z-Image ; le reste est renvoyé quand même,
- *  marqué, pour que l'interface puisse l'afficher grisé plutôt que de le
- *  faire disparaître sans explication. */
+/** Lists the folder's LoRAs, classified. `arch` says what is actually loadable;
+ *  the rest is returned too, flagged, so the UI can show it greyed out. */
 export function listLoras() {
   let files = []
   try {
@@ -1695,14 +1589,14 @@ export function listLoras() {
   const loras = files.sort().map(name => {
     const full = path.join(CONFIG.lorasDir, name)
     let bytes = null
-    try { bytes = fs.statSync(full).size } catch { /* lien cassé : signalé par arch */ }
+    try { bytes = fs.statSync(full).size } catch { /* broken link: reported via arch */ }
     return { name, ...withTable(name, loraProbe(full)), ...loraTags(name), bytes }
   })
   return { dir: CONFIG.lorasDir, loras }
 }
 
-/** Image neutre pour les recettes qui gardent un LoadImage câblé en texte →
- *  vidéo : écrite une fois dans input/ (gris uni 896×1600, PNG). */
+/** Neutral image for recipes that keep a LoadImage wired in text-to-video mode:
+ *  written once to input/ (flat grey 896x1600 PNG). */
 export function imageVideT2v() {
   const nom = 'creatoros_t2v_neutre.png'
   const f = path.join(CONFIG.comfyInput, nom)

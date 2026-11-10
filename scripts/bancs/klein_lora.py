@@ -1,7 +1,7 @@
-"""Banc : pourquoi une LoRA d'identité Klein ne tient pas le visage.
-Mêmes graine, prompt et LoRA ; on change le modèle (distillé / base), les
-étapes, la CFG et la force de la LoRA. Envoi direct à ComfyUI (API locale).
-python3 scripts/bancs/klein_lora.py <dossier de sortie>"""
+"""Bench: Klein identity LoRA face retention.
+Same seed, prompt and LoRA; varies the model (distilled / base), steps,
+CFG and LoRA strength. Submits directly to the local ComfyUI API.
+python3 scripts/bancs/klein_lora.py <output folder>"""
 import json, sys, time, urllib.request, shutil, os, copy
 
 COMFY = 'http://127.0.0.1:8188'

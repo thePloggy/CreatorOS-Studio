@@ -1,10 +1,10 @@
-/* Extensions : des fonctions ajoutées au studio sans code. Une extension est un dossier avec
-   app.json (nom, description, champs du formulaire, type de sortie) et workflow.json (un workflow
-   ComfyUI au format API, avec des emplacements {{champ}}). Le studio ne l'exécute que si chaque
-   nœud et chaque modèle qu'elle cite existe déjà dans ComfyUI : rien n'est installé à sa place.
-   - extensions/ : extensions livrées avec le studio, que tout visiteur peut lancer ;
-   - <données>/extensions/ : extensions installées depuis le catalogue, réservées au propriétaire ;
-   - extensions/registre.json : le catalogue (dépôts GitHub publics). */
+/* Extensions: features added to the studio without code. An extension is a folder with
+   app.json (name, description, form fields, output type) and workflow.json (a ComfyUI
+   API-format workflow with {{field}} placeholders). The studio runs it only if every node
+   and model it references already exists in ComfyUI: nothing is installed for it.
+   - extensions/: extensions shipped with the studio, any visitor can run them;
+   - <data>/extensions/: extensions installed from the catalog, owner only;
+   - extensions/registre.json: the catalog (public GitHub repos). */
 import fs from 'node:fs'
 import path from 'node:path'
 import { CONFIG } from './config.js'
@@ -20,7 +20,7 @@ const TYPES = new Set(['texte', 'nombre', 'choix', 'image'])
 const SORTIES = new Set(['image', 'video', 'audio'])
 const JETON = /\{\{([a-z0-9_]+)\}\}/g
 
-/** Vérifie app.json et workflow.json ; renvoie l'app normalisée ou lève une erreur lisible. */
+/** Validates app.json and workflow.json; returns the normalized app or throws a readable error. */
 export function valider(app, graphe) {
   if (!app || typeof app !== 'object') throw new Error('app.json illisible')
   if (!ID.test(String(app.id))) throw new Error('id : lettres minuscules, chiffres et tirets, 2 à 40 caractères')
@@ -47,7 +47,7 @@ export function valider(app, graphe) {
   }
 }
 
-/* Ce que ComfyUI sait faire : la liste des nœuds et, pour chaque entrée à choix, ses valeurs (modèles). */
+/* What ComfyUI can do: the node list and, for each choice input, its values (models). */
 let objetInfo = null, objetInfoAt = 0
 async function infoComfy() {
   if (objetInfo && Date.now() - objetInfoAt < 5 * 60_000) return objetInfo
@@ -56,7 +56,7 @@ async function infoComfy() {
   objetInfo = await r.json(); objetInfoAt = Date.now()
   return objetInfo
 }
-/** Nœuds absents de ComfyUI et valeurs (modèles) qu'il ne propose pas. */
+/** Nodes missing from ComfyUI and values (models) it does not offer. */
 export async function manques(graphe) {
   const info = await infoComfy()
   const noeuds = new Set(), modeles = new Set()
@@ -102,7 +102,7 @@ export function catalogue() {
     apercu: /^https:\/\/raw\.githubusercontent\.com\/[\w./-]+\.(webp|png|jpg)$/.test(String(e.apercu ?? '')) ? e.apercu : null }))
 }
 
-/* Installation depuis le catalogue seulement, fichiers lus sur raw.githubusercontent.com. */
+/* Install from the catalog only, files read from raw.githubusercontent.com. */
 export async function installer(id) {
   let reg = []
   try { reg = JSON.parse(fs.readFileSync(path.join(LIVREES, 'registre.json'), 'utf8')).extensions ?? [] } catch { reg = [] }
@@ -129,7 +129,7 @@ export async function installer(id) {
   return { ...v, source: 'installee', manque: m }
 }
 
-/** Retire une extension installée : le dossier est mis de côté, jamais effacé. */
+/** Removes an installed extension: the folder is set aside, never deleted. */
 export function retirer(id) {
   const d = path.join(INSTALLEES, String(id))
   if (!ID.test(String(id)) || !fs.existsSync(d)) throw new Error('extension installée inconnue')
@@ -138,7 +138,7 @@ export function retirer(id) {
   return { ok: true }
 }
 
-/** Remplit le workflow avec les valeurs du formulaire et le met en file. */
+/** Fills the workflow with the form values and enqueues it. */
 export async function lancer({ id, valeurs, proprietaire, personaId }) {
   const x = toutes().find(e => e.id === id)
   if (!x) throw new Error('extension inconnue')
@@ -146,8 +146,8 @@ export async function lancer({ id, valeurs, proprietaire, personaId }) {
   return remplirEtLancer(x, { valeurs, personaId })
 }
 
-/** Remplit les emplacements {{champ}} d'un workflow avec les valeurs du formulaire, filtre les textes
- *  et met en file. `x` : { id, nom, sortie, entrees, graphe } (extension ou workflow du catalogue). */
+/** Fills a workflow's {{field}} placeholders with form values, filters texts and enqueues.
+ *  `x`: { id, nom, sortie, entrees, graphe } (extension or catalog workflow). */
 export async function remplirEtLancer(x, { valeurs, personaId }) {
   const m = await manques(x.graphe)
   if (m.noeuds.length || m.modeles.length) throw new Error(`il manque à ComfyUI : ${[...m.noeuds, ...m.modeles].join(', ')}`)
@@ -179,7 +179,7 @@ export async function remplirEtLancer(x, { valeurs, personaId }) {
     }
     remplis[e.id] = val
   }
-  // un emplacement seul garde le type de la valeur (nombre) ; dans un texte, il est remplacé tel quel
+  // a lone placeholder keeps the value's type (number); inside a text it is replaced as is
   const remplir = n => {
     if (typeof n === 'string') { const seul = /^\{\{([a-z0-9_]+)\}\}$/.exec(n); return seul ? remplis[seul[1]] : n.replace(JETON, (_, k) => String(remplis[k])) }
     if (Array.isArray(n)) return n.map(remplir)
@@ -187,7 +187,7 @@ export async function remplirEtLancer(x, { valeurs, personaId }) {
     return n
   }
   const graphe = remplir(x.graphe)
-  // le texte final passe aussi par le filtre (une extension pourrait cacher un texte dans son workflow)
+  // the final text also goes through the filter (an extension could hide text in its workflow)
   if (t0Hit(Object.values(graphe).flatMap(n => Object.values(n.inputs).filter(y => typeof y === 'string')).join(' '))) throw new Error('workflow refusé (liste T0)')
   return enqueueExtension({ graphe, sortie: x.sortie, nom: x.nom, extensionId: x.id, personaId, parentAssetId: parent, prompt: textes.join(' · ') })
 }

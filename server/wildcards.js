@@ -1,21 +1,21 @@
 /* ============================================================
-   Tirage des wildcards « au hasard » — côté serveur, avec la seed du job.
+   "Random" wildcard drawing, server-side, seeded by the job seed.
 
-   Les items 🎲 des vocabulaires portent un TOKEN au lieu d'une ligne :
-   `__tenues*__`, `{__a__|__b__}`. Aucune recette
-   servie ne porte ImpactWildcardProcessor : le token partirait tel quel
-   dans CLIPTextEncode, ou le LLM le paraphraserait. On tire donc ICI, avant
-   l'injection, avec un générateur déterministe alimenté par la seed du job :
-   même seed → même tirage, et la ligne tirée est journalisée dans
-   `applied` (provenance). Le comportement est celui de l'Impact Pack :
+   Vocabulary 🎲 items carry a TOKEN instead of a line:
+   `__tenues*__`, `{__a__|__b__}`. No served recipe contains
+   ImpactWildcardProcessor: the token would reach CLIPTextEncode as is, or
+   the LLM would paraphrase it. So drawing happens HERE, before injection,
+   with a deterministic generator seeded by the job seed: same seed → same
+   draw, and the drawn line is logged in `applied` (provenance). Behavior
+   matches the Impact Pack:
 
-     __fichier__            → une ligne du fichier
-     __prefixe*__           → un fichier parmi ceux qui correspondent, puis une ligne
-     {a|b|c}                → une option (qui peut elle-même contenir des tokens)
-     __inexistant__         → laissé tel quel, signalé (échec visible)
+     __file__               → one line of the file
+     __prefix*__            → one matching file, then one line
+     {a|b|c}                → one option (which may itself contain tokens)
+     __missing__            → left as is, reported (visible failure)
 
-   Les fichiers sont ceux de CONFIG.wildcardsDir (*.txt), relus quand
-   leur mtime change. Les lignes vides et les commentaires `#` sont ignorés.
+   Files come from CONFIG.wildcardsDir (*.txt), reread when their mtime
+   changes. Empty lines and `#` comments are ignored.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -43,8 +43,8 @@ function linesOf(name) {
   return lines
 }
 
-/** mulberry32 : petit, déterministe, largement suffisant pour choisir une
- *  ligne. La seed ComfyUI tient sur 53 bits ; on la replie sur 32. */
+/** mulberry32: small, deterministic, plenty to pick a line. The ComfyUI
+ *  seed fits in 53 bits; it is folded to 32. */
 function rng(seed) {
   let a = (Number(seed) % 4294967296) ^ Math.floor(Number(seed) / 4294967296)
   a >>>= 0
@@ -61,10 +61,9 @@ const globToRe = g => new RegExp(`^${g.replace(/[.+^${}()|[\]\\]/g, '\\$&').repl
 
 export const hasWildcards = text => /__[^_\s][^\s]*?__|\{[^{}]*\|[^{}]*\}/.test(String(text ?? ''))
 
-/** Résout tous les tokens de `text`. Rend { text, draws, unknown } :
- *  draws = [{ token, value }] dans l'ordre du tirage, unknown = tokens
- *  laissés tels quels. Jamais d'exception : un fichier absent est un
- *  échec VISIBLE dans le prompt, pas un job perdu. */
+/** Resolves all tokens in `text`. Returns { text, draws, unknown }:
+ *  draws = [{ token, value }] in draw order, unknown = tokens left as is.
+ *  Never throws: a missing file is a VISIBLE failure in the prompt, not a lost job. */
 export function resolve(text, seed) {
   let out = String(text ?? '')
   const draws = [], unknown = []
@@ -75,13 +74,13 @@ export function resolve(text, seed) {
 
   for (let pass = 0; pass < 12; pass++) {
     let changed = false
-    // 1. alternances {a|b|c}, les plus internes d'abord
+    // 1. alternations {a|b|c}, innermost first
     out = out.replace(/\{([^{}]*\|[^{}]*)\}/g, (m, body) => {
       const choice = pick(body.split('|').map(s => s.trim()).filter(Boolean))
       draws.push({ token: m, value: choice }); changed = true
       return choice
     })
-    // 2. tokens __nom__ / __prefixe*__
+    // 2. tokens __name__ / __prefix*__
     out = out.replace(/__([A-Za-z0-9_\-*.]+?)__/g, (m, name) => {
       if (unknown.includes(m)) return m
       const cands = name.includes('*') ? names.filter(n => globToRe(name).test(n)) : (names.includes(name) ? [name] : [])

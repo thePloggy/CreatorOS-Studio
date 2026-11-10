@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Temps forts d'un morceau : tempo par autocorrélation de l'enveloppe d'attaques, puis grille
-de temps calée sur les attaques les plus fortes. Sans dépendance au-delà de numpy et ffmpeg.
-Usage : temps.py <audio> -> JSON {"bpm": float, "temps": [secondes...]}"""
+"""Beats of a track: tempo by autocorrelation of the onset envelope, then a beat grid
+aligned on the strongest onsets. No dependency beyond numpy and ffmpeg.
+Usage: temps.py <audio> -> JSON {"bpm": float, "temps": [seconds...]}"""
 import json
 import subprocess
 import sys
@@ -17,13 +17,13 @@ spec = np.abs(np.fft.rfft(trames, axis=1))
 flux = np.maximum(0, np.diff(np.log1p(spec), axis=0)).sum(axis=1)
 flux = (flux - flux.mean()) / (flux.std() + 1e-9)
 fps = SR / HOP
-# tempo : pic d'autocorrélation entre 70 et 180 BPM
+# tempo: autocorrelation peak between 70 and 180 BPM
 ac = np.correlate(flux, flux, mode='full')[len(flux) - 1:]
 lags = np.arange(len(ac))
 ok = (lags >= fps * 60 / 180) & (lags <= fps * 60 / 70)
 periode = lags[ok][np.argmax(ac[ok])]
 bpm = 60 * fps / periode
-# phase : la grille qui recueille le plus d'énergie d'attaque
+# phase: the grid that collects the most onset energy
 phases = [flux[p::periode].sum() for p in range(int(periode))]
 debut = int(np.argmax(phases))
 temps = [round(float(i / fps), 3) for i in range(debut, len(flux), int(periode))]

@@ -1,17 +1,17 @@
 /* ============================================================
-   Filtre de nudité des rendus.
+   Nudity filter for renders.
 
-   Chaque nouveau rendu (photo, ou clip lu à une image par seconde) passe par
-   scripts/filtre_images.py (NudeNet, MIT, sur le CPU). Un rendu positif est
-   mis en quarantaine : le fichier est DÉPLACÉ (jamais effacé) dans un dossier
-   fermé (chmod 700) hors des médias servis, l'asset quitte la bibliothèque
-   par la corbeille, une ligne est ajoutée au journal et une notification part.
+   Each new render (photo, or clip read at one frame per second) goes
+   through scripts/filtre_images.py (NudeNet, MIT, on the CPU). A positive
+   render is quarantined: the file is MOVED (never deleted) to a closed
+   folder (chmod 700) outside served media, the asset leaves the library
+   via the trash, a log line is added and a notification is sent.
 
-   Le filtre ne voit que la nudité. Il ne remplace ni le filtre de prompts ni
-   le verrou de dépôt des visiteurs : il attrape ce qui serait passé entre eux.
+   The filter only detects nudity. It complements the prompt filter and
+   the visitor upload lock.
 
-   Python : CREATOROS_FILTRE_PYTHON (venv où nudenet est installé). Sans lui,
-   le filtre se dit indisponible une fois au démarrage et ne bloque rien.
+   Python: CREATOROS_FILTRE_PYTHON (venv with nudenet installed). Without
+   it, the filter reports unavailable once at startup and blocks nothing.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -52,10 +52,10 @@ function journaliser(entree) {
   fs.writeFileSync(JOURNAL, JSON.stringify(l.slice(-500), null, 1))
 }
 
-/** Met un asset (et sa version pleine taille) en quarantaine. */
+/** Quarantines an asset (and its full-size version). */
 function quarantaine(asset, verdict) {
   const dir = dossierQuarantaine()
-  // tous les fichiers du même rendu : la version montée d'un prequel ou d'une suite contient le passage positif
+  // all files of the same render: the edited version of a prequel or sequel contains the positive part
   const ids = [...new Set([asset.id, `${asset.id}-full`, ...store.db.prepare('SELECT id FROM assets WHERE job_id = ?').all(asset.job_id).map(r => r.id)])]
   const deplaces = []
   for (const id of ids) {
@@ -77,7 +77,7 @@ function quarantaine(asset, verdict) {
 let enCours = false
 let relancer = false
 
-/** Une ronde : analyse les assets créés depuis la dernière ronde. Sûr à appeler à tout moment. */
+/** One pass: scans assets created since the last pass. Safe to call at any time. */
 export async function filtrerNouveaux() {
   if (!filtreDisponible() || CONFIG.contenuAdulte) return
   if (enCours) { relancer = true; return }
@@ -106,7 +106,7 @@ export async function filtrerNouveaux() {
   } finally { enCours = false }
 }
 
-/** Démarre la ronde périodique ; la première ronde ne reprend pas l'historique. */
+/** Starts the periodic pass; the first pass does not scan history. */
 export function demarrerFiltre() {
   if (!filtreDisponible()) { console.warn(`[filtre] indisponible : ${PYTHON_FILTRE} absent (CREATOROS_FILTRE_PYTHON)`); return }
   if (!lireEtat()) ecrireEtat({ depuis: Date.now() })

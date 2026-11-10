@@ -1,25 +1,25 @@
 /* ============================================================
-   promptBuilder — construit le champ « prompt image » en temps
-   réel à partir des sélections (comportement ↻ auto, éditable).
-   Pure fonction : sélections → texte. Aucune dépendance UI.
+   promptBuilder — builds the "image prompt" field live from the
+   selections (auto-refresh, editable).
+   Pure function: selections → text. No UI dependency.
    ============================================================ */
 import type { PhotoSelections, VideoSelections } from '../types'
 import { allOutfits, allEnvironments, allStyles, allTextPoses } from '../store/useVocabStore'
 
-/** Photo : phrase de contenu générée depuis les sélecteurs.
- *  Tenue/lieu portent une ligne de prompt complète (`prompt`) — elle prime ; les overrides utilisateur s'ajoutent en
- *  clauses (« adjusted: … ») pour rester éditables sans casser la ligne. */
+/** Photo: content sentence built from the selectors.
+ *  Outfit/location carry a full prompt line (`prompt`) that takes precedence; user overrides are appended as
+ *  clauses ("adjusted: …") so the line stays editable. */
 export function buildPhotoPrompt(sel: PhotoSelections): string {
   const outfit = sel.outfitId ? allOutfits().find(o => o.id === sel.outfitId) : undefined
   const env = sel.environmentId ? allEnvironments().find(e => e.id === sel.environmentId) : undefined
   const style = sel.styleId ? allStyles().find(s => s.id === sel.styleId) : undefined
   const pose = sel.textPoseId ? allTextPoses().find(p => p.id === sel.textPoseId) : undefined
-  // Tout vide → chaîne vide : c'est l'opérateur qui écrit le prompt.
+  // All empty → empty string: the operator writes the prompt.
   if (!outfit && !env && !style && !pose) return ''
 
   let outfitTxt = ''
   if (outfit) {
-    // Hybride : attributs par défaut de la tenue + overrides utilisateur.
+    // Hybrid: outfit default attributes + user overrides.
     const material = sel.outfitOverrides.material ?? outfit.material
     const fit = sel.outfitOverrides.fit ?? outfit.fit
     const color = sel.outfitOverrides.color ?? outfit.color
@@ -41,8 +41,8 @@ export function buildPhotoPrompt(sel: PhotoSelections): string {
   const styleTxt = style ? [style.framing, style.lens && `${style.lens} look`].filter(Boolean).join(', ') : ''
   const poseTxt = pose?.prompt ?? ''
 
-  // Sans lieu, la météo choisie reste utile (« (golden hour), … »). L'identité
-  // du personnage n'est pas écrite ici : le serveur l'injecte.
+  // Without a location, the chosen weather is still used ("(golden hour), …"). The character
+  // identity is not written here: the server injects it.
   const head = [envTxt, weather ? `(${weather})` : ''].filter(Boolean).join(' ')
   return [
     head,
@@ -52,27 +52,26 @@ export function buildPhotoPrompt(sel: PhotoSelections): string {
   ].filter(Boolean).join(', ')
 }
 
-/** Vidéo : le prompt ne porte que le mouvement — l'identité vient des frames. */
+/** Video: the prompt carries only the motion — identity comes from the frames. */
 export function buildVideoPrompt(sel: VideoSelections): string {
   const parts: string[] = []
   if (sel.task === 'motion_pure') {
-    /* Ce texte part TEL QUEL au moteur (261:222, la branche pose) : c'est le
-       driver qui décrit le geste, le texte ne fait que préciser. Pas de
-       débogage ici : l'encodeur le prendrait pour une consigne. */
+    /* This text is sent AS IS to the engine (261:222, the pose branch): the
+       driver describes the gesture, the text only refines it. No debug
+       text here: the encoder would treat it as an instruction. */
     return sel.motionText.trim()
   }
 
-  /* i2v — ce texte part TEL QUEL au moteur quand l'opérateur ne passe pas par
-     le composeur. On écrit donc un brief, pas une ligne de débogage : ni
-     « from start #442 », ni durée, ni format (ils sont dans la recette,
-     les répéter dans le prompt ne fait que diluer le mouvement demandé).
+  /* i2v — this text is sent AS IS to the engine when the composer is not used.
+     It is a brief, not a debug line: no source id, duration or format
+     (those are in the recipe; repeating them dilutes the requested motion).
 
-     Le brief audio rejoint le même texte : LTX-2.5 comme MiniMax H3 n'ont
-     qu'une seule entrée de prompt, commune à l'image et au son. */
+     The audio brief goes into the same text: LTX-2.5 and MiniMax H3 have a
+     single prompt input shared by image and sound. */
   if (sel.motionText.trim()) parts.push(sel.motionText.trim())
   if (sel.cameraText.trim()) parts.push(`camera: ${sel.cameraText.trim()}`)
   if (sel.withAudio && sel.audioText.trim()) parts.push(`son : ${sel.audioText.trim()}`)
-  /* rien de tapé : une consigne neutre qui prolonge l'image, sans geste ni mouvement de caméra imposés */
+  /* nothing typed: a neutral instruction that extends the image, with no imposed gesture or camera move */
   if (!parts.length) return 'Natural, realistic motion that simply continues what the image shows, in real time; the camera keeps the framing of the image.'
   return parts.join('. ')
 }

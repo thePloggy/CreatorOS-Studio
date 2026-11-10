@@ -1,9 +1,9 @@
-/* Mise à niveau de ComfyUI depuis le studio :
-   - ComfyUI lui-même (git pull de son dépôt officiel, puis ses requirements) ;
-   - nœuds tiers manquants à un workflow : le dépôt GitHub qui les fournit est trouvé dans la carte
-     nœud → dépôt de ComfyUI-Manager, cloné dans custom_nodes, ses requirements installés sans toucher
-     à torch. Ses scripts d'installation ne sont jamais exécutés.
-   La démo publique refuse tout code tiers ; une installation locale du studio l'accepte. */
+/* ComfyUI upgrades from the studio:
+   - ComfyUI itself (git pull from its official repo, then its requirements);
+   - custom nodes missing from a workflow: the GitHub repo providing them is found in
+     ComfyUI-Manager's node → repo map, cloned into custom_nodes, and its requirements
+     installed without touching torch. Its install scripts are never run.
+   The public demo refuses third-party code; a local install accepts it. */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -22,7 +22,7 @@ const lancer = (cmd, args, opts = {}) => new Promise(ok => {
   p.on('close', code => ok({ code, sortie })); p.on('error', e => ok({ code: 1, sortie: String(e) }))
 })
 const pythonComfy = () => (fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3')
-/* torch, torchvision et torchaudio restent ceux de l'installation (build CUDA choisi pour la carte) */
+/* torch, torchvision and torchaudio stay those of the install (CUDA build chosen for the GPU) */
 function requirementsSansTorch(fichier) {
   const lignes = fs.readFileSync(fichier, 'utf8').split('\n').filter(l => !/^\s*(torch|torchvision|torchaudio)\s*([<>=!~;[]|$)/i.test(l))
   const tmp = path.join(os.tmpdir(), `req-${Date.now().toString(36)}.txt`)
@@ -48,7 +48,7 @@ async function lireCarte() {
   return carte
 }
 
-/** Pour des classes de nœuds absentes : les dépôts GitHub qui les fournissent. */
+/** For missing node classes: the GitHub repos that provide them. */
 export async function depotsPour(classes) {
   const c = await lireCarte()
   const parDepot = new Map()
@@ -61,7 +61,7 @@ export async function depotsPour(classes) {
   return { depots: trouves, inconnus: classes.filter(cl => !trouves.some(d => d.classes.includes(cl))) }
 }
 
-const travaux = new Map()   // clé : 'comfyui' ou l'URL du dépôt
+const travaux = new Map()   // key: 'comfyui' or the repo URL
 export const etat = () => Object.fromEntries(travaux)
 
 export async function installerDepot(depot) {
@@ -92,7 +92,7 @@ export async function installerDepot(depot) {
   return suivi
 }
 
-/** ComfyUI à jour depuis son dépôt officiel (jamais de fusion forcée), puis ses requirements. */
+/** Updates ComfyUI from its official repo (never a forced merge), then its requirements. */
 export async function mettreAJourComfy() {
   if (travaux.get('comfyui')?.etat === 'en cours') throw new Error('mise à jour déjà en cours')
   if (!fs.existsSync(path.join(CONFIG.comfyDir, '.git'))) throw new Error('ComfyUI n’est pas un dépôt git : mets-le à jour à la main')
@@ -101,8 +101,8 @@ export async function mettreAJourComfy() {
   void (async () => {
     suivi.avant = (await lancer('git', ['-C', CONFIG.comfyDir, 'rev-parse', '--short', 'HEAD'])).sortie.trim()
     const git = args => lancer('git', ['-C', CONFIG.comfyDir, ...args], { timeout: 300_000 })
-    // sur une branche : on la tire ; figé sur un commit de master : on avance au dernier commit de master ;
-    // figé ailleurs (une version publiée) : on passe à la dernière version publiée
+    // on a branch: pull it; pinned to a master commit: move to latest master;
+    // pinned elsewhere (a release): move to the latest release
     let r = await git(['fetch', '--tags', 'origin'])
     if (r.code !== 0) { Object.assign(suivi, { etat: 'échec', erreur: r.sortie.slice(-300) }); return }
     if ((await git(['symbolic-ref', '-q', 'HEAD'])).code === 0) r = await git(['pull', '--ff-only'])
@@ -123,7 +123,7 @@ export async function mettreAJourComfy() {
   return suivi
 }
 
-/** Redémarre ComfyUI s'il tourne comme service utilisateur (CREATOROS_COMFY_SERVICE). */
+/** Restarts ComfyUI if it runs as a user service (CREATOROS_COMFY_SERVICE). */
 export async function redemarrerComfy(fileVide) {
   if (!fileVide) throw new Error('des rendus sont en cours : redémarre quand la file est vide')
   const service = process.env.CREATOROS_COMFY_SERVICE || 'comfyui.service'

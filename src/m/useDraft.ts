@@ -1,20 +1,17 @@
 /* ============================================================
-   Persistance du brouillon de création.
+   Persistence of the creation draft.
 
-   Sur mobile l'application est déchargée par l'OS dès que l'écran
-   s'éteint : sans ce hook, un prompt en cours de rédaction disparaît
-   entre deux consultations. Le store Zustand ne persiste, lui, que les
-   préférences d'affichage — c'est volontaire côté desktop.
+   On mobile the OS unloads the app as soon as the screen turns off:
+   without this hook, a prompt being written disappears between visits.
+   The Zustand store only persists display preferences.
 
-   Ce qui est conservé : mode, prompt, réglages photo ET vidéo
-   (les deux coexistent dans le store, donc chaque opération garde son
-   brouillon), quantité et seed.
+   Kept: mode, prompt, photo AND video settings (both coexist in the
+   store, so each operation keeps its draft), quantity and seed.
 
-   Ce qui ne l'est JAMAIS : les URL `blob:` des fichiers choisis sur le
-   téléphone. Elles ne survivent pas au rechargement ; les rendre après
-   coup afficherait une vignette morte. Le NOM de fichier serveur, lui,
-   reste valide et est conservé — la source déjà transférée est donc
-   toujours là au retour.
+   NEVER kept: `blob:` URLs of files picked on the phone. They do not
+   survive a reload; restoring them would show a dead thumbnail. The
+   server-side file NAME stays valid and is kept, so an already
+   uploaded source is still there on return.
    ============================================================ */
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -33,9 +30,9 @@ interface Snapshot {
   seedValue: unknown
 }
 
-/** Retire les URL locales (blob:) d'un objet de sélections : elles sont
- *  mortes après un rechargement. Les champs `*File` (noms côté serveur) et
- *  `*AssetId` survivent, eux. */
+/** Strips local URLs (blob:) from a selections object: they are dead
+ *  after a reload. `*File` fields (server-side names) and `*AssetId`
+ *  survive. */
 function stripBlobs<T extends Record<string, unknown>>(o: T): T {
   const out: Record<string, unknown> = { ...o }
   for (const [k, v] of Object.entries(out)) {
@@ -47,7 +44,7 @@ function stripBlobs<T extends Record<string, unknown>>(o: T): T {
 export function useDraftPersistence() {
   const restored = useRef(false)
 
-  // ---- restauration, une seule fois au montage ----
+  // ---- restore, once on mount ----
   useEffect(() => {
     void (async () => {
       const d = await loadDraft<Snapshot>(KEY)
@@ -68,10 +65,10 @@ export function useDraftPersistence() {
     })()
   }, [])
 
-  // ---- sauvegarde différée à chaque changement ----
+  // ---- debounced save on each change ----
   useEffect(() => useAppStore.subscribe(st => {
-    // Ne jamais écrire AVANT d'avoir restauré : on écraserait le brouillon
-    // enregistré avec l'état par défaut du store.
+    // Never write BEFORE restoring: it would overwrite the saved draft
+    // with the store's default state.
     if (!restored.current) return
     const snap: Snapshot = {
       mode: st.mode,
@@ -83,7 +80,7 @@ export function useDraftPersistence() {
     saveDraftSoon(KEY, 'default', snap)
   }), [])
 
-  // ---- écriture IMMÉDIATE quand la page passe en arrière-plan ----
+  // ---- IMMEDIATE write when the page goes to the background ----
   useEffect(() => {
     const flush = () => {
       if (!restored.current) return
@@ -96,8 +93,8 @@ export function useDraftPersistence() {
         batchCount: st.batchCount, seedMode: st.seedMode, seedValue: st.seedValue,
       } satisfies Snapshot)
     }
-    /* `visibilitychange` plutôt que `beforeunload` : sur iOS, l'application
-       est souvent suspendue sans jamais déclencher `beforeunload`. */
+    /* `visibilitychange` rather than `beforeunload`: on iOS the app is
+       often suspended without ever firing `beforeunload`. */
     document.addEventListener('visibilitychange', flush)
     window.addEventListener('pagehide', flush)
     return () => {

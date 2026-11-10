@@ -1,12 +1,11 @@
 /* ============================================================
-   v2 — Assets : la bibliothèque COMPLÈTE (images + vidéos),
-   groupée par mois, avec sidebar de filtres combinables et
-   dossiers (appartenances multiples).
-   Règles UX : dossier = radio avec le statut
-   (Tous/Validés/Refusés) ; types = multi-coche
-   (aucun coché = tous) ; les filtres s'appliquent AUSSI dans un
-   dossier ; groupement mensuel partout ; supprimer un dossier ne
-   supprime jamais les assets.
+   v2 — Assets: the full library (images + videos), grouped by
+   date, with a sidebar of combinable filters and folders (an asset
+   can belong to several).
+   UX rules: folder is a radio together with the status
+   (All/Approved/Rejected); types are multi-select (none checked =
+   all); filters also apply inside a folder; deleting a folder never
+   deletes its assets.
    ============================================================ */
 import { BatchViewer } from './popups'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -29,9 +28,8 @@ const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
 export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
   const s = useAppStore()
   const [status, setStatus] = useState<StatusFilter>('all')
-  /* `folderId === ORPHANS` : pseudo-dossier « sans dossier » — un asset qui
-     n'appartient à AUCUN dossier. Valeur sentinelle plutôt qu'un état séparé :
-     tous les tests de sélection exclusive de la sidebar marchent sans retouche. */
+  /* `folderId === ORPHANS`: "no folder" pseudo-folder, for assets that belong to no folder.
+     A sentinel value rather than separate state, so the sidebar's exclusive-selection checks work unchanged. */
   const [folderId, setFolderId] = useState<string | null>(null)
   const [types, setTypes] = useState<Set<'photo' | 'video'>>(new Set())
   const [q, setQ] = useState('')
@@ -54,9 +52,9 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  /* L'ordre d'affichage est une préférence de l'opérateur (store, persistée),
-     pas celui du serveur — les mêmes dossiers, dans le même ordre, partout. */
-  // les dossiers sont communs à tous les personnages : le filtre personnage trie les assets, pas les dossiers
+  /* Display order is an operator preference (persisted in the store), not the server's order:
+     the same folders in the same order everywhere. */
+  // folders are shared by all characters: the character filter sorts assets, not folders
   const tries = useMemo(() => trierDossiers(folders, s.folderSort), [folders, s.folderSort])
 
   const toggleSet = <T,>(set: Set<T>, v: T, setter: (s: Set<T>) => void) => {
@@ -79,9 +77,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     }).sort((a, b) => b.createdAt - a.createdAt)
   }, [s.assets, personnage, folderId, status, types, q])
 
-  /* groupes JOURNALIERS, récents en premier. Le mois seul mettait des
-     centaines de rendus sous un même titre : à ce rythme de production, la
-     journée est la bonne granularité pour se repérer. */
+  /* Daily groups, newest first. */
   const groups = useMemo(() => {
     const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
     const now = new Date()
@@ -111,9 +107,8 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     : types.size === 1 ? (types.has('photo') ? t('Images') : t('Vidéos'))
     : t('Tous les assets')
 
-  /* Compteur « sans dossier » : calculé sur TOUS les assets, comme les
-     compteurs des dossiers (qui viennent du serveur) — pas sur la vue filtrée,
-     sinon le nombre changerait selon les filtres actifs. */
+  /* "No folder" count: computed over ALL assets, like the folder counts (from the server),
+     not over the filtered view, so it does not change with the active filters. */
   const orphanCount = useMemo(
     () => s.assets.filter(a => !(a.folders ?? []).length).length, [s.assets])
 
@@ -127,8 +122,8 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
     </button>
   )
 
-  /* Plusieurs grilles (une par groupe) : le chargement progressif est compté
-     sur l'ensemble, sinon chaque groupe chargerait ses 40 premières cartes. */
+  /* Several grids (one per group): progressive loading is counted across all of them,
+     otherwise each group would load its own first 40 cards. */
   const prog = useProgressif(shown.length)
   prog.pas.current = Math.max(4, cols)
   let reste = prog.limite
@@ -212,7 +207,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
       </aside>
 
       {s.ongletMusiques ? <Musiques /> : <>
-      {/* ---------- grille ---------- */}
+      {/* ---------- grid ---------- */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-3 px-4 py-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>
@@ -227,14 +222,14 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
               style={{ width: 110, accentColor: 'var(--accent)' }} />
           </span>
         </div>
-        {/* ordre d'AFFICHAGE, pas de clic : c'est lui qui numérote les reels et les images téléchargées */}
+        {/* DISPLAY order, not click order: it numbers the reels and downloaded images */}
         {picked.size > 0 && <SelectionBar ids={shown.filter(a => picked.has(a.id)).map(a => a.id)} assets={s.assets}
           folderId={folderId && folderId !== ORPHANS ? folderId : undefined} onClear={() => setPicked(new Set())} />}
         <div className="scrollwrap" style={{ padding: '0 16px 24px' }}>
           {groupesVisibles.map(g => (
             <div key={g.label}>
               <div className="mlabel">{g.label}</div>
-              {/* un carrousel (ou une série de photos) tient sur une carte de lot, comme sur la page Image */}
+              {/* a carousel (or a photo series) fits on one batch card, as on the Image page */}
               <JustifiedGrid cols={cols} progressif={false} items={groupLotsPhotos(g.items).map(it => it.kind === 'batch'
                 ? { key: `lot-${it.id}`, ratio: 3 / 4, node: <BatchCard items={it.items} onOpen={() => setLotOuvert(it.id)}
                     picking={picked.size > 0} allPicked={it.items.every(a => picked.has(a.id))}
@@ -261,7 +256,7 @@ export function AssetsView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => vo
   )
 }
 
-/* menu « … » d'un dossier : Renommer / Supprimer */
+/* folder "…" menu: Rename / Delete */
 function FolderRowMenu({ at, folder, onClose, onChanged }: {
   at: { x: number; y: number }; folder?: FolderInfo; onClose: () => void; onChanged: () => void
 }) {

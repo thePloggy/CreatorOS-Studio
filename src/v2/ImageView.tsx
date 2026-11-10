@@ -1,7 +1,7 @@
 /* ============================================================
-   v2 — vue Image : la bibliothèque (photos) EST l'écran, la
-   création est une barre flottante par-dessus. Jobs photo en
-   placeholders dans la grille.
+   v2 — Image view: the library (photos) IS the screen, creation
+   is a floating bar on top. Photo jobs show as placeholders in
+   the grid.
    ============================================================ */
 import { SANS_PERSONNAGE } from '../lib/personnage'
 import { HowItWorks, howto } from './HowItWorks'
@@ -21,7 +21,7 @@ import { ChoixPersonnage } from './ChoixPersonnage'
 import { useEdition } from '../lib/proprietaire'
 import { useMentions } from './Mentions'
 
-/** Styles de la retouche : le serveur charge la LoRA Qwen-Image-Edit qui correspond à l'id. */
+/** Retouch styles: the server loads the Qwen-Image-Edit LoRA matching the id. */
 const STYLES_RETOUCHE = [
   { id: 'action', label: 'Scène d’action', texte: 'Make this an action movie shot: she leaps forward, dynamic motion, dust explosion behind her. Keep the same woman and place.' },
   { id: 'noir-comic', label: 'BD noire', texte: 'Turn this photo into a noir comic book panel, black ink, heavy shadows, halftone. Keep the same woman, pose and place.' },
@@ -29,7 +29,7 @@ const STYLES_RETOUCHE = [
   { id: 'manga', label: 'Manga', texte: 'Convert this photo into a black and white manga page drawing with screentone shading. Keep the same woman, pose and place.' },
 ]
 
-/** Préréglages qui s'appuient sur les images de référence (FLUX.2 Klein). */
+/** Presets that rely on reference images (FLUX.2 Klein). */
 const PRESETS_REF = [
   { id: 'essayage', label: 'Essayage', aide: 'la tenue de l’image de référence portée par le personnage', ajout: false,
     texte: 'Full-body fashion photo of the main character wearing exactly the outfit shown in the reference image: same garment, fabric, colour and fit. Natural light, clean street background.' },
@@ -40,7 +40,7 @@ const PRESETS_REF = [
 ]
 
 export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
-  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  // arriving without an image from a click: empty slots (start, end, edit source…)
   useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const edition = useEdition()
   const s = useAppStore()
@@ -53,14 +53,14 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const [elm, setElm] = useState(false)
   const [srcPick, setSrcPick] = useState(false)
   const [refPick, setRefPick] = useState(false)
-  // pinceau de retouche : ouvert seulement par le bouton Pinceau (choisir l'image ne fait que la poser)
+  // retouch brush: opened only by the Brush button (choosing the image only sets it)
   const [pinceauDe, setPinceauDe] = useState<Asset | null>(null)
   const kleinOk = s.personaKlein
   const champPrompt = useRef<HTMLTextAreaElement>(null)
   const mentions = useMentions({ champ: champPrompt, valeur: s.userPrompt, surChange: s.setUserPrompt, surPersona: async id => {
     await s.choisirPersonnagePage(id)
   }, commandes: [
-    // « / » : les préréglages remplacent ou complètent le prompt, les actions ouvrent leur fenêtre
+    // "/": presets replace or extend the prompt, actions open their popup
     ...PRESETS_REF.map(p => ({ id: p.id, label: t(p.label), aide: t(p.aide), groupe: 'Préréglage',
       action: () => { s.setUserPrompt(p.ajout && s.userPrompt.trim() ? `${s.userPrompt.replace(/\s*\/\S*$/, '').trim()} ${p.texte}` : p.texte); if (!s.references.length) setRefPick(true) } })),
     { id: 'enhancer', label: 'Enhancer', aide: t('le LLM local réécrit le brief'), action: () => setEnh(true) },
@@ -68,7 +68,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
     { id: 'references', label: t('Images de référence'), aide: t('jusqu’à 6 images, FLUX.2 Klein'), action: () => setRefPick(true) },
   ] })
   const [q, setQ] = useState('')
-  /* un SEUL menu contextuel ouvert à la fois */
+  /* only ONE context menu open at a time */
   const [ilotMenu, setIlotMenu] = useState<{ kind: 'dims'; x: number; bottom: number } | null>(null)
   const ilotToggle = (kind: 'dims') => (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -104,8 +104,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
   const togglePick = (id: string) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const imgExtra = (a: Asset) => (<>
-    {/* Éditer : envoie l'image en Retouche comme source (mode photo, tâche
-        « edit »), sans passer par le sélecteur de source. */}
+    {/* Edit: sends the image to Retouch as the source (photo mode, task
+        "edit"), bypassing the source picker. */}
     <button className="fbtn" title={t('retoucher au pinceau')} onClick={e => { e.stopPropagation(); setPinceauDe(a) }}><Ic n="edit" /></button>
     <button className="fbtn" title={t('carrousel : 9 variations')} onClick={e => { e.stopPropagation(); setCarousel(a) }}><Ic n="grid" /></button>
     <span className="fbtn-group" onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
@@ -126,9 +126,9 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       e.setComposed(`${e.userPrompt.trim()}, ${st.prompt}`, '')
     await e.submitJob()
   }
-  /* Plusieurs prompts : une ligne = un prompt, chaque
-     ligne part avec les mêmes réglages (format, lot, graine, style). Le texte est
-     rendu tel quel au champ à la fin. Le serveur compte chaque image au quota. */
+  /* Multiple prompts: one line = one prompt, each line is sent with the
+     same settings (format, batch, seed, style). The text is restored as-is
+     in the field afterwards. The server counts each image against the quota. */
   const [multi, setMulti] = useState(false)
   const lignes = multi && task === 'generate' ? s.userPrompt.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 20) : []
   const send = async () => {
@@ -193,8 +193,8 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
         </div></div>
       </div>
 
-      {/* ---------- barre de création : flottante (desktop) / sheet à crans (mobile) ;
-           remplacée par la barre de sélection quand ≥1 vignette cochée ---------- */}
+      {/* ---------- creation bar: floating (desktop) / snap-point sheet (mobile);
+           replaced by the selection bar when >=1 thumbnail is checked ---------- */}
       {picking ? (
         <SelectionBar ids={[...picked]} assets={s.assets} onClear={() => setPicked(new Set())} />
       ) : (() => { const bar = (<>
@@ -205,7 +205,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
             <button className={`spill ${task === 'edit' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'edit' })}>✦ {t('Retouche')}</button>
             {task === 'generate' && (<>
               <span className="text-[12px] ml-3" style={{ color: 'var(--faint)' }}>{t('Recette')}</span>
-              {/* une image de référence jointe : seul Klein sait la lire, le serveur rend donc en Klein */}
+              {/* a reference image is attached: only Klein can read it, so the server renders with Klein */}
               {(() => {
                 const refs = s.references.length > 0
                 const moteur = refs ? 'klein' : s.photoEngine
@@ -285,13 +285,13 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               ))}
             </div>
           )}
-          {/* personnage et images de référence sur une seule ligne : l'îlot gagne une rangée */}
+          {/* character and reference images on a single line: saves a row in the island */}
           <div className="flex gap-1.5 items-center flex-wrap">
             {task !== 'edit' && !s.references.length && <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setRefPick(true)}><Ic n="image" s={13} /> {t('Images de référence')}</button>}
             <ChoixPersonnage />
           </div>
           <textarea ref={champPrompt}
-            // une photo de la bibliothèque glissée ici devient une référence
+            // a library photo dropped here becomes a reference
             onDragOver={e => { if (e.dataTransfer.types.includes('text/asset-id')) e.preventDefault() }}
             onDrop={e => { const id = e.dataTransfer.getData('text/asset-id'); const a = id && s.assets.find(x => x.id === id && x.mediaType === 'photo'); if (a) { e.preventDefault(); void s.ajouterReference(a) } }}
             className="w-full bg-transparent outline-none resize-none text-[13px]"
@@ -338,15 +338,15 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
               onOpenAsset={a => { setBatchOpen(null); onOpen(a, items) }} extraFor={imgExtra} />
           : null
       })()}
-      {/* après la visionneuse de lot : ouvert depuis une vignette du lot, le carrousel passe au-dessus */}
+      {/* after the batch viewer: when opened from a batch thumbnail, the carousel goes on top */}
       {carousel && <CarouselPopup asset={carousel} onClose={() => setCarousel(null)} onLaunched={() => setCarousel(null)} />}
       <TriagePopup open={triage} onClose={() => setTriage(false)} assets={s.assets.filter(a => a.mediaType === 'photo')} />
       <EnhancerPopup open={enh} onClose={() => setEnh(false)}
         mode="photo" engine={task === 'edit' ? 'edit' : null} userPrompt={s.userPrompt}
-        /* La retouche part d'une image : la décrire évite que le réécriveur
-           réinvente la tenue qu'il est censé conserver. Le choix suit `task`
-           (un reste de sélection ne doit pas être décrit à la place de
-           l'image courante). */
+        /* Retouch starts from an image: describing it keeps the rewriter from
+           reinventing the outfit it must preserve. The choice follows `task`
+           (a leftover selection must not be described instead of the
+           current image). */
         anchorFile={task === 'edit' ? (s.photo.editSourceFile || null) : null}
         anchorUri={task === 'edit' ? (s.photo.editSourceUri || null) : null}
         onReplace={(pos, vision) => {
@@ -361,7 +361,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       <FramePicker open={srcPick} onClose={() => setSrcPick(false)} assets={s.assets}
         title={t('Image à retoucher')}
         onPickAsset={a => { void s.pickEditSource(a.id) }}
-        onPickUpload={() => { /* upload input direct non câblé sur photo (v1 idem) */ }} />
+        onPickUpload={() => { /* direct upload input not wired for photo */ }} />
       {pinceauDe && <Pinceau asset={pinceauDe} onClose={() => setPinceauDe(null)} />}
     </div>
   )

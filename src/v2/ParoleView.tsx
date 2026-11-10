@@ -1,7 +1,7 @@
 /* ============================================================
-   Avatar parlant — une photo + une voix (fichier ou micro) : le
-   personnage dit le texte, lèvres calées sur l'audio (InfiniteTalk, Wan 2.1).
-   Le rendu passe par la file ordinaire et arrive dans l'onglet Vidéo.
+   Talking avatar: a photo + a voice (file or microphone): the
+   character speaks the text, lips synced to the audio (InfiniteTalk, Wan 2.1).
+   The render goes through the regular queue and lands in the Video tab.
    ============================================================ */
 import { VoixOrbe } from './VoixOrbe'
 import { Ic } from './bits'
@@ -28,12 +28,12 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
   const [envoiVoix, setEnvoiVoix] = useState(false)
   const [secondes, setSecondes] = useState(0)
   const morceaux = useRef<Blob[]>([])
-  /* Réplique écrite : LTX-2.5 fait la voix et les lèvres d'un coup, sans fichier audio.
-     Ouverte aux visiteurs (rien n'est envoyé d'autre qu'une phrase) ; la voix enregistrée
-     (InfiniteTalk) reste au propriétaire. */
+  /* Written line: LTX-2.5 produces voice and lip sync in one pass, no audio file.
+     Open to visitors (only a sentence is sent); the recorded voice
+     (InfiniteTalk) is owner-only. */
   const [source, setSource] = useState<'replique' | 'voix'>(edition ? 'voix' : 'replique')
   const [replique, setReplique] = useState('')
-  // voix de la phrase : « ltx » (LTX invente la voix, un seul rendu) ou une voix du studio, du personnage, clonée
+  // voice for the line: "ltx" (LTX generates the voice, single render) or a studio, character or cloned voice
   const [voixPhrase, setVoixPhrase] = useState<string>(() => (edition && useAppStore.getState().personaVoix ? 'perso' : 'ltx'))
   const lancerAvecVoix = async () => {
     if (!photo || !replique.trim()) return
@@ -46,7 +46,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
   }
-  // « Utiliser dans… » depuis la visionneuse : ce visage est déjà choisi
+  // "Use in…" from the viewer: this face is preselected
   useEffect(() => { const a = useAppStore.getState().prendrePasserelle('parole'); if (a) setPhoto(a) }, [])
 
   const photos = useMemo(() => s.assets.filter(a => a.mediaType === 'photo' && a.reviewStatus !== 'rejected')
@@ -57,7 +57,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
     const h = setInterval(() => {
       const sec = (Date.now() - enreg.t0) / 1000
       setSecondes(sec)
-      if (sec >= 20) enreg.rec.stop()          // même plafond que le serveur
+      if (sec >= 20) enreg.rec.stop()          // same cap as the server
     }, 200)
     return () => clearInterval(h)
   }, [enreg])
@@ -107,7 +107,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
     setBusy(true); setErr(null)
     try {
       const { filename } = await json(await fetch(`/api/assets/${encodeURIComponent(photo.id)}/to-input`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }))
-      // ~2,5 mots par seconde de parole, plus une respiration ; le moteur borne la durée
+      // ~2.5 words per second of speech, plus a breath; the engine bounds the duration
       const secondes = Math.max(4, Math.min(8, Math.ceil(r.split(/\s+/).length / 2.5 + 1.5)))
       const ligne = r.replace(/"/g, "'")
       const id = `say-${Date.now().toString(36)}`

@@ -1,11 +1,11 @@
-"""Rend une danse Mixamo (FBX) en vidéo de référence pour le motion control.
+"""Renders a Mixamo dance (FBX) as a reference video for motion control.
 
-Usage : blender -b -P rendre_danse.py -- DANSE.fbx SORTIE.mp4 [SECONDES_MAX]
+Usage: blender -b -P rendre_danse.py -- DANSE.fbx SORTIE.mp4 [SECONDES_MAX]
 
-Un mannequin gris neutre danse en pied sur un fond clair uni, caméra fixe de face,
-en 9:16 (720×1280) à 30 i/s, une danse courte répétée jusqu'à 8 s : le motion control ne lit que la pose, aucune
-personne réelle n'apparaît. Caméra fixe : le cadrage englobe toute la danse (le personnage peut se déplacer),
-avec une marge autour du corps.
+A neutral grey mannequin dances full-body on a plain light background, fixed front camera,
+9:16 (720×1280) at 30 fps, a short dance looped up to 8 s: motion control reads only the pose, no
+real person appears. Fixed camera: the framing covers the whole dance (the character may move),
+with a margin around the body.
 """
 import sys
 
@@ -24,12 +24,12 @@ corps = [o for o in scene.objects if o.type == 'MESH']
 action = arm.animation_data.action
 debut, fin = (int(round(x)) for x in action.frame_range)
 scene.render.fps = 30
-# une danse courte (une boucle de 1 à 4 s) est répétée jusqu'à 8 s au moins, sans dépasser le maximum
+# a short dance (a 1 to 4 s loop) is repeated to at least 8 s, without exceeding the maximum
 longueur = fin - debut
 tours = max(1, min(int(secondes_max * 30) // max(longueur, 1), -(-240 // max(longueur, 1))))
 if tours > 1:
-    # chaque boucle repart de là où la précédente s'arrête : le déplacement du bassin s'additionne,
-    # sinon le danseur saute en arrière au début de chaque boucle
+    # each loop starts where the previous one ends: hip translation accumulates,
+    # otherwise the dancer jumps back at the start of each loop
     arm.animation_data.action = None
     piste = arm.animation_data.nla_tracks.new()
     bassin = [c for c in action.fcurves if c.data_path.endswith('Hips"].location')]
@@ -48,9 +48,9 @@ if tours > 1:
 scene.frame_start = debut
 scene.frame_end = min(fin, debut + int(secondes_max * 30))
 
-# le corps image par image : la caméra reste FIXE et cadre toute la danse. Une caméra qui suit
-# le danseur annule son déplacement : sur un fond uni, le motion control le fait alors glisser sur
-# place (les pieds marchent, le sol ne défile pas). Le recadrage serré se fait après, sur le rendu.
+# body bounds frame by frame: the camera stays FIXED and frames the whole dance. A following camera
+# cancels the dancer's travel, and on a plain background motion control then makes them slide in
+# place. Tight cropping is done afterwards, on the render.
 pas = 2
 mini, maxi = Vector((1e9, 1e9, 1e9)), Vector((-1e9, -1e9, -1e9))
 for f in range(scene.frame_start, scene.frame_end + 1, pas):
@@ -66,13 +66,13 @@ for f in range(scene.frame_start, scene.frame_end + 1, pas):
 sol, haut = mini.z, maxi.z
 hauteur = haut - sol
 
-# sol et fond
+# floor and background
 bpy.ops.mesh.primitive_plane_add(size=hauteur * 60, location=(0, 0, sol))
 monde = bpy.data.worlds.new('fond')
 scene.world = monde
 monde.color = (0.82, 0.82, 0.84)
 
-# caméra orthographique de face, fixe, toute la danse dans le cadre avec une marge
+# front orthographic camera, fixed, whole dance in frame with a margin
 cam_data = bpy.data.cameras.new('cam')
 cam_data.type = 'ORTHO'
 ratio = 9 / 16
@@ -83,7 +83,7 @@ cam.rotation_euler = (1.5708, 0, 0)
 cam.location = ((mini.x + maxi.x) / 2, mini.y - hauteur * 4 - 5, sol + cam_data.ortho_scale / 2 - hauteur * 0.06)
 scene.camera = cam
 
-# rendu rapide et lisible : ombrage studio, mannequin gris, ombres portées
+# fast, readable render: studio shading, grey mannequin, cast shadows
 scene.render.engine = 'BLENDER_WORKBENCH'
 sh = scene.display.shading
 sh.light = 'STUDIO'

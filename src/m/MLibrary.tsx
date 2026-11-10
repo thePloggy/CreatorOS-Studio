@@ -1,6 +1,6 @@
 /* ============================================================
-   Bibliothèque mobile — grille, filtres combinés, sélection,
-   dossiers, tri rapide, visionneuse.
+   Mobile library: grid, combined filters, selection,
+   folders, quick triage, viewer.
    ============================================================ */
 import { badgesOf, matchSearch } from '../v2/bits'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -20,9 +20,8 @@ import { useEdition } from '../lib/proprietaire'
 type TypeFilter = 'all' | 'photo' | 'video'
 type Status = 'all' | 'pending' | 'approved' | 'rejected'
 interface FolderInfo { id: string; name: string; createdAt: number; count: number }
-/** Pseudo-dossier : les médias qui n'appartiennent à AUCUN dossier. C'est
- *  l'outil qui rend le rangement faisable — sans lui, impossible de savoir
- *  ce qui reste à classer. */
+/** Pseudo-folder: media that belong to NO folder. It shows what is
+ *  left to file. */
 const ORPHANS = '__sans_dossier__'
 
 export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: () => void }) {
@@ -44,7 +43,7 @@ export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: (
   const loadFolders = () => void fetch('/api/folders').then(r => r.json())
     .then(d => setFolders(d.folders ?? [])).catch(() => {})
   const personaId = useAppStore(st => st.personaId)
-  useEffect(() => { loadFolders(); setFolder(null) }, [personaId])   // dossiers cloisonnés par personnage
+  useEffect(() => { loadFolders(); setFolder(null) }, [personaId])   // folders are scoped per character
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -62,8 +61,8 @@ export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: (
     }).sort((a, b) => b.createdAt - a.createdAt)
   }, [s.assets, type, status, folder, drafts, q])
 
-  /* Groupes JOURNALIERS : au rythme de production actuel, un mois entasse
-     des centaines de rendus sous un seul titre. */
+  /* DAILY groups: a month would pile hundreds of renders under a
+     single heading. */
   const groups = useMemo(() => {
     const out: { label: string; items: Asset[] }[] = []
     const now = new Date()
@@ -216,11 +215,11 @@ export function MLibrary({ goCreate, goJobs }: { goCreate: () => void; goJobs: (
   )
 }
 
-/* ---------- vignette ---------- */
-/** Retour haptique court. Sans effet là où le navigateur ne le propose pas (Safari iOS). */
-const vibrer = (ms = 12) => { try { navigator.vibrate?.(ms) } catch { /* non pris en charge */ } }
+/* ---------- thumbnail ---------- */
+/** Short haptic feedback. No effect where the browser does not support it (iOS Safari). */
+const vibrer = (ms = 12) => { try { navigator.vibrate?.(ms) } catch { /* not supported */ } }
 
-/** Feuille de partage du téléphone : le fichier lui-même si le navigateur l'accepte, sinon son lien. */
+/** Phone share sheet: the file itself if the browser accepts it, else its link. */
 async function partager(a: Asset): Promise<string | null> {
   const nom = a.uri.split('/').pop() ?? a.id
   try {
@@ -234,7 +233,7 @@ async function partager(a: Asset): Promise<string | null> {
   }
 }
 
-/* Appui long sur une tuile : les gestes du tri sans ouvrir l'image. */
+/* Long press on a tile: triage gestures without opening the image. */
 function TileMenu({ a, onClose, onPick }: { a: Asset; onClose: () => void; onPick: () => void }) {
   const edition = useEdition()
   const s = useAppStore()
@@ -262,7 +261,7 @@ function Tile({ a, picking, picked, onPick, onOpen, onLong }: {
   a: Asset; picking: boolean; picked: boolean; onPick: () => void; onOpen: () => void; onLong: () => void
 }) {
   const isVid = a.mediaType === 'video'
-  /* Appui long : 450 ms sans bouger. Le clic qui suit le relâchement est avalé. */
+  /* Long press: 450 ms without moving. The click following release is swallowed. */
   const appui = useRef<{ t: number; x: number; y: number; long: boolean } | null>(null)
   const debut = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
@@ -276,14 +275,14 @@ function Tile({ a, picking, picked, onPick, onOpen, onLong }: {
   const fin = () => { if (appui.current && !appui.current.long) { window.clearTimeout(appui.current.t); appui.current = null } }
   const clip = (a.provenance?.selections as { durationS?: number } | undefined)?.durationS
   return (
-    /* `button` et non `div` : c'est une cible tactile, elle doit être
-       atteignable au clavier et annoncée comme telle. */
+    /* `button`, not `div`: it is a touch target and must be keyboard
+       reachable and announced as such. */
     <button className={`tile ${picked ? 'picked' : ''}`} style={{ padding: 0, textAlign: 'left', WebkitTouchCallout: 'none', userSelect: 'none' }}
       onPointerDown={debut} onPointerMove={bouge} onPointerUp={fin} onPointerCancel={fin} onContextMenu={e => e.preventDefault()}
       aria-label={`${isVid ? t('vidéo') : t('image')} — ${a.reviewStatus === 'approved' ? t('validée') : a.reviewStatus === 'rejected' ? t('refusée') : t('à trier')}`}
       onClick={() => { if (appui.current?.long) { appui.current = null; return } (picking ? onPick() : onOpen()) }}>
-      {/* poster pour les vidéos : pas d'autoplay massif au défilement
-          — la lecture se fait dans la visionneuse. */}
+      {/* poster for videos: no mass autoplay while scrolling; playback
+          happens in the viewer. */}
       <img src={vignetteOf(a)}
         alt="" loading="lazy" decoding="async"
         onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0' }} />
@@ -310,7 +309,7 @@ function Tile({ a, picking, picked, onPick, onOpen, onLong }: {
   )
 }
 
-/* ---------- barre d'actions de sélection ---------- */
+/* ---------- selection action bar ---------- */
 function SelBar({ ids, assets, folders, onClear, onFoldersChanged }: {
   ids: string[]; assets: Asset[]; folders: FolderInfo[]; onClear: () => void; onFoldersChanged: () => void
 }) {
@@ -368,19 +367,19 @@ function SelBar({ ids, assets, folders, onClear, onFoldersChanged }: {
   )
 }
 
-/* ---------- feuille dossiers : filtre OU rangement ---------- */
+/* ---------- folders sheet: filter OR filing ---------- */
 export function FolderSheet({ folders, current, orphanCount, assetIds, onPick, onChanged, onClose, onDone }: {
   folders: FolderInfo[]; current?: string | null; orphanCount?: number
-  assetIds?: string[]                    // si fourni : mode RANGEMENT (cases)
-  onPick?: (f: string | null) => void    // si fourni : mode FILTRE
+  assetIds?: string[]                    // if provided: FILING mode (checkboxes)
+  onPick?: (f: string | null) => void    // if provided: FILTER mode
   onChanged: () => void; onClose: () => void; onDone?: () => void
 }) {
   const s = useAppStore()
   const ranging = !!assetIds
   const [name, setName] = useState('')
   const [adding, setAdding] = useState(false)
-  /* Coches OPTIMISTES : dépendre du rechargement global ferait clignoter la
-     case entre deux appuis. */
+  /* OPTIMISTIC checks: depending on the global reload would make the
+     box flicker between taps. */
   const [checked, setChecked] = useState<Record<string, boolean>>(() => {
     if (!assetIds) return {}
     const sel = useAppStore.getState().assets.filter(a => assetIds.includes(a.id))
@@ -430,8 +429,8 @@ export function FolderSheet({ folders, current, orphanCount, assetIds, onPick, o
           on={current === ORPHANS} onClick={() => onPick?.(ORPHANS)} />
       </>)}
 
-      {/* Ordre des dossiers : MÊME réglage que le desktop (store persisté) —
-          on le règle là où on regarde les dossiers, pas dans un écran à part. */}
+      {/* Folder order: SAME setting as desktop (persisted store), set
+          where the folders are viewed rather than on a separate screen. */}
       {folders.length > 1 && (
         <div style={{ padding: '12px 0 4px' }}>
           <Seg value={s.folderSort}

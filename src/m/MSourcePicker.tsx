@@ -1,13 +1,13 @@
 /* ============================================================
-   Sélecteur de source — connaît sa DESTINATION.
+   Source picker that knows its DESTINATION.
 
-   Chaque rôle sait ce qu'il accepte (image ou vidéo), où poser le
-   résultat, et propose deux chemins : la bibliothèque, ou un fichier du
-   téléphone (galerie et appareil photo).
+   Each role knows what it accepts (image or video), where to put the
+   result, and offers two paths: the library, or a file from the
+   phone (gallery and camera).
 
-   Règle : une source encore en cours de transfert n'autorise pas l'envoi
-   d'un job — c'est le store qui pose le nom de fichier une fois la copie
-   serveur faite, et tant qu'il est vide le formulaire n'est pas prêt.
+   Rule: a source still uploading does not allow submitting a job.
+   The store sets the file name once the server copy is done, and
+   while it is empty the form is not ready.
    ============================================================ */
 import { useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -25,8 +25,8 @@ const ROLE: Record<SourceRole, { title: string; video: boolean }> = {
   still: { title: 'Image du sujet', video: false },
   editsrc: { title: 'Image à retoucher', video: false },
   driver: { title: 'Vidéo de mouvement', video: true },
-  /* Prolonger part TOUJOURS d'un clip déjà rendu : c'est sa dernière
-     frame que le serveur extrait. Pas d'import depuis le téléphone. */
+  /* Extend ALWAYS starts from an already rendered clip: the server
+     extracts its last frame. No import from the phone. */
   extend: { title: 'Clip à prolonger', video: true },
 }
 
@@ -54,8 +54,8 @@ export function MSourcePicker({ role, onClose }: { role: SourceRole; onClose: ()
         case 'extend': await s.pickExtendClip(a.id); break
         case 'editsrc': await s.pickEditSource(a.id); break
         case 'driver':
-          // pas de driver depuis la bibliothèque côté store : on passe par
-          // le fichier, comme le desktop
+          // the store has no driver from the library: go through
+          // the file, like desktop
           setErr(t('Choisis la vidéo depuis ton téléphone.'))
           setBusy(false); return
       }
@@ -99,8 +99,8 @@ export function MSourcePicker({ role, onClose }: { role: SourceRole; onClose: ()
         </div>
       ) : (
         <div style={{ marginTop: 16 }}>
-          {/* `capture` absent volontairement : on propose la galerie ET
-              l'appareil photo, c'est l'OS qui présente le choix. */}
+          {/* `capture` deliberately absent: offers gallery AND camera,
+              the OS presents the choice. */}
           <input ref={fileRef} type="file" hidden
             accept={cfg.video ? 'video/*' : 'image/*'}
             onChange={e => { const f = e.target.files?.[0]; if (f) void pickFile(f) }} />

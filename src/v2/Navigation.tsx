@@ -1,9 +1,9 @@
 /* ============================================================
-   Navigation : trois familles, Image, Vidéo, Son (plus les extensions).
-   Chaque famille ouvre un grand menu en colonnes (créer, modifier, réaliser,
-   finir) avec une vignette par outil, et la colonne des modèles employés. Un outil
-   qui part d'un média existant ouvre le choix dans la bibliothèque, puis la
-   visionneuse où se trouve son bouton.
+   Navigation: three families, Image, Video, Sound (plus extensions).
+   Each family opens a mega-menu in columns (create, edit, direct,
+   finish) with a thumbnail per tool, and a column of the models used. A tool
+   that starts from an existing media opens the library picker, then the
+   viewer where its button lives.
    ============================================================ */
 import type { IdOutil } from './OutilsDedies'
 import { useEffect, useRef, useState } from 'react'
@@ -15,13 +15,13 @@ import { FramePicker } from './popups'
 import { APERCUS } from './Apercus'
 
 export type Section = 'croquis' | 'accueil' | 'image' | 'son' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
-/** L'outil à ouvrir dans la visionneuse une fois le média choisi. */
+/** Tool to open in the viewer once the media is chosen. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
 export type Outil = { label: string; texte: string; pastille?: 'new' | 'top' } & (
   { section: Section; dedie?: IdOutil; tache?: 'creer' | 'texte' | 'move' | 'mix' | 'etendre' | 'musiques' | 'voix' | 'bruitage' | 'camera' | 'effets' | 'comfy' | 'lora' | 'edition' | 'hd' | 'cloner' | 'changer' } | { stage: true } | { depuis: 'photo' | 'video'; titre: string; action: ActionOutil })
 
-/** Une famille d'outils de la barre du haut : des colonnes de sous-menus et les modèles qui les portent. */
+/** A tool family of the top bar: submenu columns and the models behind them. */
 export type Menu = { titre: string; colonnes: { titre: string; outils: Outil[] }[]; modeles: [string, string, 'h3'?][]; defaut?: string }
 
 export const MENUS: Menu[] = [
@@ -118,13 +118,13 @@ export const MENUS: Menu[] = [
     ], modeles: [['Workflows ComfyUI', 'Un workflow et un formulaire, sans code']] },
 ]
 
-/** Les familles à plat (accueil, recherche) : un outil présent dans deux colonnes n'y figure qu'une fois. */
+/** Flattened families (home, search): a tool listed in two columns appears once. */
 export const GROUPES: { titre: string; outils: Outil[] }[] = MENUS.map(m => {
   const vus = new Set<string>()
   return { titre: m.titre, outils: m.colonnes.flatMap(c => c.outils).filter(o => !vus.has(o.label) && (vus.add(o.label), true)) }
 })
 
-/** Lance un outil : l'ouverture d'une section, avec le bon onglet quand il y en a. */
+/** Launches a tool: opens a section, on the right tab when it has tabs. */
 export function useOuvrirOutil(aller: (s: Section) => void) {
   const ouvrirStage = useAppStore(st => st.ouvrirStage)
   const updateVideo = useAppStore(st => st.updateVideo)
@@ -133,7 +133,7 @@ export function useOuvrirOutil(aller: (s: Section) => void) {
     if ('stage' in o) { ouvrirStage(); return }
     if ('depuis' in o) { setChoix({ type: o.depuis, titre: o.titre, action: o.action }); return }
     useAppStore.setState({ stageOuvert: false })
-    // studio son (section « son ») : chaque entrée du menu ouvre son onglet (musique, voix, bruitage)
+    // sound studio ("son" section): each menu entry opens its tab (music, voice, sound effects)
     const audio = o.tache === 'musiques' ? 'musique' : o.tache === 'bruitage' ? 'bruitage' : o.tache === 'voix' || o.tache === 'cloner' || o.tache === 'changer' ? 'voix' : null
     useAppStore.setState(audio ? { ongletAudio: audio, ongletMusiques: false } : { ongletMusiques: false })
     if (o.section === 'extensions') useAppStore.setState({ ongletExtensions: o.tache === 'comfy' ? 'comfy' : o.tache === 'lora' ? 'lora' : 'tout' })
@@ -158,7 +158,7 @@ export function ChoixMedia({ choix, onClose, onPick }: { choix: Choix | null; on
     onPickAsset={a => { const action = choix?.action; onClose(); onPick(a, action) }} onPickUpload={onClose} />
 }
 
-/** Petite vignette d'un outil, tirée de son aperçu d'accueil. */
+/** Small tool thumbnail, taken from its home preview. */
 function vignetteOutil(label: string): string | null {
   const a = APERCUS[label]
   if (!a) return null
@@ -179,7 +179,7 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
   }, [ouvert])
   const outils = (m: Menu) => m.colonnes.flatMap(c => c.outils)
   const outilDedie = useAppStore(st => st.outilDedie)
-  // la page dédiée « outil » sert plusieurs familles : seule celle qui porte l'outil ouvert s'allume
+  // the dedicated "outil" page serves several families: only the one owning the open tool is highlighted
   const actif = (m: Menu) => outils(m).some(o => ('stage' in o ? section === 'video' && stageOuvert
     : 'section' in o && o.section === section && !stageOuvert && (section !== 'outil' || o.dedie === outilDedie)))
   const nb = (m: Menu) => new Set(outils(m).map(o => o.label)).size
@@ -188,7 +188,7 @@ export function MenusOutils({ section, aller, onPick }: { section: Section; alle
       {MENUS.map(m => (
         <div key={m.titre} onMouseEnter={() => setOuvert(m.titre)}>
           <button aria-expanded={ouvert === m.titre} className={`nav-lien ${ouvert === m.titre ? 'ouvert' : ''} ${actif(m) ? 'actif' : ''}`} onClick={() => {
-              // un clic sur la famille ouvre son outil principal (le survol montre le menu)
+              // clicking a family opens its main tool (hover shows the menu)
               const o = m.defaut ? outils(m).find(x => x.label === m.defaut) : null
               setOuvert(null)
               if (o) ouvrir(o)

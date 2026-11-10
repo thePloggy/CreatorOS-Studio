@@ -1,5 +1,5 @@
-/* Stage en 3D : le plateau où l'on déplace tout à la main, et la vue de la caméra à
-   l'instant choisi. Chargé à la demande. Le rendu final est fait côté serveur à partir des mêmes nombres. */
+/* 3D Stage: the set where everything is moved by hand, and the camera view at
+   the chosen instant. Lazy-loaded. The final render is made server-side from the same numbers. */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -26,7 +26,7 @@ function forme(o: ObjetVu, cache: Map<string, THREE.Object3D>, choisi: boolean) 
       const c = m.clone(), b = new THREE.Box3().setFromObject(c), t = b.getSize(new THREE.Vector3()), e = o.h / Math.max(t.y, 1e-3)
       c.scale.setScalar(e)
       c.position.set(-(b.min.x + b.max.x) / 2 * e, -b.min.y * e, -(b.min.z + b.max.z) / 2 * e)
-      // l'objet garde ses vraies textures à l'écran pour le placer ; la maquette grise envoyée au modèle est faite par le serveur
+      // the object keeps its real textures on screen for placement; the gray mockup sent to the model is built by the server
       c.traverse(n => { const m = n as THREE.Mesh; if (m.isMesh && !m.material) m.material = mat })
       g.add(c)
     }
@@ -76,7 +76,7 @@ export default function Stage3D({ objets, poses, instant, vue, choisi, format, o
     }
     orbite.addEventListener('change', dessiner)
     etat.current = { groupe, reperes, libre, tournage, aide, orbite, dessiner, cache: new Map() }
-    /* Glisser un accessoire ou un repère de caméra le déplace au sol ; glisser le vide fait tourner la vue. */
+    /* Dragging a prop or camera marker moves it on the ground; dragging empty space orbits the view. */
     const rayon = new THREE.Raycaster(), plan = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), point = new THREE.Vector3()
     let prise: { id?: number; cam?: 0 | 1 } | null = null
     const viser = (e: PointerEvent) => {

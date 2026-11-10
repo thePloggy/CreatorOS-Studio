@@ -1,9 +1,8 @@
 /* ============================================================
-   Page Créateur : qui a fait l'application — nom, présentation, site et
-   liens. Un petit fichier JSON dans le dossier de données, écrit d'un bloc
-   (atomique). Les liens n'acceptent que https : la page est publique.
-   Titre, présentation et informations ont une version anglaise facultative
-   (titreEn, bioEn, kEn/vEn), affichée quand l'interface est en anglais.
+   Creator page: who made the app (name, bio, site, links). A small JSON
+   file in the data directory, written atomically. Links accept https only
+   because the page is public. Title, bio and info fields have an optional
+   English version (titreEn, bioEn, kEn/vEn), shown when the UI is in English.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'

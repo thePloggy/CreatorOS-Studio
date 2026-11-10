@@ -1,21 +1,20 @@
 /* ============================================================
-   GRAINE des textes de façonnage — écrite sur le disque au premier
-   démarrage, puis PLUS JAMAIS LUE en fonctionnement.
+   SEED of the shaping texts: written to disk on first startup, then NEVER
+   READ at runtime.
 
-   La source de vérité est `CREATOROS_PROMPTS` (le dossier prompts/ du
-   dépôt par défaut), relue à chaque job. Ce fichier n'existe que pour
-   qu'une installation neuve — ou un fichier effacé par mégarde — reparte
-   d'un texte connu plutôt que de bloquer la production.
+   The source of truth is `CREATOROS_PROMPTS` (the repo's prompts/ folder by
+   default), reread on every job. This file only lets a fresh install, or an
+   accidentally deleted file, restart from a known text instead of blocking.
 
-   Corollaire : modifier une constante ici ne change RIEN sur une
-   machine où le fichier existe déjà. Pour changer un texte en
-   service, il faut éditer le fichier (Workbench → Textes).
+   Consequence: changing a constant here changes NOTHING on a machine where
+   the file already exists. To change a live text, edit the file
+   (Workbench → Textes).
    ============================================================ */
 
 export const PROMPT_SEED = {
-  /* ---------- intention globale + moteur : le réécriveur reçoit intention +
-     moteur concaténés (composer.systemFor). Textes de départ fonctionnels,
-     à adapter à sa persona (Workbench → Textes). */
+  /* ---------- global intent + engine: the rewriter receives intent + engine
+     concatenated (composer.systemFor). Working starter texts, to be adapted
+     to one's persona (Workbench → Textes). */
   'intent_sfw.txt': `You rewrite a short brief (often in French) into ONE English prompt — image OR video — for a recurring fictional adult character.
 
 UNIVERSAL RULES (always apply):
@@ -67,12 +66,11 @@ Rules:
 - ONE flowing present-tense paragraph, about 4 to 8 sentences. No lists, no preamble.`,
 
 
-  /* ---------- réécriveur vidéo (repli si intention ou moteur manque) ----------
-     Un brief de MOUVEMENT n'est pas un brief de photo : la still de départ
-     porte déjà l'identité, la tenue et le décor, et le moteur i2v a besoin
-     des gestes dans l'ordre, du regard, de la réplique mot pour mot et de la
-     caméra. Passer un brief vidéo au réécriveur photo ferait inventer des
-     vêtements et jetterait le mouvement et la réplique. */
+  /* ---------- video rewriter (fallback if intent or engine is missing) ----------
+     A MOTION brief is not a photo brief: the starting still already carries
+     identity, outfit and setting, and the i2v engine needs ordered gestures,
+     gaze, the exact spoken line and the camera. Passing a video brief to the
+     photo rewriter would invent clothing and drop the motion and the line. */
   'rewrite_video_sfw.txt': `You rewrite a motion brief (often written in French) into ONE English prompt for an image-to-video model. The START IMAGE already fixes who the character is, the outfit, the body and the place: NEVER describe, add or change clothing, face, body shape, hair or setting — at most say "same outfit, same place".
 - Keep EVERY action of the brief, in order, in the present tense, with the physics the brief gives (soft, natural, weight, sway). Do not add actions the brief does not contain.
 - Keep the gaze, the expression and the emotion exactly as briefed (playful, shy, tender…).
@@ -83,7 +81,7 @@ Rules:
 - Output ONE flowing English paragraph of 40 to 90 words. No lists, no preamble, no description of looks or clothes.
 FINAL RULE, above all others: a spoken line appears in the brief as a placeholder like {{LINE 1}}. Keep every placeholder EXACTLY as written, at the moment the line is spoken (for example: looking at the camera, the character says {{LINE 1}}). It will be replaced by the original words afterwards — never write the words yourself, never translate, never drop a placeholder.`,
 
-  /* ---------- réécriveur photo (repli) ---------- */
+  /* ---------- photo rewriter (fallback) ---------- */
   'rewrite_sfw.txt':
 `You rewrite a short brief into ONE detailed English image prompt for a fashion/lifestyle photo of one recurring fictional character.
 - Describe only the VARIABLE context: framing, pose, exact outfit, location, lighting, weather. NEVER describe the face, features or body geometry (identity is fixed elsewhere).
@@ -114,9 +112,9 @@ Change the colour of the dress to bright red. Keep everything else — the face,
 
 DO NOT describe the pose, hair, makeup, the bag, the lighting, the camera or the setting. Write the two sentences and STOP.`,
 
-  /* ---------- carrousel : étalon d'intensité ----------
-     Quelques plans exemples, une ligne chacun. Le rédacteur en reçoit une
-     poignée tirée au sort : ils calibrent le ton, ils ne sont jamais repris. */
+  /* ---------- carousel: intensity reference ----------
+     A few example shots, one line each. The writer receives a random handful:
+     they calibrate tone and are never reused verbatim. */
   'shoot_sfw.txt':
 `# Plans d'étalonnage du carrousel — une ligne par plan, jamais recopiés.
 Wide shot from across the street, she steps off the curb with a paper coffee cup in one hand, her tote bag swinging at her hip.
@@ -128,9 +126,9 @@ Full-length, seen at a distance, she waits at the tram stop, reading a folded ma
 Medium shot, slightly above eye level, she adjusts the strap of her camera bag, glancing down the road.
 Head and shoulders, soft window light, she holds a ceramic mug in both hands, steam rising.`,
 
-  /* ---------- captions des reels ----------
-     Consigne du rédacteur de captions (server/captions.js). Les règles dures
-     (longueur, pas d'emoji ni de lien) sont aussi vérifiées en code. */
+  /* ---------- reel captions ----------
+     Instructions for the caption writer (server/captions.js). Hard rules
+     (length, no emoji or link) are also checked in code. */
   'caption.txt':
 `You write short on-screen captions for vertical lifestyle videos of a fictional character.
 - Each caption is one short, friendly, natural line in English, 3 to 9 words, at most 60 characters.
@@ -144,8 +142,8 @@ Everything stays suitable for a general audience.`,
 `MOOD — golden playful. Bright, buoyant, cheerful; late-afternoon warmth. The character has been out, a little sun-happy. The scene builds toward a shared laugh.`,
 }
 
-/** Ce que chaque fichier pilote — sert aux badges du Workbench et à la
- *  résolution registre → fichier côté serveur. */
+/** What each file drives: used for Workbench badges and server-side
+ *  register → file resolution. */
 export const PROMPT_META = {
   'intent_sfw.txt':        { kind: 'intent', registers: ['sfw'], label: 'Intention globale' },
   'engine_klein.txt':   { kind: 'engine', registers: [], label: 'Moteur — Klein (t2i)' },

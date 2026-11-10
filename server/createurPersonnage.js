@@ -1,7 +1,7 @@
-/* Créer un personnage de zéro : des traits (adulte, 21 ans au moins) donnent 4 portraits ;
-   celui choisi devient la photo de profil d'un nouveau personnage, puis le studio tire une
-   planche de référence et 12 images variées sur FLUX.2 Klein (le visage tenu par la photo
-   de profil), et, si demandé, entraîne sa LoRA Klein sur ces images. Propriétaire seulement. */
+/* Create a character from scratch: traits (adult, 21+) produce 4 portraits; the chosen one
+   becomes the profile photo of a new character, then the studio renders a reference sheet
+   and 12 varied images on FLUX.2 Klein (face held by the profile photo) and, if requested,
+   trains its Klein LoRA on them. Owner only. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -36,18 +36,18 @@ const SCENES = [
   'laughing indoors, warm lamp light', 'looking over the shoulder in a park', 'black and white portrait, dramatic side light',
   'wearing a coat in the rain at night, neon reflections', 'working at a desk with a laptop, soft daylight', 'full body in sportswear in a park, morning light',
 ]
-/* Les créations en cours sont gardées sur le disque : un redémarrage du service ne doit ni
-   faire oublier leur avancement, ni empêcher l'entraînement de partir à la fin des images. */
+/* In-progress creations are persisted to disk so a service restart neither loses their
+   progress nor prevents training from starting once the images are done. */
 const FICHIER_SUIVIS = path.join(CONFIG.dataDir, 'creations-personnages.json')
 const suivis = new Map()
 try {
   for (const c of JSON.parse(fs.readFileSync(FICHIER_SUIVIS, 'utf8')))
     if (c?.id && Date.now() - (c.debut ?? 0) < 7 * 86400_000) suivis.set(c.id, c)
-} catch { /* aucun suivi enregistré */ }
+} catch { /* no saved tracking */ }
 const garder = () => { try { fs.writeFileSync(FICHIER_SUIVIS, JSON.stringify([...suivis.values()])) } catch (e) { console.warn(`[création] suivi non enregistré : ${e.message || e}`) } }
 
 export function creerPersonnage({ assetId, nom, traits, entrainer, moteurs }) {
-  // moteurs à entraîner : la liste cochée, ou l'ancien booléen (Klein seul)
+  // engines to train: the checked list, or the legacy boolean (Klein only)
   const aEntrainer = Array.isArray(moteurs) ? moteurs.map(String).filter(m => m === 'klein' || m === 'krea').filter((m, i, l) => l.indexOf(m) === i) : entrainer ? ['klein'] : []
   const x = lireTraits(traits)
   const n = nettoie(nom, 40)
@@ -55,7 +55,7 @@ export function creerPersonnage({ assetId, nom, traits, entrainer, moteurs }) {
   const a = store.getAsset(String(assetId ?? ''))
   if (!a || a.media_type !== 'photo') throw new Error('choisis l’un des portraits proposés')
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
-  // le personnage actif du studio (celui de la démo) ne change pas : le nouveau se choisit dans le menu
+  // the studio's active character is unchanged: the new one is picked from the menu
   const avant = personaActif().id
   const p = creerPersona({ name: n })
   if (avant) activer(avant)

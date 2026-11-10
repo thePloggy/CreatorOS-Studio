@@ -1,6 +1,6 @@
-/* Workflows officiels de ComfyUI (paquet comfyui_workflow_templates, livré avec ComfyUI) : la liste
-   des workflows open source, les modèles qu'ils demandent (présents ou à télécharger depuis l'URL
-   inscrite dans le workflow) et les nœuds absents, qui signalent un ComfyUI à mettre à jour. */
+/* Official ComfyUI workflows (comfyui_workflow_templates package, shipped with ComfyUI): the list
+   of open-source workflows, the models they need (present or downloadable from the URL in the
+   workflow) and missing nodes, which indicate ComfyUI needs updating. */
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -10,13 +10,13 @@ import { remplirEtLancer } from './extensions.js'
 
 const SITE = () => {
   const lib = path.join(CONFIG.comfyDir, 'venv', 'lib')
-  try { for (const d of fs.readdirSync(lib)) { const p = path.join(lib, d, 'site-packages'); if (fs.existsSync(path.join(p, 'comfyui_workflow_templates_json'))) return p } } catch { /* pas de venv */ }
+  try { for (const d of fs.readdirSync(lib)) { const p = path.join(lib, d, 'site-packages'); if (fs.existsSync(path.join(p, 'comfyui_workflow_templates_json'))) return p } } catch { /* no venv */ }
   return null
 }
 const MODELES_DIR = () => process.env.CREATOROS_MODELES_DIR || path.join(CONFIG.comfyDir, 'models')
 const NOM = /^[\w.-]{1,120}$/
 const SOURCES = /^https:\/\/(huggingface\.co|github\.com|objects\.githubusercontent\.com)\//
-// nœuds propres à l'interface de ComfyUI, sans existence côté serveur
+// nodes specific to ComfyUI's UI, with no server-side existence
 const INTERFACE = new Set(['Note', 'MarkdownNote', 'Reroute', 'PrimitiveNode', 'PrimitiveString', 'PrimitiveInt', 'PrimitiveFloat', 'PrimitiveBoolean', 'PrimitiveStringMultiline'])
 
 let cache = null
@@ -67,7 +67,7 @@ async function fichiersDe(dossier) {
 }
 const versionInf = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let k = 0; k < 3; k++) { if ((x[k] || 0) !== (y[k] || 0)) return (x[k] || 0) < (y[k] || 0) } return false }
 
-/** Les workflows, chacun avec ses modèles manquants et ses nœuds absents. */
+/** The workflows, each with its missing models and missing nodes. */
 export async function lister() {
   const { liste } = index()
   const i = await etatComfy()
@@ -92,7 +92,7 @@ export function vignette(nom) {
   return null
 }
 
-/* Téléchargement des modèles manquants d'un workflow, un fichier après l'autre, en arrière-plan. */
+/* Downloads a workflow's missing models, one file after another, in the background. */
 const telechargements = new Map()
 export async function telecharger(id) {
   const w = index().liste.find(x => x.id === id)
@@ -129,10 +129,10 @@ export async function telecharger(id) {
   return suivi
 }
 
-/* ---------- ouvrir un workflow du catalogue dans le studio ----------
-   Le workflow (format éditeur) est converti au format API (comfyVersApi.js), puis ses réglages
-   utiles deviennent un formulaire : le prompt principal, une photo par LoadImage, la graine.
-   Le reste garde les valeurs du workflow officiel. */
+/* ---------- open a catalog workflow in the studio ----------
+   The workflow (editor format) is converted to API format (comfyVersApi.js), then its useful
+   settings become a form: the main prompt, one photo per LoadImage, the seed.
+   Everything else keeps the official workflow's values. */
 
 const SORTIE = [[/^Save(Image|AnimatedWEBP|AnimatedPNG)/, 'image'], [/^(SaveVideo|SaveWEBM|VHS_VideoCombine)/, 'video'], [/^SaveAudio/, 'audio']]
 const CHAMPS_TEXTE = /^(text|prompt|value|positive)$/
@@ -144,7 +144,7 @@ async function objetInfo() {
   return r.json()
 }
 
-/** Le workflow du catalogue en « application » : nom, sortie, champs, graphe à emplacements. */
+/** The catalog workflow as an "app": name, output, fields, slotted graph. */
 export async function application(id) {
   const t = index().liste.find(x => x.id === id)
   if (!t) throw new Error('workflow inconnu')
@@ -161,7 +161,7 @@ export async function application(id) {
   if (Object.values(graphe).some(n => /^(LoadVideo|VHS_LoadVideo|LoadAudio)/.test(n.class_type)))
     throw new Error('ce workflow part d’une vidéo ou d’un son : ouvre-le dans ComfyUI')
 
-  // nœuds qui alimentent un « negative » : leur texte n'est pas le prompt
+  // nodes feeding a "negative": their text is not the prompt
   const negatifs = new Set(Object.values(graphe).flatMap(n => Object.entries(n.inputs).filter(([k, v]) => /negative/.test(k) && Array.isArray(v)).map(([, v]) => v[0])))
   const textes = []
   for (const [nid, n] of Object.entries(graphe)) {
@@ -189,7 +189,7 @@ export async function application(id) {
   return { id: `catalogue-${id}`.slice(0, 40), nom: t.titre, description: t.description, sortie, entrees, graphe, modeleId: id }
 }
 
-/** Ce que la page affiche : le formulaire et ce qui manque, sans le graphe. */
+/** What the page shows: the form and what is missing, without the graph. */
 export async function formulaire(id) {
   const a = await application(id)
   return { id, nom: a.nom, description: a.description, sortie: a.sortie, entrees: a.entrees }

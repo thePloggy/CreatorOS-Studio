@@ -1,16 +1,16 @@
 /* ============================================================
-   T0 côté serveur — le plancher dur, rejoué sur le texte RÉSOLU.
+   Server-side T0: the hard floor, replayed on the RESOLVED text.
 
-   Le front inspecte le prompt avant l'envoi, mais il ne voit que le
-   token wildcard (`__tenues*__`), pas la ligne tirée. Le tirage vivant
-   ici, le contrôle est rejoué sur le texte final, après tirage et avant
-   injection. Même liste que le front — à modifier par paires.
+   The front end inspects the prompt before sending, but only sees the
+   wildcard token (`__tenues*__`), not the drawn line. Since drawing happens
+   here, the check is replayed on the final text, after drawing and before
+   injection. Same list as the front end: edit both together.
 
-   Deux familles : tout ce qui évoque un mineur, et le contenu sexuel ou
-   la nudité — l'application ne produit que du SFW.
+   Two families: anything evoking a minor, and sexual content or nudity
+   (the app produces SFW only).
    ============================================================ */
 export const T0_BLOCKLIST = [
-  // l'enfance est dans T0_ENFANCE_* (mots entiers) ; restent ici les sous-chaînes sans faux positif
+  // childhood terms are in T0_ENFANCE_* (whole words); only substrings without false positives remain here
   'underage', 'barely legal', 'schoolgirl', 'young girl', 'loli', 'jeune fille mineure',
   'naked', 'fully nude', 'nude body', 'nsfw', 'topless', 'nipple', 'genital',
   'pussy', 'penis', 'porn', 'sex scene', 'see-through', 'seins nus',
@@ -19,15 +19,15 @@ export const T0_BLOCKLIST = [
   'undressed', 'undressing', 'bare chest', 'bare breast', 'breasts', 'underwear',
   'rien en dessous', 'déshabillée', 'poitrine nue',
 ]
-/* Mots courts cherchés en MOT ENTIER (« nue » est dans « avenue », « nu »
-   dans « menu ») : comparés aux mots du texte, pas en sous-chaîne. */
+/* Short words matched as WHOLE WORDS ("nue" is in "avenue", "nu" in "menu"):
+   compared to the text's words, not as substrings. */
 export const T0_MOTS = ['nude', 'nue', 'nues', 'nu', 'nus', 'sexy', 'stripping', 'striptease', 'fetish', 'fétiche', 'fetichiste', 'fétichiste']
 
-/* Enfance :
-   tout ce qui désigne un enfant ou un âge mineur est refusé, quel que soit le
-   reste du texte, en anglais et en français, y compris les orthographes
-   déguisées. Mots entiers (après normalisation des chiffres-lettres), puis
-   expressions, puis âges écrits en chiffres ou en lettres. */
+/* Childhood:
+   anything designating a child or a minor age is rejected, whatever the rest of
+   the text, in English and French, including disguised spellings. Whole words
+   (after digit-to-letter normalization), then phrases, then ages written in
+   digits or words. */
 export const T0_ENFANCE_MOTS = [
   'kid', 'kids', 'kiddo', 'kiddie', 'child', 'children', 'childlike', 'childish', 'toddler', 'toddlers', 'infant', 'infants',
   'baby', 'babies', 'preteen', 'preteens', 'tween', 'tweens', 'teen', 'teens', 'teenager', 'teenagers', 'teenage', 'teeny',
@@ -50,11 +50,11 @@ export const T0_ENFANCE_EXPRESSIONS = [
 ]
 const AGE_CHIFFRES = /\b(?:[1-9]|1[0-7])\s*(?:-|\s)?(?:yo|y\/o|y\.o\.?|yrs?|years?|year-old|years-old|ans|an)\b/u
 const AGE_LETTRES = /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|un|deux|trois|quatre|cinq|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|dix-sept)[\s-]*(?:years?|year-old|ans)\b/u
-// 1 → i, 3 → e, 4 → a, 0 → o, 5 → s, 7 → t, @ → a : « k1d », « t33n », « l0li »
+// 1 → i, 3 → e, 4 → a, 0 → o, 5 → s, 7 → t, @ → a: "k1d", "t33n", "l0li"
 const DECHIFFRER = t => t.replace(/[1!|]/g, 'i').replace(/3/g, 'e').replace(/[4@]/g, 'a').replace(/0/g, 'o').replace(/5|\$/g, 's').replace(/7/g, 't')
 
-/* Sexuel :
-   l'application ne produit que du SFW. Mots entiers, puis expressions. */
+/* Sexual:
+   the app produces SFW only. Whole words, then phrases. */
 export const T0_SEXE_MOTS = [
   'cock', 'cocks', 'dick', 'dicks', 'penis', 'penises', 'phallus', 'pussy', 'pussies', 'vagina', 'vaginal', 'vulva', 'clit', 'clitoris',
   'anus', 'anal', 'ass', 'asshole', 'tits', 'titty', 'titties', 'boob', 'boobs', 'nipple', 'nipples', 'areola', 'areolas',
@@ -77,21 +77,19 @@ export const T0_SEXE_EXPRESSIONS = [
   'retire sa chemise', 'sans soutien-gorge', 'faire l’amour', "faire l'amour", 'fait l’amour', "fait l'amour",
 ]
 
-/* Tournures de retouche : un visiteur a déshabillé un personnage par
-   « remove bikini top », puis l'a réduit par « tiny bikini » et « larger boobies ».
-   Retirer, réduire ou remplacer par de la peau, sur un vêtement. */
+/* Edit phrasings that undress: removing, shrinking or replacing a garment with skin. */
 const TENUE = String.raw`(?:bikinis?|swimsuits?|swimwear|bathing suits?|tops?|bra|bras|shirts?|t-shirt|tee|blouses?|dress|dresses|skirts?|pants|trousers|jeans|shorts|bottoms?|clothes|clothing|outfit|garments?|maillots?|haut|soutien-gorge|chemise|robe|jupe|pantalon|vêtements?|habits?|tenue)`
 const RETIRER_TENUE = new RegExp(String.raw`\b(?:remove|removes|removing|erase|erases|erasing|delete|deletes|take off|takes off|taking off|take away|strip|strip off|peel off|pull off|without|no|enlève|enlever|enlevez|retire|retirer|retirez|ôte|ôter|efface|effacer|sans)\s+(?:\w+\s+){0,3}?${TENUE}\b|\b${TENUE}\s+(?:\w+\s+){0,2}?(?:off|removed|gone)\b|\breplace\s+(?:\w+\s+){0,3}?${TENUE}\s+with\s+(?:\w+\s+){0,3}?(?:tattoos?|body ?paint|paint|skin|hands?|flowers?|stickers?|leaves|emojis?)\b|\b(?:tattoos?|body ?paint)\s+(?:\w+\s+){0,3}?(?:cover|covers|covering|instead)\b`, 'u')
 const TENUE_REDUITE = new RegExp(String.raw`\b(?:tiny|micro|mini|smaller|skimpy|skimpier|small|minuscule)\s+(?:\w+\s+){0,2}?(?:bikinis?|swimsuits?|swimwear|maillots?)\b|\b(?:bikinis?|swimsuits?)\s+(?:\w+\s+){0,2}?(?:smaller|tiny|micro|skimpy)\b`, 'u')
 const CORPS_RETOUCHE = /\b(?:bust|cleavage|bosom|chest|butt|buttocks|poitrine|décolleté|fesses)\s+(?:\w+\s+){0,2}?(?:bigger|larger|huge|enormous|plus gros|énorme)\b|\b(?:bigger|larger|huge|enormous|giant|massive|plus grosse?s?|énormes?|gros|grosse)\s+(?:\w+\s+){0,2}?(?:boobies|booby|boobie|bust|cleavage|bosom|chest|butt|buttocks|poitrine|fesses)\b|\b(?:boobies|booby|boobie|busty)\b/u
 
-/** Rend le terme sexuel trouvé, ou null. */
+/** Returns the sexual term found, or null. */
 export function t0Sexe(text) {
   const lower = String(text ?? '').toLowerCase().normalize('NFC')
-  // « without clothes » et ses fautes de frappe
+  // "without clothes" and its typos
   const sansHabits = lower.match(/\b(?:w\w{0,3}out|with out|no|not wearing any|zero)\s+(?:any\s+)?(?:clothes|clothing|clothe|outfit|garments?)\b|\b(?:clothes|clothing)\s+off\b|\bsans\s+(?:aucun\s+)?(?:vêtements?|habits?)\b/u)
   if (sansHabits) return sansHabits[0]
-  // « never owned any clothes », « owns no clothes », « wearing nothing », « clothes-free » : même sens, autre tournure
+  // "never owned any clothes", "owns no clothes", "wearing nothing", "clothes-free": same meaning, other phrasing
   const jamaisHabits = lower.match(/\b(?:never|ever)\s+(?:\w+\s+){0,2}?(?:owned|owns|own|wore|worn|wears|wear|had|has|have|needed|put on)\s+(?:any\s+)?(?:clothes|clothing|garments?|outfits?)\b|\b(?:owns?|owned|has|have|had)\s+(?:no|zero|not any)\s+(?:\w+\s+){0,1}?(?:clothes|clothing|garments?)\b|\b(?:doesn'?t|does not|didn'?t|did not|don'?t|do not|can'?t|cannot)\s+(?:\w+\s+){0,2}?(?:own|wear|have|put on)\s+(?:any\s+)?(?:clothes|clothing)\b|\b(?:she|he|her|woman|women|girl|lady|man|model|person|character|they)\s+(?:\w+\s+){0,3}?(?:wears?|wearing|wore)\s+(?:absolutely\s+)?nothing\b|\b(?:dressed in|wearing|wears|wore)\s+nothing\s+but\b|\bdressed in nothing\b|\b(?:clothes|clothing)[\s-]?free\b|\bfree of (?:clothes|clothing)\b|\bwithout anything (?:on|covering)\b|\bnothing but (?:skin|her skin)\b|\bn['’]?(?:a|ont|avait) (?:jamais|aucun)\s+(?:\w+\s+){0,2}?(?:vêtements?|habits?)\b/u)
   if (jamaisHabits) return jamaisHabits[0]
   const retrait = lower.match(RETIRER_TENUE) ?? lower.match(TENUE_REDUITE) ?? lower.match(CORPS_RETOUCHE)
@@ -102,7 +100,7 @@ export function t0Sexe(text) {
   return T0_SEXE_MOTS.find(m => mots.has(m)) ?? null
 }
 
-/** Rend le terme d'enfance trouvé, ou null. */
+/** Returns the childhood term found, or null. */
 export function t0Enfance(text) {
   const lower = String(text ?? '').toLowerCase().normalize('NFC')
   if (AGE_CHIFFRES.test(lower)) return lower.match(AGE_CHIFFRES)[0]
@@ -113,10 +111,10 @@ export function t0Enfance(text) {
   return T0_ENFANCE_MOTS.find(m => mots.has(m)) ?? null
 }
 
-/** Le plancher qui ne se lève jamais : tout ce qui évoque un mineur. */
+/** The floor that is never lifted: anything evoking a minor. */
 export const t0Mineur = text => t0Enfance(text)
 
-/** Rend le terme bloqué, ou null. */
+/** Returns the blocked term, or null. */
 export function t0Hit(text) {
   const enfance = t0Enfance(text)
   if (enfance) return enfance

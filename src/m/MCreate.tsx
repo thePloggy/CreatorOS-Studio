@@ -1,11 +1,11 @@
 /* ============================================================
-   Créer — image et vidéo, toutes les opérations.
+   Create: image and video, all operations.
 
-   Image : Générer · Retoucher
-   Vidéo : Animer · Rejouer (motion control) · Prolonger
+   Image: Generate · Retouch
+   Video: Animate · Replay (motion control) · Extend
 
-   Le brouillon est conservé par opération : changer d'onglet ne perd jamais le travail en cours,
-   puisque tout vit dans le store partagé avec le desktop.
+   The draft is kept per operation: switching tabs never loses work in progress,
+   since everything lives in the store shared with desktop.
    ============================================================ */
 import { Inspirations } from '../components/Inspirations'
 import { lazy, Suspense, useEffect, useState } from 'react'
@@ -19,23 +19,23 @@ import { storageAvailable } from './draft'
 import { t, tp } from '../i18n'
 import { lienMobile } from './lien'
 import '../v2/v2.css'
-/* Studio son : la vue du bureau, chargée à la demande dans un conteneur `.v2` pour ses styles. */
+/* Sound studio: the desktop view, lazy-loaded in a `.v2` container for its styles. */
 const SonView = lazy(() => import('../v2/SonView').then(m => ({ default: m.SonView })))
 
 type ImgOp = 'generate' | 'edit'
 type VidOp = 'animate' | 'ambiance' | 'replay' | 'extend'
 
 export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?: () => void }) {
-  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  // arriving without an image passed by a click: empty slots (start, end, edit source…)
   useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const s = useAppStore()
-  // Image, Vidéo ou Son : le son a son propre studio (musique, voix, bruitages)
+  // Image, Video or Sound: sound has its own studio (music, voice, sound effects)
   const [son, setSon] = useState(() => !!lienMobile()?.son)
   const v = s.video
   const mode = s.mode === 'video' ? 'video' : 'photo'
 
-  /* L'opération est DÉDUITE de l'état du store (source de vérité unique,
-     partagée avec le desktop) plutôt que dupliquée ici. */
+  /* The operation is DERIVED from the store state (single source of truth,
+     shared with desktop) rather than duplicated here. */
   const imgOp: ImgOp = s.photo.task === 'edit' ? 'edit' : 'generate'
   const vidOp: VidOp = v.task === 'extend' ? 'extend' : v.task === 'motion_pure' ? 'replay' : v.task === 't2v' ? 'ambiance' : 'animate'
 
@@ -45,10 +45,10 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
   const [elements, setElements] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState<null | string>(null)
-  /* Hors ligne : on BLOQUE l'envoi et on le dit, plutôt que de laisser partir
-     une requête qui échouera. Le brouillon, lui, reste intact — et on ne
-     relance jamais automatiquement au retour du réseau : c'est
-     à l'opérateur de décider, l'envoi coûte du GPU. */
+  /* Offline: submission is BLOCKED and the user is told, rather than
+     sending a request that will fail. The draft stays intact, and
+     nothing is resubmitted automatically when the network returns:
+     the operator decides, since submitting costs GPU time. */
   const [online, setOnline] = useState(() => navigator.onLine !== false)
   useEffect(() => {
     const up = () => setOnline(true), down = () => setOnline(false)
@@ -59,7 +59,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
 
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
-  /* Estimation AVANT envoi : c'est ce qui rend le bouton honnête. */
+  /* Estimate BEFORE submitting, so the button is honest. */
   const rates = s.serverInfo?.renderRates
   const perJob = mode === 'photo'
     ? (rates?.photoMs ?? 16000)
@@ -73,17 +73,17 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
   const total = s.batchCount * perJob
 
   const send = async () => {
-    // `sending` bloque aussi le double appui pendant l'accusé de réception.
+    // `sending` also blocks double taps while waiting for the acknowledgement.
     if (sending || !online) return
     setSending(true); setSent(null)
     try {
       await s.submitJob()
-      // Le formulaire RESTE tel quel : on ne force pas le passage à Jobs.
+      // The form STAYS as is: no forced switch to Jobs.
       if (!useAppStore.getState().t0Error) setSent(tp(s.batchCount, '{n} rendu accepté', '{n} rendus acceptés'))
     } finally { setSending(false) }
   }
 
-  // le média choisi dans la visionneuse (« Animer ») préremplit le slot
+  // media chosen in the viewer ("Animate") prefills the slot
   const startUri = v.startFrameUri || (v.startAssetId ? s.assets.find(a => a.id === v.startAssetId)?.uri : '')
   const label = mode === 'photo'
     ? (imgOp === 'generate' ? tp(s.batchCount, 'Générer {n} image', 'Générer {n} images')
@@ -158,7 +158,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         {mode === 'video' && vidOp === 'animate' && (<>
           <SourceRow label={t('Image de départ')} required uri={startUri} name={v.startFrameFile}
             onPick={() => setPicker({ role: 'start' })} />
-          {/* keyframe de fin : MiniMax H3 (last_frame), Wan (FirstLastFrame), LTX (guide en dernière image) */}
+          {/* end keyframe: MiniMax H3 (last_frame), Wan (FirstLastFrame), LTX (last-frame guide) */}
           {['minimax', 'wan', 'ltx', 'ltx_hq'].includes(v.engine) && (
             <SourceRow label={t('Image de fin')} hint={t('facultative — le clip arrive sur cette image')}
               uri={v.endAssetId ? s.assets.find(a => a.id === v.endAssetId)?.uri : v.endFrameFile ? `/api/uploads/${encodeURIComponent(v.endFrameFile)}` : ''}
@@ -168,7 +168,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         {mode === 'video' && vidOp === 'replay' && (<>
           <SourceRow label={t('Vidéo de mouvement')} required uri={v.motionRefUri} name={v.motionDriverFile}
             onPick={() => setPicker({ role: 'driver' })} />
-          {/* La still est animée par le geste de la vidéo source. */}
+          {/* The still is animated by the source video's motion. */}
           <SourceRow label={t('Image du sujet')} required uri={v.motionStillUri} name={v.motionStillFile}
             onPick={() => setPicker({ role: 'still' })} />
         </>)}
@@ -194,7 +194,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
           <button onClick={() => setElements(true)}><Ic n="at" s={18} /> {t('Éléments')}</button>
         </div>
 
-        {/* ---- commandes directes ---- */}
+        {/* ---- direct controls ---- */}
         {mode === 'video' && vidOp !== 'replay' && (<>
           <div className="label">{t('Moteur')}</div>
           <button className="rowbtn" onClick={() => setSheet('engine')} disabled={vidOp === 'ambiance'}>
@@ -220,7 +220,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         )}
         {mode === 'video' && <div style={{ marginTop: 16 }}><SeedControl /></div>}
 
-        {/* ---- brouillon & multiplan : DEUX interrupteurs indépendants ---- */}
+        {/* ---- draft & multi-shot: TWO independent toggles ---- */}
         {mode === 'video' && vidOp !== 'replay' && (
           <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
             <Toggle on={!!v.draft} title={t('Brouillon')} hint={eng.draft ? t(eng.draft.label) : undefined}
@@ -237,7 +237,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
           </div>
         )}
 
-        {/* ---- quantité ---- */}
+        {/* ---- quantity ---- */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
           <span className="label" style={{ margin: 0, flex: 1 }}>{t('Nombre de rendus')}</span>
           <Stepper value={s.batchCount} onChange={s.setBatchCount} label={t('nombre de rendus')} />
@@ -264,7 +264,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         </div>
       </div>
 
-      {/* ---------- feuilles ---------- */}
+      {/* ---------- sheets ---------- */}
       {sheet === 'engine' && (
         <Sheet title={t('Moteur vidéo')} onClose={() => setSheet(null)}>
           {VIDEO_ENGINES.filter(e => !e.optionnel || s.h3?.disponible).map(e => (
@@ -362,7 +362,7 @@ function SeedControl() {
         <input className="field" style={{ flex: 1, padding: '10px 12px' }} inputMode="numeric"
           value={String(s.seedValue ?? '')} aria-label={t('valeur de la seed')}
           onChange={e => {
-            // chaîne numérique : au-delà de 2^53 une seed perdrait des chiffres
+            // numeric string: beyond 2^53 a seed would lose digits
             const digits = e.target.value.replace(/\D/g, '').slice(0, 15)
             if (digits) s.setSeedValue(Number(digits))
           }} />

@@ -1,6 +1,5 @@
-/* Flèches de navigation posées sur le média d'une vue de détail.
-   Partagées par la galerie de la console et la Bibliothèque : deux
-   implémentations divergeraient au premier ajustement. */
+/* Navigation arrows over the media of a detail view.
+   Shared by the console gallery and the Library. */
 import { cn } from '../lib/cn'
 import { t } from '../i18n'
 
@@ -22,8 +21,8 @@ export function AssetNavArrows({ index, total, hasPrev, hasNext, prev, next }: {
         side === 'left' ? 'left-2' : 'right-2',
         on
           ? 'bg-bg/70 border-border2 text-text hover:bg-bg/90 cursor-pointer'
-          // Désactivée mais VISIBLE : la faire disparaître au bord de la liste
-          // donnerait l'impression que la navigation est cassée.
+          // Disabled but VISIBLE: hiding it at the end of the list
+          // would make navigation look broken.
           : 'bg-bg/30 border-border text-faint cursor-not-allowed',
       )}>
       {glyph}

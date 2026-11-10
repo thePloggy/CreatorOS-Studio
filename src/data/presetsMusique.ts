@@ -1,6 +1,6 @@
-/* Studio musique : presets écrits et listes de choix. Un preset pré-remplit tous les champs du
-   formulaire, que l'utilisateur modifie ensuite librement. Les listes reprennent les choix
-   acceptés par le serveur (et par le nœud ACE-Step) : tonalité, mesure, langue, voix chantée. */
+/* Music studio: presets and option lists. A preset fills every form field, which the
+   user can then edit. The lists match the values accepted by the server (and the
+   ACE-Step node): key, time signature, language, singing voice. */
 
 export type VoixChantee = '' | 'female' | 'male' | 'duet' | 'choir' | 'none'
 export type Mesure = '' | '2' | '3' | '4' | '6'
@@ -40,33 +40,33 @@ const NOTES = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#'
 export const TONALITES_MAJEURES = NOTES.map(n => `${n} major`)
 export const TONALITES_MINEURES = NOTES.map(n => `${n} minor`)
 
-/** Mesures : valeur envoyée au serveur, libellé affiché. */
+/** Time signatures: value sent to the server, displayed label. */
 export const MESURES: [Exclude<Mesure, ''>, string][] = [['2', '2/4'], ['3', '3/4'], ['4', '4/4'], ['6', '6/8']]
 
-/** Voix chantée : valeur envoyée au serveur, libellé (clé t()). */
+/** Singing voice: value sent to the server, label (t() key). */
 export const VOIX_CHANTEES: [Exclude<VoixChantee, ''>, string][] = [
   ['female', 'Voix de femme'], ['male', 'Voix d’homme'], ['duet', 'Duo homme et femme'], ['choir', 'Chœur'], ['none', 'Aucune (instrumental)'],
 ]
 
-/** Langues chantées proposées (codes acceptés par ACE-Step). */
+/** Offered singing languages (codes accepted by ACE-Step). */
 export const LANGUES_CHANT: [string, string][] = [
   ['en', 'English'], ['fr', 'Français'], ['es', 'Español'], ['pt', 'Português'], ['it', 'Italiano'], ['de', 'Deutsch'],
   ['nl', 'Nederlands'], ['pl', 'Polski'], ['ru', 'Русский'], ['uk', 'Українська'], ['tr', 'Türkçe'], ['ar', 'العربية'],
   ['hi', 'हिन्दी'], ['ja', '日本語'], ['ko', '한국어'], ['zh', '中文'], ['yue', '粵語'], ['vi', 'Tiếng Việt'], ['id', 'Bahasa Indonesia'], ['sv', 'Svenska'],
 ]
 
-/** Instruments proposés en un clic (on peut aussi en écrire d'autres). */
+/** One-click instruments (others can be typed). */
 export const INSTRUMENTS_COURANTS = ['piano', 'acoustic guitar', 'electric guitar', 'bass', 'drums', '808 bass', 'synth', 'pads', 'strings', 'brass', 'saxophone', 'violin', 'flute', 'choir', 'percussion']
 
-/** Balises de structure reconnues par ACE-Step. */
+/** Structure tags recognized by ACE-Step. */
 export const BALISES_PAROLES = ['[Intro]', '[Verse]', '[Pre-Chorus]', '[Chorus]', '[Bridge]', '[Outro]', '[Instrumental]']
 export const SQUELETTE_PAROLES = '[Intro]\n\n[Verse]\n\n\n[Chorus]\n\n\n[Verse]\n\n\n[Chorus]\n\n\n[Bridge]\n\n\n[Chorus]\n\n\n[Outro]\n'
 
-/* La tonalité part en notation courte (« Dm », « F# », « Bbm ») : le mot anglais « minor » ferait
-   refuser la demande par le filtre de contenu de la démo. Le serveur la remet en toutes lettres pour ACE-Step. */
+/* The key is sent in short notation ("Dm", "F#", "Bbm"): the English word "minor" would
+   trip the demo's content filter. The server expands it for ACE-Step. */
 export const codeTonalite = (k: string) => k.replace(/ minor$/, 'm').replace(/ major$/, '')
 
-/** Exemples de bruitages, posés d'un clic dans le champ (textes vérifiés contre le filtre de contenu). */
+/** Sound effect examples, inserted into the field on click (texts checked against the content filter). */
 export const EXEMPLES_BRUITAGE = [
   'a heavy wooden door creaking open', 'rain on a tin roof, distant thunder', 'footsteps on gravel, slow and heavy',
   'a glass bottle shattering on a stone floor', 'city traffic at night, distant sirens', 'ocean waves on a pebble beach, gulls',

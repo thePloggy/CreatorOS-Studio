@@ -1,14 +1,12 @@
 /* ============================================================
-   Composeur de prompt — abstraction du LLM rewriter.
+   Prompt composer — wrapper around the LLM rewriter.
 
-   Appel réel à POST /api/compose, qui fait tourner un LLM local
-   (cf. server/composer.js).
+   Calls POST /api/compose, which runs a local LLM
+   (see server/composer.js).
 
-
-   Aucun préfixe d'identité n'est ajouté ici : il est injecté par le
-   serveur (cf. server/persona.js). Le LLM a d'ailleurs
-   pour consigne de ne PAS décrire morphologie, carnation ni cheveux —
-   ces traits viennent de la LoRA, les redire les dilue.
+   No identity prefix is added here: the server injects it
+   (see server/persona.js). The LLM is instructed not to describe
+   body shape, skin tone or hair — those traits come from the LoRA.
    ============================================================ */
 import type { Register, MediaMode } from '../types'
 import { t, tServeur } from '../i18n'
@@ -17,15 +15,15 @@ export interface ComposeInput {
   register: Register
   userPrompt: string
   userDirectives: string
-  /** photo : réécriveur d'image · video : réécriveur de mouvement (garde
-   *  gestes, regard, réplique, caméra ; n'invente pas de tenue). */
+  /** photo: image rewriter · video: motion rewriter (keeps gestures,
+   *  gaze, dialogue line, camera; does not invent an outfit). */
   mode?: MediaMode
-  /** Moteur de diffusion visé (vidéo : wan | ltx | ltx_hq | minimax) — choisit
-   *  le fichier « moteur » du system prompt. Photo : Klein, implicite. */
+  /** Target diffusion engine (video: wan | ltx | ltx_hq | minimax) — selects
+   *  the engine file of the system prompt. Photo: Klein, implicit. */
   engine?: string
-  /** Couches rewriter additives (scaffold, défaut OFF). `soul` = nom de persona
-   *  (→ soul_<nom>.txt) ; `mood` = preset de scène (→ mood_<nom>.txt). null =
-   *  couche inactive → prompt composé strictement identique à sans. */
+  /** Additive rewriter layers (default OFF). `soul` = persona name
+   *  (→ soul_<name>.txt); `mood` = scene preset (→ mood_<name>.txt). null =
+   *  layer inactive → composed prompt is identical to having no layer. */
   soul?: string | null
   mood?: string | null
 }
@@ -38,14 +36,13 @@ export interface PromptComposer {
   compose(input: ComposeInput): Promise<ComposeOutput>
 }
 
-/* Le négatif de repli par registre vit côté serveur (server/composer.js) et
-   revient dans la réponse de /api/compose. */
+/* The per-register fallback negative lives on the server (server/composer.js)
+   and is returned in the /api/compose response. */
 
-/** Composeur réel : le LLM tourne côté serveur, sur CPU.
+/** Composer: the LLM runs on the server, on CPU.
  *
- *  Il ne se rabat PAS silencieusement sur le passthrough en cas de panne :
- *  un prompt brut renvoyé sans un mot ferait croire que le modèle écrit mal.
- *  L'erreur remonte, la console l'affiche. */
+ *  It does not silently fall back to passthrough on failure: errors are
+ *  thrown and shown by the console. */
 export class ApiComposer implements PromptComposer {
   async compose(input: ComposeInput): Promise<ComposeOutput> {
     const res = await fetch('/api/compose', {

@@ -1,14 +1,13 @@
 /* ============================================================
-   Masters : un clip de la bibliothèque part en HLG, en ProRes ou en
-   EXR linéaire ACEScg, ou garde son alpha en ProRes 4444. Tout se fait sur le
-   CPU avec ffmpeg, hors de la file GPU, un fichier à la fois. Le clip SDR est
-   étendu dans le conteneur HDR : aucune information n'est inventée.
-   Les variantes « étendues » (hlg-etendu, exr-etendu) passent en plus par
-   ImageSDRToHDR de ComfyUI : une expansion inverse (courbe de Lottes) qui rend
-   aux hautes lumières une marge au-dessus du blanc diffus (jusqu'à ~5× sur un
-   ciel ou une lampe). Calcul sans modèle, quelques secondes ; les deux
-   fichiers sortent du même passage.
-   Les fichiers restent 24 h dans media/.master.
+   Masters: a library clip exported as HLG, ProRes or linear ACEScg EXR, or
+   ProRes 4444 keeping its alpha. Done on CPU with ffmpeg, outside the GPU
+   queue, one file at a time. The SDR clip is placed in the HDR container
+   without inventing information.
+   The "extended" variants (hlg-etendu, exr-etendu) also go through ComfyUI's
+   ImageSDRToHDR: inverse expansion (Lottes curve) giving highlights headroom
+   above diffuse white. No model, a few seconds; both files come out of the
+   same pass.
+   Files are kept 24 h in media/.master.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,9 +19,9 @@ import * as comfy from './comfy.js'
 const executer = promisify(execFile)
 const DOSSIER = path.join(CONFIG.mediaDir, '.master')
 const DUREE_VIE_MS = 24 * 3600_000
-const DISQUE_MAX = 30 * 1024 ** 3   // les plus anciens partent au-delà
+const DISQUE_MAX = 30 * 1024 ** 3   // oldest files are removed above this
 const VERS_HLG = 'zscale=tin=bt709:min=bt709:pin=bt709:rin=tv:t=linear:npl=203,format=gbrpf32le,zscale=p=bt2020:t=arib-std-b67:m=bt2020nc:r=tv'
-// sRGB/Rec.709 linéaire → AP1 (ACEScg), matrice de Bradford D65 → D60
+// linear sRGB/Rec.709 → AP1 (ACEScg), Bradford matrix D65 → D60
 const VERS_ACESCG = 'zscale=tin=bt709:min=bt709:pin=bt709:rin=tv:t=linear:npl=100,format=gbrpf32le,'
   + 'colorchannelmixer=rr=0.6131:rg=0.3395:rb=0.0474:gr=0.0702:gg=0.9164:gb=0.0134:br=0.0206:bg=0.1096:bb=0.8698'
 const TAGS_HLG = ['-color_primaries', 'bt2020', '-color_trc', 'arib-std-b67', '-colorspace', 'bt2020nc']
@@ -38,7 +37,7 @@ export const FORMATS = {
 }
 
 const fichierDe = (assetId, format) => path.join(DOSSIER, `${assetId.replace(/[^\w-]/g, '_')}-${format}.${FORMATS[format].ext}`)
-const enCours = new Map()   // chemin → { etat, erreur }
+const enCours = new Map()   // path → { etat, erreur }
 let chaine = Promise.resolve()
 
 function nettoyer() {
@@ -50,9 +49,9 @@ function nettoyer() {
   }
 }
 
-/* Expansion SDR → HDR dans ComfyUI : un passage, deux livrables (HLG 10 bits en HEVC,
-   EXR ACEScg linéaire en zip). Le HLG de ComfyUI (H.264 10 bits) est réencodé en HEVC
-   pour les lecteurs et les logiciels de montage, sans conversion de couleur. */
+/* SDR → HDR expansion in ComfyUI: one pass, two outputs (10-bit HLG in HEVC,
+   linear ACEScg EXR in zip). ComfyUI's HLG (10-bit H.264) is re-encoded to HEVC
+   for players and editors, without color conversion. */
 async function fabriquerEtendu(src, assetId) {
   const id = `hdr-${assetId.replace(/[^\w-]/g, '_')}-${Date.now().toString(36)}`
   const entree = `${id}.mp4`
@@ -105,7 +104,7 @@ async function fabriquer(src, format, sortie, assetId) {
   fs.renameSync(part, sortie)
 }
 
-/** Demande ou relit un master : { etat: 'pret' | 'en_cours' | 'echec', erreur? }. */
+/** Requests or reads back a master: { etat: 'pret' | 'en_cours' | 'echec', erreur? }. */
 export function master(assetId, src, format, lancer = true) {
   const f = FORMATS[format]
   if (!f) throw new Error('format inconnu')
@@ -121,7 +120,7 @@ export function master(assetId, src, format, lancer = true) {
   chaine = chaine.then(async () => {
     nettoyer()
     try {
-      // les deux variantes étendues sortent du même passage : l'autre est peut-être déjà là
+      // both extended variants come out of the same pass: the other may already exist
       if (!fs.existsSync(sortie)) await fabriquer(src, format, sortie, assetId)
       enCours.delete(sortie)
     }

@@ -1,8 +1,8 @@
 /* ============================================================
-   Re-shoot — un clip de la bibliothèque, un angle : le même instant
-   filmé par une autre caméra (MoGe-2 → CrossViewWarp → LTX-2.5 + IC-LoRA
-   CrossView-Warp, cf. server/jobs.js). Le rendu arrive dans la bibliothèque ;
-   ici on voit la prise d'origine et la nouvelle côte à côte.
+   Re-shoot: a library clip and an angle give the same moment
+   filmed by another camera (MoGe-2 → CrossViewWarp → LTX-2.5 + IC-LoRA
+   CrossView-Warp, see server/jobs.js). The render lands in the library;
+   this view shows the original take and the new one side by side.
    ============================================================ */
 import { nomMedia } from '../lib/nomMedia'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
@@ -18,8 +18,8 @@ const CLE = 'creatoros.reshoot.prises'
 const lire = (): { job: string; source: string }[] => { try { return JSON.parse(localStorage.getItem(CLE) || '[]') } catch { return [] } }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
-/* az : degrés autour du sujet (négatif = gauche), el : hauteur. Les mouvements
-   vont d'une pose à l'autre sur toute la durée du clip. */
+/* az: degrees around the subject (negative = left), el: height. Moves
+   go from one pose to the other over the whole clip. */
 const ANGLES: { id: string; label: string; az: number[]; el: number[] }[] = [
   { id: 'gauche', label: 'Côté gauche', az: [-35], el: [0] },
   { id: 'droite', label: 'Côté droit', az: [35], el: [0] },
@@ -31,7 +31,7 @@ const ANGLES: { id: string; label: string; az: number[]; el: number[] }[] = [
   { id: 'orbite', label: 'Orbite', az: [-50, 50], el: [10, 10] },
 ]
 
-/** Schéma vu de dessus : le sujet au centre, la caméra d'origine en bas, la nouvelle (ou sa course). */
+/** Top-down diagram: subject in the center, original camera at the bottom, the new one (or its path). */
 function Schema({ az, el, on }: { az: number[]; el: number[]; on: boolean }) {
   const pt = (a: number, e: number) => { const r = 34 - e * 0.25, rad = (a * Math.PI) / 180; return [50 + r * Math.sin(rad), 50 + r * Math.cos(rad)] }
   const c = on ? 'var(--accent)' : 'var(--text)'
@@ -51,16 +51,16 @@ function Schema({ az, el, on }: { az: number[]; el: number[]; on: boolean }) {
   )
 }
 
-/** La sphère autour du sujet, vue de trois-quarts haut : où est la caméra d'origine (gris),
-    où est la nouvelle (rose), la zone sûre du modèle, le trajet d'un mouvement. Elle se
-    glisse comme l'image (droite = tourner à droite, haut = monter). */
+/** Sphere around the subject, seen from a high three-quarter view: original camera (gray),
+    new camera (pink), the model's safe zone, a move's path. Dragging works like
+    on the image (right = turn right, up = go up). */
 const INCL = (22 * Math.PI) / 180
 function proj(az: number, el: number) {
   const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180
   const x = Math.sin(a) * Math.cos(e), y = Math.sin(e), z = Math.cos(a) * Math.cos(e)
   return { x: 50 + 38 * x, y: 50 - 38 * (y * Math.cos(INCL) - z * Math.sin(INCL)), devant: z * Math.cos(INCL) + y * Math.sin(INCL) > 0 }
 }
-function trace(pts: [number, number][]) {    // deux chemins : la face avant (pleine), l'arrière (pâle)
+function trace(pts: [number, number][]) {    // two paths: front face (solid), back (faded)
   let av = '', ar = '', prec: boolean | null = null
   for (const [az, el] of pts) {
     const p = proj(az, el), c = `${p.x.toFixed(1)} ${p.y.toFixed(1)}`
@@ -101,7 +101,7 @@ function Sphere({ pose, base, cles, onPose }: { pose: Pose; base: Pose; cles: Po
   )
 }
 
-/** Deux vidéos lues ensemble : la prise d'origine et le re-shoot. */
+/** Two videos played together: the original take and the re-shoot. */
 function CoteACote({ avant, apres }: { avant: string | null; apres: string }) {
   const a = useRef<HTMLVideoElement>(null), b = useRef<HTMLVideoElement>(null)
   useEffect(() => {
@@ -120,26 +120,26 @@ function CoteACote({ avant, apres }: { avant: string | null; apres: string }) {
 export function ReshootView() {
   const s = useAppStore()
   const [clip, setClip] = useState<Asset | null>(null)
-  // « Utiliser dans… » depuis la visionneuse : ce clip est déjà choisi
+  // "Use in…" from the viewer: this clip is preselected
   useEffect(() => { const a = useAppStore.getState().prendrePasserelle('reshoot'); if (a) setClip(a) }, [])
   const [angle, setAngle] = useState('droite')
   const [pose, setPose] = useState<Pose>({ az: 35, el: 0 })
-  const [cles, setCles] = useState<Pose[] | null>(null)       // mouvement : pose de début, pose de fin
-  const [edite, setEdite] = useState<0 | 1>(1)                  // quelle pose du mouvement la souris règle
+  const [cles, setCles] = useState<Pose[] | null>(null)       // move: start pose, end pose
+  const [edite, setEdite] = useState<0 | 1>(1)                  // which pose of the move the mouse adjusts
   const [tt, setTt] = useState(1)
   const [joue, setJoue] = useState(false)
   const [vue, setVue] = useState<'camera' | 'orbite'>('camera')
-  const [tire, setTire] = useState(false)                     // l'indice « glisse » s'efface au premier glisser
+  const [tire, setTire] = useState(false)                     // the "drag" hint disappears on the first drag
   const [scene, setScene] = useState<{ id: string; url: string | null; err?: string } | null>(null)
   const [texte, setTexte] = useState('')
   const [prises, setPrises] = useState(lire)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  useEffect(() => { try { localStorage.setItem(CLE, JSON.stringify(prises.slice(0, 40))) } catch { /* stockage indisponible */ } }, [prises])
+  useEffect(() => { try { localStorage.setItem(CLE, JSON.stringify(prises.slice(0, 40))) } catch { /* storage unavailable */ } }, [prises])
   const clips = useMemo(() => s.assets.filter(a => a.mediaType === 'video' && a.reviewStatus !== 'rejected')
     .sort((x, y) => Number(y.reviewStatus === 'approved') - Number(x.reviewStatus === 'approved') || y.createdAt - x.createdAt).slice(0, 80), [s.assets])
 
-  // la scène 3D du clip choisi (calculée par le serveur au premier choix, ~quelques s)
+  // 3D scene of the chosen clip (computed by the server on first selection, a few seconds)
   useEffect(() => {
     if (!clip) return
     let vivant = true
@@ -150,7 +150,7 @@ export function ReshootView() {
     return () => { vivant = false }
   }, [clip?.id])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  // lecture du mouvement dans l'aperçu
+  // move playback in the preview
   useEffect(() => {
     if (!joue) return
     let t0: number | null = null, id = 0

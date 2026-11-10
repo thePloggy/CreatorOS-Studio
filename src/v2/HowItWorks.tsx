@@ -1,28 +1,28 @@
-/* « Comment ça marche » en tête d'une page galerie : un grand montage 16:9 avec titre, texte et bouton, puis
-   les étapes en carrousel (une vidéo d'étape à la fois, qui avance seule ; un curseur y clique dans la vraie
-   interface). Repliable, et le choix est gardé par page ; les vidéos ne se chargent qu'une fois la section à
-   l'écran et s'arrêtent hors écran. Mouvement réduit : des images fixes, rien n'avance seul.
-   Un fichier absent n'affiche jamais de cadre cassé : la vidéo cède la place à son affiche, l'affiche à
-   l'image de repli, et à défaut un fond sobre garde la mise en page. */
+/* "How it works" header of a gallery page: a large 16:9 montage with title, text and button, then
+   the steps as a carousel (one step video at a time, auto-advancing; a cursor clicks in the real
+   UI). Collapsible, with the choice stored per page; videos load only once the section is on
+   screen and pause off screen. Reduced motion: still images, nothing auto-advances.
+   A missing file never shows a broken frame: the video falls back to its poster, the poster to
+   the fallback image, and failing that a plain background keeps the layout. */
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { t } from '../i18n'
 import { Ic } from './bits'
 
-/** Version des fichiers « Comment ça marche » : la changer force le rechargement après une mise à jour des vidéos. */
+/** Version of the "How it works" files: changing it forces a reload after the videos are updated. */
 export const VERSION_HOWTO = '20261108d'
-/** Les fichiers d'une page : /danses/howto/<cle>-hero.mp4|jpg et /danses/howto/<cle>-etape-N.mp4|jpg. */
+/** A page's files: /danses/howto/<cle>-hero.mp4|jpg and /danses/howto/<cle>-etape-N.mp4|jpg. */
 export const howto = (cle: string) => ({
   hero: { video: `/danses/howto/${cle}-hero.mp4?v=${VERSION_HOWTO}`, affiche: `/danses/howto/${cle}-hero.jpg?v=${VERSION_HOWTO}` },
   etape: (n: number) => ({ video: `/danses/howto/${cle}-etape-${n}.mp4?v=${VERSION_HOWTO}`, affiche: `/danses/howto/${cle}-etape-${n}.jpg?v=${VERSION_HOWTO}` }),
 })
 
 export type MediaHowto = { video: string; affiche: string; repli?: string }
-/** Un segment de la frise : sa durée réelle, s'il est généré à cette étape, ses repères de début et de fin. */
+/** A timeline segment: its real duration, whether it is generated at this step, its start and end markers. */
 export type SegmentFrise = { label: string; duree: number; neuf?: boolean; debut?: string; fin?: string }
 export type EtapeHowto = MediaHowto & { titre: string; texte: string; frise?: SegmentFrise[] }
 
-/* Frise sous la vidéo d'une étape : les morceaux de la séquence à leur durée, le morceau généré
-   en hachures (en cours de génération) qui se remplit quand la tête de lecture le traverse. */
+/* Timeline under a step video: the sequence's pieces at their durations, the generated piece
+   hatched (being generated) and filling up as the playhead crosses it. */
 function Frise({ segments, temps }: { segments: SegmentFrise[]; temps: number }) {
   const total = segments.reduce((n, x) => n + x.duree, 0)
   let debut = 0
@@ -47,11 +47,11 @@ function Frise({ segments, temps }: { segments: SegmentFrise[]; temps: number })
   )
 }
 
-/* Un média de la section : vidéo (chargée une fois `charger`, jouée tant que `jouer`), sinon son affiche,
-   sinon le repli, sinon un fond. `fixe` : l'affiche seule (mouvement réduit). */
+/* A section media: video (loaded once `charger`, playing while `jouer`), else its poster,
+   else the fallback, else a background. `fixe`: poster only (reduced motion). */
 function Media({ m, charger, jouer, fixe, label, reprendre, afficheToujours, onTemps }: { m: MediaHowto; charger: boolean; jouer: boolean; fixe: boolean; label?: string; reprendre?: boolean; afficheToujours?: boolean; onTemps?: (t: number) => void }) {
   const ref = useRef<HTMLVideoElement | null>(null)
-  // 0 : vidéo, 1 : affiche, 2 : repli, 3 : fond seul
+  // 0: video, 1: poster, 2: fallback, 3: background only
   const [niveau, setNiveau] = useState(fixe ? 1 : 0)
   useEffect(() => { setNiveau(fixe ? 1 : 0) }, [fixe, m.video])
   useEffect(() => {
@@ -71,7 +71,7 @@ function Media({ m, charger, jouer, fixe, label, reprendre, afficheToujours, onT
 }
 
 export function HowItWorks({ cleMemoire, reduit, hero, titre, texte, etapes, onCommencer, labelCommencer = 'Commencer', labelHero, etapesSeules = false }: {
-  /** clé localStorage du repli de la section, propre à la page */
+  /** localStorage key for the section's collapsed state, per page */
   cleMemoire: string
   reduit: boolean
   hero: MediaHowto
@@ -80,15 +80,15 @@ export function HowItWorks({ cleMemoire, reduit, hero, titre, texte, etapes, onC
   etapes: EtapeHowto[]
   onCommencer: () => void
   labelCommencer?: string
-  /** description du montage pour les lecteurs d'écran */
+  /** montage description for screen readers */
   labelHero: string
-  /** sans onglet ni hero : titre, texte et bouton à gauche, les étapes à droite (la page a déjà son en-tête) */
+  /** no tab or hero: title, text and button on the left, steps on the right (the page already has its header) */
   etapesSeules?: boolean
 }) {
   const [ouvert, setOuvert] = useState(() => { try { return localStorage.getItem(cleMemoire) !== '1' } catch { return true } })
   const basculer = (o: boolean) => {
     setOuvert(o)
-    try { if (o) localStorage.removeItem(cleMemoire); else localStorage.setItem(cleMemoire, '1') } catch { /* stockage indisponible */ }
+    try { if (o) localStorage.removeItem(cleMemoire); else localStorage.setItem(cleMemoire, '1') } catch { /* storage unavailable */ }
   }
   if (!ouvert) return (
     <div className="dz-howto-replie">
@@ -113,22 +113,22 @@ function Section({ reduit, hero, titre, texte, etapes, onCommencer, labelCommenc
   const [actif, setActif] = useState(0)
   const [pause, setPause] = useState(false)
 
-  // à l'écran : les médias se chargent (une fois pour toutes) et jouent ; hors écran, tout s'arrête
+  // on screen: media load (once) and play; off screen, everything pauses
   useEffect(() => {
     const el = racine.current; if (!el) return
     const io = new IntersectionObserver(([e]) => { setVisible(e.isIntersecting); if (e.isIntersecting) setVu(true) }, { threshold: 0.15 })
     io.observe(el); return () => io.disconnect()
   }, [])
 
-  // l'étape active vient se placer dans la piste (clic, clavier ou avance automatique)
+  // scroll the active step into the track (click, keyboard or auto-advance)
   useEffect(() => {
     const p = piste.current; const sl = p?.children[actif] as HTMLElement | undefined
-    if (!p || !sl) return // (la piste n'est plus montée : sans effet)
+    if (!p || !sl) return // (track not mounted: no-op)
     pilote.current = Date.now()
     p.scrollTo({ left: sl.offsetLeft - parseFloat(getComputedStyle(p).paddingLeft || '0'), behavior: reduit ? 'auto' : 'smooth' })
   }, [actif, reduit])
 
-  // glisser au doigt : l'étape la plus visible devient l'étape active
+  // touch swipe: the most visible step becomes the active step
   useEffect(() => {
     const p = piste.current; if (!p) return
     const io = new IntersectionObserver(es => {
@@ -205,7 +205,7 @@ function Section({ reduit, hero, titre, texte, etapes, onCommencer, labelCommenc
 
   return (
     <section ref={racine} className="dz-howto" aria-labelledby={`${uid}-titre`}>
-      {/* onglets au-dessus du hero : l'aperçu de l'outil, ou ses étapes une par une */}
+      {/* tabs above the hero: the tool preview, or its steps one by one */}
       <div className="dz-howto-onglets" role="tablist" aria-label={t('Comment ça marche')}>
         <button type="button" role="tab" aria-selected={vue === 'apercu'} className={vue === 'apercu' ? 'on' : ''} onClick={() => setVue('apercu')}>
           <Ic n="sparkle" s={14} />{t('Aperçu')}</button>

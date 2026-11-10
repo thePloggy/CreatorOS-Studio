@@ -1,9 +1,9 @@
 /* ============================================================
-   Vocabulaires de composition — un petit jeu NEUTRE de départ
-   (tenues, lieux, cadrages, coiffures, poses). Chaque item porte une
-   ligne de prompt anglaise complète (`prompt`) ; le titre FR sert à
-   l'affichage. Les ajouts de l'utilisateur vivent à part
-   (store/useVocabStore) et sont fusionnés partout.
+   Composition vocabularies — a small NEUTRAL starter set
+   (outfits, locations, framings, hairstyles, poses). Each item carries a
+   full English prompt line (`prompt`); the French title is for display.
+   User additions live separately (store/useVocabStore) and are merged
+   everywhere.
    ============================================================ */
 import type { Outfit, Environment, PhotoStyle, Hairstyle, TextPose } from '../types'
 
@@ -83,7 +83,7 @@ export const TEXT_POSES: TextPose[] = [
   pose('p_reading', 'en lecture', 'reading a book, absorbed'),
 ]
 
-/** Premier item d'une liste — valeur de départ d'un sélecteur. */
+/** First item of a list — a selector's initial value. */
 export const firstId = (items: { id: string }[]) => items[0]?.id ?? null
 
 export const MUSIC_LIBRARY = [

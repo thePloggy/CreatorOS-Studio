@@ -1,7 +1,7 @@
 /* ============================================================
-   CreatorOS — serveur unique : front compilé + API + médias + DB.
-   Un seul process (`npm start`). Il n'écoute que sur la boucle locale
-   par défaut (CREATOROS_HOST pour l'ouvrir).
+   CreatorOS: single server for the built front end, API, media and DB.
+   One process (`npm start`). Listens on loopback only by default
+   (CREATOROS_HOST to expose it).
    ============================================================ */
 import { etatAllegement } from './allege.js'
 import fs from 'node:fs'
@@ -40,8 +40,7 @@ import * as reelPresets from './reelPresets.js'
 import * as danses from './danses.js'
 import * as presets from './presets.js'
 
-// 256 Mo : les drivers du Motion Control sont des vidéos (8 Mo suffisaient
-// pour les JPEG mais un clip mp4 les dépasse → 413 à l'upload).
+// 256 MB: Motion Control drivers are videos, larger than photos.
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
@@ -55,26 +54,26 @@ import * as workflowsComfy from './workflowsComfy.js'
 import * as noeudsComfy from './noeudsComfy.js'
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLimit: 256 * 1024 * 1024 })
 
-/* ---------- verrou du propriétaire (cf. CONFIG.cleProprietaire) ----------
-   Les rendus, la bibliothèque et le montage restent ouverts aux visiteurs ;
-   ce qui est verrouillé, c'est la description du studio et ses réglages.
-   Choisir le personnage actif reste libre. */
+/* ---------- owner lock (see CONFIG.cleProprietaire) ----------
+   Renders, library and editing stay open to visitors; what is locked is
+   the studio description and its settings. Picking the active character
+   stays open. */
 const ROUTES_PROPRIETAIRE = new Set([
   'DELETE /api/montage/musiques/:nom', 'POST /api/assets/:id/retemps',
   'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id', 'PUT /api/personas/:id/voix',
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
-  // Démo publique : la bibliothèque est partagée ; un visiteur n'efface pas les rendus et ne fouille pas la corbeille.
+  // Public demo: the library is shared; a visitor cannot delete renders or browse the trash.
   'DELETE /api/assets/:id', 'POST /api/assets/restore', 'GET /api/corbeille', 'GET /api/corbeille/vue/:file',
-  // La file et la bibliothèque sont communes : un visiteur n'annule, ne double, ne réordonne ni ne
-  // modifie le travail des autres (jobs, reels, montages, dossiers, validation, livraison).
+  // Queue and library are shared: a visitor cannot cancel, duplicate, reorder or
+  // modify others' work (jobs, reels, edits, folders, validation, delivery).
   'DELETE /api/jobs/:id', 'POST /api/jobs/:id/promote', 'POST /api/jobs/reorder', 'POST /api/jobs/:id/batch-id',
   'DELETE /api/reels/:id', 'POST /api/reels/:id/annuler', 'POST /api/reels/livrer', 'POST /api/captions',
   'DELETE /api/montages/:id', 'DELETE /api/folders/:id', 'PATCH /api/folders/:id', 'POST /api/folders/:id/assets',
   'PATCH /api/assets/:id', 'POST /api/briefs/star',
-  // Démo publique : un visiteur ne part que des images générées par le studio, jamais
-  // de la photo d'une personne réelle ; la liste des envois n'est pas publique.
+  // Public demo: a visitor starts only from studio-generated images, never from
+  // a photo of a real person; the upload list is not public.
   'POST /api/upload', 'GET /api/uploads', 'POST /api/parole/voix', 'POST /api/parole/dire', 'POST /api/montage/musiques',
   'POST /api/telephone', 'GET /api/telephone/:jeton/etat', 'POST /api/stage/glb', 'PUT /api/modeles/h3/:nom', 'POST /api/personas/:id/entrainer', 'POST /api/voix/clone', 'POST /api/voix/changer', 'POST /api/extensions/:id/installer', 'POST /api/workflows-comfy/:id/telecharger', 'POST /api/workflows-comfy/:id/lancer', 'POST /api/comfy/maj', 'POST /api/comfy/noeuds', 'POST /api/comfy/redemarrer', 'POST /api/extensions/:id/retirer', 'POST /api/personnages/propositions', 'POST /api/personnages/creer',
 ])
@@ -86,7 +85,7 @@ const estProprietaire = req => {
 }
 app.addHook('onRequest', async (req, reply) => {
   if (!ROUTES_PROPRIETAIRE.has(`${req.method} ${req.routeOptions?.url}`) || estProprietaire(req)) return
-  // une photo déposée par un visiteur passe : la route la contrôle (aucune personne, cf. depots.js)
+  // a photo uploaded by a visitor is allowed: the route checks it (no person, see depots.js)
   if (`${req.method} ${req.routeOptions?.url}` === 'POST /api/upload' && TYPES_DEPOT[String(req.headers['content-type'] ?? '').split(';')[0]]) return
   const envoi = /^POST \/api\/(upload|parole\/voix|montage\/musiques)$/.test(`${req.method} ${req.routeOptions?.url}`)
   reply.code(403).send({ error: envoi
@@ -94,19 +93,18 @@ app.addHook('onRequest', async (req, reply) => {
     : 'réservé au propriétaire du studio' })
 })
 app.post('/api/proprietaire', async req => ({ verrou: !!CONFIG.cleProprietaire, proprietaire: estProprietaire(req) }))
-// visiteurs par jour, limite de rendus des visiteurs Internet (cf. visites.js)
+// visitors per day, render limit for Internet visitors (see visites.js)
 const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id) })
 
-/* Aucune réponse JSON ne montre le dossier personnel du serveur (chemins des
-   recettes, de la base, messages d'erreur de ffmpeg ou de ComfyUI) : il est
-   remplacé par « ~ ». */
+/* No JSON response shows the server's home directory (recipe and database
+   paths, ffmpeg or ComfyUI error messages): it is replaced with "~". */
 const MAISON = os.homedir()
 app.addHook('onSend', async (req, reply, payload) =>
   typeof payload === 'string' && MAISON.length > 1 && payload.includes(MAISON) ? payload.split(MAISON).join('~') : payload)
-// (déclaré AVANT la compression : il doit lire le texte clair)
+// (declared BEFORE compression: it must read the plain text)
 
-/* JSON de l'API compressé : la bibliothèque pèse des centaines de Ko à chaque visite.
-   Déclaré après installerVisites : son onSend doit lire le texte clair. */
+/* API JSON is compressed: the library weighs hundreds of KB per visit.
+   Declared after installerVisites, whose onSend must read the plain text. */
 app.addHook('onSend', async (req, reply, payload) => {
   const type = String(reply.getHeader('content-type') ?? '')
   if (typeof payload !== 'string' || payload.length < 2048 || !type.includes('json') || reply.getHeader('content-encoding')) return payload
@@ -117,21 +115,20 @@ app.addHook('onSend', async (req, reply, payload) => {
   return payload
 })
 
-/* Filtre de contenu sur le texte BRUT de chaque demande : le prompt
-   réécrit ne suffit pas, le modèle de langue peut l'« adoucir » et laisser
-   passer un terme interdit. Tout texte envoyé à l'API est lu, sauf
-   les négatifs (qui nomment justement ce qu'on exclut) et les réglages du
-   propriétaire (recettes, textes, personnages). */
+/* Content filter on the RAW text of every request: the rewritten prompt is not
+   enough, since the language model can "soften" it and let a banned term
+   through. Every text sent to the API is read, except negatives (which name
+   what is excluded) and owner settings (recipes, texts, characters). */
 const sansFiltreContenu = new Set([...ROUTES_PROPRIETAIRE, 'POST /api/proprietaire'])
-// identifiants générés par le studio (rendu, lot, clé d'envoi) : jamais lus comme du texte,
-// « 455 » se lisait « ass » une fois les chiffres déchiffrés. Ils n'entrent dans aucun prompt.
+// studio-generated ids (render, batch, submission key): never read as text, since
+// digits can decode to letters. They never enter a prompt.
 const CLES_IDENTIFIANTS = new Set(['id', 'jobId', 'requestId', 'batchId', 'batchIds', 'parentAssetId', 'assetId', 'assetIds'])
 function texteInterdit(v, cle = '') {
   if (/negati/i.test(cle)) return null
   if (CLES_IDENTIFIANTS.has(cle) && (typeof v === 'string' ? /^[\w-]{1,80}$/.test(v) : Array.isArray(v) && v.every(x => typeof x === 'string' && /^[\w-]{1,80}$/.test(x)))) return null
-  // une image PNG encodée n'est pas du texte (elle est décodée puis réduite à ses traits) :
-  // des lettres tirées au hasard y formaient parfois un terme interdit (« nus » dans un croquis).
-  // Seule une chaîne ENTIÈREMENT en base64 strict est sautée ; tout autre texte est lu.
+  // an encoded PNG image is not text (it is decoded then reduced to its lines):
+  // random letters in it can form a banned term. Only a string ENTIRELY in strict
+  // base64 is skipped; any other text is read.
   if (typeof v === 'string') return /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(v) ? null : t0Hit(v)
   if (Array.isArray(v)) { for (const x of v) { const h = texteInterdit(x, cle); if (h) return h } return null }
   if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { const h = texteInterdit(x, k); if (h) return h } }
@@ -149,8 +146,8 @@ app.addHook('preHandler', async (req, reply) => {
   if (req.method !== 'POST' && req.method !== 'PUT') return
   const route = `${req.method} ${req.routeOptions?.url}`
   if (!req.url.startsWith('/api/') || sansFiltreContenu.has(route) || Buffer.isBuffer(req.body)) return
-  /* Mode adulte (installation locale) : sur la génération et la réécriture des prompts, seul le plancher « mineurs »
-     est contrôlé ici ; le rendu décide ensuite d'après la provenance des images (jobs.js). */
+  /* Adult mode (local install): for generation and prompt rewriting only the "minors" floor
+     is checked here; the render then decides based on image provenance (jobs.js). */
   const adulte = CONFIG.contenuAdulte && ROUTES_ADULTES.has(route)
   const terme = adulte ? (mineurDans(req.body) ?? mineurDans(req.query)) : (texteInterdit(req.body) ?? texteInterdit(req.query))
   if (!terme) return
@@ -159,31 +156,31 @@ app.addHook('preHandler', async (req, reply) => {
 })
 
 
-/* ---------- projections SQL → contrat front ---------- */
+/* ---------- SQL projections -> front-end contract ---------- */
 
 const parse = s => { try { return s == null ? null : JSON.parse(s) } catch { return null } }
 
 const jobOut = r => r && (p => ({
   id: r.id, createdAt: r.created_at, startedAt: r.started_at, finishedAt: r.finished_at,
   durationMs: r.duration_ms,
-  // Estimation faite à l'enqueue (server/jobs.js estimateMs), dans le payload.
+  // Estimate computed at enqueue (server/jobs.js estimateMs), in the payload.
   estimatedMs: p?.estimatedMs ?? null,
-  // Moteur et brouillon : le placeholder de la file les affiche.
+  // Engine and draft: shown by the queue placeholder.
   videoEngine: p?.videoEngine ?? undefined,
   videoDraft: p?.videoDraft ? true : undefined,
-  // Un seul registre : la réponse dit toujours « sfw », quelle que soit la base.
+  // A single register: the response always says "sfw", whatever the database holds.
   status: r.status, personaId: r.persona_id, register: 'sfw',
   mode: r.mode, purpose: r.purpose, recipeId: r.recipe_id, workflowFile: r.workflow_file,
   comfyPromptId: r.comfy_prompt_id, seed: r.seed, userPrompt: r.user_prompt,
   userDirectives: r.user_directives, composedPositive: r.composed_positive,
   composedNegative: r.composed_negative, selections: parse(r.selections), error: r.error,
-  // champs ajoutés : l'opération du job et, pour un morceau ou un bruitage, ses réglages et ses prises (studio son)
+  // added fields: the job operation and, for a track or sound effect, its settings and takes (sound studio)
   op: p?.op ?? undefined,
   audio: p?.op === 'musique' ? reglagesAudio(r, p) : undefined,
 }))((() => { try { return JSON.parse(r.payload || 'null') } catch { return null } })())
 
-/** Réglages d'un rendu musique / bruitage (cf. enqueueMusique) et ses prises encore dans la bibliothèque audio
- *  (même nommage que runMusique : <racine>_<6 car. de l'id>.mp3, puis _2, _3…). */
+/** Settings of a music / sound effect render (see enqueueMusique) and its takes still in the audio library
+ *  (same naming as runMusique: <root>_<6 chars of id>.mp3, then _2, _3...). */
 function reglagesAudio(r, p) {
   const racine = String(p.userPrompt ?? '').normalize('NFD').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'musique'
   const prises = r.status === 'done'
@@ -196,11 +193,11 @@ function reglagesAudio(r, p) {
   }
 }
 
-/** Ce qu'on peut chercher sur un asset en plus du prompt : recette, moteur, opération, LoRA. */
+/** Searchable fields of an asset besides the prompt: recipe, engine, operation, LoRA. */
 const motsDe = r => {
   const loras = []
   for (const brut of [r.job_loras, r.job_video_loras]) {
-    try { for (const l of JSON.parse(brut || '[]') ?? []) if (l?.name) loras.push(String(l.name).split('/').pop().replace(/\.safetensors$/i, '')) } catch { /* champ absent ou illisible */ }
+    try { for (const l of JSON.parse(brut || '[]') ?? []) if (l?.name) loras.push(String(l.name).split('/').pop().replace(/\.safetensors$/i, '')) } catch { /* missing or unreadable field */ }
   }
   return [r.recipe_id, r.workflow_file, r.video_engine, r.op, r.id, ...loras].filter(Boolean).join(' ').toLowerCase()
 }
@@ -212,26 +209,26 @@ const assetOut = r => r && ({
   aspect: r.aspect, register: 'sfw', reviewStatus: r.review_status,
   exportReady: !!r.export_ready,
   op: r.op ?? 'generate', videoEngine: r.video_engine ?? undefined,
-  // objet 3D : le GLB à côté de son tour en maquette
+  // 3D object: the GLB next to its turntable preview
   modele3d: r.job_op === 'objet3d' ? `/media/${r.job_id}.glb` : undefined,
-  // Brouillon 0,4 MP : lu du payload du job (json_extract) — pas de colonne
-  // dédiée, le job est la source de vérité et le badge doit être rétroactif.
+  // 0.4 MP draft: read from the job payload (json_extract), no dedicated column;
+  // the job is the source of truth and the badge applies retroactively.
   videoDraft: r.video_draft ? true : undefined,
   batchId: r.batch_id ?? undefined,
-  // agrandissement (Photo HD, upscale) : l'asset d'origine, pour le curseur avant / après
+  // upscale (Photo HD, upscale): the source asset, for the before/after slider
   parentAssetId: r.parent_asset_id ?? undefined,
   origineUri: r.origine_uri ?? undefined,
-  // appartenances multiples (origines de carrousels) — fusionnées côté front
+  // multiple memberships (carousel sources), merged on the front end
   batchIds: r.batch_ids ? (() => { try { return JSON.parse(r.batch_ids) } catch { return undefined } })() : undefined,
   batchLocks: r.carousel_locks ? (() => { try { return JSON.parse(r.carousel_locks) } catch { return undefined } })() : undefined,
-  // Durée du rendu du job (ms). 0 = inconnue (repris sans date de départ) :
-  // le front n'affiche rien plutôt qu'un « 0 s » faux.
+  // Job render duration (ms). 0 = unknown (resumed without start time):
+  // the front end shows nothing rather than a wrong "0 s".
   renderMs: r.render_ms ?? undefined,
-  // contrôle automatique du clip (défauts horodatés, score de visage), cf. server/controle.js
+  // automatic clip check (timestamped defects, face score), see server/controle.js
   controle: r.controle ? (() => { try { return JSON.parse(r.controle) } catch { return undefined } })() : undefined,
-  /* Provenance jointe (cf. db.ASSET_SELECT) : c'est ce qui rend un asset
-     rechargé depuis la base clonable côté front. Le workflow injecté n'est
-     PAS ici — trop lourd ; il vit sur /api/assets/:id/provenance. */
+  /* Joined provenance (see db.ASSET_SELECT): makes an asset reloaded from the
+     database clonable on the front end. The injected workflow is NOT here (too
+     heavy); it is served by /api/assets/:id/provenance. */
   recipeId: r.recipe_id ?? undefined,
   search: motsDe(r),
   seed: r.seed == null ? undefined : { mode: 'lock', value: r.seed },
@@ -244,7 +241,7 @@ const assetOut = r => r && ({
   promptVision: r.prompt_vision ?? undefined,
   promptReecrit: r.prompt_reecrit ?? undefined,
   videoFps: r.video_fps ?? undefined,
-  // badges des cartes : son, plan d'ambiance (texte → vidéo), recette photo, finition
+  // card badges: sound, ambient shot (text -> video), photo recipe, finish
   withAudio: r.with_audio ? true : undefined,
   t2v: r.t2v ? true : undefined,
   photoEngine: r.photo_engine ?? undefined,
@@ -256,8 +253,8 @@ const assetOut = r => r && ({
 
 /* ---------- API ---------- */
 
-/** La persona telle que le front la voit : rien d'autre que la configuration
- *  (aucun chemin de fichier). `name` null si non configurée. */
+/** The persona as the front end sees it: configuration only (no file path).
+ *  `name` null if not configured. */
 const personaPublique = (id) => {
   const p = persona(id)
   const actif = id === undefined || id === personas().active
@@ -267,14 +264,14 @@ const personaPublique = (id) => {
     configured: Boolean(p.name || p.trigger || p.loras.length) }
 }
 
-/* Diagnostic de la machine : GET rend le dernier (ou en lance un s'il a plus
-   de 2 min) ; ?frais=1 force un contrôle complet (~4 s). Lecture seule. */
-/* Journal pour un rapport de bug : ce qu'un utilisateur colle dans une issue
-   GitHub. Rien de privé : les chemins absolus sont masqués, aucune clé, aucun prompt. */
+/* Machine diagnostic: GET returns the last one (or runs one if older than
+   2 min); ?frais=1 forces a full check (~4 s). Read-only. */
+/* Log for a bug report, to paste into a GitHub issue. Nothing private:
+   absolute paths are masked, no key, no prompt. */
 const VERSION_STUDIO = (() => {
   let v = '0'
-  try { v = JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')).version } catch { /* sans package.json */ }
-  try { v += '+' + execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: path.dirname(new URL(import.meta.url).pathname), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { /* hors dépôt git */ }
+  try { v = JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'package.json'), 'utf8')).version } catch { /* no package.json */ }
+  try { v += '+' + execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: path.dirname(new URL(import.meta.url).pathname), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { /* not a git repo */ }
   return v
 })()
 const sansChemins = x => String(x ?? '').replace(/(?:\/[\w.@+-]+){2,}\/?/g, '<chemin>').replace(/[A-Z]:\\[^\s"']+/g, '<chemin>').slice(0, 300)
@@ -292,9 +289,9 @@ app.get('/api/diagnostic', async (req) => ({
   ...await diagnostiquer({ recettes: recettesServies(), frais: req.query?.frais === '1' }),
   liaison: { ...comfy.etatLiaison(), bilan: bilanRetour },
 }))
-/* Bilan après un redémarrage de ComfyUI : dès qu'il répond de nouveau, le
-   diagnostic complet est refait — une extension qui ne charge plus, un nœud de
-   recette disparu sont annoncés tout de suite, pas au premier rendu qui échoue. */
+/* After a ComfyUI restart: once it responds again, the full diagnostic is
+   rerun so a broken extension or missing recipe node is reported right
+   away, not at the first failing render. */
 let bilanRetour = null
 comfy.onRetourComfy(async () => {
   await comfy.waitReady().catch(() => {})
@@ -303,14 +300,14 @@ comfy.onRetourComfy(async () => {
   console.log(`[comfy] revenu après ${Math.round((comfy.etatLiaison().coupureMs ?? 0) / 1000)} s — bilan : `
     + (d.bloquants || d.alertes ? `${d.bloquants} bloquant(s), ${d.alertes} alerte(s)` : 'rien à signaler'))
 })
-/* Fige les versions actuelles de ComfyUI et de ses extensions comme référence. */
+/* Freezes current versions of ComfyUI and its extensions as the baseline. */
 app.post('/api/diagnostic/figer', async () => {
   const r = await figerNoeuds()
   await diagnostiquer({ recettes: recettesServies(), frais: true })
   return r
 })
 
-/* Machines modestes : profil de VRAM et variantes allégées prêtes ou manquantes. */
+/* Small machines: VRAM profile and lighter variants ready or missing. */
 app.get('/api/machine/allegement', async () => etatAllegement())
 
 app.get('/api/health', async req => {
@@ -326,39 +323,37 @@ app.get('/api/health', async req => {
     queue: queueDepth(), recipes: RECIPES, swapWorkflow: null,
     videoEngines: VIDEO_ENGINES, defaultVideoEngine: DEFAULT_VIDEO_ENGINE, h3: await etatH3().catch(() => null),
     composerModels: CONFIG.composerModels,
-    // chemins du serveur : au propriétaire seulement (la démo publique est sur Internet)
+    // server paths: owner only (the public demo is on the Internet)
     ...(estProprietaire(req) ? { workflowsDir: CONFIG.workflowsDir, promptsDir: CONFIG.promptsDir,
       mediaDir: CONFIG.mediaDir, db: CONFIG.dbFile } : {}),
     ollamaUnload: CONFIG.ollamaUnload,
-    // Studio verrouillé par une clé de propriétaire (le front masque l'édition).
+    // Studio locked by an owner key (the front end hides editing).
     verrou: !!CONFIG.cleProprietaire,
-    // Le front lit ces listes au montage au lieu d'en porter une copie.
+    // The front end reads these lists on mount instead of keeping a copy.
     t0Blocklist: T0_BLOCKLIST,
-    // Les couches que le serveur préfixe au prompt, pour que la console les
-    // montre (bloc « ce qui partira vraiment ») — affichage prédictif, la
-    // vérité reste la provenance après rendu.
+    // Layers the server prefixes to the prompt, so the console can show them
+    // ("what will actually be sent" block). Predictive display; provenance
+    // after render is authoritative.
     preambles: identityPreambleFor() ? { sfw: identityPreambleFor().text } : {},
     registerClauses: {},
-    // La persona active (nom null si non configurée : le front a son repli).
+    // The active persona (name null if not configured: the front end has its fallback).
     persona: personaPublique(),
-    // Coefficients mesurés du temps de rendu (estimation avant envoi).
+    // Measured render time coefficients (estimate before submission).
     renderRates: RENDER_RATES,
-    // Qui tient la carte graphique (ComfyUI ou Ollama), et qui attend.
+    // Who holds the GPU (ComfyUI or Ollama), and who is waiting.
     gpu: etatGpu(),
-    // dernier diagnostic connu (sans en relancer un) : l'interface affiche un voyant
+    // last known diagnostic (without rerunning it): the UI shows an indicator
     diagnostic: resumeDiagnostic(),
   }
 })
 
-/** Inventaire des LoRA, avec leur ARCHITECTURE réelle (lue dans l'en-tête,
- *  pas devinée du nom) : le front peut ainsi n'offrir que celles qui
- *  s'appliquent au moteur Z-Image, et griser les autres au lieu de les
- *  masquer sans explication. */
-/* ---------- télémétrie machine ----------
-   GPU par nvidia-smi (la vérité du driver), CPU par /proc/stat (delta entre
-   deux appels — le premier rend null) et k10temp (Tctl des processeurs AMD) ;
-   ailleurs la température reste null. Poll léger pensé pour un
-   rafraîchissement de topbar toutes les ~5 s. Linux seulement. */
+/** LoRA inventory with their real ARCHITECTURE (read from the header, not
+ *  guessed from the name): the front end can offer only those that apply to
+ *  the Z-Image engine and grey out the others with an explanation. */
+/* ---------- machine telemetry ----------
+   GPU via nvidia-smi, CPU via /proc/stat (delta between two calls; the
+   first returns null) and k10temp (Tctl of AMD CPUs); elsewhere temperature
+   stays null. Lightweight poll for a topbar refresh every ~5 s. Linux only. */
 let cpuPrev = null
 function cpuUtil() {
   const line = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].trim().split(/\s+/).slice(1).map(Number)
@@ -370,9 +365,9 @@ function cpuUtil() {
   return Math.round((1 - (idle - prev.idle) / (total - prev.total)) * 100)
 }
 
-/* Une seule mesure partagée par tous les clients, rafraîchie au plus toutes les 4 s, et lue sans
-   bloquer le serveur : sinon chaque onglet ouvert relançait nvidia-smi toutes les 5 s, et le delta
-   CPU, commun à tous, devenait faux. */
+/* A single measurement shared by all clients, refreshed at most every 4 s and read without
+   blocking the server, so open tabs do not each spawn nvidia-smi and the shared CPU delta
+   stays correct. */
 let telemetrie = { quand: 0, valeur: null, enCours: null }
 const execFileAsync = promisify(execFile)
 app.get('/api/telemetry', async () => {
@@ -386,10 +381,10 @@ async function mesurerTelemetrie() {
     const out = (await execFileAsync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
       '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 })).stdout.trim().split(',').map(x => x.trim())
     gpu = { util: Number(out[0]), temp: Number(out[1]), vramUsedMb: Number(out[2]), vramTotalMb: Number(out[3]), nom: String(out[4] ?? '').replace(/^NVIDIA\s+(GeForce\s+)?/, '') }
-  } catch { /* driver occupé : la topbar garde la dernière valeur */ }
+  } catch { /* driver busy: the topbar keeps the last value */ }
   let cpuTemp = null
   try {
-    // k10temp = capteur Tctl des processeurs AMD.
+    // k10temp = Tctl sensor of AMD CPUs.
     for (const d of fs.readdirSync('/sys/class/hwmon')) {
       const base = `/sys/class/hwmon/${d}`
       if (fs.readFileSync(`${base}/name`, 'utf8').trim() === 'k10temp') {
@@ -397,56 +392,54 @@ async function mesurerTelemetrie() {
         break
       }
     }
-  } catch { /* capteur absent : null affiché comme — */ }
+  } catch { /* no sensor: null shown as — */ }
   let ram = null
   try {
-    // RAM système : utilisé = total − disponible (MemAvailable tient compte
-    // du cache récupérable, contrairement à MemFree).
+    // System RAM: used = total - available (MemAvailable accounts for
+    // reclaimable cache, unlike MemFree).
     const mi = Object.fromEntries(fs.readFileSync('/proc/meminfo', 'utf8').split('\n')
       .map(l => l.split(':')).filter(a => a.length === 2)
       .map(([k, v]) => [k.trim(), parseInt(v, 10)]))
     if (mi.MemTotal) ram = { usedMb: Math.round((mi.MemTotal - mi.MemAvailable) / 1024), totalMb: Math.round(mi.MemTotal / 1024) }
-  } catch { /* /proc absent : — */ }
+  } catch { /* no /proc: — */ }
   return { gpu, cpu: { util: cpuUtil(), temp: cpuTemp }, ram }
 }
 
 app.get('/api/loras', async () => comfy.listLoras())
 
-/** Réécriture de prompt par LLM local, sur CPU. Synchrone à dessein : le
- *  front attend le texte pour l'afficher dans « Prompt composé », où
- *  l'opérateur le relit et le corrige avant d'envoyer le job. */
-/* Cache court des compositions. Le LLM tourne sur CPU (50 à 105 s mesurés)
-   et un téléphone verrouille son écran avant la réponse : le fetch
-   est abandonné côté client, mais Ollama, lui, va au bout. On garde donc la
-   promesse EN VOL et le résultat 10 min par (registre, prompt, directives) :
-   un second tap rend la réponse déjà calculée au lieu de relancer 100 s.
-   Clé sur le texte BRUT, avant tirage wildcard : le retap retrouve le même
-   tirage. Un échec vide l'entrée, pour qu'on puisse réessayer. */
+/** Prompt rewriting by local LLM, on CPU. Synchronous on purpose: the front
+ *  end waits for the text to show it in "Prompt composé", where the operator
+ *  reviews and edits it before submitting the job. */
+/* Short cache of compositions. The LLM runs on CPU (about a minute or more) and
+   a phone may lock its screen before the response: the client fetch is
+   aborted but Ollama completes. So the IN-FLIGHT promise and the result are
+   kept 10 min per (register, prompt, directives): a second tap returns the
+   computed response instead of rerunning. Keyed on the RAW text, before the
+   wildcard draw, so a retap gets the same draw. A failure clears the entry
+   so it can be retried. */
 const composeCache = new Map()
 const COMPOSE_TTL_MS = 10 * 60 * 1000
 app.post('/api/compose', async (req, reply) => {
   const { userPrompt, userDirectives, mode, engine, soul, mood, anchorUri, anchorFile, previousPrompt, keepOutfit } = req.body || {}
   const register = 'sfw'
-  /* Continuation (onglet Étendre) : le prompt du clip prolongé. Borné — il
-     ne sert que de contexte, et un texte démesuré évincerait la consigne. */
+  /* Continuation (Extend tab): the prompt of the extended clip. Bounded: it is
+     context only, and an oversized text would crowd out the instruction. */
   const prevPrompt = typeof previousPrompt === 'string' && previousPrompt.trim()
     ? previousPrompt.trim().slice(0, 6000) : null
 
-  /* ---------- contexte visuel ----------
-     Une still de départ (i2v, Move) ou une image source (retouche) est
-     décrite par le VLM AVANT la réécriture, et la description est cousue dans
-     le message utilisateur. Sans elle le réécriveur invente la tenue et la
-     pose : il change une robe, ou fait se lever un sujet assis.
-     Le VLM tourne sur CPU (num_gpu 0, comme le réécriveur) : il ne peut pas
-     entrer en concurrence avec un rendu ComfyUI. */
-  /* On décrit LE FICHIER QUE LE RENDU UTILISERA, pas une vignette choisie
-     par ressemblance. `anchorFile` est le nom déjà déposé dans l'input de
-     ComfyUI — exactement ce que le job enverra en `sourceImage` / `motionRef`.
-     C'est la seule source qui ne peut pas diverger de l'image réellement
-     animée, et elle couvre aussi les uploads (dont l'URI front est un
-     `blob:` illisible côté serveur).
-     `anchorUri` reste un repli pour les cas où le dépôt n'a pas encore eu
-     lieu. basename() dans les deux cas : le nom vient du client. */
+  /* ---------- visual context ----------
+     A start still (i2v, Move) or a source image (edit) is described by the VLM
+     BEFORE rewriting, and the description is stitched into the user message.
+     Without it the rewriter invents outfit and pose.
+     The VLM runs on CPU (num_gpu 0, like the rewriter): it cannot compete with
+     a ComfyUI render. */
+  /* Describe THE FILE THE RENDER WILL USE, not a thumbnail picked by
+     similarity. `anchorFile` is the name already placed in ComfyUI's input,
+     exactly what the job sends as `sourceImage` / `motionRef`. It cannot
+     diverge from the image actually animated, and it also covers uploads
+     (whose front-end URI is a `blob:` unreadable on the server).
+     `anchorUri` is a fallback when the upload has not happened yet.
+     basename() in both cases: the name comes from the client. */
   let sceneDesc = null
   let outfitAnchor = null
   {
@@ -457,12 +450,11 @@ app.post('/api/compose', async (req, reply) => {
       abs = pathz.join(CONFIG.comfyInput, pathz.basename(anchorFile))
     else if (typeof anchorUri === 'string' && anchorUri.startsWith('/media/'))
       abs = pathz.join(CONFIG.mediaDir, pathz.basename(anchorUri))
-    /* « Tenue de l'image » : en PLUS de la description complète, un appel VLM
-       dédié qui ne rend que les vêtements (même fonction que l'ancre du
-       carrousel, doublée du filtre code `filterOutfit`). Le texte obtenu est
-       inséré TEL QUEL dans le prompt par le composeur — il ne dépend donc pas
-       de l'obéissance du réécriveur, contrairement à une directive écrite.
-       Les deux appels partent ensemble : ils lisent la même image. */
+    /* "Tenue de l'image": in ADDITION to the full description, a dedicated VLM
+       call returning only the clothes (same function as the carousel anchor, plus
+       the `filterOutfit` code filter). The composer inserts that text AS IS into
+       the prompt, so it does not depend on the rewriter obeying. Both calls run
+       together: they read the same image. */
     if (abs) {
       const [sd, od] = await Promise.all([
         describeScene(abs),
@@ -472,15 +464,14 @@ app.post('/api/compose', async (req, reply) => {
       outfitAnchor = od
     }
   }
-  // Le texte du réécriveur (relu du disque, éditable dans le Workbench) fait
-  // partie de la clé : une consigne modifiée ne doit pas servir une réponse
-  // calculée avec l'ancienne pendant dix minutes. `system` reflète déjà les
-  // couches SOUL/MOOD si activées (défaut OFF = système inchangé), donc la clé
-  // de cache les distingue automatiquement.
+  // The rewriter text (read from disk, editable in the Workbench) is part of
+  // the key so an edited instruction does not serve a response computed with
+  // the old one. `system` already reflects SOUL/MOOD layers when enabled
+  // (default OFF = unchanged system), so the cache key distinguishes them.
   let system = ''
-  try { system = composer.systemFor(register, mode ?? 'photo', engine ?? null, { soul: soul ?? null, mood: mood ?? null }) } catch { /* compose() lèvera proprement */ }
-  /* La description de l'image fait partie de la clé : changer de still doit
-     donner une autre réécriture, pas la réponse calculée sur la précédente. */
+  try { system = composer.systemFor(register, mode ?? 'photo', engine ?? null, { soul: soul ?? null, mood: mood ?? null }) } catch { /* compose() will throw cleanly */ }
+  /* The image description is part of the key: changing the still must give a
+     different rewrite. */
   const key = JSON.stringify([register, mode ?? 'photo', system, userPrompt ?? '', userDirectives ?? '', sceneDesc ?? '', prevPrompt ?? '', outfitAnchor ?? ''])
   const hit = composeCache.get(key)
   const fresh = hit && Date.now() - hit.at < COMPOSE_TTL_MS
@@ -494,29 +485,29 @@ app.post('/api/compose', async (req, reply) => {
     const out = await entry.promise
     app.log.info(`compose ${out.model} (${out.device}) ${out.ms} ms, ${out.tokens} tok`
       + `${sceneDesc ? ' [+image]' : ''}${prevPrompt ? ' [+plan précédent]' : ''}${fresh ? ' [cache]' : ''}`)
-    /* `sceneDesc` remonte au front : l'opérateur doit pouvoir vérifier CE QUE
-       le VLM a vu quand la réécriture le surprend — une description fausse et
-       une consigne mal suivie ne se corrigent pas au même endroit. */
-    /* `outfitRequested` distingue « pas demandé » de « demandé mais aucune
-       tenue vue » : le front le dit à l'opérateur. */
+    /* `sceneDesc` is returned to the front end so the operator can check WHAT the
+       VLM saw: a wrong description and an ignored instruction are fixed in
+       different places. */
+    /* `outfitRequested` distinguishes "not requested" from "requested but no
+       outfit seen": the front end tells the operator. */
     return { ...out, cached: Boolean(fresh), sceneDesc, continuation: Boolean(prevPrompt),
              outfitAnchor, outfitRequested: keepOutfit === true }
   } catch (e) {
-    // 502 et pas 500 : la panne est chez Ollama, pas dans CreatorOS. Le front
-    // doit pouvoir le dire à l'opérateur au lieu d'afficher « erreur ».
+    // 502, not 500: the failure is in Ollama, not CreatorOS. The front end
+    // can say so to the operator instead of showing "error".
     reply.code(502)
     return { error: String(e.message || e) }
   }
 })
 
-/* ---------- recettes : lecture et édition depuis le Workbench ----------
-   Le Workbench édite les fichiers RÉELLEMENT SERVIS. `loadWorkflow` relit le
-   disque à chaque job, donc une écriture prend effet au job suivant, sans
-   redémarrage — et une recette cassée casserait la production. D'où la
-   validation côté serveur, avant écriture, et pas seulement dans le navigateur. */
+/* ---------- recipes: read and edit from the Workbench ----------
+   The Workbench edits the files ACTUALLY SERVED. `loadWorkflow` re-reads the
+   disk on each job, so a write takes effect on the next job without restart,
+   and a broken recipe would break production. Hence server-side validation
+   before writing, not only in the browser. */
 
-/** Qui utilise ce fichier. C'est ce qui distingue une recette de production
- *  d'un fichier d'essai oublié dans le même dossier. */
+/** Who uses this file. Distinguishes a production recipe from a leftover
+ *  test file in the same folder. */
 function workflowUsage(file) {
   const uses = []
   for (const [reg, f] of Object.entries(RECIPES))
@@ -551,9 +542,9 @@ app.get('/api/workflows/:file', async (req, reply) => {
   }
 })
 
-/* Revue d'une recette : injection d'ESSAI (aucun rendu) pour lister ce que le
-   câblage pilote réellement, lecture de la déclaration voisine, et contrôle des
-   nœuds et des fichiers nommés contre ComfyUI. */
+/* Recipe review: TEST injection (no render) to list what the wiring actually
+   drives, reading of the sibling declaration, and check of named nodes and
+   files against ComfyUI. */
 app.get('/api/workflows/:file/revue', async (req, reply) => {
   let wf
   try { wf = comfy.loadWorkflow(req.params.file) } catch (e) { reply.code(e.code === 'ENOENT' ? 404 : 400); return { error: String(e.message || e) } }
@@ -608,21 +599,20 @@ app.put('/api/workflows/:file', async (req, reply) => {
   try {
     return comfy.writeWorkflow(req.params.file, text, Number(baseMtimeMs))
   } catch (e) {
-    // 409 et pas 400 : l'opérateur n'a rien écrit de faux, sa base a bougé.
-    // Le front doit pouvoir distinguer « ton JSON est cassé » de « quelqu'un
-    // d'autre — ou un script — a touché le fichier pendant que tu éditais ».
+    // 409, not 400: the operator wrote nothing wrong, the base changed.
+    // The front end can tell "your JSON is broken" from "someone else, or a
+    // script, touched the file while you were editing".
     reply.code(e.code === 'CONFLIT' ? 409 : 400)
     return { error: String(e.message || e), conflict: e.code === 'CONFLIT' || undefined,
              currentMtimeMs: e.currentMtimeMs }
   }
 })
 
-/* ---------- textes de façonnage : même mécanique que les recettes ----------
-   Lus par le serveur à chaque job, donc une écriture prend effet au job
-   suivant. Validation volontairement plus légère : ce sont des textes libres,
-   le seul refus est le vide. */
+/* ---------- shaping texts: same mechanism as recipes ----------
+   Read by the server on each job, so a write takes effect on the next job.
+   Lighter validation: they are free texts, only empty is refused. */
 
-/** Ce que le fichier pilote — sert aux badges du Workbench. */
+/** What the file drives: used for Workbench badges. */
 function promptUsage(file) {
   const m = prompts.PROMPT_META[file]
   return m ? { kind: m.kind, label: m.label, registers: m.registers } : { kind: 'autre', label: 'Texte', registers: [] }
@@ -640,9 +630,9 @@ app.get('/api/prompts', async () => ({
 app.get('/api/prompts/:file', async (req, reply) => {
   try {
     const raw = prompts.readPromptRaw(req.params.file)
-    // Garde-fou anti-apparence sur les couches SOUL/MOOD : elles ne doivent
-    // décrire QUE comportement/atmosphère. Non bloquant — juste un signal
-    // Workbench (liste des mots d'apparence détectés).
+    // Appearance guard on SOUL/MOOD layers: they must describe ONLY
+    // behaviour/atmosphere. Non-blocking: just a Workbench signal (list of
+    // appearance words detected).
     const appearanceWarnings = /^(soul_|mood_)/.test(req.params.file)
       ? composer.lintAppearance(raw.text) : []
     return { ...raw, ...promptUsage(req.params.file), appearanceWarnings }
@@ -664,25 +654,23 @@ app.put('/api/prompts/:file', async (req, reply) => {
   }
 })
 
-/* ---------- dépôt d'image source (recettes d'édition) ----------
-   Corps BRUT plutôt que multipart ou base64 : un JPEG d'iPhone dépasse
-   volontiers 8 Mio, et le base64 l'enflerait encore d'un tiers. Le nom
-   voulu passe en query.
+/* ---------- source image upload (edit recipes) ----------
+   RAW body rather than multipart or base64: a phone JPEG easily exceeds
+   8 MiB, and base64 would add a third. The desired name goes in the query.
 
-   Le fichier atterrit dans le dossier `input/` de ComfyUI, seul endroit
-   qu'un nœud LoadImage sait lire. */
+   The file lands in ComfyUI's `input/` folder, the only place a LoadImage
+   node can read. */
 const UPLOAD_TYPES = {
   'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp',
-  // Vidéos : le driver du Motion Control. Le .mov des iPhone est du QuickTime.
+  // Videos: the Motion Control driver. iPhone .mov is QuickTime.
   'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm',
 }
 app.addContentTypeParser(Object.keys(UPLOAD_TYPES), { parseAs: 'buffer' },
   (req, body, done) => done(null, body))
 
-/** Dimensions d'une image, lues dans son en-tête — sans dépendance.
- *  Elles servent à caler le latent sur le FORMAT de la référence ControlNet :
- *  une carte de contrôle en 1:2,9 poussée dans un latent 2:3 est recadrée en
- *  silence, et on attribue ensuite le mauvais cadrage au modèle. */
+/** Image dimensions, read from its header, no dependency. Used to fit the
+ *  latent to the ControlNet reference ASPECT: a control map pushed into a
+ *  latent of another ratio is silently cropped. */
 function imageSize(buf) {
   if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47)          // PNG
     return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
@@ -693,7 +681,7 @@ function imageSize(buf) {
     if (t === 'VP8 ') return { width: buf.readUInt16LE(26) & 0x3fff,
                                height: buf.readUInt16LE(28) & 0x3fff }
   }
-  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {         // JPEG : marqueur SOFn
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {         // JPEG: SOFn marker
     let i = 2
     while (i + 9 < buf.length) {
       if (buf[i] !== 0xff) { i++; continue }
@@ -715,9 +703,9 @@ function enregistrerEnvoi(req, reply) {
   if (!Buffer.isBuffer(buf) || !buf.length) { reply.code(400); return { error: 'corps vide' } }
   if (buf.length > 48 * 1024 * 1024) { reply.code(413); return { error: 'fichier > 48 Mio' } }
 
-  // Le nom de l'opérateur ne sert qu'à rester reconnaissable dans le dossier :
-  // il est réduit à un jeu de caractères sûr et préfixé d'un horodatage, sinon
-  // deux dépôts du même « IMG_0042.jpg » s'écraseraient en silence.
+  // The operator's name only keeps the file recognizable in the folder: it is
+  // reduced to a safe charset and prefixed with a timestamp, otherwise two
+  // uploads of the same "IMG_0042.jpg" would silently overwrite each other.
   const raw = String(req.query.name || 'source').replace(/\.[^.]*$/, '')
   const stem = raw.normalize('NFD').replace(/[^\w-]+/g, '_').slice(0, 40) || 'source'
   const filename = `crs_${Date.now().toString(36)}_${stem}${ext}`
@@ -725,16 +713,16 @@ function enregistrerEnvoi(req, reply) {
   fs.writeFileSync(path.join(CONFIG.comfyInput, filename), buf)
   store.noterInput(filename, 'upload')
   const { width, height } = imageSize(buf)
-  // Vidéo (driver) : durée et images telles que la chaîne motion les verra,
-  // pour l'estimation avant envoi.
+  // Video (driver): duration and frames as the motion chain will see them,
+  // for the estimate before submission.
   const video = ext.startsWith('.m') || ext === '.webm' ? driverMeta(filename) : null
   app.log.info(`upload → ${filename} (${(buf.length / 1e6).toFixed(1)} Mo, ${width}x${height}${video ? `, ${video.seconds.toFixed(1)} s / ${video.frames} images` : ''})`)
   return { filename, bytes: buf.length, width, height, ...(video ? { durationS: video.seconds, frames: video.frames, fps: video.fps } : {}) }
 }
 
-/* Filmer un geste au téléphone : le propriétaire ouvre un QR code, le téléphone envoie
-   la vidéo vers Motion. Le jeton remplace la clé propriétaire pour UN envoi vidéo, 10 min ; seul
-   le propriétaire peut en créer. Le fichier reste un « upload » : un visiteur ne peut pas s'en servir. */
+/* Filming a gesture with a phone: the owner opens a QR code, the phone uploads the video to
+   Motion. The token replaces the owner key for ONE video upload, 10 min; only the owner can
+   create one. The file stays an "upload": a visitor cannot use it. */
 const jetonsTelephone = new Map()
 const JETON_MS = 10 * 60 * 1000
 const jetonValide = j => { const e = jetonsTelephone.get(String(j)); return e && e.fin > Date.now() ? e : null }
@@ -772,14 +760,14 @@ m.textContent='Sending…';try{const r=await fetch(location.pathname.replace('/t
 })
 
 /* ---------- persona ----------
-   GET /api/persona : la persona active (cf. server/persona.js) — nom,
-   description, mot déclencheur, LoRA. PUT l'enregistre dans `persona.json`
-   (éditeur de la vue Personnage) ; un champ fixé par variable d'environnement
-   reste prioritaire et est signalé dans `figes`.
+   GET /api/persona: the active persona (see server/persona.js): name,
+   description, trigger word, LoRA. PUT saves it to `persona.json`
+   (Character view editor); a field set by environment variable takes
+   priority and is flagged in `figes`.
 
-   Photo de profil : un seul fichier, `media/.persona/avatar.<ext>`, remplacé à
-   chaque dépôt. Servi par GET avec le mtime en jeton de cache côté front (?v=).
-   Rien en base : c'est un fichier de présentation, pas une donnée de rendu. */
+   Profile photo: a single file, `media/.persona/avatar.<ext>`, replaced on
+   each upload. Served by GET with the mtime as front-end cache token (?v=).
+   Nothing in the database: it is a presentation file, not render data. */
 const corpsPersonaRefuse = (c) => {
   if (!c || typeof c !== 'object') return 'corps JSON attendu'
   for (const champ of ['name', 'description', 'preamble', 'trigger']) {
@@ -789,7 +777,7 @@ const corpsPersonaRefuse = (c) => {
     if (t0Hit(`${x?.label ?? ''} ${x?.prompt ?? ''}`)) return 'terme interdit dans la garde-robe'
   return null
 }
-/* Page Créateur : lecture libre ; écriture filtrée (T0, liens https seulement). */
+/* Creator page: open read; filtered write (T0, https links only). */
 app.get('/api/createur', async () => lireCreateur())
 app.put('/api/createur', async (req, reply) => {
   const c = req.body ?? {}
@@ -808,9 +796,9 @@ app.put('/api/persona', async (req, reply) => {
   return personaPublique()
 })
 
-/* Plusieurs personnages : liste, création (vide ou copie), activation,
-   modification et suppression. Un rendu garde le personnage actif à son
-   dépôt (job.personaId) ; en changer n'affecte que les rendus suivants. */
+/* Multiple characters: list, create (empty or copy), activate, edit and
+   delete. A render keeps the character active at submission (job.personaId);
+   switching only affects later renders. */
 app.get('/api/personas', async () => {
   const { active, list } = personas()
   return { active, personas: list.map(p => personaPublique(p.id)) }
@@ -829,8 +817,8 @@ app.put('/api/personas/:id', async (req, reply) => {
   if (!ok) { reply.code(404); return { error: 'personnage inconnu' } }
   return personaPublique(req.params.id)
 })
-/* Voix rattachée à un personnage (champ voix) : une voix du studio, une voix clonée de la
-   bibliothèque, ou null pour la détacher. Réservé au propriétaire (ROUTES_PROPRIETAIRE). */
+/* Voice attached to a character (voix field): a studio voice, a cloned library voice,
+   or null to detach. Owner only (ROUTES_PROPRIETAIRE). */
 app.put('/api/personas/:id/voix', async (req, reply) => {
   const brut = req.body?.voix
   const voix = brut === null || brut === '' ? null : voixAcceptee(brut, true)
@@ -849,11 +837,11 @@ app.delete('/api/personas/:id', async (req, reply) => {
   return { ok: true, active: personas().active }
 })
 
-/* Dépôt d'une LoRA d'identité (.safetensors) dans le dossier des LoRA de
-   ComfyUI. Corps brut en flux (application/octet-stream) : une LoRA pèse de
-   50 Mo à plus d'1 Go, elle ne passe pas en mémoire. L'en-tête safetensors est
-   vérifié après écriture — un fichier qui n'en est pas un est supprimé. Pas
-   d'écrasement silencieux : ?remplacer=1 pour remplacer un fichier existant. */
+/* Upload of an identity LoRA (.safetensors) into ComfyUI's LoRA folder. Raw
+   streamed body (application/octet-stream): a LoRA weighs 50 MB to over 1 GB
+   and does not fit in memory. The safetensors header is checked after
+   writing; a non-safetensors file is deleted. No silent overwrite:
+   ?remplacer=1 replaces an existing file. */
 const LORA_MAX = 2 * 1024 ** 3
 app.addContentTypeParser('application/octet-stream', (req, payload, done) => done(null, payload))
 app.post('/api/persona/lora', async (req, reply) => {
@@ -872,7 +860,7 @@ app.post('/api/persona/lora', async (req, reply) => {
       req.body.on('error', ko); out.on('error', ko); out.on('finish', ok)
       req.body.pipe(out)
     })
-    // safetensors : 8 octets de longueur d'en-tête (LE), puis un JSON
+    // safetensors: 8-byte header length (LE), then a JSON
     const fd = fs.openSync(tmp, 'r'), tete = Buffer.alloc(9)
     fs.readSync(fd, tete, 0, 9, 0); fs.closeSync(fd)
     const n = Number(tete.readBigUInt64LE(0))
@@ -885,14 +873,14 @@ app.post('/api/persona/lora', async (req, reply) => {
   app.log.info(`LoRA déposée → ${nom} (${(octets / 1e6).toFixed(0)} Mo)`)
   return { nom, octets, lora: comfy.listLoras().loras.find(l => l.name === nom) ?? null }
 })
-/* Une photo par personnage : media/.persona/<id>/avatar.<ext>. Sans `?id=`,
-   celle du personnage actif. */
+/* One photo per character: media/.persona/<id>/avatar.<ext>. Without `?id=`,
+   the active character's. */
 const AVATAR_DIR = path.join(CONFIG.mediaDir, '.persona')
 const AVATAR_EXTS = ['.png', '.jpg', '.webp']
 const idAvatar = id => String(id ?? personas().active ?? 'default').replace(/[^a-z0-9_]/g, '') || 'default'
 const avatarDir = id => path.join(AVATAR_DIR, idAvatar(id))
 const avatarFile = id => AVATAR_EXTS.map(e => path.join(avatarDir(id), `avatar${e}`)).find(f => fs.existsSync(f)) || null
-/* Ancienne forme (une seule photo à la racine) : rattachée au personnage actif. */
+/* Legacy layout (a single photo at the root): attached to the active character. */
 {
   const ancien = AVATAR_EXTS.map(e => path.join(AVATAR_DIR, `avatar${e}`)).find(f => fs.existsSync(f))
   if (ancien && personas().active && !avatarFile()) {
@@ -927,8 +915,8 @@ app.put('/api/persona/avatar', async (req, reply) => {
   return avatarMeta(id)
 })
 
-/* Photo de profil choisie parmi les rendus du personnage : recadrée en carré
-   (haut de l'image, où est le visage sur un portrait) et réduite à 512 px. */
+/* Profile photo picked among the character's renders: cropped square (top of
+   the image, where the face is on a portrait) and scaled to 512 px. */
 app.put('/api/persona/avatar/depuis-asset', async (req, reply) => {
   const row = store.getAsset(String(req.body?.assetId ?? ''))
   if (!row || row.media_type !== 'photo' || !row.filename) { reply.code(400); return { error: 'photo de la bibliothèque attendue' } }
@@ -938,7 +926,7 @@ app.put('/api/persona/avatar/depuis-asset', async (req, reply) => {
   const dir = avatarDir(id)
   fs.mkdirSync(dir, { recursive: true })
   const tmp = path.join(dir, 'avatar.tmp.jpg')
-  // carré pris en haut d'un portrait (le visage), au centre d'un paysage
+  // square taken from the top of a portrait (the face), centered on a landscape
   const w = Number(row.width) || 0, h = Number(row.height) || 0
   const cote = Math.min(w, h)
   const crop = cote ? `crop=${cote}:${cote}:${Math.round((w - cote) / 2)}:${h > w ? Math.round(h * 0.06) : 0}` : 'crop=min(iw\\,ih):min(iw\\,ih)'
@@ -951,15 +939,15 @@ app.put('/api/persona/avatar/depuis-asset', async (req, reply) => {
   return avatarMeta(id)
 })
 
-/** Clé Comfy Cloud du visiteur (en-tête X-Comfy-Key), si présente. Jamais
- *  journalisée ni enregistrée : elle part avec le job, en mémoire. */
+/** Visitor's Comfy Cloud key (X-Comfy-Key header), if present. Never logged
+ *  or stored: it travels with the job, in memory. */
 function cleComfy(req) {
   const v = String(req.headers['x-comfy-key'] ?? '').trim()
   return v && v.length <= 400 && /^[\x21-\x7e]+$/.test(v) ? v : null
 }
 
-/* LoRA des personnages sur Comfy Cloud (cf. cloud-loras.js). Toujours en POST :
-   c'est la seule méthode à laquelle le front joint la clé du visiteur. */
+/* Character LoRAs on Comfy Cloud (see cloud-loras.js). Always POST: the only
+   method the front end attaches the visitor key to. */
 function exigerCle(req) {
   const cle = cleComfy(req)
   if (!cle) { const e = new Error('clé Comfy Cloud absente : l’enregistrer dans Paramètres → Comfy Cloud'); e.statusCode = 401; throw e }
@@ -970,15 +958,15 @@ app.post('/api/cloud/loras/importer', async req =>
   importerCloud(exigerCle(req), { persona: typeof req.body?.persona === 'string' ? req.body.persona : undefined }))
 app.post('/api/cloud/taches/:id', async req => tacheCloud(exigerCle(req), req.params.id))
 
-/** Dépôt d'un job. Répond tout de suite (202) : la génération est
- *  asynchrone, le front suit par /api/jobs/:id. */
-/* Le dossier input de ComfyUI peut être partagé avec une autre installation :
-   un job déposé par l'API ne nomme que des fichiers que ce studio y a mis
-   lui-même (registre inputs_studio), sinon un visiteur pourrait animer ou
-   faire décrire l'image d'un autre. */
-/* Visiteur (sans la clé) : seulement ce que le studio a généré lui-même et les photos
-   qu'un visiteur a déposées après contrôle (aucune personne, cf. depots.js) — jamais un
-   envoi du propriétaire : jamais la photo d'une personne réelle. */
+/** Job submission. Replies immediately (202): generation is asynchronous,
+ *  the front end follows via /api/jobs/:id. */
+/* ComfyUI's input folder may be shared with another install: a job submitted
+   through the API may only name files this studio put there itself
+   (inputs_studio registry), otherwise a visitor could animate or describe
+   someone else's image. */
+/* Visitor (no key): only what the studio generated itself and photos a visitor
+   uploaded after checks (no person, see depots.js); never an owner upload,
+   never a photo of a real person. */
 function inputEtranger(b, proprietaire) {
   const noms = [b.sourceImage, b.endImage, b.contexteVideo, ...(Array.isArray(b.keyframes) ? b.keyframes.map(k => k?.image) : []), b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null, ...(Array.isArray(b.references) ? b.references : [])]
   const admis = n => proprietaire ? store.estInputStudio(n) : store.estInputVisiteur(n)
@@ -987,18 +975,17 @@ function inputEtranger(b, proprietaire) {
 app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
-  if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
-  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong', 'mixWanAnimate', 'motionPoseDriver', 'motionFpsNatif', 'swapBlocs']) delete req.body[k]   // réglages de banc : propriétaire seulement
-  // une vidéo qui part d'une photo de la bibliothèque joue le personnage de cette photo, quel que soit le choix courant
+  if (req.body && !estProprietaire(req)) delete req.body.profilVram   // forced profile: owner only
+  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong', 'mixWanAnimate', 'motionPoseDriver', 'motionFpsNatif', 'swapBlocs']) delete req.body[k]   // bench settings: owner only
+  // a video starting from a library photo plays that photo's character, whatever the current choice
   const depart = req.body?.mode === 'video' && req.body?.selections?.task !== 't2v' && req.body?.selections?.startAssetId ? store.getAsset(String(req.body.selections.startAssetId)) : null
   if (depart?.persona_id) req.body.personaId = depart.persona_id
   if (personnageInterdit(req, req.body?.personaId)) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   try {
-    const r = await deposerAvecCle(cleComfy(req), () => enqueueParPlans(req.body || {}))   // une vidéo de mouvement montée part en un job par plan
-    /* 200 (et non 202) quand la clé d'idempotence avait déjà été vue : le
-       client sait ainsi qu'il relit un envoi antérieur au lieu d'en avoir
-       déclenché un nouveau. Le corps est identique dans les deux cas — une
-       reprise doit pouvoir traiter la réponse sans cas particulier. */
+    const r = await deposerAvecCle(cleComfy(req), () => enqueueParPlans(req.body || {}))   // an edited motion video is submitted as one job per shot
+    /* 200 (not 202) when the idempotency key was already seen: the client knows
+       it is reading an earlier submission rather than triggering a new one. The
+       body is identical in both cases so a retry needs no special handling. */
     reply.code(r.duplicate ? 200 : 202)
     return { ...r, status: 'queued' }
   } catch (e) {
@@ -1007,7 +994,7 @@ app.post('/api/jobs', async (req, reply) => {
   }
 })
 
-/** Aperçu en direct du rendu en cours (dernière image poussée par ComfyUI). */
+/** Live preview of the running render (last image pushed by ComfyUI). */
 app.get('/api/jobs/:id/apercu', async (req, reply) => {
   const job = store.getJob(req.params.id)
   const ap = job?.comfy_prompt_id ? comfy.getApercu(job.comfy_prompt_id) : null
@@ -1017,8 +1004,8 @@ app.get('/api/jobs/:id/apercu', async (req, reply) => {
   return ap.buf
 })
 
-/* Vignette d'une vidéo — voir poster.js. Cache long : le fichier d'un
-   asset ne change jamais (un nouveau rendu est un nouveau nom). */
+/* Video thumbnail, see poster.js. Long cache: an asset's file never changes
+   (a new render gets a new name). */
 app.get('/api/poster/:file', async (req, reply) => {
   const p = await ensurePoster(req.params.file)
   if (!p) { reply.code(404); return { error: 'pas de vignette' } }
@@ -1028,23 +1015,23 @@ app.get('/api/poster/:file', async (req, reply) => {
 })
 
 app.get('/api/jobs', async req => ({
-  // ?op=musique : seulement les jobs de cette opération (historique du studio son) ; sans op, la liste de toujours
+  // ?op=musique: only jobs of that operation (sound studio history); without op, the full list
   jobs: (req.query.op ? store.listJobsOp(String(req.query.op), Math.min(500, Number(req.query.limit) || 50)) : store.listJobs(Number(req.query.limit) || 50)).map(jobOut),
 }))
 
-/** Annulation : file → retiré ; en cours → interrompu côté ComfyUI. */
-/** Monte un job EN ATTENTE en tête de file (la file de CreatorOS, pas celle
- *  de ComfyUI qui ne voit qu'un job à la fois). 409 s'il n'est pas en attente. */
+/** Cancel: queued -> removed; running -> interrupted in ComfyUI. */
+/** Moves a QUEUED job to the head of the queue (the CreatorOS queue, not
+ *  ComfyUI's, which sees one job at a time). 409 if not queued. */
 app.post('/api/jobs/:id/promote', async (req, reply) => {
   const r = promoteJob(req.params.id)
   if (!r) { reply.code(409); return { error: 'ce job n’est pas en attente' } }
   return r
 })
 
-/** Nouvel ordre de la file d'attente (drag & drop de la vue Jobs). */
+/** New queue order (drag & drop in the Jobs view). */
 app.post('/api/jobs/reorder', async req => reorderQueue((req.body?.ids ?? []).map(String)))
 
-/* Briefs déjà envoyés (dédoublonnés, le plus récent d'abord) et briefs étoilés. */
+/* Briefs already sent (deduplicated, most recent first) and starred briefs. */
 app.get('/api/briefs', async () => ({ briefs: store.listBriefs() }))
 app.post('/api/briefs/star', async (req, reply) => {
   const texte = typeof req.body?.texte === 'string' ? req.body.texte.trim() : ''
@@ -1053,10 +1040,9 @@ app.post('/api/briefs/star', async (req, reply) => {
   return { ok: true }
 })
 
-/** Relance d'un job TERMINÉ (échec ou non) : son payload d'origine repart en
- *  file tel quel, même graine. `draft` le renvoie en brouillon (vidéo) ou en
- *  prévisualisation 480p (motion) pour vérifier vite qu'il passe ;
- *  `nouvelleGraine` le relance avec une graine tirée au hasard. */
+/** Reruns a FINISHED job (failed or not): its original payload is re-queued
+ *  as is, same seed. `draft` reruns it as a draft (video) or 480p preview
+ *  (motion) for a quick check; `nouvelleGraine` reruns it with a random seed. */
 app.post('/api/jobs/:id/retry', async (req, reply) => {
   const row = store.getJob(req.params.id)
   if (!row) { reply.code(404); return { error: 'job inconnu' } }
@@ -1065,7 +1051,7 @@ app.post('/api/jobs/:id/retry', async (req, reply) => {
   try { p = JSON.parse(row.payload || 'null') } catch { p = null }
   if (!p) { reply.code(409); return { error: 'réglages d’origine introuvables : ce job ne peut pas être relancé' } }
   for (const f of ['id', 'createdAt', 'status', 'estimatedMs', 'requestId', 'batchIds', 'error']) delete p[f]
-  /* « Encore une » : mêmes réglages, graine neuve — une variante, pas une copie. */
+  /* "One more": same settings, new seed; a variant, not a copy. */
   if (req.body?.nouvelleGraine) p.seed = { mode: 'random' }
   else if (Number.isFinite(row.seed)) p.seed = { mode: 'lock', value: row.seed }
   if (req.body?.draft) { if (p.videoEngine === 'motion') p.motionPreview = true; else p.videoDraft = true }
@@ -1079,11 +1065,10 @@ app.post('/api/jobs/:id/retry', async (req, reply) => {
 app.delete('/api/jobs/:id', async (req, reply) => {
   const r = await cancelJob(req.params.id)
   if (r) return r
-  /* Ni en file ni en cours : si le job est TERMINAL (done / blocked), la
-     suppression est définitive — la ligne job, et par cascade ses assets et
-     leurs provenances. Les fichiers disque (médias + posters) partent aussi.
-     C'est le nettoyage de la vue Jobs ; l'interface confirme en deux temps
-     et affiche le nombre de rendus emportés. */
+  /* Neither queued nor running: if the job is TERMINAL (done / blocked), deletion
+     is permanent: the job row and, by cascade, its assets and provenance. Disk
+     files (media + posters) go too. Jobs view cleanup; the UI confirms in two
+     steps and shows the number of renders removed. */
   const row = store.getJob(req.params.id)
   if (!row) { reply.code(404); return { error: 'job inconnu' } }
   if (!estProprietaire(req)) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
@@ -1101,24 +1086,24 @@ app.get('/api/jobs/:id', async (req, reply) => {
   const job = store.getJob(req.params.id)
   if (!job) { reply.code(404); return { error: 'job inconnu' } }
   const out = jobOut(job)
-  // Rang et attente estimée d'un job en attente (affichés sur sa carte)
+  // Rank and estimated wait of a queued job (shown on its card)
   if (job.status === 'queued') out.file = placeDansFile(job.id) ?? undefined
-  // Progression du rendu en cours — celle que l'interface de ComfyUI affiche.
-  // Approximative par construction (par nœud), et présentée comme telle.
+  // Progress of the running render, as ComfyUI's UI shows it.
+  // Approximate by construction (per node), and presented as such.
   if (job.status === 'rendering' && job.comfy_prompt_id) {
     out.progress = comfy.getProgress(job.comfy_prompt_id)
     out.phase = comfy.getPhase(job.comfy_prompt_id) ?? undefined
     const ap = comfy.getApercu(job.comfy_prompt_id)
-    if (ap) out.apercu = ap.at       // horodatage : l'interface ne recharge l'image que s'il change
+    if (ap) out.apercu = ap.at       // timestamp: the UI reloads the image only when it changes
   }
   return { job: out, assets: store.assetsOfJob(job.id).map(assetOut) }
 })
 
-/* ---------- listes en lecture seule pour l'interface ----------
-   /api/uploads : fichiers image du dossier input de ComfyUI (historique des
-   uploads, picker « frame de départ »). /api/wildcards : fichiers *.txt
-   et leurs lignes (popup Éléments). Aucune écriture — le tirage 🎲 reste
-   l'affaire du serveur au moment du compose/job. */
+/* ---------- read-only lists for the UI ----------
+   /api/uploads: image files in ComfyUI's input folder (upload history,
+   "start frame" picker). /api/wildcards: *.txt files and their lines
+   (Elements popup). No writes: the 🎲 draw is done by the server at
+   compose/job time. */
 app.get('/api/uploads', async req => {
   const fsx = await import('node:fs')
   const pathx = await import('node:path')
@@ -1126,11 +1111,11 @@ app.get('/api/uploads', async req => {
   let files = []
   try {
     files = fsx.readdirSync(dir)
-      .filter(f => (req.query.type === 'video' ? /\.(mp4|mov|webm)$/i : /\.(png|jpe?g|webp)$/i).test(f) && !f.startsWith('.') && store.estInputStudio(f))   // dossier partagé : seulement nos dépôts
+      .filter(f => (req.query.type === 'video' ? /\.(mp4|mov|webm)$/i : /\.(png|jpe?g|webp)$/i).test(f) && !f.startsWith('.') && store.estInputStudio(f))   // shared folder: only our uploads
       .map(f => { const st = fsx.statSync(pathx.join(dir, f)); return { name: f, mtime: st.mtimeMs, bytes: st.size } })
       .sort((a, b) => b.mtime - a.mtime)
       .slice(0, Number(req.query.limit) || 120)
-  } catch { /* dossier absent : liste vide */ }
+  } catch { /* missing folder: empty list */ }
   return { uploads: files }
 })
 
@@ -1138,13 +1123,13 @@ app.get('/api/uploads/:name', async (req, reply) => {
   const fsx = await import('node:fs')
   const pathx = await import('node:path')
   const name = String(req.params.name || '')
-  // nom nu uniquement — pas d'échappée hors du dossier input
+  // bare name only: no escape outside the input folder
   if (!name || name.includes('/') || name.includes('\\') || name.startsWith('.')) {
     reply.code(400); return { error: 'nom invalide' }
   }
   const file = pathx.join(CONFIG.comfyInput, name)
   if (!store.estInputStudio(name) || !fsx.existsSync(file)) { reply.code(404); return { error: 'introuvable' } }
-  // un envoi du propriétaire reste privé ; un visiteur ne lit que les copies du studio, les croquis et la source d'une restauration
+  // an owner upload stays private; a visitor only reads studio copies, sketches and a restoration's source
   if (!estProprietaire(req) && !['genere', 'croquis', 'depot-visiteur'].includes(store.origineInput(name)) && !store.estOrigineRestauree(name)) { reply.code(403); return { error: 'réservé au propriétaire' } }
   const ext = (name.match(/\.(\w+)$/)?.[1] ?? '').toLowerCase()
   reply.type({ png: 'image/png', webp: 'image/webp', mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' }[ext] ?? 'image/jpeg')
@@ -1152,13 +1137,13 @@ app.get('/api/uploads/:name', async (req, reply) => {
   return fsx.createReadStream(file)
 })
 
-/* ---------- réécriture carrousel ----------
-   Garde le prompt EXACT sauf les éléments listés dans `vary`, que le LLM
-   réécrit librement en conservant la cohérence. 1 variante par appel — le
-   front boucle (progression naturelle + jobs soumis au fil de l'eau).
-   CPU (num_gpu 0) : jamais en concurrence avec ComfyUI. */
-/* Rattacher un job EXISTANT à un lot (carrousel : l'original n'est pas
-   re-généré, son rendu rejoint la vignette-mosaïque du lot). */
+/* ---------- carousel rewrite ----------
+   Keeps the EXACT prompt except the elements listed in `vary`, which the LLM
+   rewrites freely while keeping coherence. 1 variant per call; the front end
+   loops (natural progress + jobs submitted as they come).
+   CPU (num_gpu 0): never competes with ComfyUI. */
+/* Attaches an EXISTING job to a batch (carousel: the original is not
+   regenerated, its render joins the batch mosaic thumbnail). */
 app.post('/api/jobs/:id/batch-id', async (req, reply) => {
   const { batchId } = req.body || {}
   if (!batchId || typeof batchId !== 'string') { reply.code(400); return { error: 'batchId requis' } }
@@ -1167,12 +1152,11 @@ app.post('/api/jobs/:id/batch-id', async (req, reply) => {
   return { ok: true }
 })
 
-/* Décomposition d'une scène en CINQ dimensions — partagée par /api/decompose
-   (l'opérateur voit ce que le VLM a trouvé AVANT de poser ses cadenas) et par
-   /api/rewrite (qui accepte le résultat déjà calculé pour ne pas repayer les
-   35 s de VLM). */
-/* Moteur de diffusion photo — même source que composer.js et jobs.js, lu ici
-   pour les consignes de rendu mécanisées dans le carrousel. */
+/* Scene decomposition into FIVE dimensions, shared by /api/decompose (the
+   operator sees what the VLM found BEFORE setting locks) and /api/rewrite
+   (which accepts the precomputed result to avoid paying for the VLM again). */
+/* Photo diffusion engine: same source as composer.js and jobs.js, read here
+   for the mechanized render instructions in the carousel. */
 const MOTEUR_PHOTO = CONFIG.photoEngine
 
 const DIM_TRI_SYS = 'You sort an image prompt into five fields. Output STRICT JSON '
@@ -1191,8 +1175,8 @@ async function dimensionsDe({ anchorUri, texte }) {
     const d = await decomposeScene(pathx.join(CONFIG.mediaDir, pathx.basename(anchorUri)))
     if (d) return d
   }
-  /* Pas d'image (ou VLM muet) : on trie le TEXTE. Le carrousel doit marcher sur
-     un prompt seul. */
+  /* No image (or silent VLM): sort the TEXT. The carousel must work from a
+     prompt alone. */
   try {
     const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1211,8 +1195,8 @@ async function dimensionsDe({ anchorUri, texte }) {
   } catch { return null }
 }
 
-/* L'opérateur ouvre le carrousel : on lui montre ce que le VLM a trouvé dans
-   chaque dimension, pour qu'il sache ce qu'il verrouille. */
+/* The operator opens the carousel: show what the VLM found in each
+   dimension, so they know what they are locking. */
 app.post('/api/decompose', async (req, reply) => {
   const { anchorUri, prompt } = req.body || {}
   const dims = await dimensionsDe({ anchorUri, texte: prompt })
@@ -1221,9 +1205,8 @@ app.post('/api/decompose', async (req, reply) => {
 })
 
 app.post('/api/rewrite', async (req, reply) => {
-  /* `writerModel` : override de MESURE uniquement (comparer deux rédacteurs
-     sur le même corpus). Absent du front — le routage normal reste
-     `composer.modelFor()`. */
+  /* `writerModel`: MEASUREMENT override only (comparing two writers on the same
+     corpus). Not in the front end; normal routing stays `composer.modelFor()`. */
   const { prompt, vary, n, anchorUri, anchorOutfit, shoot, writerModel } = req.body || {}
   if (!prompt || !Array.isArray(vary) || !vary.length) {
     reply.code(400); return { error: 'prompt et vary[] requis' }
@@ -1231,39 +1214,36 @@ app.post('/api/rewrite', async (req, reply) => {
   const count = Math.min(Math.max(Number(n) || 8, 1), 12)
   const model = composer.modelFor()
 
-  /* ---------- 1) contexte visuel (VLM) — le CONCEPT vient de l'image + du
-     prompt. Le LLM varie librement DANS le concept. La description est une
-     ENTRÉE du réécriveur, jamais un prompt de diffusion : les gardes code en
-     aval s'appliquent inchangées. */
+  /* ---------- 1) visual context (VLM): the CONCEPT comes from the image + the
+     prompt. The LLM varies freely WITHIN the concept. The description is an
+     INPUT to the rewriter, never a diffusion prompt: downstream code guards
+     apply unchanged. */
   const pathx = await import('node:path')
   const has = needle => vary.some(v => v.includes(needle))
   let sceneDesc = null
-  /* En mode shooting, `decomposeScene` fait ce travail EN MIEUX (cinq
-     dimensions au lieu d'une description globale) : inutile de payer le VLM
-     deux fois. */
+  /* In shooting mode, `decomposeScene` does this job better (five dimensions
+     instead of a global description): no need to pay for the VLM twice. */
   if (!shoot && typeof anchorUri === 'string' && anchorUri.startsWith('/media/'))
     sceneDesc = await describeScene(pathx.join(CONFIG.mediaDir, pathx.basename(anchorUri)))
 
-  /* Ancrage d'une dimension GARDÉE mais sous-spécifiée dans le prompt :
-     « Tenue gardée » + prompt sans couleurs → chaque seed réinvente (gris,
-     bleu, jupe…). Le VLM décrit la tenue de l'IMAGE d'origine et cette
-     description précise est cousue dans toutes les variantes. */
+  /* Anchoring a KEPT dimension that is under-specified in the prompt: "outfit
+     kept" + a prompt without colors -> each seed reinvents it. The VLM describes
+     the outfit of the source IMAGE and that description is stitched into all
+     variants. */
   let outfitAnchor = null
   if (!shoot && anchorOutfit && typeof anchorUri === 'string' && anchorUri.startsWith('/media/'))
     outfitAnchor = await describeOutfit(pathx.join(CONFIG.mediaDir, pathx.basename(anchorUri)))
 
-  /* ---------- 1bis) MODE SHOOTING ----------
-     Le mode historique ne sait que RETIRER des segments et réécrire une clause
-     à la même place : il produit des variantes de posture, jamais des plans.
-     Ici le writer n'édite plus un texte, il ÉCRIT des plans : tronc commun figé
-     (tenue, lieu, rendu verrouillés) + un bloc de plan qui change seul —
-     action, pose, cadrage, angle. La calibration vit sur le disque
-     (shoot_sfw.txt) : l'intensité s'enseigne par l'exemple, pas par un
-     adjectif, et l'opérateur étend le corpus sans rebuild. */
+  /* ---------- 1bis) SHOOTING MODE ----------
+     The legacy mode can only REMOVE segments and rewrite a clause in place: it
+     produces posture variants, never shots. Here the writer WRITES shots: a fixed
+     shared trunk (locked outfit, place, look) + a shot block that alone changes
+     (action, pose, framing, angle). Calibration lives on disk (shoot_sfw.txt):
+     intensity is taught by example, not by an adjective, and the operator
+     extends the corpus without a rebuild. */
   if (shoot) {
-    /* `keep_alive` : le mode dimensions fait DEUX appels — le trieur puis le
-       rédacteur — et sur CPU chaque rechargement de modèle coûte plus d'une
-       minute. On garde donc les modèles chauds dix minutes. */
+    /* `keep_alive`: dimensions mode makes TWO calls (sorter then writer), and on
+       CPU each model reload costs over a minute, so models stay warm ten minutes. */
     const askShoot = async (mdl, system, user, temperature, predire = 2600) => {
       const res = await fetchOllama(`${CONFIG.ollamaUrl}/api/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1279,20 +1259,19 @@ app.post('/api/rewrite', async (req, reply) => {
         .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
       if (!corpus.length) throw new Error('corpus de plans vide : shoot_sfw.txt')
 
-      /* Queue d'ancre périmée d'un carrousel précédent, cumulative d'une
-         génération à l'autre : on la coupe avant tout le reste. */
+      /* Stale anchor tail from a previous carousel, cumulative across generations:
+         cut before anything else. */
       const promptNet = prompt.replace(/[,.\s]*\bwearing\s+[^.]*\.?\s*$/i, '.')
       /* ================= DIMENSIONS =================
-         La scène est décomposée en cinq dimensions indépendantes — tenue,
-         pose, décor, accessoires, style photo. Une dimension COCHÉE est la
-         CONSTANTE du shooting : elle va dans le tronc et ne bouge plus. Les
-         décochées sont la matière du rédacteur, libre de les garder ou de les
-         changer. */
+         The scene is decomposed into five independent dimensions: outfit, pose,
+         set, accessories, photo style. A CHECKED dimension is the shoot's
+         CONSTANT: it goes into the trunk and does not move. Unchecked ones are
+         the writer's material, free to keep or change. */
       const DIMS = ['outfit', 'pose', 'location', 'props', 'style']
       const LIBELLE = { outfit: 'OUTFIT', pose: 'POSE', location: 'LOCATION', props: 'PROPS AROUND HER', style: 'PHOTOGRAPHIC STYLE' }
 
-      /* Dimensions déjà calculées par /api/decompose (l'opérateur les a vues
-         avant de poser ses cadenas) : on ne repaie pas le VLM. */
+      /* Dimensions already computed by /api/decompose (the operator saw them before
+         setting locks): the VLM is not paid for again. */
       const dimsRecues = req.body && typeof req.body.dims === 'object' && req.body.dims
         && DIMS.some(k => req.body.dims[k])
       const tDims = Date.now()
@@ -1300,9 +1279,8 @@ app.post('/api/rewrite', async (req, reply) => {
       const msDims = Date.now() - tDims
       if (!dims) throw new Error('décomposition impossible : ni image d\'ancrage exploitable, ni tri du texte')
 
-      /* Contrat : `keep` est ce qui reste CONSTANT. On l'accepte tel quel et on
-         le déduit sinon de `vary` (ancien contrat du front, où la dimension
-         citée est celle qui varie). */
+      /* Contract: `keep` is what stays CONSTANT. Accepted as is, otherwise derived
+         from `vary` (legacy front-end contract, where the named dimension varies). */
       const brutKeep = (req.body && typeof req.body.keep === 'object' && req.body.keep) || null
       const varieDit = motif => vary.some(v => String(v).toLowerCase().includes(motif))
       const keep = {
@@ -1314,18 +1292,16 @@ app.post('/api/rewrite', async (req, reply) => {
       }
       const dansTronc = DIMS.filter(k => keep[k] && dims[k])
       const libres = DIMS.filter(k => !keep[k])
-      /* DÉDUPLICATION décor / accessoires. Le décompositeur range volontiers
-         les mêmes objets dans `location` ET dans `props`. Cette redondance pèse
-         un tiers du prompt, et un prompt saturé fait PERDRE LE CADRAGE. On
-         retire de `props` les groupes nominaux DÉJÀ présents dans `location`.
-         Ce qui est verrouillé reste écrit — une seule fois. */
+      /* Set / accessories DEDUPLICATION. The decomposer often puts the same objects
+         in both `location` and `props`. That redundancy weighs a third of the
+         prompt, and a saturated prompt LOSES THE FRAMING. Noun phrases ALREADY in
+         `location` are removed from `props`. What is locked stays written, once. */
       const sansRedondance = (props, location) => {
         if (!props || !location) return props
         const lieu = String(location).toLowerCase()
         return String(props).split(/\s*,\s*/).filter(Boolean).filter(seg => {
-          /* un segment est un doublon si son NOM DE TÊTE (le dernier nom du
-             groupe, « a side table with a lamp » → « lamp ») apparaît déjà dans
-             le décor. */
+          /* a segment is a duplicate if its HEAD NOUN (last noun of the phrase,
+             "a side table with a lamp" -> "lamp") already appears in the set. */
           const mots = seg.toLowerCase().match(/[a-z]+/g) || []
           const tete = mots.filter(m => !['a', 'an', 'the', 'with', 'and', 'in', 'on', 'of', 'partially', 'visible', 'large', 'small'].includes(m)).pop()
           return !(tete && lieu.includes(tete))
@@ -1342,11 +1318,11 @@ app.post('/api/rewrite', async (req, reply) => {
         .filter(Boolean)
         .join('. ').trim()
 
-      /* ================= GRILLE TIRÉE EN CODE =================
-         Une consigne textuelle ne tient pas sur un modèle CPU local : il
-         respecte le cadrage mais répète la posture. On ne demande donc plus au
-         modèle de RÉPARTIR — le serveur tire cadrage, angle et famille
-         d'action, tous distincts, et le modèle rédige une case. */
+      /* ================= GRID DRAWN IN CODE =================
+         A text instruction does not hold on a local CPU model: it respects
+         framing but repeats the posture. So the model is not asked to DISTRIBUTE:
+         the server draws framing, angle and action family, all distinct, and the
+         model writes one cell. */
       const melange = a => [...a].sort(() => Math.random() - 0.5)
       const CADRAGES = melange([
         'wide shot, she is small in the frame, the whole setting around her',
@@ -1354,9 +1330,8 @@ app.post('/api/rewrite', async (req, reply) => {
         'tight portrait, her face fills the frame',
         'full length, seen at a distance', 'head and shoulders', 'medium shot',
       ])
-      /* L'angle « dans un miroir » n'entre dans le tirage QUE si le décor
-         verrouillé en contient un : assigné à tour de rôle, il ferait écrire
-         un miroir sur une allée de gravier. */
+      /* The "in a mirror" angle enters the draw ONLY if the locked set contains a
+         mirror; otherwise the model would write a mirror on a gravel path. */
       const decorTexte = [dims.location, dims.props].filter(Boolean).join(' ').toLowerCase()
       const ANGLES = melange([
         'eye level, straight on', 'from behind, three-quarter rear view',
@@ -1376,10 +1351,10 @@ app.post('/api/rewrite', async (req, reply) => {
         'she is settled somewhere — seated, perched, or leaning, at ease',
         'she is at rest, doing nothing but holding the lens',
       ]
-      /* POSE COCHÉE = la pose EST la constante, bras compris. On empêche
-         l'ACTION de replacer les mains ailleurs : la pose figée dit où sont les
-         bras, une famille d'action les enverrait ailleurs, et le modèle
-         d'image réconcilie en en dessinant un de trop. */
+      /* CHECKED POSE = the pose IS the constant, arms included. The ACTION is kept
+         from moving the hands elsewhere: the frozen pose says where the arms are,
+         an action family would send them elsewhere, and the image model reconciles
+         by drawing an extra one. */
       const FAM_POSE_FIGEE = [
         'she holds the pose exactly as described, her expression softening',
         'she holds the pose, her gaze moving to the lens',
@@ -1391,21 +1366,21 @@ app.post('/api/rewrite', async (req, reply) => {
         'she holds the pose, entirely still',
       ]
       const tires = [...corpus].sort(() => Math.random() - 0.5).slice(0, 10)
-      /* POSITIONS DE L'OPÉRATEUR : quand la pose est libre, l'action assignée
-         peut venir de ses wildcards de postures (poses_sfw.txt dans le dossier
-         des textes) plutôt que des huit familles écrites à la main. Une ligne
-         de wildcard est RICHE : la recopier est un bon résultat. */
+      /* OPERATOR POSITIONS: when the pose is free, the assigned action can come from
+         their posture wildcards (poses_sfw.txt in the texts folder) rather than the
+         eight hand-written families. A wildcard line is RICH: copying it is a good
+         result. */
       let positions = null
       if (!keep.pose) {
         try {
           const l = prompts.readPrompt('poses_sfw.txt').split('\n').map(x => x.trim()).filter(x => x && !x.startsWith('#'))
           if (l.length >= count) positions = l
-        } catch { /* repli familles */ }
+        } catch { /* family fallback */ }
       }
       const FAMILLES = melange(keep.pose ? FAM_POSE_FIGEE : positions || FAM)
-      /* Quand l'accessoire est LIBRE, il entre dans la ligne d'assignation au
-         même titre que le cadrage et l'action : ce que la grille assigne, le
-         rédacteur l'écrit ; ce qu'un paragraphe demande, il l'oublie. */
+      /* When the accessory is FREE, it enters the assignment line like framing and
+         action: what the grid assigns, the writer writes; what a paragraph asks,
+         it forgets. */
       const propsLibres = libres.includes('props') && String(dims.props || '').trim()
       const grille = Array.from({ length: count }, (_, i) =>
         `SHOT ${i + 1}: framing = ${CADRAGES[i % CADRAGES.length]}; camera = ${ANGLES[i % ANGLES.length]}; action = ${FAMILLES[i % FAMILLES.length]}`
@@ -1416,12 +1391,12 @@ app.post('/api/rewrite', async (req, reply) => {
             + 'from the other shots, named in the sentence and used or touched by her'
           : ''))
 
-      /* ================= CONSIGNE ================= */
+      /* ================= INSTRUCTIONS ================= */
       const shSys =
         (MOTEUR_PHOTO === 'krea'
-          /* Le carrousel ne passe PAS par composer.systemFor() : il bâtit son
-             propre system prompt. Sans cette clause le rédacteur écrit de
-             lui-même un lexique de pellicule calibré pour Klein. */
+          /* The carousel does NOT go through composer.systemFor(): it builds its own
+             system prompt. Without this clause the writer adds a film-stock lexicon
+             tuned for Klein. */
           ? 'RENDER STYLE: never describe film grain, on-camera flash, motion blur, '
             + 'chromatic aberration or an amateur/analog snapshot look. The render style is '
             + 'appended by the system.\n'
@@ -1439,7 +1414,7 @@ app.post('/api/rewrite', async (req, reply) => {
         + 'THE ACTION LINE IS A BRIEF, NOT A SENTENCE: never copy its wording into your shot. It tells you WHAT '
         + 'to show; you write what it LOOKS LIKE — where her hands are, what she is resting or braced on, what '
         + 'her body does.\n'
-        /* Une consigne IMPÉRATIVE par dimension, qui nomme sa valeur. */
+        /* One IMPERATIVE instruction per dimension, naming its value. */
         + DIMS.filter(k => dims[k]).map(k => {
           const v = String(dims[k]).trim().slice(0, 180)
           const fixe = dansTronc.includes(k)
@@ -1500,11 +1475,11 @@ app.post('/api/rewrite', async (req, reply) => {
             const arr = Array.isArray(pj.shots) ? pj.shots : Array.isArray(pj) ? pj : []
             return arr.map(x => typeof x === 'string' ? x
               : (x && typeof x === 'object') ? (Object.values(x).find(v => typeof v === 'string') ?? '') : '')
-          } catch { /* repli lignes */ }
+          } catch { /* line fallback */ }
         }
-        /* JSON TRONQUÉ : la sortie se coupe parfois au milieu du tableau. On
-           récupère alors les chaînes complètes une par une : une entrée fermée
-           par un guillemet est exploitable, même si le tableau ne l'est pas. */
+        /* TRUNCATED JSON: output sometimes stops mid-array. Complete strings are then
+           recovered one by one: an entry closed by a quote is usable even if the
+           array is not. */
         const sauvetage = raw.match(/"((?:[^"\\]|\\.){20,400})"/g)
         if (sauvetage && sauvetage.length >= 2) {
           const arr = sauvetage.map(s => { try { return JSON.parse(s) } catch { return '' } })
@@ -1516,9 +1491,9 @@ app.post('/api/rewrite', async (req, reply) => {
           .filter(l => l.length > 12 && l.length < 420 && !/^(json|```|\{|\})/i.test(l))
       }
       const mdl = typeof writerModel === 'string' && writerModel ? writerModel : model
-      /* Chronométrage : un carrousel lent a deux causes possibles — la
-         décomposition rejouée (dims non transmises par le front) ou la
-         rédaction relancée parce que le JSON du modèle ne s'est pas lu. */
+      /* Timing: a slow carousel has two possible causes: decomposition rerun (dims
+         not sent by the front end) or writing retried because the model's JSON
+         did not parse. */
       const tEcr = Date.now()
       let raw = await askShoot(mdl, shSys, shUser, 0.9)
       let shots = parseShots(raw).map(x => x.trim()).filter(Boolean).slice(0, count)
@@ -1532,7 +1507,7 @@ app.post('/api/rewrite', async (req, reply) => {
       app.log.info(`[carrousel] n=${count} · dims ${dimsRecues ? 'reçues' : 'RECALCULÉES (' + msDims + ' ms)'}`
         + ` · rédaction ${msEcr} ms${relance ? ' AVEC RELANCE (JSON illisible au 1er essai)' : ''}`)
       if (!shots.length) throw new Error('aucun plan produit — sortie modèle : « ' + raw.slice(0, 140) + ' »')
-      /* Doublons : un shooting ne livre pas deux fois la même photo. */
+      /* Duplicates: a shoot does not deliver the same photo twice. */
       const vus = new Set()
       shots = shots.filter(s => {
         const clef = s.toLowerCase().replace(/[^a-z ]/g, '').split(/\s+/).slice(0, 12).join(' ')
@@ -1540,14 +1515,13 @@ app.post('/api/rewrite', async (req, reply) => {
         vus.add(clef); return true
       })
 
-      /* ================= ASSEMBLAGE ================= */
+      /* ================= ASSEMBLY ================= */
       const METAFIN = /[,;]\s*(?:interacting with|doing something with|playing with|handling|using the furniture|looking at (?:her own )?reflection|caught mid-?movement|at rest)[^.]*\.?\s*$/i
       const DITCADRE = /\b(shot|framing|framed|close[- ]?up|waist[- ]up|full length|wide|portrait|head and shoulders|overhead|from above|from below|eye level|floor level|from behind|three-quarter|in the mirror|reflection|across the)\b/i
-      /* Grain d'appareil recollé en code (Klein) : la consigne « nomme
-         l'appareil » est ignorée par le rédacteur, et ce sont ces mots qui
-         font qu'un rendu Klein a l'air d'une photo. UN SEUL par plan, tiré au
-         sort, et seulement si le style photo n'est PAS cadenassé. Sur Krea, la
-         directive de rendu est suivie : une seule formule d'intention. */
+      /* Camera grain re-attached in code (Klein): the writer ignores the "name the
+         camera" instruction, and those words make a Klein render look like a photo.
+         ONE per shot, drawn at random, and only if the photo style is NOT locked.
+         On Krea the render directive is followed: a single intent formula. */
       const AMATEUR = [
         'Candid phone photo, slight motion blur.',
         'Smartphone snapshot, uneven framing, accidental crop.',
@@ -1559,10 +1533,9 @@ app.post('/api/rewrite', async (req, reply) => {
       const IPHONE = 'Shot on a recent smartphone, clean HD photo, natural daylight, sharp focus,'
         + ' true-to-life colours, no grain, no filter, no retouching. Natural skin with visible pores.'
       const DEJARENDU = /candid|amateur|smartphone snapshot|phone photo|film grain|visible grain|on-camera flash|chromatic aberration|shot one-handed|raw phone|smartphone/i
-      /* Sur Krea, une consigne de rendu écrite par le rédacteur est du
-         vocabulaire de pellicule hérité des corpus Klein : on retire la clause
-         fautive avant d'ajouter la bonne — seulement la clause de rendu,
-         jamais la phrase d'action. */
+      /* On Krea, a render instruction written by the writer is film-stock vocabulary
+         from the Klein corpora: the faulty clause is removed before adding the
+         right one; only the render clause, never the action sentence. */
       const PHRASE_RENDU = /[,.]\s*(?:a\s+)?(?:candid|amateur|raw phone capture|shot one-handed|unposed,)[^.]*\.?\s*$/i
       const GROUPE_RENDU = /(?:,\s*)?\b(?:with|and)\s+(?:harsh on-camera flash|shallow depth of field|visible grain|film grain|slight motion blur|uneven framing|chromatic aberration)\b/gi
       const variants = shots.map((s, i) => {
@@ -1584,12 +1557,12 @@ app.post('/api/rewrite', async (req, reply) => {
     }
   }
 
-  /* ---------- 2) LLM en DEUX rôles ----------
-     (a) CLASSIFICATION des segments, déterministe temp 0 → indices à retirer ;
-     (b) SCÈNES-CONCEPT écrites par le rédacteur, qui varie DANS le concept. */
-  /* Segments MÉTA filtrés en code avant classification : un prompt source
-     pollué par une paraphrase de consignes (« is described accurately »,
-     « kept vague ») serait GARDÉ et propagé aux variantes. */
+  /* ---------- 2) LLM in TWO roles ----------
+     (a) segment CLASSIFICATION, deterministic temp 0 -> indices to remove;
+     (b) CONCEPT SCENES written by the writer, varying WITHIN the concept. */
+  /* META segments filtered in code before classification: a source prompt
+     polluted by paraphrased instructions ("is described accurately",
+     "kept vague") would be KEPT and propagated to variants. */
   const METAREG = /described accurately|kept vague|resorting to|clich[ée]d terms|these instructions|"gorgeous"|"stunning"|realistic depiction|capturing the raw emotion/i
   const segs = prompt.split(/(?<=[.;])\s+/).map(x => x.trim()).filter(Boolean).filter(x => !METAREG.test(x))
   const numbered = segs.map((t, i) => `[${i}] ${t}`).join('\n')
@@ -1620,8 +1593,8 @@ app.post('/api/rewrite', async (req, reply) => {
     const clsM = clsRaw.match(/\{[\s\S]*\}/)
     const drop = new Set(clsM ? (JSON.parse(clsM[0]).drop ?? []) : [])
     let base = segs.filter((_, i) => !drop.has(i)).join(' ')
-    /* Sur-drop : si la classification a mangé plus de 65 % de l'original, on
-       la jette et on ne droppe QUE les segments à mots-clés de pose. */
+    /* Over-drop: if classification removed more than 65% of the original, discard
+       it and drop ONLY segments with pose keywords. */
     if (base.split(/\s+/).length < prompt.split(/\s+/).length * 0.35) {
       const POSE_KEYS = /\b(pose|posing|kneel|kneeling|stand(?:ing)?|sit(?:ting)?|lying|lies|leans?|leaning|arch(?:ed|ing)?|glanc(?:e|ing)|looking (?:back|over)|crouch|walk(?:s|ing)?)\b/i
       const drop2 = new Set(segs.map((t, i) => (has('pose') && POSE_KEYS.test(t) ? i : -1)).filter(i => i >= 0))
@@ -1630,7 +1603,7 @@ app.post('/api/rewrite', async (req, reply) => {
     }
     base = base.replace(/\s*,\s*,+/g, ', ').replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ')
       .replace(/^[,\s]+|[,\s]+$/g, '').replace(/,\s*\./g, '.').replace(/\(\s*\)/g, '')
-    // (b) scènes-concept : varier DANS le concept
+    // (b) concept scenes: vary WITHIN the concept
     const freeTopics = []
     if (has('pose')) freeTopics.push('the pose / what she is doing')
     if (has('setting')) freeTopics.push('the location / background')
@@ -1658,7 +1631,7 @@ app.post('/api/rewrite', async (req, reply) => {
       + (sceneDesc ? '\n\nSOURCE IMAGE SHOWS: ' + sceneDesc : '')
       + '\n\nBASE (kept as-is, your scenes complete it):\n' + base
       + '\n\nWrite the ' + count + ' scenes.'
-    /* extraction résiliente : JSON → retry avec rappel → repli lignes. */
+    /* resilient extraction: JSON -> retry with reminder -> line fallback. */
     const parseScenes = raw => {
       const m = raw.match(/\{[\s\S]*\}/)
       if (m) {
@@ -1668,9 +1641,9 @@ app.post('/api/rewrite', async (req, reply) => {
             : Array.isArray(parsed.clauses) ? parsed.clauses : Array.isArray(parsed) ? parsed : []
           return arr.map(x => typeof x === 'string' ? x
             : (x && typeof x === 'object') ? (Object.values(x).find(v => typeof v === 'string') ?? '') : '')
-        } catch { /* repli lignes */ }
+        } catch { /* line fallback */ }
       }
-      // repli : lignes numérotées / puces / guillemets
+      // fallback: numbered lines / bullets / quotes
       return raw.split('\n')
         .map(l => l.replace(/^\s*(?:scene\s*\d+\s*[:.)-]|\d+\s*[:.)-]|[-*"'`])\s*/i, '').replace(/["',]+\s*$/, '').trim())
         .filter(l => l.length > 12 && l.length < 420 && !/^(json|```|\{|\})/i.test(l))
@@ -1678,7 +1651,7 @@ app.post('/api/rewrite', async (req, reply) => {
     let clRaw = await askOllama(model, clSys, clUser, { temperature: 0.75, num_predict: 1400, num_ctx: 6144 })
     let clauses = parseScenes(clRaw).map(x => x.trim()).filter(Boolean).slice(0, count)
     if (!clauses.length) {
-      // 2e essai avec rappel strict
+      // second attempt with strict reminder
       clRaw = await askOllama(model, clSys + ' REMINDER: output ONLY the JSON object, nothing before or after.',
         clUser, { temperature: 0.5, num_predict: 1400, num_ctx: 6144 })
       clauses = parseScenes(clRaw).map(x => x.trim()).filter(Boolean).slice(0, count)
@@ -1695,8 +1668,8 @@ app.post('/api/rewrite', async (req, reply) => {
   }
 })
 
-/* Carrousel v2 — copie de travail (server/carrousel.js). Le front appelle
-   toujours /api/rewrite ; cette route sert aux essais avant bascule. */
+/* Carousel v2 (server/carrousel.js). The front end still calls /api/rewrite;
+   this route is for trials. */
 app.post('/api/carrousel/fiche', async (req, reply) => {
   try { return await blocOllama(() => carrousel.preparer(req.body)) }
   catch (e) { reply.code(502); return { error: String(e.message || e) } }
@@ -1719,23 +1692,22 @@ app.get('/api/wildcards', async () => {
           .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
         return { name, count: lines.length, lines: lines.slice(0, 200) }
       })
-  } catch { /* absent : vide */ }
+  } catch { /* missing: empty */ }
   return { wildcards: out }
 })
 
-/* La bibliothèque : ?persona=<id> pour un seul personnage, ?persona=all pour tout. */
+/* The library: ?persona=<id> for one character, ?persona=all for everything. */
 app.get('/api/assets', async req => {
   const q = String(req.query.persona ?? '')
   const pid = q === 'all' ? undefined : q || personas().active || undefined
   return { personaId: pid ?? null, assets: store.listAssets(Number(req.query.limit) || 200, pid).map(assetOut) }
 })
 
-/* Suppression réelle : ligne d'asset, provenance, ET fichier sur disque.
-   Ne pas effacer le fichier laisserait un média orphelin que plus rien ne
-   référence — invisible dans l'interface, et pourtant sur le disque. */
-/* Suppression = mise à la corbeille. Le fichier part dans
-   media/.corbeille/, la ligne dans la table `corbeille` ; rien n'est effacé
-   avant 30 jours. `POST /api/assets/restore` annule. */
+/* Real deletion: asset row, provenance, AND file on disk, so no orphan media
+   is left on disk. */
+/* Deletion = move to trash. The file goes to media/.corbeille/, the row to the
+   `corbeille` table; nothing is erased before 30 days. `POST /api/assets/restore`
+   undoes it. */
 const CORBEILLE = path.join(CONFIG.mediaDir, '.corbeille')
 const CORBEILLE_JOURS = 30
 app.delete('/api/assets/:id', async (req, reply) => {
@@ -1748,7 +1720,7 @@ app.delete('/api/assets/:id', async (req, reply) => {
       fs.mkdirSync(CORBEILLE, { recursive: true })
       fs.renameSync(path.join(CONFIG.mediaDir, nom), path.join(CORBEILLE, nom)); fileMoved = true
     } catch (e) {
-      // Fichier déjà absent : la base est quand même nettoyée. Toute autre cause est signalée.
+      // File already missing: the database is cleaned anyway. Any other cause is reported.
       if (e.code !== 'ENOENT') app.log.warn(`corbeille ${row.filename} : ${e.message}`)
     }
   }
@@ -1772,7 +1744,7 @@ app.post('/api/assets/restore', async req => {
   return { restored, failed }
 })
 
-/** Aperçu d'un élément en corbeille : l'image elle-même, ou la vignette d'une vidéo. */
+/** Preview of a trashed item: the image itself, or a video's thumbnail. */
 app.get('/api/corbeille/vue/:file', async (req, reply) => {
   const nom = path.basename(req.params.file)
   const estVideo = /\.(mp4|webm|mov)$/i.test(nom)
@@ -1788,8 +1760,8 @@ app.get('/api/corbeille', async () => {
   return { count: l.length, days: CORBEILLE_JOURS, items: l.map(r => ({ id: r.asset_id, deletedAt: r.deleted_at, filename: r.filename })) }
 })
 
-/** Purge : ce qui est en corbeille depuis plus de 30 jours est effacé pour de
- *  bon ; `tout` vide la corbeille entière (bouton « Vider la corbeille »). */
+/** Purge: items trashed more than 30 days ago are erased for good; `tout`
+ *  empties the whole trash ("Vider la corbeille" button). */
 function purgerCorbeille(tout = false) {
   const limite = tout ? Infinity : Date.now() - CORBEILLE_JOURS * 86400_000
   let n = 0
@@ -1802,25 +1774,25 @@ function purgerCorbeille(tout = false) {
   if (n) app.log.info(tout ? `corbeille vidée : ${n} élément(s) effacé(s)` : `corbeille : ${n} élément(s) de plus de ${CORBEILLE_JOURS} jours effacé(s)`)
   return n
 }
-/* Vider la corbeille : effacement DÉFINITIF (fichiers et vignettes), sur
-   confirmation dans l'interface. */
+/* Empty trash: PERMANENT erasure (files and thumbnails), after confirmation
+   in the UI. */
 app.post('/api/corbeille/vider', async () => ({ effaces: purgerCorbeille(true) }))
 purgerCorbeille()
 setInterval(purgerCorbeille, 6 * 3600_000).unref()
 
-/* ---------- extension vidéo : dernière frame → start-frame i2v ----------
-   Une vidéo (uploadée dans input/ ou clip de la galerie) est prolongée en
-   extrayant sa DERNIÈRE frame comme image de départ d'un i2v standard.
-   `pick` : 'last' = la toute dernière ; 'sharp' = la plus nette de la
-   dernière demi-seconde (le flou de mouvement de fin conditionne tout le
-   rendu). Netteté mesurée par l'énergie de contours (sobel + signalstats,
-   une passe ffmpeg) — métrique relative, comparée dans la fenêtre. */
-/** Une image tirée d'une vidéo hérite de son origine : un rendu de la bibliothèque
- *  donne « genere », un fichier de input/ garde celle de son dépôt. */
+/* ---------- video extension: last frame -> i2v start frame ----------
+   A video (uploaded to input/ or a gallery clip) is extended by extracting its
+   LAST frame as the start image of a standard i2v.
+   `pick`: 'last' = the very last; 'sharp' = the sharpest of the last half
+   second (end motion blur conditions the whole render). Sharpness measured by
+   edge energy (sobel + signalstats, one ffmpeg pass): a relative metric,
+   compared within the window. */
+/** A frame taken from a video inherits its origin: a library render gives
+ *  "genere", a file from input/ keeps its upload's origin. */
 const origineDe = videoPath => path.dirname(path.resolve(videoPath)) === path.resolve(CONFIG.comfyInput)
   ? (store.origineInput(path.basename(videoPath)) ?? 'inconnu') : 'genere'
 function extractLastFrame(videoPath, pick = 'last') {
-  /* Prequel : la PREMIÈRE frame, qui devient la frame de fin du rendu. */
+  /* Prequel: the FIRST frame, which becomes the render's end frame. */
   if (pick === 'first') {
     const stem = path.basename(videoPath).replace(/\.[^.]*$/, '').replace(/[^\w-]+/g, '_').slice(0, 40)
     const filename = `crs_firstframe_${Date.now().toString(36)}_${stem}.png`
@@ -1833,7 +1805,7 @@ function extractLastFrame(videoPath, pick = 'last') {
     '-of', 'csv=p=0', videoPath], { encoding: 'utf8' }).trim())
   if (!Number.isFinite(dur) || dur <= 0) throw new Error('durée de la vidéo illisible')
   const win = Math.min(0.6, dur)
-  // Scores de netteté des frames de la fenêtre de fin.
+  // Sharpness scores of the frames in the end window.
   const meta = execFileSync('ffmpeg', ['-v', 'error', '-ss', String(Math.max(0, dur - win)), '-i', videoPath,
     '-vf', 'sobel,signalstats,metadata=print:file=-', '-f', 'null', '-'], { encoding: 'utf8' })
   const scores = [...meta.matchAll(/signalstats\.YAVG=([0-9.]+)/g)].map(m => Number(m[1]))
@@ -1843,7 +1815,7 @@ function extractLastFrame(videoPath, pick = 'last') {
   if (pick === 'sharp') { for (let i = 0; i < scores.length; i++) if (scores[i] > scores[idx]) idx = i }
   const maxScore = Math.max(...scores)
   const blurry = scores[last] < 0.6 * maxScore
-  // Extraction de la frame choisie, comptée depuis la fin de fenêtre.
+  // Extract the chosen frame, counted from the end of the window.
   const stem = path.basename(videoPath).replace(/\.[^.]*$/, '').replace(/[^\w-]+/g, '_').slice(0, 40)
   const filename = `crs_lastframe_${Date.now().toString(36)}_${stem}.png`
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(Math.max(0, dur - win)), '-i', videoPath,
@@ -1857,7 +1829,7 @@ function extractLastFrame(videoPath, pick = 'last') {
       : null }
 }
 
-/** Dernière frame d'une vidéo déjà dans input/ (upload). body: { file, pick } */
+/** Last frame of a video already in input/ (upload). body: { file, pick } */
 app.post('/api/input/last-frame', async (req, reply) => {
   const f = String(req.body?.file || '').trim()
   if (!f || /[\\/]/.test(f) || f.startsWith('.')) { reply.code(400); return { error: 'nom de fichier nu attendu (dossier input/)' } }
@@ -1867,22 +1839,22 @@ app.post('/api/input/last-frame', async (req, reply) => {
   catch (e) { reply.code(422); return { error: String(e.message || e) } }
 })
 
-/* Une still de la bibliothèque vit dans creatoros-data/media/ ; un nœud
-   LoadImage, lui, ne lit que le dossier input/ de ComfyUI. Animer une image
-   déjà produite demande donc de l'y recopier — c'est tout ce que fait cette
-   route, et elle rend le NOM, seule chose que le graphe sait manipuler.
+/* A library still lives in creatoros-data/media/; a LoadImage node only reads
+   ComfyUI's input/ folder. Animating an existing image therefore requires
+   copying it there: this route does just that and returns the NAME, the only
+   thing the graph can handle.
 
-   Copie et non lien symbolique : le média peut être supprimé de la
-   bibliothèque entre le choix de la still et le lancement du rendu, et un
-   lien mort ferait échouer le job à l'exécution, pas à la validation. */
+   Copy, not symlink: the media can be deleted from the library between
+   picking the still and starting the render, and a dead link would fail the
+   job at execution rather than at validation. */
 app.post('/api/assets/:id/to-input', async (req, reply) => {
   const row = store.getAsset(req.params.id)
   if (!row) { reply.code(404); return { error: 'asset inconnu' } }
   if (!row.filename) { reply.code(400); return { error: 'asset sans fichier sur disque' } }
   const src = path.join(CONFIG.mediaDir, path.basename(row.filename))
   if (!fs.existsSync(src)) { reply.code(410); return { error: 'fichier absent du disque' } }
-  /* Un clip vidéo ne sert pas d'image de départ tel quel — mais sa DERNIÈRE
-     frame, si (extension vidéo, ?frame=last|sharp). */
+  /* A video clip is not used as a start image as is, but its LAST frame is
+     (video extension, ?frame=last|sharp). */
   if (row.media_type === 'video') {
     const pick = req.query.frame
     if (pick !== 'last' && pick !== 'sharp' && pick !== 'first') { reply.code(400); return { error: 'une vidéo ne peut pas servir d’image de départ — utiliser ?frame=last|sharp pour prolonger le clip depuis sa dernière frame (first : sa 1re frame, pour un prequel)' } }
@@ -1896,9 +1868,9 @@ app.post('/api/assets/:id/to-input', async (req, reply) => {
   return { filename, width: row.width, height: row.height }
 })
 
-/* Inspirations (vidéo) : la photo de départ d'une carte. Les fichiers sont livrés avec le studio (public/inspirations),
-   donc rendus par lui : on les pose dans input/ comme un rendu, ce qu'un visiteur peut animer (un dépôt de visiteur,
-   lui, refuserait une photo avec une personne). Seuls les noms de la liste livrée passent. */
+/* Inspirations (video): a card's start photo. Files ship with the studio (public/inspirations),
+   so they are studio renders: they are placed in input/ like a render, which a visitor can
+   animate. Only names from the shipped list are accepted. */
 const DOSSIER_INSPIRATIONS = path.join(import.meta.dirname, '..', 'public', 'inspirations')
 app.post('/api/inspirations/:id/depart', async (req, reply) => {
   const id = String(req.params.id)
@@ -1913,9 +1885,9 @@ app.post('/api/inspirations/:id/depart', async (req, reply) => {
   return { filename, width, height }
 })
 
-/* « Ouvrir dans ComfyUI » : le graphe exact envoyé pour ce rendu, au format API,
-   à glisser dans ComfyUI ; chemins absolus réduits au nom du fichier. Avec la liste des
-   modèles qu'il charge et leur licence, lue dans le manifeste de l'assistant. */
+/* "Open in ComfyUI": the exact API-format graph sent for this render, to drop into
+   ComfyUI; absolute paths reduced to the file name. With the list of models it loads
+   and their license, read from the assistant manifest. */
 const MANIFESTE_MODELES = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'scripts', 'installer', 'modeles.json'), 'utf8')).modeles
 app.get('/api/assets/:id/workflow', async (req, reply) => {
   const p = store.getProvenance(req.params.id)
@@ -1945,18 +1917,18 @@ app.get('/api/assets/:id/provenance', async (req, reply) => {
     composedPositive: p.composed_positive, composedNegative: p.composed_negative,
     userPrompt: p.user_prompt, userDirectives: p.user_directives,
     resolvedText: parse(p.resolved_text),
-    // Quel préambule d'identité a réellement été injecté : sans lui, un asset
-    // n'est pas rejouable à la relecture.
+    // Which identity preamble was actually injected: without it, an asset
+    // cannot be replayed.
     identityPreamble: parse(p.identity_preamble),
     registerClause: p.register_clause,
     extraLoras: parse(p.extra_loras) ?? null,
     sourceImage: p.source_image,
     selections: parse(p.selections), injections: parse(p.injections),
     workflowJson: parse(p.workflow_json),
-    // ce que le job a réellement reçu : un clone le rejoue même sans selections (jobs lancés par l'API)
+    // what the job actually received: a clone replays it even without selections (API-launched jobs)
     ...((j => j ? { videoEngine: j.videoEngine ?? null, endImage: j.endImage ?? null, videoSeconds: j.videoSeconds ?? null, withAudio: j.withAudio ?? null,
-      /* Images clés d'un plan de la table de montage, retrouvées dans la bibliothèque (crs_still_<fichier>) ;
-         une image déposée depuis l'ordinateur reste un envoi (up:<nom>). Sert à rouvrir le plan dans Movie Studio. */
+      /* Keyframes of an edit-table shot, found in the library (crs_still_<file>); an image
+         uploaded from the computer stays an upload (up:<name>). Used to reopen the shot in Movie Studio. */
       keyframes: Array.isArray(j.keyframes) ? j.keyframes.map(k => {
         const nom = String(k.image ?? ''), a = nom.startsWith('crs_still_') ? store.assetParFichier(nom.slice(10)) : null
         return a ? { assetId: a.id, uri: a.uri, t: Number(k.t) } : { assetId: `up:${nom}`, uri: `/api/uploads/${encodeURIComponent(nom)}`, t: Number(k.t) }
@@ -1965,32 +1937,30 @@ app.get('/api/assets/:id/provenance', async (req, reply) => {
   }
 })
 
-/** Les LoRA qui ont RÉELLEMENT tourné, lues dans le graphe exécuté.
- *  `extra_loras` ne contient que celles ajoutées au job : celles de la recette
- *  n'y figurent pas. Or c'est justement l'empilement complet qui explique un
- *  rendu — une LoRA de style trop forte prend la main sur l'identité, et ça
- *  ne se voit qu'en lisant la pile
- *  entière. On la reconstruit donc depuis `workflow_json`, seule source qui dit
- *  ce qui a tourné plutôt que ce qui a été demandé. */
+/** The LoRAs that ACTUALLY ran, read from the executed graph.
+ *  `extra_loras` only contains those added to the job, not the recipe's. The
+ *  full stack is what explains a render (a strong style LoRA can override
+ *  identity), so it is rebuilt from `workflow_json`, the only source of what
+ *  ran rather than what was requested. */
 app.get('/api/assets/:id/loras', async (req, reply) => {
   const p = store.getProvenance(req.params.id)
   if (!p) { reply.code(404); return { error: 'provenance inconnue' } }
   const wf = parse(p.workflow_json)
   if (!wf) return { loras: [] }
-  /* Les ajouts du job sont identifiés par leur nom de fichier : c'est la seule
-     clé commune entre `extra_loras` et les nœuds du graphe. */
+  /* Job additions are identified by file name: the only key shared between
+     `extra_loras` and the graph nodes. */
   const ajoutees = new Set((parse(p.extra_loras) ?? []).map(l => String(l.name)))
   const loras = Object.entries(wf)
     .filter(([, n]) => /Lora/i.test(String(n?.class_type)))
     .map(([node, n]) => ({ node, ...n.inputs }))
     .filter(l => l.lora_name && String(l.lora_name).toLowerCase() !== 'none')
-    /* Ordre du graphe = ordre d'empilement, et il porte du sens : la dernière
-       appliquée est celle qui tire le plus fort. Les ids sont numériques. */
+    /* Graph order = stacking order, and it matters: the last applied one pulls
+       the hardest. Ids are numeric. */
     .sort((a, b) => Number(a.node) - Number(b.node))
     .map(l => ({
       node: l.node,
       name: String(l.lora_name),
-      /* nom court pour l'affichage : sans le dossier ni l'extension */
+      /* short display name: without folder or extension */
       label: String(l.lora_name).split('/').pop().replace(/\.safetensors$/i, ''),
       strength: l.strength_model ?? l.strength ?? null,
       strengthClip: l.strength_clip ?? null,
@@ -1999,11 +1969,11 @@ app.get('/api/assets/:id/loras', async (req, reply) => {
   return { loras }
 })
 
-/** Revue manuelle — le garde-fou humain du modèle CreatorOS. */
-/* Upscale d'un brouillon vidéo : copie le mp4 vers input/ et met un job
-   « upscale » (V2V refine, mouvement conservé) dans la file standard. */
-/* « Passer en HD » d'une PHOTO : agrandissement doux à 2 MP + affinage,
-   visage repris de la source. `?strength=` règle le renforcement (0 à 0,4). */
+/** Manual review: the human safeguard of the CreatorOS model. */
+/* Upscale of a video draft: copies the mp4 to input/ and queues an
+   "upscale" job (V2V refine, motion preserved) in the standard queue. */
+/* "Go HD" for a PHOTO: gentle upscale to 2 MP + refine, face taken from the
+   source. `?strength=` sets the enhancement (0 to 0.4). */
 app.post('/api/assets/:id/photo-hd', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a) { reply.code(404); return { error: 'asset inconnu' } }
@@ -2012,11 +1982,11 @@ app.post('/api/assets/:id/photo-hd', async (req, reply) => {
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier image introuvable' } }
   const inputName = `PHD_${Date.now().toString(36)}.png`
   fs.copyFileSync(src, path.join(CONFIG.comfyInput, inputName))
-  /* Le prompt de l'affinage est celui qui a PRODUIT l'image, préambule
-     d'identité compris : un texte étranger ferait dériver la scène. */
+  /* The refine prompt is the one that PRODUCED the image, identity preamble
+     included: a foreign text would make the scene drift. */
   const prov = store.getProvenance(a.id)
   let preamble = ''
-  try { preamble = JSON.parse(prov?.identity_preamble ?? 'null')?.text ?? '' } catch { /* absent */ }
+  try { preamble = JSON.parse(prov?.identity_preamble ?? 'null')?.text ?? '' } catch { /* missing */ }
   const prompt = `${preamble}${prov?.composed_positive ?? ''}`.trim()
     || 'natural skin, soft matte finish, fine natural texture, faint soft freckles, raw unretouched phone photo'
   const { id } = deposerAvecCle(cleComfy(req), () => enqueuePhotoHd({
@@ -2025,9 +1995,9 @@ app.post('/api/assets/:id/photo-hd', async (req, reply) => {
   return { jobId: id }
 })
 
-/** Retouche au pinceau, image ou vidéo : `mask` = PNG (data URL) blanc sur noir, aux dimensions
- *  de l'image (pour une vidéo : peint sur sa première image ; `suivi` false = zone fixe) ;
- *  `prompt` = ce qui doit se trouver dans la zone peinte. */
+/** Brush edit, image or video: `mask` = PNG (data URL) white on black, at the image's
+ *  dimensions (for a video: painted on its first frame; `suivi` false = fixed area);
+ *  `prompt` = what should be in the painted area. */
 app.post('/api/assets/:id/inpaint', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a) { reply.code(404); return { error: 'asset inconnu' } }
@@ -2040,7 +2010,7 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
   const video = a.media_type === 'video'
   const cle = Date.now().toString(36)
   const inputName = `INP_${cle}${path.extname(src) || '.png'}`, maskName = `INP_${cle}_masque.png`
-  /* Objet peint dans un clip : la photo de référence vient de la bibliothèque. */
+  /* Object painted into a clip: the reference photo comes from the library. */
   let objet = null
   if (video && req.body?.objetAsset) {
     const o = store.getAsset(String(req.body.objetAsset))
@@ -2063,11 +2033,11 @@ app.post('/api/assets/:id/inpaint', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Le personnage d'un rendu : celui de son job, pas le personnage actif du moment. */
+/** A render's character: its job's, not the currently active character. */
 const personaDuRendu = a => { const j = a.job_id ? store.getJob(a.job_id) : null; return a.persona_id ?? j?.persona_id ?? j?.personaId ?? undefined }
 
-/* Agrandir une photo : le cadre s'élargit au format demandé, l'image reste au centre et le
-   pinceau redessine les bords (masque blanc, 24 px de recouvrement pour fondre la couture). */
+/* Expand a photo: the frame widens to the requested aspect, the image stays centered and
+   the brush redraws the edges (white mask, 24 px overlap to blend the seam). */
 const FORMATS_AGRANDIR = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5, '+30%': null }
 app.post('/api/assets/:id/agrandir', async (req, reply) => {
   const a = store.getAsset(req.params.id)
@@ -2082,15 +2052,15 @@ app.post('/api/assets/:id/agrandir', async (req, reply) => {
   const pair = n => Math.round(n / 16) * 16
   let W = r === null ? w * 1.3 : Math.max(w, h * r), H = r === null ? h * 1.3 : Math.max(h, w / r)
   if (r !== null && (W - w < 32 && H - h < 32)) { reply.code(400); return { error: 'la photo est déjà à ce format' } }
-  const k = Math.min(1, 1600 / Math.max(W, H))          // côté long borné : au-delà la recette sature
+  const k = Math.min(1, 1600 / Math.max(W, H))          // long side capped: beyond it the recipe saturates
   const iw = pair(w * k), ih = pair(h * k); W = Math.max(pair(W * k), iw); H = Math.max(pair(H * k), ih)
   const cle = Date.now().toString(36)
   const entree = `AGR_${cle}.png`, masque = `AGR_${cle}_masque.png`, x = Math.floor((W - iw) / 2), y = Math.floor((H - ih) / 2)
   const e = [24, 24, 24, 24].map((m, i) => ((i < 2 ? (i ? H > ih : W > iw) : (i === 2 ? W > iw : H > ih)) ? m : 0))
   const ff = args => execFileSync('ffmpeg', ['-loglevel', 'error', '-y', ...args], { timeout: 30_000 })
   try {
-    // marges pré-remplies par un prolongement flou de la photo : des bandes grises unies se lisent comme
-    // des bandes à retirer (le modèle recadre ou les laisse grises) ; un flou se lit comme une scène à préciser
+    // margins pre-filled with a blurred extension of the photo: flat grey bands read as
+    // bands to remove (the model crops or leaves them grey); a blur reads as a scene to refine
     ff(['-i', src, '-filter_complex', `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=40,eq=saturation=0.85[f];[0:v]scale=${iw}:${ih}[i];[f][i]overlay=${x}:${y},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, entree)])
     ff(['-f', 'lavfi', '-i', `color=white:s=${W}x${H}`, '-f', 'lavfi', '-i', `color=black:s=${iw - e[0] - e[2]}x${ih - e[1] - e[3]}`, '-filter_complex', `[0][1]overlay=${x + e[0]}:${y + e[1]},format=rgb24`, '-frames:v', '1', path.join(CONFIG.comfyInput, masque)])
     const consigne = String(req.body?.prompt ?? '').trim() || 'Outpaint: the blurred margins around the photo are an unfinished extension of the scene. Redraw them as a sharp, detailed, natural continuation of the same place, at the same scale, with the same light, perspective and style, photorealistic. Keep the whole image at this exact framing: do not zoom, crop or reframe. Do not add any person. Keep the center unchanged.'
@@ -2099,7 +2069,7 @@ app.post('/api/assets/:id/agrandir', async (req, reply) => {
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
-/** Stage : une scène en nombres devient un plan fini (cf. enqueueStage). */
+/** Stage: a scene in numbers becomes a finished shot (see enqueueStage). */
 app.post('/api/stage', async (req, reply) => {
   try {
     const b = req.body ?? {}
@@ -2108,7 +2078,7 @@ app.post('/api/stage', async (req, reply) => {
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
-/** Rouvrir un plan dans Stage : la scène chiffrée et le texte du job. */
+/** Reopen a shot in Stage: the numeric scene and the job text. */
 app.get('/api/stage/:id/scene', async (req, reply) => {
   const job = store.getJob(req.params.id)
   const f = path.join(CONFIG.mediaDir, '.stage', `${path.basename(req.params.id)}.json`)
@@ -2117,7 +2087,7 @@ app.get('/api/stage/:id/scene', async (req, reply) => {
   return { objets, camera, prompt: job.user_prompt }
 })
 
-/* Stage en 3D : les modèles utilisables, objets du studio et .glb importés. */
+/* 3D Stage: usable models, studio objects and imported .glb files. */
 app.get('/api/stage/modeles', async () => {
   const objets = fs.readdirSync(CONFIG.mediaDir).filter(f => /^objet3d-[a-z0-9]+\.glb$/.test(f)).reverse().slice(0, 60)
     .map(f => ({ nom: f, titre: store.getJob(f.replace(/\.glb$/, ''))?.user_prompt ?? f, url: `/media/${f}` }))
@@ -2131,9 +2101,9 @@ app.get('/api/stage/modeles/:nom', async (req, reply) => {
   reply.type('model/gltf-binary')
   return fs.createReadStream(f)
 })
-/** Import d'un .glb : réservé au propriétaire, comme tout envoi de fichier. */
+/** .glb import: owner only, like any file upload. */
 app.addContentTypeParser('model/gltf-binary', { parseAs: 'buffer', bodyLimit: 200 * 1024 * 1024 }, (req, corps, done) => done(null, corps))
-/* MiniMax H3 en option : état, puis envoi des poids par le propriétaire (cf. h3.js). */
+/* Optional MiniMax H3: status, then weights upload by the owner (see h3.js). */
 app.get('/api/modeles/h3', async () => etatH3())
 app.put('/api/modeles/h3/:nom', { bodyLimit: 64 * 1024 ** 3 }, async (req, reply) => {
   if (demoPublique()) { reply.code(403); return { error: H3_MESSAGE_DEMO } }
@@ -2141,7 +2111,7 @@ app.put('/api/modeles/h3/:nom', { bodyLimit: 64 * 1024 ** 3 }, async (req, reply
   try { return await recevoirFichierH3(req.params.nom, req.body) } catch (e) { reply.code(e.statusCode ?? 500); return { error: String(e.message || e) } }
 })
 
-/** Créer un personnage de zéro (cf. createurPersonnage.js), propriétaire seulement. */
+/** Create a character from scratch (see createurPersonnage.js), owner only. */
 app.post('/api/personnages/propositions', async (req, reply) => {
   try { return { jobs: propositions(req.body?.traits) } } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
@@ -2151,13 +2121,13 @@ app.post('/api/personnages/creer', async (req, reply) => {
 })
 app.get('/api/personnages/creer/:id', async (req, reply) => etatCreation(req.params.id) ?? (reply.code(404), { error: 'création inconnue' }))
 
-/** Entraînement d'un personnage sur des images de la bibliothèque (propriétaire seulement). */
-/** Entraînements de LoRA des 14 derniers jours : état, pas faits, temps restant estimé, LoRA produite. */
+/** Character training on library images (owner only). */
+/** LoRA trainings of the last 14 days: status, steps done, estimated remaining time, produced LoRA. */
 app.get('/api/entrainement', async () => {
   const lignes = store.db.prepare(`SELECT id, persona_id, status, created_at, started_at, finished_at, error, payload FROM jobs
     WHERE recipe_id = 'entrainement@v1' AND created_at > ? ORDER BY created_at DESC LIMIT 20`).all(Date.now() - 14 * 86400_000)
   const travaux = lignes.map(r => {
-    let p = {}; try { p = JSON.parse(r.payload ?? '{}') } catch { /* payload illisible */ }
+    let p = {}; try { p = JSON.parse(r.payload ?? '{}') } catch { /* unreadable payload */ }
     const av = avancementEntrainements.get(r.id)
     const total = av?.total ?? p.entrainementPas ?? null
     const ecoule = r.started_at ? Date.now() - r.started_at : 0
@@ -2173,7 +2143,7 @@ app.get('/api/entrainement', async () => {
 app.post('/api/personas/:id/entrainer', async (req, reply) => {
   const ids = Array.isArray(req.body?.assets) ? req.body.assets.slice(0, 30) : []
   const images = ids.map(i => store.getAsset(String(i))).filter(a => a && a.media_type === 'photo').map(a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))).filter(f => fs.existsSync(f))
-  // un ou plusieurs moteurs : un entraînement par moteur, à la suite dans la file
+  // one or more engines: one training per engine, queued one after another
   const moteurs = (Array.isArray(req.body?.moteurs) ? req.body.moteurs : [req.body?.moteur ?? 'klein']).map(String).filter((m, i, l) => l.indexOf(m) === i).slice(0, 3)
   try {
     const jobIds = moteurs.map(moteur => enqueueEntrainement({ personaId: req.params.id, images, declencheur: req.body?.declencheur, pas: req.body?.pas, essai: req.body?.essai === true, moteur, legendes: Array.isArray(req.body?.legendes) ? req.body.legendes : null }).id)
@@ -2182,7 +2152,7 @@ app.post('/api/personas/:id/entrainer', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Doublage d'un clip sur une voix de la bibliothèque audio (cf. enqueueDoublage). */
+/** Dubbing a clip with a voice from the audio library (see enqueueDoublage). */
 app.post('/api/assets/:id/doubler', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
@@ -2195,12 +2165,12 @@ app.post('/api/assets/:id/doubler', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Voix off (cf. voix.js). */
+/** Voice-over (see voix.js). */
 app.get('/api/voix', async req => ({ disponible: voixDisponible(), voix: VOIX, clone: cloneDisponible(),
-  // voix clonées possibles : les extraits de la bibliothèque audio (propriétaire seul), hors pistes de reel
+  // possible cloned voices: audio library excerpts (owner only), excluding reel tracks
   clones: estProprietaire(req) && cloneDisponible() ? montage.listerMusiques().filter(m => !/^reel_/.test(m.nom) && m.duree >= 4 && m.duree <= 25).map(m => ({ id: `clone:${m.nom}`, nom: m.nom })) : [] }))
-/* Avatar parlant : la phrase dite par une voix (du personnage, du studio ou clonée), déposée comme voix
-   d'InfiniteTalk ; les lèvres suivent ensuite ce fichier. */
+/* Talking avatar: the sentence spoken by a voice (character's, studio's or cloned), placed as
+   the InfiniteTalk voice; the lips then follow that file. */
 app.post('/api/parole/dire', async (req, reply) => {
   const proprio = estProprietaire(req)
   let v = String(req.body?.voix ?? '')
@@ -2213,7 +2183,7 @@ app.post('/api/parole/dire', async (req, reply) => {
     fs.copyFileSync(path.join(montage.MUSIQUES_DIR, nom), path.join(CONFIG.comfyInput, fichier))
     store.noterInput(fichier, 'voix')
     let duree = 0
-    try { duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(CONFIG.comfyInput, fichier)], { encoding: 'utf8' }).trim()) || 0 } catch { /* illisible */ }
+    try { duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(CONFIG.comfyInput, fichier)], { encoding: 'utf8' }).trim()) || 0 } catch { /* unreadable */ }
     return { fichier, duree, nom }
   } catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
@@ -2221,9 +2191,9 @@ app.post('/api/voix/clone', async (req, reply) => {
   try { return await cloner({ texte: req.body?.texte, reference: req.body?.reference, accord: req.body?.accord === true }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
-/** Retiming d'un plan de la table de montage : les images clés déplacées changent la vitesse segment par segment.
-    points = [{ src, dst }] (s) : l'instant de l'image clé dans le clip rendu, et celui voulu. Image et son suivent
-    (setpts, atempo) ; le résultat est un nouveau clip dans la bibliothèque. */
+/** Retiming of an edit-table shot: moved keyframes change speed segment by segment.
+    points = [{ src, dst }] (s): the keyframe's time in the rendered clip, and the desired one. Image and
+    sound follow (setpts, atempo); the result is a new clip in the library. */
 app.post('/api/assets/:id/retemps', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
@@ -2264,8 +2234,8 @@ app.post('/api/assets/:id/retemps', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
 
-/** Changeur de voix (cf. voix.changerVoix) : un audio de la bibliothèque, ou la piste d'un clip
-    qui devient un nouveau clip avec la voix changée. Réservé au propriétaire. */
+/** Voice changer (see voix.changerVoix): a library audio, or a clip's track, which becomes a
+    new clip with the changed voice. Owner only. */
 app.post('/api/voix/changer', async (req, reply) => {
   const b = req.body ?? {}
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'voix-'))
@@ -2312,10 +2282,10 @@ app.post('/api/voix', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
 
-/** Extensions (cf. extensions.js) : les livrées se lancent par tous, l'installation et les
-    extensions installées sont réservées au propriétaire. */
-/** Mise à niveau de ComfyUI et nœuds tiers (cf. noeudsComfy.js) : propriétaire seulement ;
-    la démo publique refuse tout code tiers. */
+/** Extensions (see extensions.js): shipped ones can be run by anyone; installing and
+    installed extensions are owner only. */
+/** ComfyUI and third-party node upgrades (see noeudsComfy.js): owner only;
+    the public demo refuses any third-party code. */
 app.get('/api/comfy/maj', async () => ({ demo: noeudsComfy.estDemo(), messageDemo: noeudsComfy.MESSAGE_DEMO, travaux: noeudsComfy.etat() }))
 app.post('/api/comfy/maj', async (req, reply) => {
   try { return await noeudsComfy.mettreAJourComfy() } catch (e) { reply.code(400); return { error: String(e.message || e) } }
@@ -2328,8 +2298,8 @@ app.post('/api/comfy/redemarrer', async (req, reply) => {
   try { return await noeudsComfy.redemarrerComfy(queueDepth() === 0) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Workflows officiels de ComfyUI (cf. workflowsComfy.js) : liste et miniatures pour tous,
-    téléchargement des modèles pour le propriétaire. */
+/** Official ComfyUI workflows (see workflowsComfy.js): list and thumbnails for everyone,
+    model download for the owner. */
 app.get('/api/workflows-comfy', async (req, reply) => {
   try { return { workflows: await workflowsComfy.lister() } } catch (e) { reply.code(502); return { error: String(e.message || e) } }
 })
@@ -2343,7 +2313,7 @@ app.get('/api/workflows-comfy/vignette/:nom', async (req, reply) => {
 app.post('/api/workflows-comfy/:id/telecharger', async (req, reply) => {
   try { return await workflowsComfy.telecharger(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-/* Ouvrir un workflow du catalogue dans le studio : son formulaire (pour tous), son lancement (propriétaire). */
+/* Open a catalog workflow in the studio: its form (everyone), its launch (owner). */
 app.get('/api/workflows-comfy/:id/formulaire', async (req, reply) => {
   try { return await workflowsComfy.formulaire(String(req.params.id)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
@@ -2365,7 +2335,7 @@ app.post('/api/extensions/:id/lancer', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Analyse d'un clip pour les réseaux (cf. vision.analyserClip) : estimation, pas prédiction. */
+/** Clip analysis for social networks (see vision.analyserClip): an estimate, not a prediction. */
 app.post('/api/assets/:id/analyse', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
@@ -2373,8 +2343,8 @@ app.post('/api/assets/:id/analyse', async (req, reply) => {
   catch (e) { reply.code(502); return { error: String(e.message || e) } }
 })
 
-/** Pack publicitaire (cf. packPub.js) : une photo de la bibliothèque, un dépôt (propriétaire sur la
-    démo) ou une simple description du produit, puis la mise en scène voulue avec le personnage. */
+/** Ad pack (see packPub.js): a library photo, an upload (owner on the demo) or a plain
+    product description, then the desired staging with the character. */
 const lancerPackDepuis = (req, reply, asset) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   const b = req.body ?? {}
@@ -2397,14 +2367,14 @@ app.post('/api/pack-pub', async (req, reply) => {
 })
 app.get('/api/pack-pub/:id', async (req, reply) => etatPack(req.params.id) ?? (reply.code(404), { error: 'pack inconnu' }))
 
-/** Croquis vers vidéo (cf. croquis.js). */
+/** Sketch to video (see croquis.js). */
 app.post('/api/croquis', async (req, reply) => {
   const b = req.body ?? {}
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   try { return deposerAvecCle(cleComfy(req), () => lancerCroquis({ image: b.image, scene: b.scene, mouvement: b.mouvement, format: b.format, secondes: b.secondes, personaId: personaDe(req) })) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-/** Restaurer (cf. restauration.js) : une photo ou un clip, de la bibliothèque ou envoyé par le propriétaire. */
+/** Restore (see restauration.js): a photo or clip, from the library or uploaded by the owner. */
 app.post('/api/restauration', async (req, reply) => {
   const b = req.body ?? {}
   try {
@@ -2419,7 +2389,7 @@ app.post('/api/restauration', async (req, reply) => {
         store.noterInput(fichier)
       }
     } else if (b.fichier) {
-      // un fichier envoyé : seuls ceux du studio ou, pour le propriétaire, ses envois ; un clip envoyé, propriétaire seul
+      // an uploaded file: only studio ones or, for the owner, their uploads; an uploaded clip, owner only
       const nom = path.basename(String(b.fichier))
       if (media === 'video' ? !/\.(mp4|mov|webm)$/i.test(nom) : !/\.(png|jpe?g|webp)$/i.test(nom)) { reply.code(400); return { error: 'type de fichier inattendu' } }
       if (!estProprietaire(req) && (media === 'video' || !store.estInputVisiteur(nom))) { reply.code(403); return { error: 'sur la démo publique, on part d’un média de la bibliothèque' } }
@@ -2435,14 +2405,14 @@ app.post('/api/croquis/:id/choisir', async (req, reply) => {
   try { return choisirCroquis(req.params.id, req.body?.assetId) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Recadrage vidéo vers un autre format, bords inventés (cf. enqueueRecadrage). */
+/** Video reframe to another aspect, invented edges (see enqueueRecadrage). */
 app.post('/api/assets/:id/recadrer', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
   try {
-    // sans consigne : le décor du clip d'origine, prolongé sur les côtés
+    // without instruction: the source clip's setting, extended to the sides
     const prov = store.getProvenance(a.id)
     const orig = String(prov?.user_prompt || prov?.composed_positive || '').trim().slice(0, 300)
     const prompt = String(req.body?.prompt ?? '').trim() || (orig ? `${orig}, wide view, the same place continues naturally on every side, same light, coherent perspective, no frame, no border` : undefined)
@@ -2461,7 +2431,7 @@ app.post('/api/stage/glb', async (req, reply) => {
   return { nom }
 })
 
-/** Objet 3D : une photo devient un GLB (cf. enqueueObjet3d). */
+/** 3D object: a photo becomes a GLB (see enqueueObjet3d). */
 app.post('/api/assets/:id/objet3d', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
@@ -2475,18 +2445,18 @@ app.post('/api/assets/:id/objet3d', async (req, reply) => {
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
-/** Musique ou bruitage généré : rejoint les musiques du montage (cf. enqueueMusique). */
+/** Generated music or sound effect: joins the edit's music (see enqueueMusique). */
 app.post('/api/musique', async (req, reply) => {
   try {
     const b = req.body ?? {}
-    // réglages facultatifs (tempo, tonalité, mesure, langue, voix chantée, instruments) : validés par enqueueMusique
+    // optional settings (tempo, key, time signature, language, sung voice, instruments): validated by enqueueMusique
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueMusique({ prompt: b.prompt, paroles: b.paroles, secondes: b.secondes, genre: b.genre,
       bpm: b.bpm, tonalite: b.tonalite, mesure: b.mesure, langue: b.langue, voix: b.voix, instruments: b.instruments }))
     return { jobId: id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
-/** Master d'un clip : POST le lance, GET en donne l'état, ?dl=1 le télécharge (cf. master.js). */
+/** Clip master: POST starts it, GET gives its state, ?dl=1 downloads it (see master.js). */
 const fichierClip = a => path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
 app.post('/api/assets/:id/master', async (req, reply) => {
   const a = store.getAsset(req.params.id)
@@ -2507,7 +2477,7 @@ app.get('/api/assets/:id/master/:format', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Carte de profondeur de la photo (cf. enqueueProfondeur). */
+/** Depth map of the photo (see enqueueProfondeur). */
 app.post('/api/assets/:id/profondeur', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
@@ -2520,7 +2490,7 @@ app.post('/api/assets/:id/profondeur', async (req, reply) => {
     return { jobId: id }
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
-/** Fond transparent : la photo sort en PNG avec alpha (cf. enqueueTransparent). */
+/** Transparent background: the photo comes out as PNG with alpha (see enqueueTransparent). */
 app.post('/api/assets/:id/transparent', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
@@ -2534,14 +2504,14 @@ app.post('/api/assets/:id/transparent', async (req, reply) => {
   } catch (err) { reply.code(400); return { error: String(err.message || err) } }
 })
 
-/** Édition vidéo au prompt : `cible` = l'élément à modifier, nommé en anglais (SAM3 le
- *  détecte et le suit sur tout le clip) ; `prompt` = ce qu'il doit devenir. */
+/** Prompt-based video edit: `cible` = the element to modify, named in English (SAM3
+ *  detects and tracks it over the whole clip); `prompt` = what it should become. */
 app.post('/api/assets/:id/edit-video', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
-  /* Trois façons : modifier un élément, le retirer, ou changer le fond autour de la personne. */
+  /* Three ways: modify an element, remove it, or change the background around the person. */
   const mode = ['retirer', 'fond', 'detourer', 'effet'].includes(req.body?.mode) ? req.body.mode : 'modifier'
   let prompt = String(req.body?.prompt ?? '').trim(), cible = String(req.body?.cible ?? '').trim()
   let strength = Number(req.body?.strength)
@@ -2552,7 +2522,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
       return { jobId: r.id }
     } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
-  /* Effets en un clic : IC-LoRA LTX-2.5 de Lightricks (Refine Details, Day to Night, Unblur, Remove Compression). */
+  /* One-click effects: Lightricks LTX-2.5 IC-LoRA (Refine Details, Day to Night, Unblur, Remove Compression). */
   if (mode === 'effet') {
     try {
       const r = deposerAvecCle(cleComfy(req), () => enqueueEffetLtx({ source: path.basename(src), effet: String(req.body?.effet ?? ''), texte: prompt,
@@ -2560,8 +2530,8 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
       return { jobId: r.id }
     } catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
-  /* Retirer : IC-LoRA LTX-2.5 Clean-Plate — personnes, passants, véhicules ;
-     le décor est reconstruit derrière, le son d'origine gardé (cf. enqueueCleanPlate). */
+  /* Remove: LTX-2.5 Clean-Plate IC-LoRA (people, passers-by, vehicles); the set
+     is rebuilt behind, original sound kept (see enqueueCleanPlate). */
   if (mode === 'retirer') {
     try {
       const r = deposerAvecCle(cleComfy(req), () => enqueueCleanPlate({ source: path.basename(src), cible: cible || 'people', decor: prompt,
@@ -2571,9 +2541,9 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   }
   if (!cible) { reply.code(400); return { error: 'dis quel élément modifier (ex. « dress »)' } }
   if (mode === 'retirer') {
-    // l'élément disparaît : on redessine sa zone en décor, plus fort qu'une simple modification
-    // ne pas nommer l'objet ici : l'encodeur de texte ignore la négation, « without a cup » attire une tasse
-    // (l'objet est mis dans le prompt négatif par runInpaintVideo)
+    // the element disappears: its area is redrawn as set, stronger than a simple edit.
+    // The object is not named here: the text encoder ignores negation ("without a cup"
+    // attracts a cup); runInpaintVideo puts the object in the negative prompt.
     prompt = `empty surface, the background continues naturally, nothing there, same lighting and colours${prompt ? `, ${prompt}` : ''}`
     if (!Number.isFinite(strength)) strength = 1
   } else if (mode === 'fond') {
@@ -2590,7 +2560,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/** Finitions d'un clip : bruitage (son sur un clip muet) et fluidité (RIFE ×2). */
+/** Clip finishes: sound effect (sound on a silent clip) and smoothness (RIFE x2). */
 for (const op of ['foley', 'interpolate']) {
   app.post(`/api/assets/:id/${op}`, async (req, reply) => {
     const a = store.getAsset(req.params.id)
@@ -2600,14 +2570,14 @@ for (const op of ['foley', 'interpolate']) {
   })
 }
 
-/** Netteté SeedVR2 : tout clip monte à 1080 de petit côté (cf. enqueueSeedvr). */
+/** SeedVR2 sharpness: any clip goes up to 1080 on the short side (see enqueueSeedvr). */
 app.post('/api/assets/:id/seedvr', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'vidéo inconnue' } }
   try { const r = deposerAvecCle(cleComfy(req), () => enqueueSeedvr({ source: path.basename(a.filename ?? a.uri), parentAssetId: a.id, personaId: a.persona_id })); return { jobId: r.id } }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-/** Next beat : le texte du moment suivant ; la retouche part ensuite par /api/jobs, avec ses filtres. */
+/** Next beat: the text of the next moment; the edit then goes through /api/jobs, with its filters. */
 app.post('/api/assets/:id/moment-suivant', async (req, reply) => {
   const a = store.getAsset(req.params.id)
   if (!a || a.media_type === 'video') { reply.code(404); return { error: 'photo inconnue' } }
@@ -2624,17 +2594,17 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
   if (a.media_type !== 'video') { reply.code(400); return { error: 'upscale : vidéos seulement' } }
   const src = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
   if (!fs.existsSync(src)) { reply.code(404); return { error: 'fichier vidéo introuvable' } }
-  // cible ×1.5, multiples de 16, plafond 1280 sur le grand côté
+  // target x1.5, multiples of 16, capped at 1280 on the long side
   const r16 = v => Math.max(16, Math.round(v / 16) * 16)
   let w = r16((a.width || 544) * 1.5), h = r16((a.height || 800) * 1.5)
   const cap = 1280 / Math.max(w, h)
   if (cap < 1) { w = r16(w * cap); h = r16(h * cap) }
-  /* Voie LATENT NATIF H3 (qualité supérieure) : parent minimax
-     dont la passe 1 est REJOUABLE — workflowJson en provenance et still
-     d'entrée encore dans input/. Sinon : refine Wan (fallback universel). */
-  /* Voie H3 désactivée par défaut : sur les scènes à fort
-     mouvement (vagues, eau), l'upscaler latent strie les hautes fréquences
-     sur TOUT le clip. Réactivable au cas par cas : POST ...?path=h3 */
+  /* Native LATENT H3 path (higher quality): minimax parent whose pass 1 is
+     REPLAYABLE (workflowJson in provenance and input still still in input/).
+     Otherwise: Wan refine (universal fallback). */
+  /* H3 path disabled by default: on high-motion scenes (waves, water), the
+     latent upscaler streaks high frequencies over the WHOLE clip. Can be
+     enabled case by case: POST ...?path=h3 */
   let h3 = false
   if (req.query?.path === 'h3' && /^minimax/.test(a.video_engine ?? '')) {
     try {
@@ -2645,12 +2615,11 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
         const stillOk = !loadImg || fs.existsSync(path.join(CONFIG.comfyInput, String(loadImg.inputs.image)))
         h3 = stillOk
       }
-    } catch { /* provenance illisible : fallback Wan */ }
+    } catch { /* unreadable provenance: Wan fallback */ }
   }
   const inputName = `UPSC_${Date.now().toString(36)}.mp4`
   fs.copyFileSync(src, path.join(CONFIG.comfyInput, inputName))
-  /* Cadence RÉELLE de la source : la recette refine forçait 16 fps et
-     décimait un brouillon 30 fps (saccades, ups-mu443l82). */
+  /* ACTUAL source frame rate, so a 30 fps draft is not decimated. */
   let fps = 16
   try {
     const { execFileSync } = await import('node:child_process')
@@ -2658,8 +2627,8 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
       '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', src], { encoding: 'utf8' })
     const [n, d] = out.trim().split('/').map(Number)
     if (n && d) fps = Math.round(n / d)
-  } catch { /* ffprobe absent : 16 par défaut */ }
-  // H3 : sortie 2x fixe des dims du draft (latent 2x), sinon cible Wan x1.5
+  } catch { /* no ffprobe: 16 by default */ }
+  // H3: fixed 2x output of the draft dims (2x latent), otherwise Wan target x1.5
   if (h3) { w = (a.width || 544) * 2; h = (a.height || 800) * 2 }
   const { id } = deposerAvecCle(cleComfy(req), () => enqueueUpscale({
     sourceFile: inputName, width: w, height: h, fps,
@@ -2669,18 +2638,18 @@ app.post('/api/assets/:id/upscale', async (req, reply) => {
   return { jobId: id, width: w, height: h, path: h3 ? 'latent-h3' : 'refine-wan' }
 })
 
-/* ---------- dossiers ---------- */
-/* Comme la bibliothèque : les dossiers du personnage ACTIF (?persona=<id> pour un autre). */
+/* ---------- folders ---------- */
+/* Like the library: folders of the ACTIVE character (?persona=<id> for another). */
 const personaDe = req => String(req.query?.persona ?? '') || decodeURIComponent(String(req.headers['x-personnage'] ?? '')) || personas().active || null
-/** Sans personnage, le préambule garde la mention d'âge adulte (persona.js) : ouvert à tous, visiteurs compris. */
+/** Without a character, the preamble keeps the adult-age mention (persona.js): open to all, visitors included. */
 const personnageInterdit = () => false
-// le propriétaire voit tous les dossiers, communs à tous les personnages ; un visiteur, ceux de son personnage
+// the owner sees all folders, shared across characters; a visitor, those of their character
 app.get('/api/folders', async req => ({ folders: store.listFolders(estProprietaire(req) ? undefined : personaDe(req))
   .map(f => ({ id: f.id, name: f.name, createdAt: f.created_at, count: f.count, personaId: f.persona_id ?? null })) }))
 app.post('/api/folders', async (req, reply) => {
   const name = String(req.body?.name ?? '').trim()
   if (!name) { reply.code(400); return { error: 'nom requis' } }
-  // les dossiers du propriétaire sont communs à tous les personnages
+  // owner folders are shared across all characters
   const f = store.createFolder(name, estProprietaire(req) ? null : personaDe(req))
   return { id: f.id, name: f.name }
 })
@@ -2694,7 +2663,7 @@ app.delete('/api/folders/:id', async (req, reply) => {
   if (!store.deleteFolder(req.params.id)) { reply.code(404); return { error: 'dossier inconnu' } }
   return { ok: true }
 })
-/* ---------- montage (mini-éditeur de reel, cf. montage.js) ---------- */
+/* ---------- edit (mini reel editor, see montage.js) ---------- */
 app.addContentTypeParser(['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/flac', 'audio/webm'],
   { parseAs: 'buffer' }, (req, body, done) => done(null, body))
 app.get('/api/montages', async req => ({ montages: montage.listerProjets(personaDe(req)), formats: Object.keys(montage.FORMATS) }))
@@ -2712,7 +2681,7 @@ app.post('/api/montages/:id/export', async (req, reply) => {
   try { return montage.exporter(p) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/montages/rendu/:jobId', async req => ({ progression: montage.progressionDe(req.params.jobId) ?? null }))
-/* ---------- presets en un clic : caméra et effets (cf. presets.js) ---------- */
+/* ---------- one-click presets: camera and effects (see presets.js) ---------- */
 app.get('/api/presets', async () => ({ presets: presets.listerPresets() }))
 app.get('/api/presets/:id/apercu', async (req, reply) => {
   const f = presets.cheminApercu(req.params.id)
@@ -2725,9 +2694,9 @@ app.post('/api/presets/:id/lancer', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/* ---------- avatar parlant (cf. jobs.js enqueueParole) ----------
-   La voix est déposée dans input/ (LoadAudio n'y lit que là) et inscrite au
-   registre des dépôts du studio, comme une photo. */
+/* ---------- talking avatar (see jobs.js enqueueParole) ----------
+   The voice is placed in input/ (LoadAudio only reads there) and registered
+   in the studio upload registry, like a photo. */
 const TYPES_VOIX = { 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/aac': '.aac',
   'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav', 'audio/ogg': '.ogg', 'audio/webm': '.webm', 'audio/flac': '.flac' }
 app.post('/api/parole/voix', async (req, reply) => {
@@ -2739,7 +2708,7 @@ app.post('/api/parole/voix', async (req, reply) => {
   fs.writeFileSync(path.join(CONFIG.comfyInput, nom), req.body)
   store.noterInput(nom, 'voix')
   let duree = 0
-  try { duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(CONFIG.comfyInput, nom)], { encoding: 'utf8' }).trim()) || 0 } catch { /* illisible */ }
+  try { duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(CONFIG.comfyInput, nom)], { encoding: 'utf8' }).trim()) || 0 } catch { /* unreadable */ }
   if (!duree) { fs.rmSync(path.join(CONFIG.comfyInput, nom), { force: true }); reply.code(422); return { error: 'audio illisible' } }
   return { fichier: nom, duree }
 })
@@ -2755,8 +2724,8 @@ app.post('/api/parole', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/* ---------- essayage et photodump (cf. jobs.js) ----------
-   Les photos de la bibliothèque sont recopiées dans input/ (LoadImage n'y lit que là). */
+/* ---------- try-on and photodump (see jobs.js) ----------
+   Library photos are copied into input/ (LoadImage only reads there). */
 const versInput = (a, prefixe) => {
   const nom = `${prefixe}_${path.basename(a.filename)}`
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
@@ -2788,7 +2757,7 @@ app.post('/api/assets/:id/style-reference', async (req, reply) => {
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/* ---------- re-shoot : le même plan, vu d'un autre angle (cf. jobs.js) ---------- */
+/* ---------- re-shoot: the same shot, from another angle (see jobs.js) ---------- */
 app.post('/api/reshoot', async (req, reply) => {
   const a = store.getAsset(String(req.body?.assetId ?? ''))
   if (!a || a.media_type !== 'video' || !a.filename) { reply.code(400); return { error: 'choisis un clip de la bibliothèque' } }
@@ -2798,7 +2767,7 @@ app.post('/api/reshoot', async (req, reply) => {
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
-/* scène 3D du clip (vue Re-shoot) : calculée une fois, puis servie depuis le cache */
+/* 3D scene of the clip (Re-shoot view): computed once, then served from cache */
 app.post('/api/reshoot/scene', async (req, reply) => {
   const a = store.getAsset(String(req.body?.assetId ?? ''))
   if (!a || a.media_type !== 'video' || !a.filename) { reply.code(400); return { error: 'choisis un clip de la bibliothèque' } }
@@ -2813,14 +2782,14 @@ app.get('/api/reshoot/scene/:fichier', async (req, reply) => {
   return fs.readFileSync(f)
 })
 
-/* ---------- reel en un clic (cf. reel.js) ---------- */
+/* ---------- one-click reel (see reel.js) ---------- */
 const reelOut = r => r && {
   ...r,
   plans: (r.plans ?? []).map(p => {
     const photo = p.photoAsset ? store.getAsset(p.photoAsset) : null, clip = p.clipAsset ? store.getAsset(p.clipAsset) : null
     const etat = j => j ? store.getJob(j)?.status ?? 'absent' : null
-    /* clip rendu puis supprimé de la bibliothèque : le plan est écarté, on ne
-       retombe pas sur sa photo (l'opérateur l'a jeté) */
+    /* clip rendered then deleted from the library: the shot is dropped, its
+       photo is not reused (the operator discarded it) */
     return { ...p, photoUri: photo?.uri ?? null, clipUri: clip?.uri ?? null, photoEtat: etat(p.photoJob), clipEtat: etat(p.clipJob),
       supprime: !!p.clipAsset && !clip }
   }),
@@ -2834,9 +2803,9 @@ app.post('/api/reels/:id/plans/:k/refaire', async (req, reply) => {
 app.delete('/api/reels/:id', async (req, reply) => (await reel.supprimerReel(req.params.id)) ? { ok: true } : (reply.code(404), { error: 'reel inconnu' }))
 app.post('/api/reels/:id/annuler', async (req, reply) => reelOut(await reel.annulerReel(req.params.id)) ?? (reply.code(404), { error: 'reel inconnu' }))
 app.get('/api/reels/presets', async () => ({ presets: reelPresets.listePresets() }))
-// le catalogue des danses : vidéos de mouvement d'un mannequin, choisies par le visiteur
+// dance catalog: motion videos of a mannequin, chosen by the visitor
 app.get('/api/danses', async () => ({ danses: danses.listeDanses(), studios: Object.entries(STUDIOS_DANSE).map(([id, s]) => ({ id, nom: s.nom, v: danses.versionStudio(id) })) }))
-/* Danse en scène 3D : la danse dans un studio, caméra qui suit (LTX Layout-to-Render), puis le Swap redessine la danseuse d'après la photo. */
+/* 3D-staged dance: the dance in a studio with a following camera (LTX Layout-to-Render), then Swap redraws the dancer from the photo. */
 app.post('/api/danses/scene3d', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
   const a = store.getAsset(String(req.body?.assetId ?? ''))
@@ -2854,13 +2823,13 @@ app.post('/api/danses/scene3d', async (req, reply) => {
       sansSwap: estProprietaire(req) && req.body?.sansSwap === true })
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
-// le storyboard relu et corrigé part au tournage
+// the reviewed and corrected storyboard goes to shooting
 app.post('/api/reels/:id/tourner', async (req, reply) => {
   try { return reelOut(reelPresets.tournerStoryboard(req.params.id, req.body?.cases)) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.post('/api/reels', async (req, reply) => {
   if (personnageInterdit(req, personaDe(req))) { reply.code(403); return { error: 'réservé au propriétaire du studio' } }
-  // un preset (saut de tenues…) : la structure est tenue par le code, le LLM remplit les cases
+  // a preset (outfit jump...): the structure is held by the code, the LLM fills the cells
   if (req.body?.preset && reelPresets.PRESETS_LIBRES[req.body.preset]) {
     const corps = { brief: req.body.brief || reelPresets.PRESETS_LIBRES[req.body.preset].exemple, n: 5, duree: 4, langue: req.body.langue, ecriture: 2, format: req.body.preset }
     try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
@@ -2869,14 +2838,14 @@ app.post('/api/reels', async (req, reply) => {
     try { return reelOut(reelPresets.lancerPreset({ presetId: String(req.body.preset), brief: req.body.brief, langue: req.body.langue, personaId: personaDe(req), cle: cleComfy(req), relire: req.body.relire === true })) }
     catch (e) { reply.code(400); return { error: String(e.message || e) } }
   }
-  // « perso » : la voix enregistrée sur la fiche du personnage
+  // "perso": the voice saved on the character sheet
   const corps = { ...(req.body ?? {}) }
   if (corps.voix === 'perso') corps.voix = persona(personaDe(req)).voix ?? null
   try { return reelOut(reel.realiser({ ...corps, personaId: personaDe(req), cle: cleComfy(req), proprietaire: estProprietaire(req) })) } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 app.get('/api/montage/musiques', async () => ({ musiques: montage.listerMusiques() }))
-/* Transition générée entre deux plans du montage (LTX-2.5, première et dernière image, avec le son) : les images
-   de bord respectent la coupe et le recadrage des plans et le format du montage. Liste des effets : GET. */
+/* Generated transition between two edit shots (LTX-2.5, first and last frame, with sound): the edge
+   frames respect the shots' cut and reframing and the edit's aspect. Effect list: GET. */
 app.get('/api/montage/transition', async () => ({ effets: Object.entries(EFFETS_TRANSITION).map(([id, e]) => ({ id, nom: e.nom })), secondes: [3, 5, 8, 10] }))
 app.post('/api/montage/transition', async (req, reply) => {
   const b = req.body ?? {}
@@ -2891,8 +2860,8 @@ app.post('/api/montage/musiques', async (req, reply) => {
   try { return montage.deposerMusique(req.headers['content-type'], req.query.name, req.body) }
   catch (e) { reply.code(e.statusCode ?? 400); return { error: String(e.message || e) } }
 })
-/* Supprimer un son (voix, musique, bruitage) : propriétaire seul. Un son employé par un montage
-   ou un reel n'est retiré qu'après confirmation (?confirme=1) : leur export le perdrait. */
+/* Delete a sound (voice, music, sound effect): owner only. A sound used by an edit or reel
+   is removed only after confirmation (?confirme=1): their export would lose it. */
 app.delete('/api/montage/musiques/:nom', async (req, reply) => {
   const nom = path.basename(String(req.params.nom || ''))
   const usages = store.usagesSon(nom)
@@ -2918,19 +2887,19 @@ app.patch('/api/assets/:id', async (req, reply) => {
   if (reviewStatus && !['pending', 'approved', 'rejected'].includes(reviewStatus)) {
     reply.code(400); return { error: 'reviewStatus invalide' }
   }
-  // Un seul registre : « sfw » est accepté (sans effet), tout autre est refusé.
+  // A single register: "sfw" is accepted (no effect), anything else is refused.
   if (register && register !== 'sfw') {
     reply.code(400); return { error: 'registre invalide : seul « sfw » existe' }
   }
   if (reviewStatus) store.setReview(req.params.id, reviewStatus)
   if (exportReady !== undefined) store.setExportReady(req.params.id, exportReady)
-  /* Caption modifiée à la main : on garde le texte tel quel (ponctuation,
-     majuscules) — c'est l'opérateur qui a le dernier mot. */
+  /* Hand-edited caption: the text is kept as is (punctuation, capitals); the
+     operator has the last word. */
   if (typeof caption === 'string') store.setCaption(req.params.id, caption.trim().slice(0, 120))
   return { ok: true }
 })
 
-/* ---------- captions des reels (cf. server/captions.js) ---------- */
+/* ---------- reel captions (see server/captions.js) ---------- */
 const idsDe = b => (Array.isArray(b?.ids) ? b.ids : []).filter(x => typeof x === 'string')
 app.post('/api/captions', async (req, reply) => {
   try { return captions.lancerEcriture(idsDe(req.body), { tout: req.body?.tout === true }) }
@@ -2944,7 +2913,7 @@ app.post('/api/reels/livrer', async (req, reply) => {
   } catch (e) { reply.code(409); return { error: String(e.message || e) } }
 })
 
-/* ---------- fichiers ---------- */
+/* ---------- files ---------- */
 
 fs.mkdirSync(path.join(danses.DOSSIER, 'apercus'), { recursive: true })
 await app.register(fastifyStatic, { root: path.join(danses.DOSSIER, 'apercus'), prefix: '/danses/', decorateReply: false, cacheControl: true, maxAge: '1d' })
@@ -2955,9 +2924,9 @@ await app.register(fastifyStatic, {
 
 const hasDist = fs.existsSync(path.join(CONFIG.distDir, 'index.html'))
 if (hasDist) {
-  // preCompressed : .br/.gz écrits au build (scripts/precompresser.mjs), servis selon Accept-Encoding
-  /* Cache navigateur : les fichiers du build portent une empreinte (immuables un an) ; les aperçus de la vitrine
-     changent rarement (un jour) ; index.html et le reste sont revérifiés, pour qu'une mise à jour arrive tout de suite. */
+  // preCompressed: .br/.gz written at build (scripts/precompresser.mjs), served per Accept-Encoding
+  /* Browser cache: build files are fingerprinted (immutable for a year); showcase previews
+     rarely change (a day); index.html and the rest are revalidated so an update arrives at once. */
   await app.register(fastifyStatic, { root: CONFIG.distDir, prefix: '/', decorateReply: true, preCompressed: true, cacheControl: false,
     setHeaders: (res, chemin) => {
       const rel = path.relative(CONFIG.distDir, chemin).split(path.sep).join('/')
@@ -2965,45 +2934,44 @@ if (hasDist) {
         : rel.startsWith('vitrine/') || rel.startsWith('fonts/') ? 'public, max-age=86400, stale-while-revalidate=604800'
         : 'no-cache')
     } })
-  // SPA : toute route inconnue hors /api rend l'index (routage côté client).
+  // SPA: any unknown route outside /api returns the index (client-side routing).
   app.setNotFoundHandler((req, reply) => {
-    // un fichier du build absent (onglet ouvert avant une mise à jour) : 404, le client recharge la page
+    // a missing build file (tab opened before an update): 404, the client reloads the page
     if (req.raw.url.startsWith('/api/') || req.raw.url.startsWith('/media/') || req.raw.url.startsWith('/assets/')) {
       reply.code(404).send({ error: 'introuvable' }); return
     }
-    // l'index n'est jamais gardé en cache : il désigne les fichiers du build en cours
+    // the index is never cached: it points to the current build's files
     reply.header('Cache-Control', 'no-cache').sendFile('index.html')
   })
 } else {
   app.log.warn(`front non compilé (${CONFIG.distDir} absent) — lancer « npm run build »`)
 }
 
-/* ---------- démarrage ---------- */
+/* ---------- startup ---------- */
 
-/* recoverQueue() fait les deux gestes dans le bon ordre : les morts en plein rendu sont marqués, les
-   « queued » repartent. */
+/* recoverQueue() does both steps in the right order: jobs that died mid-render are marked,
+   "queued" ones restart. */
 
-/* Textes de façonnage : on écrit ceux qui MANQUENT, jamais ceux qui existent.
-   Une installation neuve marche sans copie manuelle ; une modification de
-   l'opérateur survit à tous les redémarrages. */
+/* Shaping texts: write the MISSING ones, never existing ones. A fresh install
+   works without manual copy; an operator edit survives restarts. */
 const seeded = prompts.seedPrompts()
 if (seeded.length) app.log.info(`textes de façonnage créés : ${seeded.join(', ')}`)
 
-/* La file survit aux redémarrages : ce qui était « queued » repart, ce qui
-   était en plein rendu est ré-attaché (ComfyUI vivant) ou re-soumis
-   (ComfyUI redémarré). Attend ComfyUI avant de trancher. Non bloquant pour
-   l'écoute HTTP : l'attente peut durer le temps d'un boot complet. */
+/* The queue survives restarts: "queued" jobs restart, jobs mid-render are
+   re-attached (ComfyUI alive) or resubmitted (ComfyUI restarted). Waits for
+   ComfyUI before deciding. Does not block HTTP listening: the wait can last
+   a full boot. */
 void recoverQueue().catch(e => console.error('[reprise]', e.message || e))
-// filtre de nudité : une ronde à chaque fin de job, et une ronde périodique de rattrapage
+// nudity filter: one pass at each job end, and a periodic catch-up pass
 demarrerFiltre()
 store.surFinJob(() => { void filtrerNouveaux() })
 reel.demarrerSuivi(); reelPresets.demarrerSuiviPresets()
 setTimeout(() => { try { danses.preparerDanses() } catch (e) { console.warn(`[danses] ${e.message || e}`) } }, 3000)
 presets.demarrerSuites()
 
-/* Diagnostic au démarrage, puis toutes les 30 min : une panne d'environnement
-   (pilote, Python, extension, fichier de modèle) est annoncée dans le journal
-   et par le voyant de l'interface, au lieu d'être découverte par un rendu raté. */
+/* Startup diagnostic, then every 30 min: an environment failure (driver,
+   Python, extension, model file) is reported in the log and by the UI
+   indicator before a render fails. */
 const lancerDiagnostic = (frais = true) => diagnostiquer({ recettes: recettesServies(), frais }).then(d => {
   if (d.problemes.length)
     console.warn(`[diagnostic] ${d.bloquants} bloquant(s), ${d.alertes} alerte(s) : `

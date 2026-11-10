@@ -1,17 +1,17 @@
 /* ============================================================
-   Client du studio pour les agents — partagé par la ligne de
-   commande (studio.mjs) et le serveur MCP (mcp.mjs).
+   Studio client for agents, shared by the command line
+   (studio.mjs) and the MCP server (mcp.mjs).
 
-   Il ne fait que parler à l'API HTTP d'un studio qui tourne déjà : mêmes
-   routes que l'interface, mêmes contrôles (filtre de contenu, file, quota).
-   Rien n'est rendu ici, rien n'est lu sur le disque du serveur.
+   Talks only to the HTTP API of a running studio: same routes as
+   the UI, same checks (content filter, queue, quota).
+   Nothing is rendered here, nothing is read from the server's disk.
 
-   STUDIO_URL       adresse du studio (défaut http://127.0.0.1:8787)
-   CREATOROS_OWNER_KEY  clé de propriétaire, si le studio en demande une
+   STUDIO_URL       studio address (default http://127.0.0.1:8787)
+   CREATOROS_OWNER_KEY  owner key, if the studio requires one
    ============================================================ */
 
 const FINIS = new Set(['done', 'blocked', 'cancelled'])
-// états d'un reel (server/reel.js), dits en anglais aux agents
+// reel states (server/reel.js), reported in English to agents
 const ETATS = { redaction: 'writing', photos: 'photos', clips: 'clips', export: 'export', fini: 'done', echec: 'failed' }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const id = prefixe => `${prefixe}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -28,7 +28,7 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     catch (e) { throw new Error(`studio unreachable at ${base} (${e.cause?.code ?? e.message}) — is it running? (npm start)`) }
     const texte = await r.text()
     let d = null
-    try { d = texte ? JSON.parse(texte) : null } catch { /* réponse non JSON */ }
+    try { d = texte ? JSON.parse(texte) : null } catch { /* non-JSON response */ }
     if (!r.ok) throw new Error(d?.error ?? `${method} ${chemin} → HTTP ${r.status}`)
     return d
   }
@@ -36,14 +36,14 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
   const media = a => a && ({ id: a.id, type: a.mediaType, url: a.uri?.startsWith('http') ? a.uri : base + (a.uri ?? `/media/${a.filename}`),
     width: a.width, height: a.height, check: a.controle ?? undefined })
 
-  /** État d'un job : statut, erreur, et ses médias une fois rendus. */
+  /** Job state: status, error, and its media once rendered. */
   async function job(jobId) {
     const d = await api(`/api/jobs/${encodeURIComponent(jobId)}`)
     return { id: d.job.id, status: d.job.status, mode: d.job.mode, error: d.job.error ?? undefined, queuePosition: d.job.file?.rang ?? undefined,
       progress: d.job.progress ?? undefined, media: (d.assets ?? []).map(media) }
   }
 
-  /** Attend la fin d'un job (sondage toutes les 3 s). */
+  /** Waits for a job to finish (polls every 3 s). */
   async function attendreJob(jobId, { maxMs = 30 * 60_000, surEtape } = {}) {
     const fin = Date.now() + maxMs
     let dernier = ''
@@ -62,15 +62,15 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     return (await api('/api/personas')).active ?? undefined
   }
 
-  /* Réglages facultatifs : moteur photo (krea | klein), graine fixe, profil de VRAM
-     forcé (réservé au propriétaire : ignoré par le serveur pour un visiteur). */
+  /* Optional settings: photo engine (krea | klein), fixed seed, forced VRAM
+     profile (owner only: ignored by the server for a visitor). */
   const options = ({ moteur, graine, profil }) => ({
     ...(moteur ? { photoEngine: moteur } : {}),
     ...(Number.isFinite(graine) ? { seed: { mode: 'lock', value: graine } } : {}),
     ...(profil ? { profilVram: profil } : {}),
   })
 
-  /** Une photo, à partir d'un prompt écrit tel qu'il partira. */
+  /** A photo from a prompt sent as written. */
   async function photo({ prompt, persona, largeur = 768, hauteur = 1344, moteur, graine, profil }) {
     if (!String(prompt ?? '').trim()) throw new Error('empty prompt')
     const p = String(prompt).trim()
@@ -80,7 +80,7 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     return { jobId: r.id }
   }
 
-  /** Une vidéo à partir d'une image de la bibliothèque (son id d'asset) et d'un geste. */
+  /** A video from a library image (its asset id) and a motion. */
   async function video({ image, geste, moteur = 'ltx_hq', secondes, son = true, persona, graine, profil }) {
     if (!image) throw new Error('missing start image (the id of a library item)')
     if (!String(geste ?? '').trim()) throw new Error('describe the motion')
@@ -93,7 +93,7 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     return { jobId: r.id }
   }
 
-  /** Un reel complet à partir d'un brief : plans rédigés, photos, clips, montage. */
+  /** A full reel from a brief: written shots, photos, clips, edit. */
   async function reel({ brief, plans = 4, duree = 4, langue = 'en' }) {
     const r = await api('/api/reels', { method: 'POST', body: { brief, n: plans, duree, langue } })
     return { reelId: r.id, state: ETATS[r.etat] ?? r.etat }
@@ -118,7 +118,7 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     }
   }
 
-  /** Les derniers médias de la bibliothèque. */
+  /** The latest library media. */
   async function bibliotheque({ n = 10, persona } = {}) {
     const d = await api(`/api/assets?limit=${Math.min(200, n)}${persona ? `&persona=${encodeURIComponent(persona)}` : ''}`)
     return d.assets.slice(0, n).map(media)
@@ -135,21 +135,21 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
       videoEngines: Object.keys(h.videoEngines ?? {}), vramProfile: a?.profil ?? null }
   }
 
-  /** Le catalogue des danses et des studios 3D où les jouer. */
+  /** The catalogue of dances and the 3D studios to perform them in. */
   async function danses() {
     const d = await api('/api/danses')
     return { dances: d.danses.map(x => ({ slug: x.slug, title: x.titre, seconds: Math.round(x.secondes * 10) / 10 })), studios: d.studios.map(x => ({ id: x.id, name: x.nom })) }
   }
 
-  /** Une danse du catalogue jouée par le personnage d'une photo, dans un studio 3D. Le rendu final est
-      le job « <id>-swap » (scène 3D, puis Swap qui pose l'identité et la tenue de la photo). */
+  /** A catalogue dance performed by the character of a photo, in a 3D studio. The final render is
+      job "<id>-swap" (3D scene, then Swap applying the photo's identity and outfit). */
   async function danse({ photo, danse: slug, studio, description, suivi = false }) {
     if (!photo) throw new Error('missing photo (the id of a library photo of the character)')
     const r = await api('/api/danses/scene3d', { method: 'POST', body: { assetId: photo, slug, decor: studio, scene: description ?? '', suivi: !!suivi } })
     return { jobId: r.id, finalJobId: `${r.id}-swap` }
   }
 
-  /** Une musique (ACE-Step, deux prises) ou un bruitage ; le fichier rejoint la liste des musiques du montage. */
+  /** A music track (ACE-Step, two takes) or a sound effect; the file joins the edit's music list. */
   async function musique({ style, paroles = '', secondes = 30, bruitage = false }) {
     const r = await api('/api/musique', { method: 'POST', body: { prompt: style, paroles, secondes, genre: bruitage ? 'bruitage' : 'musique' } })
     return { jobId: r.jobId }
@@ -164,20 +164,20 @@ export function client({ url = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
     return { available: d.disponible, voices: d.voix, cloning: d.clone }
   }
 
-  /** Une phrase dite par une voix de synthèse ; rend le fichier audio, réutilisable pour un clip parlant. */
+  /** A sentence spoken by a synthetic voice; returns the audio file, reusable for a talking clip. */
   async function dire({ texte, voix: v }) {
     const r = await api('/api/parole/dire', { method: 'POST', body: { texte, voix: v } })
     return { audioFile: r.fichier, seconds: r.duree }
   }
 
-  /** Une photo qui parle : la photo et un fichier audio déposé (par dire ou par l'interface). */
+  /** A talking photo: the photo and an uploaded audio file (from speak or the UI). */
   async function parole({ photo, audio, texte }) {
     const r = await api('/api/parole', { method: 'POST', body: { assetId: photo, voix: audio, texte } })
     return { jobId: r.id }
   }
 
-  /** Retouche d'un clip : un effet en un clic (refine-details, day-to-night, deblur, decompression) ou une
-      édition au prompt (modifier / retirer un élément suivi par SAM3, changer le fond). */
+  /** Clip edit: a one-click effect (refine-details, day-to-night, deblur, decompression) or a
+      prompt edit (modify / remove an element tracked by SAM3, change the background). */
   async function editionVideo({ clip, mode, effet, cible, prompt }) {
     const r = await api(`/api/assets/${encodeURIComponent(clip)}/edit-video`, { method: 'POST', body: { mode, effet, cible, prompt } })
     return { jobId: r.jobId ?? r.id }

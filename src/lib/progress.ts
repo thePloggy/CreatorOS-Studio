@@ -1,8 +1,7 @@
-/* Progression d'un job par le TEMPS : écoulé depuis le passage en rendu,
-   contre l'estimation faite par le serveur à l'enqueue (coefficients mesurés,
-   server/jobs.js RENDER_RATES). Le % de ComfyUI (progression du nœud en
-   cours) reste affiché à côté quand il existe, mais c'est le temps qui porte
-   la barre : lui ne ment pas sur la longueur d'un driver. */
+/* Job progress by TIME: elapsed since rendering started, against the server's
+   estimate made at enqueue (measured coefficients, server/jobs.js RENDER_RATES).
+   ComfyUI's % (progress of the current node) is shown alongside when available,
+   but time drives the bar. */
 import { useEffect, useState } from 'react'
 import type { Job } from '../types'
 
@@ -19,7 +18,7 @@ export const fmtDur = (ms: number) => {
 }
 export const fmtMin = (ms: number) => (ms < 90_000 ? `${Math.round(ms / 1000)} s` : `≈ ${Math.round(ms / 60000)} min`)
 
-/** Horloge partagée : un rendu par `everyMs`. */
+/** Shared clock: one render every `everyMs`. */
 export function useNow(everyMs = 1000) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), everyMs); return () => clearInterval(t) }, [everyMs])
@@ -30,14 +29,14 @@ export function jobProgress(job: Job, now: number) {
   const started = job.status === 'rendering' && job.startedAt ? job.startedAt : null
   const elapsedMs = started ? now - started : 0
   const estimatedMs = job.estimatedMs ?? null
-  // Plafonnée à 98 % : une estimation n'est pas une promesse, la barre ne
-  // se remplit jamais toute seule.
+  // Capped at 98%: an estimate is not a promise, the bar never
+  // fills up on its own.
   const ratio = estimatedMs && started ? Math.min(0.98, elapsedMs / estimatedMs) : null
   const over = estimatedMs && started ? elapsedMs > estimatedMs : false
   return { started, elapsedMs, estimatedMs, ratio, over }
 }
 
-/** Estimation avant envoi, côté front, avec les coefficients du serveur. */
+/** Pre-submit estimate, client-side, using the server's coefficients. */
 export function estimateVideoMs(rates: RenderRates | null | undefined, engine: string, seconds: number, draft: boolean) {
   if (!rates) return null
   const rate = draft ? (rates.draftSecPerSec[engine] ?? rates.videoSecPerSec[engine] / 3) : rates.videoSecPerSec[engine]

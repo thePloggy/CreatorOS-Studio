@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Mix (remplacement WanAnimate) : les points SAM2 qui désignent le sujet du driver.
-   args : driver_path gen_w gen_h [sujet]
-   sortie stdout : JSON {"positive": [{x, y}, ...], "frame": [w, h]}
-   GroundingDINO trouve la plus grande boîte du sujet sur une image nette (~1 s) ;
-   trois points sur son axe vertical, en espace génération (gen_w × gen_h).
-   Lancé avec le Python de ComfyUI (COMFY_DIR), qui porte comfyui_segment_anything."""
+"""Mix (WanAnimate replacement): the SAM2 points marking the driver's subject.
+   args: driver_path gen_w gen_h [subject]
+   stdout: JSON {"positive": [{x, y}, ...], "frame": [w, h]}
+   GroundingDINO finds the subject's largest box on a sharp frame (~1 s);
+   three points on its vertical axis, in generation space (gen_w x gen_h).
+   Run with ComfyUI's Python (COMFY_DIR), which provides comfyui_segment_anything."""
 import sys, os, json, subprocess, tempfile, warnings
 warnings.filterwarnings("ignore")
 COMFY = os.environ.get("COMFY_DIR") or os.path.join(os.path.expanduser("~"), "ComfyUI")
@@ -14,7 +14,7 @@ from PIL import Image
 
 driver, GW, GH = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 sujet = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4].strip() else "woman"
-# Mix à plusieurs : rang de la personne, de gauche à droite, parmi `total`
+# multi-person Mix: rank of the person, left to right, among `total`
 rang = int(sys.argv[5]) if len(sys.argv) > 5 else None
 total = int(sys.argv[6]) if len(sys.argv) > 6 else None
 

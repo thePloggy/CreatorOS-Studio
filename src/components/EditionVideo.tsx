@@ -1,10 +1,10 @@
 /* ============================================================
-   « Éditer » une vidéo : deux façons de dire quoi changer.
-   · Pinceau — on peint la zone sur la première image (outil Pinceau).
-   · Au prompt — on nomme l'élément (« dress ») et ce qu'il devient ;
-     SAM3 le trouve et le suit sur tout le clip, la zone est redessinée,
-     le reste de la vidéo reste celui de la source.
-   Styles en ligne : partagé bureau et mobile.
+   "Edit" a video: two ways to say what to change.
+   · Brush: paint the zone on the first frame (Pinceau tool).
+   · Prompt: name the element ("dress") and what it becomes;
+     SAM3 finds and tracks it across the clip, the zone is redrawn,
+     the rest of the video stays as in the source.
+   Inline styles: shared desktop and mobile.
    ============================================================ */
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -25,7 +25,7 @@ const bouton: React.CSSProperties = { padding: '8px 14px', borderRadius: 10, bor
 export function EditionVideo({ asset, onClose, onPinceau, detourDirect, opDepart }: { asset: Asset; onClose: () => void; onPinceau: () => void; detourDirect?: boolean; opDepart?: 'retirer' | 'fond' }) {
   const [mode, setMode] = useState<'choix' | 'prompt'>(detourDirect || opDepart ? 'prompt' : 'choix')
   const [cible, setCible] = useState('')
-  // modifier un élément, le retirer, ou changer le fond autour de la personne
+  // modify an element, remove it, or change the background around the person
   const [op, setOp] = useState<'modifier' | 'retirer' | 'fond' | 'detourer' | 'alpha'>(detourDirect ? 'detourer' : opDepart ?? 'modifier')
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
@@ -68,7 +68,7 @@ export function EditionVideo({ asset, onClose, onPinceau, detourDirect, opDepart
           </button>
         </>) : (<>
           <div style={{ display: 'flex', gap: 6 }}>
-            {/* « Retirer » : IC-LoRA LTX-2.5 Clean-Plate, le décor reconstruit derrière (cf. enqueueCleanPlate) */}
+            {/* "Remove": LTX-2.5 Clean-Plate IC-LoRA, background rebuilt behind (see enqueueCleanPlate) */}
             {([['modifier', t('Modifier')], ['retirer', t('Retirer')], ['fond', t('Changer le fond')], ['detourer', t('Fond vert')], ['alpha', t('Fond transparent')]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setOp(k)} style={{ ...bouton, flex: 1, padding: '7px 8px', fontSize: 12.5,
                 background: op === k ? 'rgba(168,85,247,.28)' : 'rgba(127,127,127,.12)', border: op === k ? '1px solid #a855f7' : '1px solid transparent' }}>{l}</button>

@@ -1,38 +1,37 @@
 /* ============================================================
-   Visites — combien de visiteurs par jour, et une limite de rendus
-   pour ceux qui arrivent d'Internet (Tailscale Funnel).
+   Visits: how many visitors per day, and a render limit for those coming
+   from the Internet (Tailscale Funnel).
 
-   Rien de personnel n'est gardé : un visiteur est une empreinte
-   sha256(sel du jour + adresse + navigateur), tronquée, qui ne sert qu'à
-   compter les visiteurs distincts du jour. Le sel change chaque jour et
-   n'est jamais écrit : une empreinte d'hier ne se relie à rien. Sur disque,
-   seulement des compteurs par jour (visites.json).
+   Nothing personal is kept: a visitor is a fingerprint
+   sha256(daily salt + address + browser), truncated, used only to count
+   distinct visitors of the day. The salt changes daily and is never
+   written: yesterday's fingerprint links to nothing. On disk, only daily
+   counters (visites.json).
 
-   Un visiteur du tailnet (en-tête Tailscale-User-Login posé par `tailscale
-   serve`) ou le propriétaire n'est ni compté comme visiteur Internet ni limité.
-   Le chargement d'une page ne porte pas la clé : le propriétaire est reconnu
-   au POST /api/proprietaire que la page envoie au démarrage, et son empreinte
-   sort alors du décompte du jour (visiteur et pages déjà comptés compris).
+   A tailnet visitor (Tailscale-User-Login header set by `tailscale serve`)
+   or the owner is neither counted as an Internet visitor nor limited.
+   Page loads do not carry the key: the owner is recognized at the
+   POST /api/proprietaire the page sends on startup, and their fingerprint
+   then leaves the day's count (visitor and pages already counted included).
 
-   Rendus des visiteurs Internet : chacun est suivi jusqu'au bout et
-   noté dans un journal (journal-visiteurs.json, les 200 derniers : type,
-   durée, cause d'échec). Le propriétaire est notifié au lancement, à l'échec
-   et au refus (cf. notif.js).
+   Internet visitor renders: each is tracked to completion and logged
+   (journal-visiteurs.json, last 200: type, duration, failure cause). The
+   owner is notified on launch, failure and refusal (see notif.js).
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { notifier } from './notif.js'
 
-/* Par visiteur Internet et par heure, un rendu = une image ou un clip LANCÉ :
-   compter les demandes ferait passer ×4, un carrousel ou un reel pour 1. */
+/* Per Internet visitor and per hour, one render = one image or clip LAUNCHED:
+   counting requests would let a carousel or reel pass as 1. */
 const RENDUS_PAR_HEURE = 12
-/* Coût plancher d'une demande dont les jobs naissent plus tard (le reel planifie ses
-   plans après la réponse) : 5 photos + 5 clips en moyenne. */
-const COUT_MINIMUM = { 'POST /api/reels': 10, 'POST /api/danses/scene3d': 3, 'POST /api/assets/:id/moment-suivant': 0 }   // texte seul : la retouche qui suit est comptée
-const FILE_MAX_PUBLIC = 8      // au-delà, un visiteur Internet attend que la file se vide
+/* Minimum cost of a request whose jobs are created later (the reel schedules its
+   shots after the response): 5 photos + 5 clips on average. */
+const COUT_MINIMUM = { 'POST /api/reels': 10, 'POST /api/danses/scene3d': 3, 'POST /api/assets/:id/moment-suivant': 0 }   // text only: the following edit is counted
+const FILE_MAX_PUBLIC = 8      // beyond this, an Internet visitor waits for the queue to empty
 
-/** Les routes qui lancent un rendu sur le GPU. */
+/** Routes that launch a GPU render. */
 const ROUTES_RENDU = new Set([
   'POST /api/jobs', 'POST /api/jobs/:id/retry', 'POST /api/carrousel', 'POST /api/reels',
   'POST /api/assets/:id/photo-hd', 'POST /api/assets/:id/recadrer', 'POST /api/croquis', 'POST /api/restauration', 'POST /api/croquis/:id/choisir', 'POST /api/extensions/:id/lancer', 'POST /api/assets/:id/analyse', 'POST /api/assets/:id/pack-pub', 'POST /api/pack-pub', 'POST /api/voix', 'POST /api/assets/:id/doubler', 'POST /api/assets/:id/inpaint', 'POST /api/assets/:id/agrandir', 'POST /api/assets/:id/transparent', 'POST /api/assets/:id/moment-suivant', 'POST /api/assets/:id/seedvr', 'POST /api/stage', 'POST /api/assets/:id/edit-video',
@@ -43,14 +42,14 @@ const ROUTES_RENDU = new Set([
 
 const JOURNAL_MAX = 200
 
-/** Ce que l'on dit d'un rendu : mode et recette ou moteur, sans le prompt. */
+/** What is reported about a render: mode and recipe or engine, without the prompt. */
 const typeDe = row => {
   let p = null
-  try { p = JSON.parse(row.payload || 'null') } catch { /* payload illisible */ }
+  try { p = JSON.parse(row.payload || 'null') } catch { /* unreadable payload */ }
   const quoi = p?.videoEngine ?? row.recipe_id?.split('@')[0] ?? row.workflow_file?.replace(/\.json$/, '') ?? ''
   return [row.mode, quoi].filter(Boolean).join(' · ')
 }
-/** Les identifiants de jobs d'une réponse de route de rendu, quelle que soit sa forme. */
+/** Job ids from a render route response, whatever its shape. */
 function idsDe(v, out = new Set(), cle = '') {
   if (typeof v === 'string') { if (/^(id|jobId|jobIds|ids|jobs)$/.test(cle)) out.add(v) }
   else if (Array.isArray(v)) v.forEach(x => idsDe(x, out, cle))
@@ -61,37 +60,37 @@ function idsDe(v, out = new Set(), cle = '') {
 export function installerVisites(app, { dataDir, estProprietaire, avecCle, profondeurFile, lireJob }) {
   const fichier = path.join(dataDir, 'visites.json')
   let jours = {}
-  try { jours = JSON.parse(fs.readFileSync(fichier, 'utf8')) } catch { /* premier jour */ }
+  try { jours = JSON.parse(fs.readFileSync(fichier, 'utf8')) } catch { /* first day */ }
   let sel = { jour: '', valeur: '' }, vus = new Set(), rendus = new Map()
-  let pagesDe = new Map(), proprietaires = new Set()   // par empreinte, pour le jour
-  let bannis = new Set()   // empreintes refusées par le filtre de contenu : plus de rendu jusqu'à minuit
+  let pagesDe = new Map(), proprietaires = new Set()   // per fingerprint, for the day
+  let bannis = new Set()   // fingerprints refused by the content filter: no more renders until midnight
   let sale = false
   const jourDe = () => new Date().toISOString().slice(0, 10)
-  // rendus = visiteurs d'Internet ; rendusProprietaire = propriétaire et tailnet
+  // rendus = Internet visitors; rendusProprietaire = owner and tailnet
   const compteurs = j => (jours[j] ??= { visiteurs: 0, pages: 0, rendus: 0, rendusProprietaire: 0, refuses: 0, tailnet: 0 })
   const empreinte = req => {
     const j = jourDe()
     if (sel.jour !== j) { sel = { jour: j, valeur: crypto.randomBytes(16).toString('hex') }; vus = new Set(); rendus = new Map(); pagesDe = new Map(); proprietaires = new Set(); bannis = new Set() }
     const ip = String(req.headers['x-forwarded-for'] ?? req.ip ?? '').split(',')[0].trim()
-    // l'adresse seule : avec le navigateur en plus, changer de navigateur suffisait à repartir à zéro (quota, blocage du jour)
+    // address only, so switching browser does not reset quota or daily block
     return crypto.createHash('sha256').update(`${sel.valeur}|${ip}`).digest('hex').slice(0, 16)
   }
-  // identité posée par Tailscale pour un appareil du tailnet ; une requête venue d'Internet par Funnel ne l'est jamais
+  // identity set by Tailscale for a tailnet device; an Internet request via Funnel never has it
   const duTailnet = req => !!req.headers['tailscale-user-login'] && !req.headers['tailscale-funnel-request']
 
-  /* ---------- journal des rendus du propriétaire : leur origine (appareil, Internet avec la clé, machine) ---------- */
+  /* ---------- owner render log: their origin (device, Internet with the key, machine) ---------- */
   const fichierProprio = path.join(dataDir, 'journal-proprietaire.json')
   let journalProprio = []
-  try { journalProprio = JSON.parse(fs.readFileSync(fichierProprio, 'utf8')) } catch { /* pas encore de journal */ }
+  try { journalProprio = JSON.parse(fs.readFileSync(fichierProprio, 'utf8')) } catch { /* no log yet */ }
   const noterProprietaire = e => {
     journalProprio.unshift({ at: Date.now(), ...e }); journalProprio.length = Math.min(journalProprio.length, 500)
     fs.writeFile(fichierProprio, JSON.stringify(journalProprio, null, 1), () => {})
   }
 
-  /* ---------- journal des rendus visiteurs ---------- */
+  /* ---------- visitor render log ---------- */
   const fichierJournal = path.join(dataDir, 'journal-visiteurs.json')
   let journal = []
-  try { journal = JSON.parse(fs.readFileSync(fichierJournal, 'utf8')) } catch { /* pas encore de journal */ }
+  try { journal = JSON.parse(fs.readFileSync(fichierJournal, 'utf8')) } catch { /* no log yet */ }
   const suivis = new Map()   // jobId → { depuis, route }
   const noter = e => {
     journal.unshift({ at: Date.now(), ...e }); journal.length = Math.min(journal.length, JOURNAL_MAX)
@@ -102,7 +101,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
       const row = lireJob(id)
       if (!row) { suivis.delete(id); continue }
       if (row.status !== 'done' && row.status !== 'blocked') {
-        if (Date.now() - s.depuis > 6 * 3600_000) suivis.delete(id)   // abandonné après 6 h
+        if (Date.now() - s.depuis > 6 * 3600_000) suivis.delete(id)   // abandoned after 6 h
         continue
       }
       suivis.delete(id)
@@ -123,7 +122,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     try { corps = JSON.parse(payload) } catch { return payload }
     const lances = [...idsDe(corps)].map(id => lireJob(id)).filter(Boolean)
     for (const row of lances) suivis.set(row.id, { depuis: Date.now(), route: req.rendusVisiteur })
-    // ce que la demande a réellement lancé, compté au visiteur pour l'heure qui vient
+    // what the request actually launched, counted against the visitor for the coming hour
     const cout = Math.max(lances.length, COUT_MINIMUM[req.rendusVisiteur] ?? 1)
     const liste = rendus.get(req.empreinteVisiteur) ?? []
     for (let i = 0; i < cout; i++) liste.push(Date.now())
@@ -143,9 +142,9 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
 
   app.addHook('onRequest', async (req, reply) => {
     const url = req.url.split('?')[0]
-    // une page = le document de l'app, pas ses fichiers ni l'API
+    // a page = the app document, not its files or the API
     if (req.method === 'GET' && !url.startsWith('/api/') && !/\.[a-z0-9]+$/i.test(url)) {
-      // pages = visiteurs d'Internet ; tailnet = propriétaire et tailnet
+      // pages = Internet visitors; tailnet = owner and tailnet
       const c = compteurs(jourDe()); sale = true
       if (duTailnet(req)) { c.tailnet++; return }
       const e = empreinte(req)
@@ -168,7 +167,7 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     const c = compteurs(jourDe())
     if (duTailnet(req) || estProprietaire(req)) {
       c.rendusProprietaire = (c.rendusProprietaire ?? 0) + 1; sale = true
-      // d'où part un rendu du propriétaire : un appareil du tailnet, Internet avec la clé, ou la machine elle-même
+      // where an owner render comes from: a tailnet device, Internet with the key, or the machine itself
       const viaFunnel = !!req.headers['tailscale-funnel-request'] || String(req.headers.host ?? '').endsWith(':8443')
       noterProprietaire({ route: `${req.method} ${req.url.split('?')[0]}`,
         origine: duTailnet(req) ? `tailnet ${req.headers['tailscale-user-login']}` : viaFunnel ? 'Internet (Funnel) avec la clé' : 'machine locale',
@@ -195,20 +194,20 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
       reply.code(503).send({ error: 'le GPU de la démo est occupé : réessaie dans quelques minutes' })
       return reply
     }
-    rendus.set(e, recents)   // le coût est ajouté à la réponse, quand on sait combien de rendus sont partis
+    rendus.set(e, recents)   // the cost is added to the response once the number of launched renders is known
     req.empreinteVisiteur = e
     req.rendusVisiteur = `${req.method} ${req.routeOptions?.url}`
   })
 
-  // réservée au propriétaire (cf. ROUTES_PROPRIETAIRE)
-  /* Ce qui reste au visiteur pour l'heure : affiché dans l'en-tête, à côté
-     du voyant machine. Le propriétaire et le tailnet n'ont pas de limite. */
+  // owner only (see ROUTES_PROPRIETAIRE)
+  /* What remains for the visitor this hour: shown in the header next to the
+     machine indicator. The owner and tailnet have no limit. */
   app.get('/api/quota', async req => {
     if (estProprietaire(req) || duTailnet(req)) return { illimite: true, limite: RENDUS_PAR_HEURE }
     const e = empreinte(req), maintenant = Date.now()
     const recents = (rendus.get(e) ?? []).filter(t => maintenant - t < 3600_000).sort((x, y) => x - y)
     const restants = Math.max(0, RENDUS_PAR_HEURE - recents.length)
-    // quand la limite est atteinte : dans combien de temps le plus ancien rendu sort de l'heure
+    // when the limit is reached: how long until the oldest render leaves the hour window
     const libreDansMs = restants > 0 ? 0 : Math.max(0, recents[recents.length - RENDUS_PAR_HEURE] + 3600_000 - maintenant)
     return { illimite: false, limite: RENDUS_PAR_HEURE, restants, libreDansMs, bloque: bannis.has(e) }
   })
@@ -218,8 +217,8 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     journal: journal.slice(0, 50),
     enCours: suivis.size,
   }))
-  /* Demande refusée par le filtre de contenu : journalisée et notifiée, que la
-     requête vienne d'un visiteur ou du tailnet. */
+  /* Request refused by the content filter: logged and notified, whether it
+     comes from a visitor or the tailnet. */
   return {
     refuserContenu: (terme, route, req) => {
       const visiteur = !estProprietaire(req) && !duTailnet(req)

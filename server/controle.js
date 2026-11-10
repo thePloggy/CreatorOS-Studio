@@ -1,17 +1,15 @@
 /* ============================================================
-   Contrôle automatique des clips rendus.
+   Automatic check of rendered clips.
 
-   Après chaque vidéo, scripts/controle_clip.py mesure en une à deux
-   secondes, sur le CPU : images noires, vidéo figée, saute au milieu du
-   plan, flou, et la ressemblance du visage avec l'image de départ (YuNet +
-   SFace d'OpenCV, Apache-2.0). Ce ne sont que des mesures, pas un modèle
-   qui juge.
+   After each video, scripts/controle_clip.py measures on the CPU in one
+   to two seconds: black frames, frozen video, mid-shot jump, blur, and face
+   similarity to the start image (OpenCV YuNet + SFace, Apache-2.0). These
+   are measurements, not a judging model.
 
-   Un défaut GRAVE (noir, figé, saute, long flou) relance UNE prise avec une
-   autre seed. Les deux prises restent dans la bibliothèque ; celle qui a le
-   moins de défauts est gardée en avant, l'autre est grisée. Le visage et le
-   flou court ne sont que des avertissements : lunettes, profil, visage coupé
-   faussent la mesure, une relance à chaque fois gaspillerait le GPU.
+   A SEVERE defect (black, frozen, jump, long blur) triggers ONE retake with
+   another seed. Both takes stay in the library; the one with fewer defects
+   is kept in front, the other greyed out. Face and short blur are warnings
+   only: glasses, profile or a cropped face skew the measure.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -22,25 +20,25 @@ import * as store from './db.js'
 
 const run = promisify(execFile)
 const SCRIPT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'controle_clip.py')
-// installés par l'assistant dans models/opencv/ de ComfyUI ; dossier de données en repli
+// installed by the assistant in ComfyUI's models/opencv/; data directory as fallback
 const DANS_COMFY = path.join(CONFIG.comfyDir ?? '', 'models', 'opencv')
 export const MODELES_CONTROLE = process.env.CREATOROS_MODELES_CONTROLE
   || (fs.existsSync(path.join(DANS_COMFY, 'face_recognition_sface_2021dec.onnx')) ? DANS_COMFY : path.join(CONFIG.dataDir, 'modeles-controle'))
 
-/* Mouvement de caméra attendu par preset : vérifié par le flux optique, en avertissement.
-   Les presets enchaînés (jib-down) et les mouvements composés (orbite, arc…) ne sont pas lus. */
+/* Expected camera move per preset: checked by optical flow, as a warning.
+   Chained presets (jib-down) and compound moves (orbit, arc...) are not checked. */
 const MOUVEMENT_PRESET = {
   'push-in': 'avant', 'crash-zoom': 'avant', 'pull-out': 'arriere', 'crash-zoom-out': 'arriere',
   'travelling-lateral': 'lateral', panoramique: 'lateral', drone: 'vertical', 'grue-haute': 'vertical', 'fixe-vivant': 'fixe',
 }
 
-/** Contrôle un clip ; rend le résultat du script, ou null si le contrôle est indisponible. */
+/** Checks a clip; returns the script result, or null if the check is unavailable. */
 export async function controlerClip(clip, ref, mouvement) {
   const args = [SCRIPT, clip, '--modeles', MODELES_CONTROLE]
   if (ref && fs.existsSync(ref)) args.push('--ref', ref)
   if (mouvement) args.push('--mouvement', mouvement)
   try {
-    // le Python de ComfyUI a OpenCV ; à défaut, celui du système (le contrôle se dit alors indisponible s'il n'a pas cv2)
+    // ComfyUI's Python has OpenCV; otherwise the system one (check reports unavailable without cv2)
     const py = fs.existsSync(CONFIG.comfyPython) ? CONFIG.comfyPython : 'python3'
     const { stdout } = await run(py, args, { timeout: 120_000, maxBuffer: 4 << 20 })
     const d = JSON.parse(stdout.trim().split('\n').pop())
@@ -51,7 +49,7 @@ export async function controlerClip(clip, ref, mouvement) {
   }
 }
 
-/* Boucle : SSIM entre la dernière image du clip et la première, c'est la saute vue à chaque tour. */
+/* Loop: SSIM between the clip's last and first frame, i.e. the jump seen on each loop. */
 const JOINTURE_PROPRE = 0.9
 async function mesurerJointure(clip) {
   try {
@@ -67,8 +65,8 @@ async function mesurerJointure(clip) {
 const graves = c => (c?.problemes ?? []).filter(p => p.grave)
 const poids = c => graves(c).length * 10 + (c?.problemes ?? []).length
 
-/** Après un job vidéo terminé : contrôle de ses clips, relance éventuelle, choix entre deux prises.
- *  `relancer(payload)` dépose un job (enqueue) ; il n'est jamais appelé pour une prise de relance. */
+/** After a finished video job: checks its clips, possible retake, choice between two takes.
+ *  `relancer(payload)` enqueues a job; it is never called for a retake. */
 export async function controlerJob(job, relancer) {
   if (job.mode !== 'video') return
   const assets = store.assetsOfJob(job.id).filter(a => a.media_type === 'video' && !String(a.filename).includes('-montage-'))
@@ -84,7 +82,7 @@ export async function controlerJob(job, relancer) {
     console.log(`[contrôle] ${a.id} : ${c.problemes.length ? c.problemes.map(p => p.detail).join(' ; ') : 'rien à signaler'}`
       + (c.visage?.score != null ? ` · visage ${c.visage.score}` : ''))
 
-    // prise 2 terminée : on garde la meilleure des deux, l'autre passe en grisé (rien n'est supprimé)
+    // take 2 done: keep the better of the two, grey out the other (nothing is deleted)
     if (job.priseDe) {
       const avant = store.assetsOfJob(job.priseDe).find(x => x.media_type === 'video' && !String(x.filename).includes('-montage-'))
       const cAvant = avant && store.lireControle(avant.id)
@@ -98,7 +96,7 @@ export async function controlerJob(job, relancer) {
       }
       continue
     }
-    // prise 1 avec un défaut grave : UNE relance, autre seed
+    // take 1 with a severe defect: ONE retake, another seed
     if (g.length && typeof relancer === 'function') {
       try {
         const p = JSON.parse(store.getJob(job.id)?.payload || 'null')
@@ -114,9 +112,9 @@ export async function controlerJob(job, relancer) {
   }
 }
 
-/* La prise d'un clip à monter, une fois le contrôle passé : la prise 1 si elle n'a pas de défaut
-   grave, sinon la meilleure des deux une fois la nouvelle prise contrôlée. `attente` tant que le
-   contrôle ou la nouvelle prise ne sont pas finis ; sans contrôle au bout de 2 min, la prise 1. */
+/* The take of a clip to edit once checked: take 1 if it has no severe defect, otherwise
+   the better of the two once the retake is checked. `attente` while the check or the
+   retake is not finished; with no check after 2 min, take 1. */
 const premiere = jobId => store.assetsOfJob(jobId).find(x => x.media_type === 'video' && !String(x.id).endsWith('-full') && !String(x.filename).includes('-montage-')) || null
 export function priseRetenue(jobId) {
   const a = premiere(jobId)

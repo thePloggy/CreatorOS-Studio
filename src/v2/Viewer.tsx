@@ -1,7 +1,7 @@
 /* ============================================================
-   v2 — visionneuse : média + panneau Info (prompt, provenance),
-   revue, ponts (Animer / frames / recréer / cloner). Navigation
-   ← → sur la liste FILTRÉE (useAssetNav, fix inclus).
+   v2 — viewer: media + Info panel (prompt, provenance),
+   review, bridges (Animate / frames / recreate / clone). ← →
+   navigation over the filtered list (useAssetNav).
    ============================================================ */
 import { useNomPersonnage } from '../lib/personaNoms'
 import { useRenduTable, ouvrirDansTable } from './TableMontage'
@@ -31,12 +31,12 @@ const Objet3D = lazy(() => import('./Objet3D'))
 import { EditionVideo } from '../components/EditionVideo'
 import { useEdition } from '../lib/proprietaire'
 
-/* `/api/folders` renvoie aussi createdAt et count : la fiche ne les affiche
-   pas mais le tri partagé en a besoin. */
+/* `/api/folders` also returns createdAt and count: not displayed
+   but the shared sort needs them. */
 interface FolderRow { id: string; name: string; createdAt: number; count: number }
 
-/* Copie au clic, pour tous les champs de la vue détail : l'icône apparaît au
-   survol, « copié » confirme. Un seul composant, un seul comportement. */
+/* Click-to-copy for all detail view fields: the icon appears on
+   hover, "copied" confirms. */
 function useCopie(): [boolean, (t: string) => void] {
   const [fait, setFait] = useState(false)
   const t = useRef<number | undefined>(undefined)
@@ -58,10 +58,8 @@ function Copiable({ texte, children }: { texte: string; children: React.ReactNod
   )
 }
 
-/* Carte de prompt : même gabarit pour le brief, la vision VLM et le prompt
-   composé — trois textes de même nature, qui se lisent en séquence. Un seul
-   composant évite que les trois blocs divergent de style à la prochaine
-   retouche. */
+/* Prompt card: same layout for the brief, the VLM vision and the
+   composed prompt, three texts read in sequence. */
 function PromptCard({ titre, texte, hauteur }: { titre: string; texte: string; hauteur: number }) {
   const [fait, copier] = useCopie()
   const [tout, setTout] = useState(false)
@@ -85,11 +83,10 @@ function PromptCard({ titre, texte, hauteur }: { titre: string; texte: string; h
   )
 }
 
-/* La pile de LoRA du rendu, dans l'ordre où elle s'est appliquée. Toujours
-   affichée : il y a au minimum la LoRA d'identité, et son absence sur un rendu
-   du personnage est en soi une information. Le poids est ce qui se lit en
-   premier — c'est le réglage qui explique le plus de rendus ratés (une LoRA de
-   style trop forte prend la main sur l'identité et impose son esthétique). */
+/* The render's LoRA stack, in application order. Always shown: there is
+   at least the identity LoRA, and its absence on a character render is
+   informative. Weight is shown first: a style LoRA that is too strong
+   overrides identity and imposes its look. */
 export interface LoraLigne { node: string; name: string; label: string; strength: number | null; source: 'job' | 'recette' }
 
 function PileLoras({ loras, charge }: { loras: LoraLigne[] | null; charge: boolean }) {
@@ -113,10 +110,10 @@ function PileLoras({ loras, charge }: { loras: LoraLigne[] | null; charge: boole
   )
 }
 
-/* Caption gravée du reel : le texte que la livraison écrira sur le bandeau.
-   Modifiable ; enregistrée en quittant le champ (ou Entrée). Les autres
-   propositions du rédacteur restent cliquables. 45 caractères tiennent sur
-   une ligne du bandeau — au-delà il passe sur deux, sans être refusé. */
+/* Reel burned-in caption: the text delivery writes on the banner.
+   Editable; saved on blur (or Enter). The writer's other
+   suggestions remain clickable. 45 characters fit on one banner
+   line; longer text wraps to two lines and is not rejected. */
 function CaptionCard({ asset }: { asset: Asset }) {
   const s = useAppStore()
   const [texte, setTexte] = useState(asset.caption ?? '')
@@ -150,8 +147,8 @@ function CaptionCard({ asset }: { asset: Asset }) {
   )
 }
 
-/** Angles : la même photo vue d'une autre position de caméra — Qwen-Image-Edit 2511 avec la LoRA
- *  Multiple-Angles de fal (Apache-2.0, 96 poses apprises sur des rendus Gaussian Splatting). */
+/** Angles: the same photo from another camera position — Qwen-Image-Edit 2511 with fal's
+ *  Multiple-Angles LoRA (Apache-2.0, 96 poses learned from Gaussian Splatting renders). */
 export const LORA_ANGLES = 'qwen/qwen-image-edit-2511-multiple-angles-lora.safetensors'
 export const ANGLES = [
   { id: 'g34', label: '¾ gauche', vue: 'front-left quarter view eye-level shot medium shot' },
@@ -166,8 +163,8 @@ export const ANGLES = [
 
 
 
-/* Looks en un clic : consignes de retouche prêtes (Qwen-Image-Edit 2511), dans src/data/looks.json. */
-/* Analyse pour les réseaux : notes du modèle de vision et mesures, présentées comme une estimation. */
+/* One-click looks: ready-made retouch instructions (Qwen-Image-Edit 2511), in src/data/looks.json. */
+/* Social analysis: vision model scores and measurements, presented as an estimate. */
 function AnalyseClip({ asset, ouvert }: { asset: Asset; ouvert: boolean }) {
   const [r, setR] = useState<{ notes: Record<string, number>; global: number; mesures: { duree: number; format: string; son: boolean; coupes: number }; conseils: string[] } | null>(null)
   const [occupe, setOccupe] = useState(false)
@@ -198,14 +195,14 @@ function AnalyseClip({ asset, ouvert }: { asset: Asset; ouvert: boolean }) {
   )
 }
 
-/* Recadrer et doubler un clip : deux petits panneaux, mis en avant quand l'outil a été choisi au menu. */
+/* Crop and dub a clip: two small panels, highlighted when the tool was chosen from the menu. */
 function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionOutil; onLance: (jobId: string) => Promise<void> }) {
   const [voix, setVoix] = useState<{ nom: string }[]>([])
   const [audio, setAudio] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   useEffect(() => { void fetch('/api/montage/musiques').then(r => r.json()).then((d: { musiques?: { nom: string }[] }) => {
     const l = (d.musiques ?? []).sort((a, b) => Number(b.nom.startsWith('voix_')) - Number(a.nom.startsWith('voix_'))); setVoix(l); setAudio(l[0]?.nom ?? '') }).catch(() => {}) }, [])
-  // changeur de voix (propriétaire) : le timbre change, les mots et le rythme du clip restent
+  // voice changer (proprietary): the timbre changes, the clip's words and rhythm stay
   const edition = useEdition()
   const [voixStudio, setVoixStudio] = useState<{ id: string; nom: string }[]>([])
   const [cible, setCible] = useState('af_heart')
@@ -251,7 +248,7 @@ function OutilsClip({ asset, ouvert, onLance }: { asset: Asset; ouvert?: ActionO
 
 export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }: {
   asset: Asset
-  /** l'outil choisi depuis l'accueil ou les menus : son panneau s'ouvre tout seul */
+  /** the tool chosen from home or menus: its panel opens automatically */
   action?: ActionOutil
   list: Asset[]
   onGo: (a: Asset | null) => void
@@ -264,13 +261,13 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   const s = useAppStore()
   const nav = useAssetNav(list, asset, a => (a ? onGo(a) : onClose()))
   const [prov, setProv] = useState<string | null>(null)
-  /* Agrandissement : l'image d'origine, si elle est encore en bibliothèque. */
-  /* Restauration : on compare toujours à la source d'origine, pas à l'étape intermédiaire. */
+  /* Upscale: the original image, if still in the library. */
+  /* Restoration: always compared to the original source, not the intermediate step. */
   const parent = asset.origineUri ? { id: `${asset.id}-origine`, uri: asset.origineUri, mediaType: asset.mediaType }
     : asset.parentAssetId ? s.assets.find(a => a.id === asset.parentAssetId && a.mediaType === asset.mediaType) ?? null : null
   const [compare, setCompare] = useState(false)
-  // un clip affiné ou une restauration s'ouvre sur son avant / après : c'est ce qu'on vient voir
-  // un effet vidéo (Refine Details, Day to Night, Unblur…, Remove Objects) aussi : on vient voir la différence
+  // a refined clip or a restoration opens on its before / after
+  // so does a video effect (Refine Details, Day to Night, Unblur…, Remove Objects)
   useEffect(() => { setCompare(['seedvr2', 'ltx_effet', 'ltx_cleanplate'].includes(String(asset.videoEngine)) || !!asset.origineUri) }, [asset.id, asset.videoEngine, asset.origineUri])
   const [pinceau, setPinceau] = useState(action === 'pinceau' && asset.mediaType === 'photo')
   const [pointer, setPointer] = useState(false)
@@ -293,7 +290,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: op === 'foley' ? t('son en cours : un nouveau clip arrive dans la bibliothèque') : t('fluidité en cours : un nouveau clip arrive dans la bibliothèque') })
   }
 
-  /* Voisins préchargés : ← → affiche tout de suite (image, ou vignette d'une vidéo). */
+  /* Preloaded neighbours: ← → displays immediately (image, or a video's thumbnail). */
   useEffect(() => {
     if (nav.index < 0) return
     for (const v of [list[nav.index + 1], list[nav.index - 1], list[nav.index + 2]]) {
@@ -302,9 +299,9 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
       im.src = v.mediaType === 'video' ? `/api/poster/${encodeURIComponent(v.uri.split('/').pop() ?? '')}` : v.uri
     }
   }, [nav.index, list])
-  /* Lue par asset : le graphe exécuté est trop lourd pour voyager avec la
-     galerie, mais une pile de LoRA est minuscule et se recharge à chaque
-     navigation ← →. */
+  /* Read per asset: the executed graph is too heavy to travel with the
+     gallery, but a LoRA stack is tiny and reloads on each
+     ← → navigation. */
   const [loras, setLoras] = useState<LoraLigne[] | null>(null)
   useEffect(() => {
     setLoras(null)
@@ -313,13 +310,13 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
       .then(d => { if (vivant) setLoras(d.loras ?? []) }).catch(() => { if (vivant) setLoras([]) })
     return () => { vivant = false }
   }, [asset.id])
-  /* metadata réelles du fichier vidéo (source de vérité : dims + durée). */
+  /* actual video file metadata (source of truth: dimensions + duration). */
   const [clip, setClip] = useState<{ w: number; h: number; dur: number } | null>(null)
   const [allFolders, setAllFolders] = useState<FolderRow[]>([])
   useEffect(() => { void fetch('/api/folders').then(r => r.json())
     .then(d => setAllFolders(d.folders ?? [])).catch(() => {}) }, [])
-  /* On parcourt la liste TRIÉE plutôt que `asset.folders` : la fiche détail
-     nomme les dossiers dans l'ordre choisi par l'opérateur, comme partout. */
+  /* Iterate the sorted list rather than `asset.folders`: the detail sheet
+     names folders in the operator's chosen order, as everywhere. */
   const folderNames = trierDossiers(allFolders, s.folderSort)
     .filter(f => (asset.folders ?? []).includes(f.id))
     .map(f => f.name)
@@ -327,7 +324,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   const [carousel, setCarousel] = useState(false)
   const p = asset.provenance
 
-  /* « Ouvrir dans ComfyUI » : le graphe exact du rendu en .json, et ses modèles avec leur licence */
+  /* "Open in ComfyUI": the render's exact graph as .json, and its models with their license */
   const [modeles, setModeles] = useState<{ fichier: string; licence: string | null }[] | null>(null)
   const [voirLooks, setVoirLooks] = useState(false)
   const lancerLook = async (consigne: string) => {
@@ -342,7 +339,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
     useAppStore.setState({ loraPicks: [{ name: LORA_ANGLES, strength: 1, trigger: '' }] })
     try { await lancerLook(`<sks> ${vue}`) } finally { useAppStore.setState({ loraPicks: avant }) }
   }
-  /* Coverage, Push in, Next beat : le plan d'après, à partir de cette photo. */
+  /* Coverage, Push in, Next beat: the next shot, from this photo. */
   const [planMsg, setPlanMsg] = useState('')
   const coverage = async () => {
     const avant = useAppStore.getState().loraPicks
@@ -425,7 +422,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
       {pinceau && <Pinceau asset={asset} onClose={() => setPinceau(false)} />}
       {editer && <EditionVideo asset={asset} detourDirect={action === 'detour'} opDepart={action === 'retirer' || action === 'fond' ? action : undefined} onClose={() => setEditer(false)} onPinceau={() => setPinceau(true)} />}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden" style={{ background: 'var(--scene)' }}>
-        {/* le média en grand flou derrière lui : la pièce prend sa lumière */}
+        {/* the media, heavily blurred behind it: the room takes on its light */}
         <img className="ambiance" alt="" src={asset.mediaType === 'video' ? posterOf(asset) : asset.uri} />
         <button className="absolute top-3 left-3 z-10 b2" onClick={onClose}>{t('‹ retour')}</button>
         {asset.mediaType === 'photo' && !(parent && compare) && (
@@ -496,15 +493,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           {action === 'master' && asset.mediaType === 'video' && <div className="guide-outil"><b>{t('Masters HDR')}</b><Masters asset={asset} /></div>}
           {asset.mediaType === 'video' && (action === 'analyse' || !action) && <AnalyseClip asset={asset} ouvert={action === 'analyse'} />}
           {asset.mediaType === 'video' && (action === 'recadrer' || action === 'doubler' || !action) && <OutilsClip asset={asset} ouvert={action} onLance={async id => { await s.adoptServerJob(id); onClose() }} />}
-        {/* ---------- la chaîne du prompt, dans l'ordre où elle s'est faite ----------
-            Brief → ce que le VLM a lu dans la still → prompt composé. Les deux
-            premiers blocs n'apparaissent que s'ils existent ET apportent
-            quelque chose : un rendu sans Enhancer garde une seule carte, comme
-            avant. Séparer la VISION du reste est le point : quand un prompt
-            composé décrit une tenue ou une pose inattendue, la cause est soit
-            une image mal lue, soit une consigne mal suivie — deux correctifs
-            qui n'ont rien à voir, et qu'on ne peut pas départager sans voir ce
-            que le modèle avait sous les yeux. */}
+        {/* ---------- the prompt chain, in the order it happened ----------
+            Brief → what the VLM read in the still → composed prompt. The first
+            two blocks appear only if they exist and add something: a render
+            without Enhancer keeps a single card. Showing the vision separately
+            tells apart a misread image from a badly followed instruction. */}
         {asset.mediaType === 'video' && <CaptionCard asset={asset} />}
         {p.initialBrief && p.initialBrief !== (p.composedPositive || p.userPrompt) && (
           <PromptCard titre={t('Prompt initial (avant Enhancer)')} texte={p.initialBrief} hauteur={90} />
@@ -526,10 +519,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           {([
             ['Personnage', nomPerso === undefined ? '…' : nomPerso ?? t('aucun')],
             ['Recette', p.recipeId || '—'],
-            /* La seed sert à rejouer un rendu : elle doit être lisible ET
-               copiable. `verrouillée` = choix de l'opérateur avant l'envoi,
-               lu dans les sélections ; sinon elle a été tirée au hasard,
-               mais reste affichée puisque c'est celle qui a produit l'image. */
+            /* The seed replays a render, so it must be readable and
+               copyable. `verrouillée` = operator's choice before sending,
+               read from the selections; otherwise it was random,
+               but stays shown since it produced the image. */
             ['Seed', p.seed?.value != null
               ? `${p.seed.value} · ${(p.selections as { seed?: { mode?: string } } | undefined)?.seed?.mode === 'lock' ? t('fixe') : t('aléatoire')}`
               : t('aléatoire'), p.seed?.value != null ? String(p.seed.value) : ''],
@@ -548,14 +541,14 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             ] as const : []),
             ['Rendu', renderTime(asset.renderMs) || '—'],
             ['Job', `#${asset.jobId}`, asset.jobId],
-            /* Dossiers d'appartenance : l'asset ne porte que des IDs, les noms
-               viennent de /api/folders (chargé une fois à l'ouverture). */
+            /* Folders the asset belongs to: the asset only holds IDs, names
+               come from /api/folders (loaded once on open). */
             ['Dossiers', folderNames.length ? folderNames.join(', ') : t('aucun')],
           ] as ReadonlyArray<readonly [string, React.ReactNode, string?]>).map(([k, val, brut]) => (
             <div key={k} className="flex justify-between py-[3px]" style={{ color: 'var(--muted)' }}>
               <span>{t(k)}</span>
               <b style={{ color: 'var(--text)', fontWeight: 500 }}>
-                {/* la seed se copie SANS « · fixe » : c'est le nombre qu'on recolle */}
+                {/* the seed is copied without "· fixe": it is the number to paste back */}
                 <Copiable texte={brut ?? (typeof val === 'string' ? val : '')}>{val}</Copiable>
               </b>
             </div>
@@ -593,7 +586,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}><Ic n="loop" s={14} />{t('Boucle')}</button>
           )}
           {asset.mediaType === 'video' && (<>
-            {/* plan rendu par la table de montage : on le rouvre avec ses images clés à leur instant et son prompt */}
+            {/* shot rendered by the editing table: reopen it with its keyframes at their times and its prompt */}
             {renduTable && <button className="b2" title={t('Rouvre la table de montage de Movie Studio avec les images clés à leur instant, les actions et le personnage de ce plan')}
               onClick={() => { ouvrirDansTable(renduTable); onClose(); s.allerCinema() }}><Ic n="film" s={14} />{t('Ouvrir dans Movie Studio')}</button>}
             <button className="cta" style={{ padding: '13px', flexDirection: 'row', gap: 8 }}
@@ -606,7 +599,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
                 onClick={() => void finition('interpolate')}><Ic n="wave" s={14} />{t('48 i/s')}</button>}
             </div>
           </>)}
-          {/* « Utiliser dans… » : ce média ouvre une autre section, déjà choisi comme source */}
+          {/* "Use in…": this media opens another section, preselected as source */}
           {asset.jobId && <button className="pill workflow-comfy" onClick={() => void telechargerGraphe()} title={t('Le graphe exact de ce rendu, à glisser dans ComfyUI')}>
             <Ic n="graphe" /> {t('Télécharger le workflow ComfyUI')}</button>}
           <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
@@ -634,7 +627,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           {asset.mediaType === 'photo' && <details className="plus" open={plusOuvert} onToggle={e => setPlusOuvert(e.currentTarget.open)}><summary>{t('Plus…')}</summary><div>
             <button className="b2" onClick={() => { void s.retouchFrom(asset); onClose(); goImage() }}><Ic n="edit" s={14} />{t('Éditer (retouche)')}</button>
             <button className="b2" onClick={() => setPinceau(true)} title={t('peindre une zone et la refaire, le reste de l\'image ne change pas')}><Ic n="brush" s={14} />{t('Pinceau')}</button>
-            {/* Looks en un clic : une retouche Qwen-Image-Edit à consigne prête, lancée tout de suite */}
+            {/* One-click looks: a Qwen-Image-Edit retouch with a ready instruction, launched immediately */}
             <div className="flex gap-1.5 items-center flex-wrap text-[12px]" style={{ color: 'var(--muted)' }}>
               <button className="pill" style={{ fontSize: 12, padding: '4px 9px' }} onClick={() => setVoirLooks(v => !v)}>{t('Look')} {voirLooks ? '▴' : `▾ ${LOOKS.length}`}</button>
               {voirLooks && LOOKS.map(l => (
@@ -688,7 +681,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             </>)}
           </div>
           <div className="flex gap-1.5">
-            {/* icônes seules : le nom au survol (title) et pour les lecteurs d'écran (aria-label) */}
+            {/* icons only: the name on hover (title) and for screen readers (aria-label) */}
             <button className="b2" style={{ flex: '0 0 44px' }} title={t('Cloner : reprendre ces réglages')} aria-label={t('Cloner')}
               onClick={() => { s.cloneFrom(asset); onClose(); (asset.mediaType === 'video' ? goVideo : goImage)() }}><Ic n="copy" s={15} /></button>
             {asset.jobId && !asset.postOp && <button className="b2" style={{ flex: '0 0 44px' }} title={t('Encore une : mêmes réglages, nouvelle graine')} aria-label={t('Encore une')}
@@ -712,7 +705,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   )
 }
 
-/* ---------- menu ⋯ du viewer : parité avec la vignette + carrousel ---------- */
+/* ---------- viewer ⋯ menu: same items as the thumbnail + carousel ---------- */
 function ViewerMenu({ asset, at, onClose, onCarousel, onDeleted }: {
   asset: Asset; at: { x: number; bottom: number }; onClose: () => void
   onCarousel: () => void; onDeleted: () => void

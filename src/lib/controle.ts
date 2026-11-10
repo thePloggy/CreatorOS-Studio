@@ -1,4 +1,4 @@
-/* Résumé lisible du contrôle automatique d'un clip (server/controle.js). */
+/* Readable summary of a clip's automatic check (server/controle.js). */
 import type { Controle } from '../types'
 import { t, getLang } from '../i18n'
 
@@ -11,7 +11,7 @@ const MOUVEMENT: Record<string, string> = {
   avant: 'vers l’avant', arriere: 'vers l’arrière', lateral: 'latéral', vertical: 'vertical', fixe: 'immobile', mixte: 'mélangé',
 }
 
-/** Une ligne par défaut, horodatée : « figé 1,2–2,5 s ». */
+/** One line per defect, with timestamps: "figé 1,2–2,5 s". */
 export function defautsDe(c?: Controle | null): string[] {
   if (!c) return []
   return c.problemes.map(p => {
@@ -20,7 +20,7 @@ export function defautsDe(c?: Controle | null): string[] {
   })
 }
 
-/** Résumé court pour la fiche : défauts, visage, prise. */
+/** Short summary for the detail sheet: defects, face, take. */
 export function resumeControle(c?: Controle | null): string | null {
   if (!c) return null
   const morceaux = defautsDe(c)

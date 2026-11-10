@@ -1,4 +1,4 @@
-/* Réglage « Comfy Cloud » : la clé du visiteur, gardée dans son navigateur. */
+/* "Comfy Cloud" setting: the visitor's key, stored in their browser. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { ecrireCleComfy, lireCleComfy } from '../../lib/comfyKey'
@@ -35,10 +35,10 @@ export function CleComfy() {
   )
 }
 
-/* ---------- LoRA des personnages sur le compte Comfy Cloud ----------
-   Comfy Cloud n'a pas les LoRA d'identité dans son catalogue : sans import,
-   un rendu de personnage échoue sur « LoRA introuvable ». Un clic, et Comfy
-   Cloud les télécharge lui-même depuis Civitai, sur le compte du visiteur. */
+/* ---------- Character LoRAs on the Comfy Cloud account ----------
+   Comfy Cloud does not have identity LoRAs in its catalog: without an import,
+   a character render fails with "LoRA not found". One click and Comfy Cloud
+   downloads them from Civitai, onto the visitor's account. */
 interface LoraCloud { persona: string; personaName: string; moteur: string; name: string; source: string | null; present: boolean }
 interface Lance { name: string; status: string; task: string | null; error?: string }
 
@@ -62,8 +62,8 @@ function LorasCloud() {
   }, [])
   useEffect(() => { void relire() }, [relire])
 
-  /* Suivi des téléchargements lancés : un relevé toutes les 5 s, jusqu'à ce
-     qu'aucun ne soit plus en cours ; l'état du compte est relu à la fin. */
+  /* Tracks started downloads: polls every 5 s until none is in progress,
+     then reloads the account state. */
   useEffect(() => {
     const enCours = Object.values(suivi).filter(l => l.task && ['created', 'running', 'pending', 'queued'].includes(l.status))
     if (!enCours.length) return

@@ -1,7 +1,7 @@
-/* Mosaïques d'Image : Styles (looks en un clic), Relight (un autre éclairage) et Expand (la photo élargie à
-   un format). La galerie des cartes occupe la largeur (au survol, la photo d'origine revient : l'avant /
-   après), un panneau compact à étapes reste visible : la photo, la carte, le bouton. Le rendu suit le
-   chemin ordinaire (retouche Qwen-Image-Edit, ou agrandissement) et arrive dans l'onglet Rendus. */
+/* Image mosaics: Styles (one-click looks), Relight (new lighting) and Expand (photo widened to a format).
+   The card gallery fills the width (hover shows the original photo as before / after); a compact stepped
+   panel stays visible: photo, card, button. Renders go through the regular path (Qwen-Image-Edit
+   retouch, or expand) and land in the Renders tab. */
 import { useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -21,12 +21,12 @@ type CarteMosaique = { id: string; nom: string; famille?: string; consigne?: str
 type Onglet = 'galerie' | 'rendus'
 type Reglages = { carte: string; assetId: string }
 const FAMILLES = ['Dessin et 3D', 'Peinture', 'Cinéma et mise en scène', 'Portrait et produit', 'Retouche et couleur']
-// aperçus présents dans public/vitrine/<mosaïque>/<id>.webp (liste tenue à jour à la pose des vignettes)
+// previews present in public/vitrine/<mosaic>/<id>.webp (keep this list in sync with the thumbnails)
 const APERCUS: Record<Mosaique, Set<string>> = {
   styles: new Set(MANIFESTE.styles), relight: new Set(MANIFESTE.relight), expand: new Set(MANIFESTE.expand),
 }
-/* La photo d'origine d'une vignette de Styles ou Relight, qui revient au survol : le renard pour la plupart,
-   le portrait pour les styles de portrait et de tenue ; aucune pour celles faites d'après une autre photo. */
+/* Original photo of a Styles or Relight thumbnail, shown on hover: the fox for most, the portrait for
+   portrait and outfit styles; none for those made from another photo. */
 const PORTRAIT = new Set(['cafe60', 'clair-obscur', 'cv', 'peau', 'pro', 'pub', 'renaissance'])
 const SANS_ORIGINE = new Set(['nuages', 'packshot', 'panneau', 'vitrine'])
 const origine = (id: string) => SANS_ORIGINE.has(id) ? undefined
@@ -41,7 +41,7 @@ const TEXTES: Record<Mosaique, { titre: string; texte: string; onglet: string; c
     onglet: 'Formats', carte: 'Format', choisir: 'Choisir un format', manque: 'Choisis un format dans la galerie.', bouton: 'Élargir la photo', chercher: '' },
 }
 
-/* « Comment ça marche » (Styles et Relight) */
+/* "How it works" (Styles and Relight) */
 const HOWTO: Partial<Record<Mosaique, { cle: string; titre: string; texte: string; label: string; repli: string; etapes: [string, string][] }>> = {
   styles: {
     cle: 'styles', repli: '/vitrine/v2-briques.webp', label: 'Exemples de styles',
@@ -108,7 +108,7 @@ export function StylesView({ mode = 'styles', goImage, onOpen }: { mode?: Mosaiq
     setAppel(true); window.setTimeout(() => setAppel(false), 1600)
   }
 
-  /* Le même rendu qu'avant : agrandissement pour un format, sinon retouche avec la consigne (et la LoRA du style). */
+  /* Render: expand for a format, otherwise retouch with the instruction (and the style's LoRA). */
   const lancer = async (c: CarteMosaique, a: Asset) => {
     setOccupe(true); setMsg(null)
     try {
@@ -122,7 +122,7 @@ export function StylesView({ mode = 'styles', goImage, onOpen }: { mode?: Mosaiq
       } else {
         await s.retouchFrom(a)
         s.setUserPrompt(c.consigne ?? '')
-        // un style à LoRA : le serveur la charge d'après cet id
+        // a LoRA style: the server loads it from this id
         s.updatePhoto({ editStyle: c.style ?? null })
         useAppStore.setState({ promptTouched: true, composedPositive: '' })
         try { await s.submitJob() } finally { s.updatePhoto({ editStyle: null }) }
@@ -141,7 +141,7 @@ export function StylesView({ mode = 'styles', goImage, onOpen }: { mode?: Mosaiq
   const q = recherche.trim().toLowerCase()
   const vues = cartes.filter(c => (filtre === 'tout' || c.famille === filtre) && (!q || c.nom.toLowerCase().includes(q)))
   const puces = mode === 'styles' ? FAMILLES.map(f => ({ id: f, label: f, n: cartes.filter(c => c.famille === f).length })).filter(p => p.n > 0) : []
-  // sur écran tactile, rien ne joue tout seul : la vignette au centre garderait la photo d'origine au lieu du style
+  // on touch screens nothing autoplays, so the centered thumbnail would keep the original photo instead of the style
   const centre = useCarteAuCentre(false, [onglet, filtre, q])
   const image = (c: CarteMosaique) => APERCUS[mode].has(c.id) ? `/vitrine/${mode}/${c.id}.webp` : undefined
 

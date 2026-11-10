@@ -1,32 +1,32 @@
 /* ============================================================
-   CreatorOS — Contrats de données
-   Miroir TypeScript du modèle de données.
-   Ces types sont LA « prise » entre la surface (ce front) et le
-   plan de calcul (worker ComfyUI réel ou worker bouchon).
-   Ne jamais modifier sans répercuter côté worker / agent technique.
+   CreatorOS — data contracts
+   TypeScript mirror of the data model.
+   These types are the interface between the front end and the
+   compute layer (ComfyUI worker or stub worker).
+   Any change must be mirrored on the worker side.
    ============================================================ */
 
-/* ---------- Modes & registres ---------- */
+/* ---------- Modes & registers ---------- */
 
 export type MediaMode = 'photo' | 'video' | 'son'
-/** Registre de contenu. Cette édition ne produit que du contenu tout public :
- *  le champ reste dans le contrat (jobs, assets) mais n'a qu'une valeur. */
+/** Content register. This edition produces general-audience content only:
+ *  the field stays in the contract (jobs, assets) but has a single value. */
 export type Register = 'sfw'
 
-/* ---------- Persona (§1-2 du modèle) ---------- */
+/* ---------- Persona (§1-2 of the model) ---------- */
 
-/** Personnage : défini côté serveur (configuration), le front n'en lit que
- *  le nom d'affichage. */
+/** Character: defined on the server (configuration); the front end only reads
+ *  its display name. */
 export interface Persona {
   id: string
   name: string
 }
 
-/* ---------- Vocabulaires (§3) : variable, sélectionné par job ---------- */
+/* ---------- Vocabularies (§3): variable, selected per job ---------- */
 
-/** Tenue multi-attributs.
- *  `prompt` = la ligne de prompt complète (source de vérité pour la génération) ;
- *  garment/material/color = attributs extraits pour l'autocomplete. */
+/** Multi-attribute outfit.
+ *  `prompt` = the full prompt line (source of truth for generation);
+ *  garment/material/color = attributes extracted for autocomplete. */
 export interface Outfit {
   id: string
   label: string
@@ -34,15 +34,15 @@ export interface Outfit {
   material: string
   fit: string
   color: string
-  /** Tags libres pour l'autocomplete (« robe », « vert »…). */
+  /** Free tags for autocomplete ("robe", "vert"…). */
   tags: string[]
-  /** Titre FR (affichage) — le prompt reste EN. */
+  /** French title (display) — the prompt stays English. */
   labelFr?: string
-  /** Ligne de prompt complète (EN) — prioritaire sur les attributs au prompt. */
+  /** Full prompt line (English) — takes precedence over attributes in the prompt. */
   prompt?: string
-  /** Contexte d'usage : ville / plage / chic / sport / général. */
+  /** Usage context: city / beach / chic / sport / general. */
   context?: string
-  /** Origine de l'item (traçabilité). */
+  /** Item origin (traceability). */
   source?: string
 }
 
@@ -53,9 +53,9 @@ export interface Environment {
   sceneType: string
   weather: string
   tags: string[]
-  /** Titre FR (affichage) — le prompt reste EN. */
+  /** French title (display) — the prompt stays English. */
   labelFr?: string
-  /** Ligne de prompt complète (EN). */
+  /** Full prompt line (English). */
   prompt?: string
   source?: string
 }
@@ -66,93 +66,93 @@ export interface PhotoStyle {
   lens: string
   framing: string
   tags: string[]
-  /** Titre FR (affichage). */
+  /** French title (display). */
   labelFr?: string
-  /** extérieur (cadrages shooting) | selfie (cadrages intérieur/selfie). */
+  /** outdoor (shoot framings) | selfie (indoor/selfie framings). */
   context?: string
   source?: string
 }
 
-/* ---- Vocabulaires additionnels ---- */
+/* ---- Additional vocabularies ---- */
 
 export interface Hairstyle { id: string; label: string; labelFr?: string; prompt: string }
 
-/** Pose exprimée en texte : elle entre dans le prompt, entre la tenue et le cadrage. */
+/** Pose as text: inserted into the prompt between outfit and framing. */
 export interface TextPose {
   id: string; label: string; prompt: string
   context: string; source: string
   labelFr?: string
 }
 
-/* ---------- Sélections courantes (état de la console) ---------- */
+/* ---------- Current selections (console state) ---------- */
 
-/** Tâche photo : génération classique, ou retouche par instruction. */
+/** Photo task: standard generation, or instruction-based edit. */
 export type PhotoTask = 'generate' | 'edit'
 
 export interface PhotoSelections {
   task: PhotoTask
-  /** `null` = pas de tenue dans le texte auto : c'est le prompt écrit qui pilote. */
+  /** `null` = no outfit in the auto text: the written prompt drives. */
   outfitId: string | null
-  /** Overrides d'attributs de la tenue (hybride : défauts + réglage fin). */
+  /** Outfit attribute overrides (hybrid: defaults + fine tuning). */
   outfitOverrides: Partial<Pick<Outfit, 'material' | 'fit' | 'color'>>
-  /** Pose EN TEXTE : c'est elle qui entre dans le prompt, entre la tenue et
-   *  le cadrage. `null` = pose libre, le modèle choisit. */
+  /** Pose AS TEXT: inserted into the prompt between outfit and
+   *  framing. `null` = free pose, the model chooses. */
   textPoseId: string | null
 
-  /* ---- ControlNet (tâche Génération) ----
-     Le contrôle passe par la Fun-ControlNet Z-Image, branchée sur les deux
-     recettes figées. La MODALITÉ n'est pas un paramètre du nœud : le modèle
-     Union la déduit de la carte reçue. Choisir « depth » ou « openpose »
-     revient donc à choisir le PRÉPROCESSEUR appliqué à l'image de référence.
-     Depth porte la pose, le cadrage et les accessoires ;
-     openpose rend une station debout générique. */
+  /* ---- ControlNet (Generation task) ----
+     Control goes through the Z-Image Fun-ControlNet, wired into both
+     fixed recipes. The MODALITY is not a node parameter: the Union model
+     infers it from the input map. Choosing "depth" or "openpose" means
+     choosing the PREPROCESSOR applied to the reference image.
+     Depth carries pose, framing and props;
+     openpose yields a generic standing pose. */
   cnRefUri: string
   cnRefName: string
-  /** Nom du fichier déposé dans input/ de ComfyUI (POST /api/upload). */
+  /** Name of the file placed in ComfyUI's input/ (POST /api/upload). */
   cnRefFile: string
   cnUploadState: 'idle' | 'uploading' | 'ready' | 'error'
   cnUploadError: string
-  /** Dimensions réelles de la référence, rendues par POST /api/upload. */
+  /** Actual reference dimensions, returned by POST /api/upload. */
   cnRefW: number
   cnRefH: number
   cnType: 'depth' | 'openpose' | 'canny'
-  /** `strength` du nœud QwenImageDiffsynthControlnet. Le mandat l'appelle
-   *  control_context_scale ; le nœud ne connaît que `strength`. */
+  /** `strength` of the QwenImageDiffsynthControlnet node (the node's only
+   *  name for control_context_scale). */
   cnStrength: number
   environmentId: string | null
   weatherOverride?: string
   styleId: string | null
-  /* ---- Retouche par instruction (task = 'edit') ----
-     Source = image (upload OU still de la galerie) qu'on modifie par une
-     instruction libre composée par le LLM (« la robe devient rouge »).
-     La personne est conservée : Qwen-Image-Edit ne touche que ce que
-     l'instruction demande. */
+  /* ---- Instruction-based edit (task = 'edit') ----
+     Source = image (upload OR gallery still) modified by a free-form
+     instruction composed by the LLM ("the dress turns red").
+     The person is preserved: Qwen-Image-Edit only changes what the
+     instruction asks for. */
   editSourceUri: string
   editSourceName: string
-  /** Nom du fichier déposé dans input/ (upload) ou copié depuis la galerie
-   *  via /api/assets/:id/to-input. C'est lui que le graphe lit. */
+  /** Name of the file placed in input/ (upload) or copied from the gallery
+   *  via /api/assets/:id/to-input. This is what the graph reads. */
   editSourceFile: string
-  /** style de la retouche (LoRA Qwen-Image-Edit choisie par le serveur) */
+  /** edit style (Qwen-Image-Edit LoRA chosen by the server) */
   editStyle?: string | null
-  /** Id de l'asset galerie choisi comme source (null si upload). */
+  /** Id of the gallery asset chosen as source (null if upload). */
   editSourceAssetId: string | null
   editUploadState: 'idle' | 'uploading' | 'ready' | 'error'
   editUploadError: string
 }
 
-/** Tâche vidéo : i2v classique, extension d'un clip, ou motion control (une
- *  vidéo de référence pilote le mouvement d'une still — type Wan Animate). */
+/** Video task: standard i2v, clip extension, or motion control (a
+ *  reference video drives the motion of a still — Wan Animate). */
 export type VideoTask = 'i2v' | 'extend' | 'motion_pure' | 't2v'
 
-/** Vidéo : frames à rôles. Start requis, milieu si le modèle le supporte. */
-/** Moteurs i2v câblés. Le choix est MANUEL : aucun ne domine les autres,
- *  ils perdent sur des axes différents (cf. server/jobs.js VIDEO_ENGINES). */
-/** Recettes photo de l'édition : Krea 2 (défaut) ou FLUX.2 Klein 9B. */
+/** Video: frames with roles. Start required, middle if the model supports it. */
+/** Wired i2v engines. The choice is MANUAL: none dominates the others
+ *  (see server/jobs.js VIDEO_ENGINES). */
+/** Photo recipes of this edition: Krea 2 (default) or FLUX.2 Klein 9B. */
 export type PhotoEngine = 'krea' | 'klein' | 'moss' | 'flux3'
 
-/** Crédit d'un personnage : l'auteur de sa LoRA, sa page, la licence. */
+/** Character credit: its LoRA author, page, license. */
 export interface PersonaCredit { auteur: string; url: string; licence: string }
-/** Garde-robe d'un personnage : ids de vocabulaire favoris + lignes libres. */
+/** Character wardrobe: favorite vocabulary ids + free lines. */
 export interface Garderobe { tenues: string[]; lieux: string[]; perso: { label: string; prompt: string }[] }
 export const GARDEROBE_VIDE: Garderobe = { tenues: [], lieux: [], perso: [] }
 
@@ -160,155 +160,154 @@ export type VideoEngine = 'wan' | 'ltx' | 'ltx_hq' | 'minimax' | 'wan_t2v'
 
 export interface VideoSelections {
   task: VideoTask
-  /** Moteur de rendu, choisi à la main. */
+  /** Render engine, chosen manually. */
   engine: VideoEngine
-  /** Son natif du moteur — l'audio est diffusé AVEC l'image, pas ajouté
-   *  après. Sans objet sur Wan, qui n'a pas d'étage audio. */
+  /** Engine-native sound — audio is diffused WITH the image, not added
+   *  afterwards. Not applicable to Wan, which has no audio stage. */
   withAudio: boolean
-  /** Texte → vidéo avec le personnage actif (il faut une LoRA vidéo) ; sinon plan d'ambiance. */
+  /** Text → video with the active character (requires a video LoRA); otherwise an ambient shot. */
   t2vPersonnage?: boolean
-  /** Brief audio (ambiance, réplique). Rejoint le prompt de mouvement : les
-   *  deux moteurs sonores n'ont qu'une seule entrée texte, commune à l'image
-   *  et au son. Ignoré quand le son est coupé. */
+  /** Audio brief (ambience, dialogue line). Merged into the motion prompt:
+   *  both sound engines have a single text input shared by image and
+   *  sound. Ignored when sound is off. */
   audioText: string
-  /** Nom du fichier de l'image de départ DANS le dossier input de ComfyUI.
-   *  `startAssetId` désigne un asset de la bibliothèque ; un nœud LoadImage,
-   *  lui, ne sait lire qu'un nom de fichier — d'où les deux champs. */
+  /** File name of the starting image IN ComfyUI's input folder.
+   *  `startAssetId` refers to a library asset; a LoadImage node can only
+   *  read a file name — hence both fields. */
   startFrameFile: string
-  /** Aperçu local d'une still déposée depuis le disque (hors bibliothèque). */
+  /** Local preview of a still dropped from disk (outside the library). */
   startFrameUri: string
-  /** Dimensions de la still — elles résolvent le format « origine ». */
+  /** Still dimensions — they resolve the "origine" aspect. */
   startFrameW: number
   startFrameH: number
-  /** Pourquoi la still n'a pas pu être mise à disposition du graphe. */
+  /** Why the still could not be made available to the graph. */
   startFrameError: string
   startAssetId: string | null
   middleAssetId: string | null
   endAssetId: string | null
-  /** Copie de la frame de fin dans l'input ComfyUI (nom nu) — c'est ELLE que
-   *  le job envoie en `endImage`, pas l'id d'asset. */
+  /** Copy of the end frame in ComfyUI's input (bare name) — this is what
+   *  the job sends as `endImage`, not the asset id. */
   endFrameFile: string
   endFrameError: string
   motionText: string
   cameraText: string
   /* ---- Motion control (task = 'motion_pure') ----
-     La vidéo de référence UPLOADÉE pilote mouvement, caméra ET durée —
-     ces réglages i2v sont donc ignorés en motion. */
-  /** Vidéo de référence qui pilote le mouvement (upload). */
+     The UPLOADED reference video drives motion, camera AND duration —
+     those i2v settings are ignored in motion mode. */
+  /** Reference video driving the motion (upload). */
   motionRefUri: string
-  /** Nom du fichier uploadé (provenance lisible). */
+  /** Uploaded file name (readable provenance). */
   motionRefName: string
-  /** Nom du fichier DÉPOSÉ côté serveur (input/ de ComfyUI) — la seule chose
-   *  que la chaîne sait lire. Vide tant que le dépôt n'a pas abouti. */
+  /** File name STORED on the server (ComfyUI's input/) — the only thing
+   *  the pipeline can read. Empty until the upload has succeeded. */
   motionDriverFile: string
-  /** Durée et images du driver (à 24 fps au-delà de 30), rendues par POST /api/upload —
-   *  pour l'estimation avant envoi (temps ∝ images). */
+  /** Driver duration and frame count (at 24 fps above 30), returned by POST /api/upload —
+   *  for the pre-submit estimate (time ∝ frames). */
   motionDriverSeconds: number
   motionDriverFrames: number
-  /* ---- Extension vidéo : dernière frame d'une vidéo → start-frame i2v ---- */
+  /* ---- Video extension: last frame of a video → i2v start frame ---- */
   extendSource: 'upload' | 'gallery'
-  /** Vidéo source uploadée (nom dans input/) ou clip de la galerie. */
+  /** Uploaded source video (name in input/) or gallery clip. */
   extendVideoFile: string
   extendAssetId: string | null
   extendVideoUri: string
   extendError: string
-  /** 'last' = toute dernière frame · 'sharp' = la plus nette de la fin. */
+  /** 'last' = very last frame · 'sharp' = sharpest frame near the end. */
   extendPick: 'last' | 'sharp'
-  /** Avertissement du serveur (frame de fin floue). */
+  /** Server warning (blurry end frame). */
   extendWarn: string
-  /** Prequel : le rendu ARRIVE sur la 1re frame du clip et passe devant lui. */
+  /** Prequel: the render ENDS on the clip's first frame and is placed before it. */
   extendPrequel?: boolean
-  /** 1re frame du clip copiée dans input/ (frame de fin du prequel). */
+  /** Clip's first frame copied into input/ (prequel end frame). */
   extendEndFile?: string
-  /** Livrer AUSSI source + continuation concaténées (second asset du job). */
+  /** ALSO deliver source + continuation concatenated (second job asset). */
   extendConcat: boolean
-  /** Erreur de dépôt du driver, affichée à l'endroit du refus. */
+  /** Driver upload error, shown where it was rejected. */
   motionDriverError: string
-  /** Prévisu 480x848 (~2x plus rapide) au lieu de la livraison 720x1280. */
+  /** 480x848 preview (~2x faster) instead of the 720x1280 delivery. */
   motionPreview: boolean
-  /* ---- Motion control : still + vidéo source ----
-     La still est la réf directe : l'identité du rendu peut être tirée vers
-     le driver — contrat affiché dans l'onglet. */
+  /* ---- Motion control: still + source video ----
+     The still is the direct reference: the render's identity can drift
+     toward the driver — contract shown in the tab. */
   motionStillFile: string
   motionStillUri: string
   motionStillError: string
-  /** Prompt PRINCIPAL du motion control : personnage + décor + action.
-   *  Le champ mouvement ne pilote que la branche geste. Vide = préfixe neutre. */
+  /** MAIN motion-control prompt: character + setting + action.
+   *  The motion field only drives the gesture branch. Empty = neutral prefix. */
   motionSceneText: string
-  /** pose_strength du nœud (0,5–1,5) : adhérence au geste du driver. */
+  /** Node pose_strength (0.5–1.5): adherence to the driver's gesture. */
   motionPoseStrength: number
-  /** Mix : seconde de la vidéo source où commencer (le Mix en garde 9,6 s). */
+  /** Mix: second of the source video to start from (Mix keeps 9.6 s). */
   mixDebut: number
-  /** Mix à plusieurs : les personnages, de gauche à droite. */
+  /** Multi-character Mix: the characters, left to right. */
   mixPersonnes: string[]
-  /** reference_image_strength (0,5–1) : poids de la still. La baisser
-   *  relâche le contexte figé — le prompt peut alors l'animer. */
+  /** reference_image_strength (0.5–1): weight of the still. Lowering it
+   *  loosens the fixed context, so the prompt can animate it. */
   motionRefStrength: number
-  /** Move (animate) : la still rejoue le geste ; Mix (replace) : le personnage prend la place de celui du driver. */
+  /** Move (animate): the still replays the gesture; Mix (replace): the character replaces the driver's. */
   motionMode: 'animate' | 'replace'
-  /** Asset de bibliothèque choisi comme still (exclusif de l'upload). */
+  /** Library asset chosen as still (exclusive with upload). */
   motionStillAssetId: string | null
-  /** Multi-plans : le moteur découpe en plusieurs plans avec des coupes
-   *  franches (MiniMax, piloté par le prompt — aucun paramètre
-   *  de nœud n'existe). Décoché : plan unique imposé. */
+  /** Multi-shot: the engine splits into several shots with hard cuts
+   *  (MiniMax, prompt-driven — no node parameter exists).
+   *  Unchecked: single shot enforced. */
   multiShot: boolean
-  /** LoRAs vidéo optionnelles (turbo, réalisme, physique…) empilées sur la
-   *  recette du moteur. Défaut vide = recette inchangée. */
+  /** Optional video LoRAs (turbo, realism, physics…) stacked on the
+   *  engine recipe. Empty by default = recipe unchanged. */
   videoLoras: LoraPick[]
-  /** Brouillon : même recette à surface réduite (0,4 MP sur MiniMax, ~x3
-   *  plus vite). Juge le PROMPT — débit, énergie, ralenti — pas le plan :
-   *  le bruit initial change avec la résolution, le cadrage et le geste
-   *  aussi. Sans upscale : mesuré, il n'y remet rien. */
+  /** Draft: same recipe at reduced resolution (0.4 MP on MiniMax, ~3x
+   *  faster). Judges the PROMPT — pacing, energy, slow motion — not the shot:
+   *  initial noise changes with resolution, so framing and gesture do
+   *  too. No upscale. */
   draft: boolean
-  /** Sortie motion : fps via nœud d'interpolation, définition via upscale. */
+  /** Motion output: fps via an interpolation node, resolution via upscale. */
   motionOutFps: 'origine' | '24' | '30' | '60'
   motionOutRes: 'origine' | '480p' | '720p' | '1080p'
-  /** 0..1 — force du mouvement (optionnel, scalaire unique). */
+  /** 0..1 — motion strength (optional, single scalar). */
   motionStrength: number
-  /** Durée demandée, en secondes (2 à 20 selon le moteur). Le fichier livré fait la durée
-   *  GÉNÉRÉE, à l'arrondi du moteur près (MiniMax : 6 s → 6,58 s) :
-   *  le ralenti se combat au prompt, pas par accélération après coup (la
-   *  voix des moteurs audio est en temps réel et ne supporte pas l'atempo). */
+  /** Requested duration in seconds (2 to 20 depending on engine). The delivered file has
+   *  the GENERATED duration, up to the engine's rounding (MiniMax: 6 s → 6.58 s):
+   *  slow motion is fixed in the prompt, not by speeding up afterwards (audio
+   *  engines' voice is real-time and does not tolerate atempo). */
   durationS: number
-  /** Cadence du fichier livré. Ne change pas la génération : au-dessus de la
-   *  cadence native, l'export duplique des images. */
+  /** Frame rate of the delivered file. Does not change generation: above the
+   *  native rate, export duplicates frames. */
   fps: 24 | 30
-  /** 'origine' conserve le format de la still de départ. Les autres valeurs
-   *  sont celles qu'accepte le nœud ResolutionSelector de ComfyUI. */
+  /** 'origine' keeps the starting still's aspect. Other values are those
+   *  accepted by ComfyUI's ResolutionSelector node. */
   aspect: VideoAspect
 }
 
-/** Formats acceptés par le nœud ResolutionSelector, plus 'origine'. */
+/** Ratios accepted by the ResolutionSelector node, plus 'origine'. */
 export type VideoAspect = 'origine' | '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '9:16' | '16:9' | '21:9'
 
 export type AudioLayer = 'voix' | 'ambiance' | 'musique'
 
 export interface SonSelections {
   layer: AudioLayer
-  /** Voix : émotion + débit (langue/accent = dans l'ancre voix). */
+  /** Voice: emotion + pace (language/accent = in the voice anchor). */
   emotion: string
   pace: string
   script: string
   prosodyDirective: string
-  /** Ambiance : description + projet vidéo cible. */
+  /** Ambience: description + target video project. */
   ambianceText: string
-  /** Musique : piste bibliothèque royalty-free. */
+  /** Music: royalty-free library track. */
   musicTrackId: string
   projectId: string
 }
 
-/* ---------- Job (§8) : le contrat d'exécution ---------- */
+/* ---------- Job (§8): the execution contract ---------- */
 
 export type JobStatus =
   | 'queued' | 'composing' | 'validated' | 'blocked'
   | 'rendering' | 'post-process' | 'done' | 'review' | 'approved' | 'rejected'
-  /* Écrits par le serveur : soumis à ComfyUI mais encore en attente chez
-     lui, relance après OOM/connexion. */
+  /* Written by the server: submitted to ComfyUI but still waiting there,
+     retry after OOM/connection loss. */
   | 'queued-comfy' | 'retry'
 
-/* Le GPU travaille pour ce job : rendu, mais aussi les passes d'après
-   (retouche d'identité, fluidité : 10 min et plus sur un motion). Sans
-   elles l'écran disait « rien en cours » carte à 100 %. */
+/* The GPU is working for this job: render, but also post passes
+   (identity retouch, smoothing: 10 min or more on a motion clip). */
 export const STATUTS_EN_CALCUL: JobStatus[] = ['rendering', 'post-process', 'retry']
 export const STATUTS_EN_FILE: JobStatus[] = ['queued', 'queued-comfy']
 export const STATUTS_ACTIFS: JobStatus[] = [...STATUTS_EN_FILE, ...STATUTS_EN_CALCUL]
@@ -321,125 +320,125 @@ export interface ConditioningRef {
   weight?: number
 }
 
-/** Une LoRA offerte par le backend (`GET /api/loras`).
- *  `arch` est LUE dans l'en-tête safetensors, pas devinée du nom : une LoRA
- *  Flux appliquée à un graphe Z-Image ne lève pas d'erreur franche, elle rend
- *  une image plausible mais fausse. */
+/** A LoRA offered by the backend (`GET /api/loras`).
+ *  `arch` is READ from the safetensors header, not guessed from the name: a Flux
+ *  LoRA applied to a Z-Image graph raises no clear error, it renders a
+ *  plausible but wrong image. */
 export interface LoraInfo {
   name: string
   arch: 'zimage' | 'flux1' | 'flux2' | 'h3' | 'inconnue' | 'illisible'
   kind: 'identite' | 'identite_ancienne' | 'style' | 'autre'
   scope: Register | 'all' | 'identite' | 'autre'
-  /** Mot déclencheur. Sans lui dans le prompt, la LoRA est chargée mais reste
-   *  inerte — l'image sort plausible et on croit la LoRA faible. */
+  /** Trigger word. Without it in the prompt the LoRA is loaded but stays
+   *  inert. */
   trigger: string | null
-  /** D'où vient ce mot — `tags` est une preuve (ss_tag_frequency, ce que les
-   *  légendes contenaient), `nom` une simple proposition à confirmer. */
+  /** Where the word comes from — `tags` is evidence (ss_tag_frequency, what the
+   *  captions contained), `nom` only a suggestion to confirm. */
   triggerSource: 'tags' | 'nom' | 'aucun'
   bytes: number | null
 }
 
-/** LoRA empilée sur l'identité pour un job (pose, style). */
+/** LoRA stacked on the identity for a job (pose, style). */
 export interface LoraPick {
   name: string
   strength: number
-  /** Surcharge du mot déclencheur. Vide ⇒ le serveur résout depuis le fichier. */
+  /** Trigger word override. Empty ⇒ the server resolves it from the file. */
   trigger?: string
-  /** Coupée : reste dans la pile, ne part pas au rendu. */
+  /** Muted: stays in the stack, not sent to the render. */
   off?: boolean
 }
 
-/** Progression du rendu, relayée depuis la WebSocket de ComfyUI. */
+/** Render progress, relayed from ComfyUI's WebSocket. */
 export interface JobProgress { value: number; max: number; etaS: number | null }
 
 export interface Job {
   id: string
   createdAt: number
-  /** Passage en rendu et durée totale (ms) — remontés par l'API, servent au
-   *  compteur « en rendu depuis » et au « rendu en » de la file. */
+  /** Render start and total duration (ms) — reported by the API, used by the
+   *  "rendering since" counter and "rendered in" in the queue. */
   startedAt?: number | null
   durationMs?: number | null
-  /** Estimation faite par le serveur à l'enqueue (coefficients mesurés). */
+  /** Estimate made by the server at enqueue (measured coefficients). */
   estimatedMs?: number | null
   personaId: string
-  /** Moteur de diffusion photo choisi dans la console (absent : celui du serveur). */
+  /** Photo diffusion engine chosen in the console (absent: the server's default). */
   photoEngine?: PhotoEngine
   register: Register
   mode: MediaMode
   purpose: JobPurpose
   recipeId: string
-  /** Sélections sérialisées (photo | vidéo | son selon mode). */
+  /** Serialized selections (photo | video | sound by mode). */
   selections: PhotoSelections | VideoSelections | SonSelections
   seed: { mode: 'lock' | 'random'; value?: number }
-  /** Champ « prompt image » (auto depuis sélecteurs, éditable). */
+  /** "Image prompt" field (auto from selectors, editable). */
   userPrompt: string
-  /** Brief tapé AVANT « Remplacer le prompt » de l'Enhancer — l'original
-   *  que le composé a écrasé à l'écran (règle « ce qui est affiché part »). */
+  /** Brief typed BEFORE the Enhancer's "replace prompt" — the original the
+   *  composed prompt overwrote on screen (rule: what is displayed is what is sent). */
   initialBrief?: string
-  /* Ce que le VLM a lu dans la still de départ, donné en entrée au
-     réécriveur. Absent si aucune image n'a été fournie. */
+  /* What the VLM read in the starting still, given as input to the
+     rewriter. Absent if no image was provided. */
   promptVision?: string
-  /** prompt réécrit par le réécriveur FLUX 3 (ce que le moteur a reçu) */
+  /** prompt rewritten by the FLUX 3 rewriter (what the engine received) */
   promptReecrit?: string
-  /** Ordres au composeur LLM (comment formuler). */
+  /** Instructions to the LLM composer (how to phrase). */
   userDirectives: string
-  /* Produit par le composeur — éditable avant dispatch (reveal+edit) */
+  /* Produced by the composer — editable before dispatch (reveal+edit) */
   composedPositive: string
   composedNegative: string
   conditioningRefs: ConditioningRef[]
-  /** Empilées APRÈS la LoRA d'identité de la recette, dans cet ordre. */
+  /** Stacked AFTER the recipe's identity LoRA, in this order. */
   loras: LoraPick[]
-  /* `op` distingue une GÉNÉRATION d'une ÉDITION. Le média produit reste une
-     photo dans les deux cas : `mode` ne peut pas porter la distinction. */
+  /* `op` distinguishes a GENERATION from an EDIT. The produced media is a
+     photo in both cases, so `mode` cannot carry the distinction. */
   op?: 'generate' | 'edit'
-  /** Nom de fichier nu dans le dossier input/ de ComfyUI. */
+  /** Bare file name in ComfyUI's input/ folder. */
   sourceImage?: string
   editStyle?: string
-  /** ControlNet Z-Image inséré dans la recette de génération. */
+  /** Z-Image ControlNet inserted into the generation recipe. */
   controlNet?: { file: string; type: 'depth' | 'openpose' | 'canny'; strength: number }
-  /* ---- Vidéo ---- */
+  /* ---- Video ---- */
   videoEngine?: VideoEngine
-  /** Plan d'ambiance : texte → vidéo, sans image de départ ni personnage (LTX). */
+  /** Ambient shot: text → video, with no starting image or character (LTX). */
   t2v?: boolean
   t2vPersonnage?: boolean
-  /** LoRAs vidéo optionnelles empilées sur la recette du moteur. */
+  /** Optional video LoRAs stacked on the engine recipe. */
   videoLoras?: LoraPick[]
-  /** Demande de son. Le serveur la ramène à false sur un moteur muet. */
+  /** Sound request. The server forces it to false on a silent engine. */
   withAudio?: boolean
-  /** Durée LIVRÉE en secondes, cadence du fichier, format. 'origine' part
-   *  TEL QUEL accompagné de videoSrcW/H (dims réelles de la still) : le
-   *  serveur cale des dimensions littérales au ratio exact — le snap sur un
-   *  ratio rond du ResolutionSelector étirerait la still. */
+  /** DELIVERED duration in seconds, file frame rate, aspect. 'origine' is sent
+   *  AS IS with videoSrcW/H (actual still dimensions): the server sets literal
+   *  dimensions at the exact ratio — snapping to a round ResolutionSelector
+   *  ratio would stretch the still. */
   videoSeconds?: number
   videoFps?: number
   videoAspect?: VideoAspect
   videoSrcW?: number
   videoSrcH?: number
-  /** Lot : identifiant partagé par les jobs d'un même envoi (lot > 1 ou
-   *  carrousel) — permet de grouper leurs rendus en une seule vignette. */
+  /** Batch: id shared by the jobs of one submission (batch > 1 or
+   *  carousel) — groups their renders into a single thumbnail. */
   batchId?: string
-  /** Clé d'IDEMPOTENCE d'envoi (index unique côté serveur). Unique PAR JOB,
-   *  y compris dans un lot : une clé partagée ne créerait qu'un seul rendu.
-   *  Réutilisée telle quelle sur une reprise (réponse perdue, app suspendue),
-   *  renouvelée seulement sur une nouvelle intention de l'utilisateur. */
+  /** Submission IDEMPOTENCY key (unique index on the server). Unique PER JOB,
+   *  including within a batch: a shared key would create only one render.
+   *  Reused as is on a retry (lost response, suspended app), renewed only
+   *  on a new user intent. */
   requestId?: string
-  /** Cases du carrousel au moment de l'envoi (gardé=true / varie=false). */
+  /** Carousel checkboxes at submit time (kept=true / varies=false). */
   carouselLocks?: Record<string, boolean>
-  /** Prompt de l'opérateur à l'origine de la lignée (carrousel). */
+  /** Operator prompt at the origin of the lineage (carousel). */
   promptRacine?: string
-  /** Dimensions photo par job — surchargent DEFAULT_SIZE côté serveur. */
+  /** Per-job photo dimensions — override DEFAULT_SIZE on the server. */
   width?: number
   height?: number
-  /** Brouillon : surface réduite. Refusé par le serveur sur un moteur qui
-   *  ne le porte pas (VIDEO_ENGINES[...].draft côté serveur). */
+  /** Draft: reduced resolution. Rejected by the server on an engine that
+   *  does not support it (server-side VIDEO_ENGINES[...].draft). */
   videoDraft?: boolean
-  /** Keyframe d'arrivée (nom de fichier nu dans input/). MiniMax seul la
-   *  câble (`last_frame`) ; Wan/LTX la signalent non injectée. */
+  /** End keyframe (bare file name in input/). Only MiniMax wires it
+   *  (`last_frame`); Wan/LTX report it as not injected. */
   endImage?: string
-  /** Extension vidéo : concaténer la source (nom nu) à la continuation. */
+  /** Video extension: concatenate the source (bare name) with the continuation. */
   concatWith?: string
   concatFrom?: 'input' | 'media'
-  /* ---- Motion Control : still + vidéo source → Animate ---- */
+  /* ---- Motion Control: still + source video → Animate ---- */
   motionDriver?: string
   motionPreview?: boolean
   motionSceneText?: string
@@ -447,91 +446,91 @@ export interface Job {
   mixDebut?: number
   motionRefStrength?: number
   motionMode?: 'animate' | 'replace'
-  /** Clips de plus de 81 images : enchaînés par morceaux (défaut) ou fenêtres de contexte (ancienne voie). */
+  /** Clips longer than 81 frames: chained in chunks (default) or context windows. */
   motionJoin?: 'morceaux' | 'fenetres'
-  /** Nom de la still qui sert de réf (input/ de ComfyUI). */
+  /** Name of the reference still (ComfyUI's input/). */
   motionRef?: string
   status: JobStatus
-  /** Ce que fait le rendu en ce moment (« chargement des modèles », « calcul des images », « décodage »…). */
+  /** What the render is doing right now ("loading models", "computing frames", "decoding"…). */
   phase?: string
-  /** Horodatage du dernier aperçu en direct poussé par ComfyUI (absent : pas d'aperçu). */
+  /** Timestamp of the latest live preview pushed by ComfyUI (absent: no preview). */
   apercu?: number
-  /** En attente : rang dans la file (1 = le prochain) et attente estimée avant le départ. */
+  /** Waiting: queue position (1 = next) and estimated wait before start. */
   file?: { rang: number; attenteMs: number }
-  /** Cause de l'échec, déjà traduite par le serveur (server/erreurs.js). */
+  /** Failure cause, already translated by the server (server/erreurs.js). */
   error?: string | null
-  /** Présente uniquement pendant le rendu ; approximative (par nœud). */
+  /** Present only while rendering; approximate (per node). */
   progress?: JobProgress
 }
 
-/* ---------- Asset (§10) : la bibliothèque, livrable du POC ---------- */
+/* ---------- Asset (§10): the library ---------- */
 
 export interface Asset {
-  /** Objet 3D : l'URL du GLB à côté du tour en maquette. */
+  /** 3D object: GLB URL next to the turntable preview. */
   modele3d?: string
-  /** Recette, moteur, opération et LoRA, en minuscules : pour la recherche. */
+  /** Recipe, engine, operation and LoRA, lowercased: for search. */
   search?: string
   id: string
   jobId: string
-  /** Personnage du job qui a rendu l'asset — la bibliothèque n'affiche que l'actif. */
+  /** Character of the job that rendered the asset — the library shows only the active one. */
   personaId?: string | null
   parentAssetId?: string
-  /** restauration : la source d'origine, pour l'avant / après */
+  /** restoration: the original source, for before / after */
   origineUri?: string
   mediaType: MediaMode
-  /** URL du média (placeholder en mock). */
+  /** Media URL (placeholder in mock). */
   uri: string
   aspect: string
-  /** Dimensions du fichier rendu (colonnes assets). */
+  /** Dimensions of the rendered file (assets columns). */
   width?: number
   height?: number
-  /** Cadence du job vidéo (payload) — les selections peuvent manquer (upscale). */
+  /** Video job frame rate (payload) — selections may be missing (upscale). */
   videoFps?: number
-  /** Dossiers (ids) auxquels l'asset appartient — appartenances multiples. */
+  /** Folders (ids) the asset belongs to — multiple membership. */
   folders?: string[]
-  /** Texte gravé sur le reel (écrit par le rédacteur, modifiable). */
+  /** Text burned onto the reel (written by the writer, editable). */
   caption?: string
-  /** Les autres propositions du rédacteur, pour en choisir une sans relancer. */
+  /** The writer's other suggestions, to pick one without rerunning. */
   captionOptions?: CaptionOption[]
   durationS?: number
   register: Register
-  /** Lignée complète : copie des sélections + seed + prompts.
-   *  `userPrompt` / `userDirectives` sont indispensables au clonage :
-   *  sans eux, le prompt BRUT (celui du champ « Prompt image ») est perdu
-   *  à la génération et « Cloner » ne peut plus repeupler la colonne 3. */
+  /** Full lineage: copy of selections + seed + prompts.
+   *  `userPrompt` / `userDirectives` are required for cloning:
+   *  without them the RAW prompt (from the "Prompt image" field) is lost
+   *  at generation and "Cloner" cannot repopulate column 3. */
   provenance: Pick<Job,
     'selections' | 'seed' | 'recipeId' | 'composedPositive' | 'composedNegative'
     | 'userPrompt' | 'userDirectives' | 'initialBrief' | 'promptVision' | 'promptReecrit'>
   reviewStatus: 'pending' | 'approved' | 'rejected'
   exportReady: boolean
   createdAt: number
-  /** Fonction de l'asset — génération ou retouche ; moteur i2v ou 'motion'.
-   *  C'est ce qui filtre les galeries. */
+  /** Asset function — generation or edit; i2v engine or 'motion'.
+   *  This is what filters the galleries. */
   op?: 'generate' | 'edit'
   videoEngine?: VideoEngine | 'motion'
-  /** Rendu en mode brouillon (surface réduite, ex. 0,4 MP) : à baliser dans
-   *  les galeries pour ne pas confondre avec un rendu livrable. */
+  /** Rendered in draft mode (reduced resolution, e.g. 0.4 MP): flagged in
+   *  the galleries so it is not mistaken for a deliverable render. */
   videoDraft?: boolean
-  /** Clip avec piste son (LTX avec 🔊, ou bruitage ajouté). */
+  /** Clip with an audio track (LTX with sound, or added sound effect). */
   withAudio?: boolean
-  /** Plan d'ambiance : texte → vidéo, sans personnage. */
+  /** Ambient shot: text → video, without a character. */
   t2v?: boolean
-  /** Recette photo du rendu (Krea 2 / FLUX.2 Klein). */
+  /** Photo recipe of the render (Krea 2 / FLUX.2 Klein). */
   photoEngine?: PhotoEngine
-  /** Finition appliquée à un rendu existant (bruitage, fluidité, upscale, HD). */
+  /** Finish applied to an existing render (sound effect, smoothing, upscale, HD). */
   postOp?: 'foley' | 'interpolate' | 'upscale' | 'photo_hd'
-  /** Lot d'origine (jobs.payload.batchId) : les assets d'un même lot se
-   *  regroupent en une vignette-mosaïque dans les galeries v2. */
+  /** Source batch (jobs.payload.batchId): assets of one batch are grouped
+   *  into a mosaic thumbnail in the v2 galleries. */
   batchId?: string
-  /** Appartenances multiples : une still origine de plusieurs carrousels
-   *  apparaît dans CHAQUE lot (dupliquée à l'affichage). */
+  /** Multiple membership: a still that seeds several carousels
+   *  appears in EACH batch (duplicated on display). */
   batchIds?: string[]
-  /** Cases du carrousel du lot (gardé/varie) — provenance fiable. */
+  /** Batch carousel checkboxes (kept/varies) — reliable provenance. */
   batchLocks?: Record<string, boolean>
-  /** Durée du rendu du job en ms (jobs.duration_ms). 0 ou absent = inconnue
-   *  (job repris sans date de départ en base). */
+  /** Job render duration in ms (jobs.duration_ms). 0 or absent = unknown
+   *  (job resumed without a start date in the database). */
   renderMs?: number
-  /** Contrôle automatique du clip (server/controle.js) : défauts horodatés, score de visage, prise. */
+  /** Automatic clip check (server/controle.js): timestamped defects, face score, take. */
   controle?: Controle
 }
 
@@ -540,7 +539,7 @@ export interface Controle {
   duree?: number
   problemes: { type: string; debut: number; fin: number; detail: string; grave: boolean }[]
   visage?: { score: number | null; min?: number; mesures?: number; detail?: string } | null
-  /** Mouvement de caméra attendu (preset) et lu dans le flux optique. */
+  /** Expected camera move (preset) and the one read from optical flow. */
   camera?: { attendu: string; mesure: string } | null
   prise?: number
   priseDe?: string
@@ -548,14 +547,14 @@ export interface Controle {
   choix?: 'gardée' | 'écartée'
 }
 
-/** Axe de variation d'un lot photo : la seed (même scène, N tirages) ou un
- *  élément de composition (même seed, N poses / tenues / lieux — de quoi
- *  faire un carrousel cohérent). */
-/** Retiré : le lot par axe est remplacé par la case « carrousel »
- *  (même tenue et lieu, poses / cadrages / focales différents). */
+/** Variation axis of a photo batch: the seed (same scene, N draws) or a
+ *  composition element (same seed, N poses / outfits / locations — for
+ *  a consistent carousel). */
+/** Deprecated: per-axis batches are replaced by the "carousel" checkbox
+ *  (same outfit and location, different poses / framings / focal lengths). */
 export type BatchAxis = never
 
-/* ---------- Atelier son : projet vidéo + stems ---------- */
+/* ---------- Sound workshop: video project + stems ---------- */
 
 export interface AudioStem {
   id: string
@@ -572,15 +571,15 @@ export interface SoundProject {
   stems: AudioStem[]
 }
 
-/* ---------- Worker : interface commune mock / réel (§8) ---------- */
+/* ---------- Worker: shared mock / real interface (§8) ---------- */
 
-/** Le front ne parle qu'à cette interface : le worker ComfyUI réel
- *  (via le serveur). */
+/** The front end only talks to this interface: the ComfyUI worker
+ *  (via the server). */
 export interface GenerationWorker {
   submit(job: Job): Promise<void>
-  /** Abonnement aux transitions de statut + assets produits. */
+  /** Subscription to status transitions + produced assets. */
   onUpdate(cb: (job: Job, asset?: Asset) => void): () => void
 }
 
-/** Une proposition de caption et sa famille (lieu, humeur, outfit…). */
+/** A caption suggestion and its family (location, mood, outfit…). */
 export interface CaptionOption { caption: string; family: string }

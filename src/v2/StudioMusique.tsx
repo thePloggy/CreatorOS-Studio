@@ -1,8 +1,8 @@
-/* Studio musique (ACE-Step 1.5) : un morceau complet, en libre ou d'après un preset écrit
-   (style, voix chantée, durée, paroles ; tempo, tonalité, mesure, instruments et langue dans les
-   réglages avancés), et le studio de bruitage (une description, une durée). Le formulaire ne fait
-   que déposer la demande : la file, la progression et les deux prises s'affichent dans la zone des
-   résultats du studio son (SonView). */
+/* Music studio (ACE-Step 1.5): a full track, free-form or from a written preset
+   (style, sung voice, duration, lyrics; tempo, key, time signature, instruments and language in
+   advanced settings), and the sound-effect studio (a description, a duration). The form only
+   submits the request: queue, progress and both takes are shown in the results
+   area of the sound studio (SonView). */
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 import {
@@ -10,10 +10,10 @@ import {
   TONALITES_MAJEURES, TONALITES_MINEURES, VOIX_CHANTEES, codeTonalite, type Mesure, type VoixChantee,
 } from '../data/presetsMusique'
 
-/** Dépose une demande sur /api/musique ; rend le message d'erreur, ou null si la demande est partie. */
+/** Submits a request to /api/musique; returns the error message, or null if submitted. */
 export type Lancer = (corps: Record<string, unknown>) => Promise<string | null>
 
-/** Réglages d'un rendu musique ou bruitage, tels que le serveur les rend avec le job (GET /api/jobs?op=musique). */
+/** Settings of a music or sound-effect render, as returned by the server with the job (GET /api/jobs?op=musique). */
 export type ReglagesAudio = {
   genre: 'musique' | 'bruitage'; style: string; secondes: number | null; paroles: string
   bpm: number | null; tonalite: string | null; mesure: string | null; langue: string | null; voix: string | null
@@ -21,7 +21,7 @@ export type ReglagesAudio = {
 }
 export type Recharge = { nonce: number; r: ReglagesAudio } | null
 
-/** Corps de POST /api/musique qui redonne les mêmes réglages (tonalité en notation courte, cf. codeTonalite). */
+/** POST /api/musique body reproducing the same settings (key in short notation, see codeTonalite). */
 export function corpsDe(r: ReglagesAudio): Record<string, unknown> {
   if (r.genre === 'bruitage') return { genre: 'bruitage', prompt: r.style, secondes: r.secondes ?? 6 }
   return {
@@ -31,7 +31,7 @@ export function corpsDe(r: ReglagesAudio): Record<string, unknown> {
   }
 }
 
-/** Bouton principal collé en bas du volet, et le message d'erreur du dépôt. */
+/** Main button stuck to the bottom of the pane, and the submit error message. */
 function BoutonLancer({ libelle, disabled, envoi, erreur, note }: { libelle: string; disabled: boolean; envoi: () => void; erreur: string | null; note?: string }) {
   return (
     <div className="outil-action">
@@ -67,7 +67,7 @@ export function StudioMusique({ lancer, aCharger }: { lancer: Lancer; aCharger?:
   const zoneParoles = useRef<HTMLTextAreaElement>(null)
   const { envoi, erreur, go } = useEnvoi(lancer)
 
-  // « Reprendre les réglages » d'un rendu passé : le formulaire se remplit, tout reste modifiable
+  // "Reuse settings" from a past render: fills the form, everything stays editable
   useEffect(() => {
     const r = aCharger?.r
     if (!r || r.genre !== 'musique') return
@@ -90,7 +90,7 @@ export function StudioMusique({ lancer, aCharger }: { lancer: Lancer; aCharger?:
     if (neufs.length) setInstruments(l => [...new Set([...l, ...neufs])].slice(0, 12))
     setInstrumentLibre('')
   }
-  // une balise de structure s'insère au curseur, sur sa propre ligne
+  // a structure tag is inserted at the cursor, on its own line
   const inserer = (balise: string) => {
     const z = zoneParoles.current
     const debut = z?.selectionStart ?? paroles.length, fin = z?.selectionEnd ?? paroles.length

@@ -1,16 +1,15 @@
 /* ============================================================
-   Navigation d'un asset à l'autre dans une vue de détail.
+   Navigation from one asset to the next in a detail view.
 
-   La liste parcourue est celle AFFICHÉE, pas la base entière :
-   si l'opérateur a filtré sur « validés », les flèches doivent rester
-   dans les validés. Naviguer vers un asset invisible à l'écran
-   donnerait l'impression que le filtre ne s'applique pas.
+   The list walked is the DISPLAYED one, not the whole database:
+   if the operator filtered on "validated", arrows must stay within
+   the validated ones.
    ============================================================ */
 import { useEffect, useRef } from 'react'
 import type { Asset } from '../types'
 
-/** Un champ de saisie a le clavier : les flèches y déplacent le curseur.
- *  Les détourner ferait sauter d'image pendant qu'on tape. */
+/** A text field has keyboard focus: arrows move the caret there.
+ *  Hijacking them would change image while typing. */
 function typing(el: EventTarget | null) {
   const t = el as HTMLElement | null
   if (!t) return false
@@ -24,16 +23,16 @@ export function useAssetNav(
   go: (a: Asset | null) => void,
 ) {
   const index = current ? list.findIndex(a => a.id === current.id) : -1
-  /* Dernière position connue DANS la liste. Quand l'asset courant sort du
-     filtre affiché (ex. trié « à revoir », on le passe « validé »), index
-     tombe à -1 alors que la vue de détail reste ouverte : les flèches
-     mourraient. On bascule alors sur le voisin précédent de la catégorie
-     (ou le nouveau premier), au lieu de laisser l'opérateur coincé. */
+  /* Last known position IN the list. When the current asset leaves the
+     displayed filter (e.g. sorted "to review", then marked "validated"),
+     index drops to -1 while the detail view stays open. Then switch to the
+     previous neighbour in the category (or the new first one) so the
+     arrows keep working. */
   const lastIndex = useRef(-1)
   if (index >= 0) lastIndex.current = index
   useEffect(() => {
     if (!current || index >= 0) return
-    if (lastIndex.current < 0) return // ouvert hors liste : ne pas sauter
+    if (lastIndex.current < 0) return // opened outside the list: do not jump
     if (!list.length) { go(null); return }
     const at = Math.min(Math.max(lastIndex.current - 1, 0), list.length - 1)
     go(list[at])

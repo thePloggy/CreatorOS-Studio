@@ -1,11 +1,11 @@
 /* ============================================================
-   Comparateur : 2 à 4 rendus côte à côte (Krea contre Klein, deux
-   graines, avant / après une finition). Les vidéos jouent ensemble —
-   lecture, pause, retour au début et son pilotés pour toutes à la fois.
-   À deux rendus, mode « rideau » par défaut : les deux sont superposés et
-   la séparation suit la souris (ou le doigt) — A à gauche, B à droite ; le
-   son vient du côté qui occupe le plus d'écran.
-   Ouvert depuis la barre de sélection (bureau et mobile).
+   Comparison: 2 to 4 renders side by side (Krea vs Klein, two seeds,
+   before / after a finishing pass). Videos play together: play, pause,
+   rewind and sound are driven for all at once.
+   With two renders, "curtain" mode by default: both are overlaid and
+   the split follows the mouse (or finger), A left, B right; sound comes
+   from the side that covers more of the screen.
+   Opened from the selection bar (desktop and mobile).
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,7 +14,7 @@ import { badgesOf } from '../v2/bits'
 import { posterOf } from './AssetMedia'
 import { t } from '../i18n'
 
-/* styles en ligne : le comparateur s'ouvre aussi sur mobile, hors de v2.css */
+/* inline styles: the comparison also opens on mobile, outside v2.css */
 const BTN = { background: '#1c1e23', color: '#e8e9ec', border: 0, borderRadius: 9, padding: '7px 12px', fontSize: 12, cursor: 'pointer' } as const
 const PILL = { fontSize: 12, padding: '2px 6px', borderRadius: 6, background: '#1c1e23', color: '#b9bbc2' } as const
 
@@ -44,7 +44,7 @@ export function Comparer({ assets, onClose }: { assets: Asset[]; onClose: () => 
   const tous = (f: (v: HTMLVideoElement) => void) => vids.current.forEach(v => { if (v) f(v) })
   const basculer = () => {
     if (joue) { tous(v => v.pause()); setJoue(false); return }
-    tous(v => { void v.play().catch(() => { /* lecture refusée */ }) }); setJoue(true)
+    tous(v => { void v.play().catch(() => { /* playback refused */ }) }); setJoue(true)
   }
   const auDebut = () => tous(v => { v.currentTime = 0 })
 

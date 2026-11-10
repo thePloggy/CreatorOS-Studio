@@ -1,12 +1,12 @@
 /* ============================================================
-   Table de montage du Movie Studio : les images clés posées sur une frise,
-   chacune à son instant, une action par segment, et un seul plan LTX-2.5
-   (16 s au plus) qui passe par toutes les images.
+   Movie Studio editing table: keyframes placed on a timeline,
+   each at its own time, one action per segment, and a single LTX-2.5
+   shot (16 s max) that passes through all the images.
 
-   Le serveur pose chaque image en guide à son index (cf. ltxImagesCles,
-   server/comfy.js) ; le prompt est minuté segment par segment, avec le
-   personnage et sa tenue mot pour mot (sans eux, LTX habille le personnage
-   à sa façon d'un segment à l'autre) et la lumière et la caméra de la fiche.
+   The server places each image as a guide at its index (see ltxImagesCles,
+   server/comfy.js); the prompt is timed segment by segment, with the
+   character and outfit verbatim (otherwise LTX redresses the character
+   between segments) plus the sheet's lighting and camera.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -18,23 +18,23 @@ import { FramePicker } from './popups'
 import { t, getLang } from '../i18n'
 
 export type CleTable = { assetId: string; uri: string; t: number }
-/** Le dernier plan envoyé : son job, et l'instant de chaque image clé tel qu'il a été rendu (base de l'aperçu de vitesse). */
-/* uri / assetId : le clip d'un film de la liste (il peut ne pas être parmi les assets chargés). */
+/** The last shot sent: its job, and each keyframe's time as rendered (basis of the speed preview). */
+/* uri / assetId: the clip of a film in the list (it may not be among the loaded assets). */
 export type Rendu = { jobId: string; duree: number; cles: { assetId: string; t: number }[]; uri?: string; assetId?: string }
 export type Etat = { duree: number; cles: CleTable[]; actions: string[]; perso: string; son: boolean; rendu?: Rendu | null }
 
 const CLE = 'cine:table'
 const DUREES = [6, 8, 10, 12, 16]
-const PAS = 1 / 3   // index LTX multiples de 8 images à 24 i/s
+const PAS = 1 / 3   // LTX indices are multiples of 8 frames at 24 fps
 export const TABLE_VIDE: Etat = { duree: 16, cles: [], actions: [], perso: '', son: true, rendu: null }
 const lire = (): Etat => {
-  try { const v = JSON.parse(localStorage.getItem(CLE) ?? 'null'); if (v?.cles) return { duree: 16, actions: [], perso: '', son: true, ...v } } catch { /* vide */ }
+  try { const v = JSON.parse(localStorage.getItem(CLE) ?? 'null'); if (v?.cles) return { duree: 16, actions: [], perso: '', son: true, ...v } } catch { /* empty */ }
   return { duree: 16, cles: [], actions: [], perso: '', son: true }
 }
 const sec = (x: number) => x.toFixed(1).replace('.', ',')
 const accroche = (x: number, d: number) => Math.max(0, Math.min(d, Math.round(x / PAS) * PAS))
 
-/** Ajout depuis ailleurs (les prises de la fiche) : l'image arrive en fin de frise. */
+/** Adds an image from elsewhere (the sheet's takes): it lands at the end of the timeline. */
 export function ajouterALaTable(a: Pick<Asset, 'id' | 'uri'>) {
   const e = lire()
   if (e.cles.some(c => c.assetId === a.id)) return
@@ -65,7 +65,7 @@ export function TableMontage({ style }: { style: string }) {
   const segments = cles.slice(0, -1).map((c, i) => ({ de: c.t, a: cles[i + 1].t }))
   const majCles = (f: (c: CleTable[]) => CleTable[]) => setE(x => ({ ...x, cles: f(x.cles).sort((a, b) => a.t - b.t) }))
 
-  // glisser une image le long de la frise (souris et doigt)
+  // drag an image along the timeline (mouse and touch)
   const deplacer = (clientX: number) => {
     const r = frise.current?.getBoundingClientRect(); const id = glisse.current
     if (!r || !id) return
@@ -80,7 +80,7 @@ export function TableMontage({ style }: { style: string }) {
   })
 
   const prompt = (() => {
-    // le prompt est en anglais : instants avec un point (« 4.7 s »), pas la virgule de l'affichage
+    // the prompt is in English: times use a dot ("4.7 s"), not the display's comma
     const en = (x: number) => x.toFixed(1)
     const morceaux = segments.map((g, i) => (e.actions[i] ?? '').trim() ? `${en(g.de)}-${en(g.a)} s: ${(e.actions[i] ?? '').trim().replace(/[.\s]+$/, '')}.` : '').filter(Boolean)
     return [
@@ -98,7 +98,7 @@ export function TableMontage({ style }: { style: string }) {
     try {
       const fichiers: { filename: string; width: number; height: number }[] = []
       for (const c of cles) {
-        if (c.assetId.startsWith('up:')) {   // image envoyée depuis l'ordinateur : déjà dans input/
+        if (c.assetId.startsWith('up:')) {   // image uploaded from the computer: already in input/
           const im = new Image(); im.src = c.uri; await im.decode()
           fichiers.push({ filename: c.assetId.slice(3), width: im.naturalWidth, height: im.naturalHeight }); continue
         }
@@ -121,14 +121,14 @@ export function TableMontage({ style }: { style: string }) {
       await s.adoptServerJob(id)
       const rendu = { jobId: id, duree: e.duree, cles: cles.map(c => ({ assetId: c.assetId, t: c.t })) }
       setE(x => ({ ...x, rendu }))
-      // le plan envoyé devient un film de la liste de Movie Studio (fiche, prises et table du moment)
+      // the sent shot becomes a film in the Movie Studio list (current sheet, takes and table)
       window.dispatchEvent(new CustomEvent('cine:film-envoye', { detail: { jobId: id, table: { ...e, rendu } } }))
       setMsg({ ok: true, texte: t('Plan envoyé à LTX : il arrive dans la bibliothèque.') })
     } catch (err) { setMsg({ ok: false, texte: String((err as Error).message ?? err) }) }
     setEnvoi(false)
   }
 
-  /* ---- aperçu de vitesse : le clip rendu, rejoué segment par segment à la vitesse des nouveaux instants ---- */
+  /* ---- speed preview: the rendered clip replayed segment by segment at the speed of the new times ---- */
   const clip: { id: string; uri: string } | undefined = e.rendu
     ? (s.assets.find(x => x.jobId === e.rendu!.jobId && x.mediaType === 'video') ?? (e.rendu.uri ? { id: e.rendu.assetId ?? '', uri: e.rendu.uri } : undefined))
     : undefined
@@ -192,7 +192,7 @@ export function TableMontage({ style }: { style: string }) {
             : jobRendu && ['failed', 'blocked', 'cancelled'].includes(jobRendu.status)
               ? <div className="tm-attente">{t('Le rendu a échoué : déplace ou change une image clé, puis relance.')}</div>
               : (<figure className="tm-demo">
-                  {/* tant qu'aucun plan n'est rendu : la démonstration de la table, en boucle */}
+                  {/* until a shot is rendered: the table demo, looping */}
                   <video src={`/danses/howto/cinema-table-demo${getLang() === 'en' ? '-en' : ''}.mp4?v=${VERSION_HOWTO}`} poster={`/danses/howto/cinema-table-demo${getLang() === 'en' ? '-en' : ''}.jpg?v=${VERSION_HOWTO}`} muted loop playsInline autoPlay aria-hidden />
                   <figcaption>{t('Pose tes images clés sur la frise, écris ce qui se passe entre elles, envoie : un seul plan passe par chacune.')}</figcaption>
                 </figure>)}
@@ -206,7 +206,7 @@ export function TableMontage({ style }: { style: string }) {
         <div className="tm-frise" ref={frise} style={{ minWidth: e.duree * 64 }}>
           {graduations.map(i => <span key={i} className="tm-grad" style={{ left: `${(i / e.duree) * 100}%` }}><i />{i % 2 === 0 || e.duree <= 8 ? <small>{i} s</small> : null}</span>)}
           {segments.map((g, i) => <span key={i} className="tm-segment" style={{ left: `${(g.de / e.duree) * 100}%`, width: `${((g.a - g.de) / e.duree) * 100}%` }}>
-            {/* durée du passage d'une image à la suivante : ce que durera ce morceau du plan */}
+            {/* transition time from one image to the next: the length of this part of the shot */}
             <small title={t('durée entre ces deux images')}>{sec(g.a - g.de)} s</small>
           </span>)}
           {cles.map(c => (
@@ -258,7 +258,7 @@ export function TableMontage({ style }: { style: string }) {
           <Ic n={e.son ? 'sound' : 'soundOff'} s={15} /> {e.son ? t('Son') : t('Muet')}</button>
         <button className="cine-voir" onClick={() => setVoir(!voir)}>{voir ? '▾' : '▸'} {t('Ce que lit le moteur')}</button>
         <span style={{ flex: 1 }} />
-        {/* Recommencer : tout effacer (fiche, prises, table), après confirmation dans la page */}
+        {/* Start over: clear everything (sheet, takes, table), after in-page confirmation */}
         {confirmer
           ? <span className="tm-confirmer" role="alert">{t('Tout effacer : fiche, prises et table ?')}
               <button className="pill" style={{ color: 'var(--danger)' }} onClick={() => { setE({ ...TABLE_VIDE }); setConfirmer(false); setMsg(null); window.dispatchEvent(new Event('cine:recommencer')) }}>{t('Effacer')}</button>
@@ -279,9 +279,9 @@ export function TableMontage({ style }: { style: string }) {
   )
 }
 
-/* ---------- rouvrir un plan rendu dans la table ----------
-   La provenance d'un plan de la table garde ses images clés (retrouvées dans la bibliothèque) et son prompt
-   minuté : on en refait l'état de la table — images à leur instant, actions par segment, personnage et tenue. */
+/* ---------- reopen a rendered shot in the table ----------
+   A table shot's provenance keeps its keyframes (found in the library) and its timed prompt:
+   rebuild the table state from it: images at their times, actions per segment, character and outfit. */
 type ProvTable = { keyframes?: { assetId: string; uri: string; t: number }[] | null; videoSeconds?: number | null; withAudio?: boolean | null; composedPositive?: string | null; userPrompt?: string | null }
 export function etatDepuisProvenance(p: ProvTable, jobId?: string | null): Etat | null {
   const cles = (p.keyframes ?? []).filter(k => k.assetId && Number.isFinite(k.t))
@@ -289,22 +289,22 @@ export function etatDepuisProvenance(p: ProvTable, jobId?: string | null): Etat 
   const texte = p.composedPositive || p.userPrompt || ''
   const duree = Number(p.videoSeconds) || Math.max(...cles.map(c => c.t)) || 16
   const tries = [...cles].sort((a, b) => a.t - b.t)
-  // « 0.0-4.7 s: action. » jusqu'au segment suivant ou à « Real-time speed »
+  // "0.0-4.7 s: action." up to the next segment or "Real-time speed"
   const segs = [...texte.matchAll(/(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\s*s:\s*(.*?)(?=\s\d+(?:[.,]\d+)?\s*-\s*\d+(?:[.,]\d+)?\s*s:|\sReal-time speed|$)/g)]
     .map(m => ({ de: Number(m[1].replace(',', '.')), a: Number(m[2].replace(',', '.')), texte: m[3].trim().replace(/\.$/, '') }))
   const actions = tries.slice(0, -1).map((c, i) => segs.find(s => Math.abs(s.de - c.t) < 0.25 && Math.abs(s.a - tries[i + 1].t) < 0.25)?.texte ?? segs[i]?.texte ?? '')
-  // le personnage : la phrase après « N seconds. », jusqu'à « ; the same … »
+  // the character: the sentence after "N seconds.", up to "; the same …"
   const perso = texte.match(/seconds\.\s*(.*?);\s*the same/)?.[1]?.trim() ?? ''
   return { duree: Math.min(16, Math.max(6, Math.round(duree))), cles: tries.map(c => ({ assetId: c.assetId, uri: c.uri, t: Math.min(c.t, duree) })), actions, perso, son: p.withAudio !== false,
-    // le clip rouvert devient « le dernier rendu » : il s'affiche dans l'aperçu et sert à l'aperçu de vitesse
+    // the reopened clip becomes "the last render": shown in the preview and used for the speed preview
     rendu: jobId ? { jobId, duree: Math.round(duree), cles: tries.map(c => ({ assetId: c.assetId, t: c.t })) } : null }
 }
-/** Pose cet état dans la table (Movie Studio le lit à l'ouverture). */
+/** Stores this state for the table (Movie Studio reads it on open). */
 export function ouvrirDansTable(e: Etat) {
   localStorage.setItem(CLE, JSON.stringify(e))
   window.dispatchEvent(new Event('cine:table'))
 }
-/** L'état de table d'un rendu vidéo s'il vient de la table de montage, sinon null (provenance lue une fois). */
+/** The table state of a video render if it came from the editing table, else null (provenance read once). */
 export function useRenduTable(asset: Asset): Etat | null {
   const [etat, setEtat] = useState<Etat | null>(null)
   useEffect(() => {

@@ -1,4 +1,4 @@
-/* Scènes de la démo — partagées par photos.mjs et videos.mjs. */
+/* Demo scenes, shared by photos.mjs and videos.mjs. */
 export const SCENES = [
   { cle: 'cafe', seed: 410021, prompt: 'sitting at a small café terrace on a Paris cobblestone street in the morning, wearing a loose white linen shirt and light beige trousers, holding a cup of coffee, candid smile, natural light, travel photo' },
   { cle: 'plage', seed: 410022, prompt: 'walking barefoot along the shoreline at golden hour, wearing a flowing white summer dress, hair moving in the wind, waves behind her, warm sunset light, travel photo' },

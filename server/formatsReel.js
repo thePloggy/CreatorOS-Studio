@@ -1,16 +1,16 @@
 /* ============================================================
-   Formats de reels — les codes des réseaux sociaux (Instagram, TikTok).
-   Le réalisateur choisit d'abord le format qui va au brief, puis écrit
-   avec les règles de ce format seulement. Chaque format dit :
-   - regles      comment on le tourne (ce qui change d'un plan à l'autre,
-                 ce qui ne change pas, le geste de la coupe) ;
-   - cadrageFixe même cadrage, même angle, caméra fixe sur tous les plans ;
-   - tenueParPlan une tenue par plan (la tenue est le sujet) ;
-   - coupe       'coupe' (coupe franche, sur le temps) ou 'fondu' ;
-   - dureePlan   durée d'un plan au montage, en secondes (le clip est
-                 rendu plus long, le montage n'en garde que le début).
-   Les textes ne contiennent pas d'exemple de lieu : le réalisateur
-   recopierait l'exemple dans tous les reels.
+   Reel formats: social network conventions (Instagram, TikTok).
+   The director picks the format matching the brief, then writes using
+   only that format's rules. Each format defines:
+   - regles      how it is shot (what changes between shots, what stays,
+                 the cut gesture);
+   - cadrageFixe same framing, angle and static camera on every shot;
+   - tenueParPlan one outfit per shot (the outfit is the subject);
+   - coupe       'coupe' (hard cut on the beat) or 'fondu' (crossfade);
+   - dureePlan   shot length in the edit, in seconds (the clip is rendered
+                 longer; the edit keeps only its start).
+   Texts contain no example location: the director would copy it into
+   every reel.
    ============================================================ */
 
 export const FORMATS = {
@@ -25,8 +25,8 @@ export const FORMATS = {
     quand: 'trying outfits, a glow-up, getting dressed, a style change, a before/after look — the outfit is the subject',
     regles: `Format "outfit transition": every shot is filmed at EXACTLY the same spot, same framing, same camera position, static camera — only her outfit changes, on a jump. The system writes the jumps itself; you write the OUTFITS. "outfit" of each shot: shot 1 is a simple comfortable home outfit; every next shot is a COMPLETELY DIFFERENT outfit (a different main garment, a different colour, a different style — never the same dress with one more accessory); the last shot is the best outfit of the reel, complete with all its accessories (bag, hat or sunglasses, jewellery, shoes). "spot" is the same words in every shot, a spot where no mirror is visible behind her (a mirror in the frame fills the image with copies of her).`,
     cadrageFixe: true, tenueParPlan: true, coupe: 'coupe', dureePlan: 2.3, dureePremier: 1.4, secondesClip: 3,
-    /* plans écrits par le code : le saut tombe toujours sur la coupe. Chaque clip part du haut
-       d'un saut dans la nouvelle tenue, retombe, pose, et repart en l'air ; la coupe tombe en l'air. */
+    /* shots written by the code so the jump always lands on the cut. Each clip starts at the top
+       of a jump in the new outfit, lands, poses and jumps again; the cut falls mid-air. */
     plan: (k, n) => k === 0
       ? { still: 'She stands facing the camera, both feet on the floor, knees slightly bent, arms down, about to jump, smiling at the camera.',
           motion: 'She does ONE single jump straight up with both arms raised. Only one jump in the whole shot: no bouncing, no second jump. Static camera.' }

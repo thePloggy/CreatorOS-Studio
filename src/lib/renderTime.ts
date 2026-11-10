@@ -1,5 +1,5 @@
-/** Durée de rendu lisible : « 48 s », « 12 min 04 s ». null si inconnue
- *  (0 = job ré-attaché après redémarrage, la mesure n'existe pas). */
+/** Readable render duration: "48 s", "12 min 04 s". null if unknown
+ *  (0 = job re-attached after a restart, no measurement). */
 export function renderTime(ms?: number | null): string | null {
   if (!ms || ms <= 0) return null
   const s = Math.round(ms / 1000)

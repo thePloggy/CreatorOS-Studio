@@ -1,7 +1,7 @@
 /* ============================================================
-   Store global (zustand) — état de la console + jobs + assets.
-   Un seul store, découpé par domaines. Les composants lisent
-   des tranches ; toute la logique d'envoi passe par ici.
+   Global store (zustand) — console state + jobs + assets.
+   One store, split by domain. Components read slices; all
+   submission logic goes through here.
    ============================================================ */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -25,100 +25,100 @@ import { audioEffective, engineInfo, moteurT2v, VIDEO_ENGINES } from '../feature
 import type { RenderRates } from '../lib/progress'
 import { t, tServeur } from '../i18n'
 
-/** Onglet de composition : mode + tâche (photo:generate, video:i2v, video:motion_pure…). */
+/** Composition tab: mode + task (photo:generate, video:i2v, video:motion_pure…). */
 const ongletDe = (s: { mode: string; photo: { task: string }; video: { task: string } }) =>
   s.mode === 'video' ? `video:${s.video.task}` : `photo:${s.photo.task}`
 
-/* ---------- État ---------- */
+/* ---------- State ---------- */
 
 export interface StageScene { objets: { type: 'personne' | 'boite' | 'modele'; x: number; z: number; h: number; l?: number; p?: number; rot?: number; modele?: string }[]; camera: { oeil: number[] }[]; prompt: string }
 
 interface AppState {
   /* Navigation */
   mode: MediaMode
-  /** Nom d'affichage du personnage, configuré côté serveur (/api/health). */
+  /** Character display name, configured on the server (/api/health). */
   personaName: string
-  /** Personnage actif (id serveur) : la bibliothèque ne montre que ses rendus. */
+  /** Active character (server id): the library shows only its renders. */
   personaId: string | null
-  /** Le personnage actif a-t-il une LoRA d'identité FLUX.2 Klein ? Sinon la recette Klein est grisée. */
+  /** Does the active character have a FLUX.2 Klein identity LoRA? Otherwise the Klein recipe is disabled. */
   personaKlein: boolean
-  /** le personnage a une LoRA Krea : sans elle, Krea ne tient pas son visage */
+  /** the character has a Krea LoRA: without it, Krea does not hold its face */
   personaKrea: boolean
   personaFlux3: boolean
-  /** Le personnage actif a-t-il une LoRA vidéo ? Le texte → vidéo peut alors le montrer. */
+  /** Does the active character have a video LoRA? Text → video can then show it. */
   personaVideo: boolean
-  /** La LoRA vidéo du personnage est une LoRA Wan (texte → vidéo sur Wan T2V). */
+  /** The character's video LoRA is a Wan LoRA (text → video on Wan T2V). */
   personaVideoWan: boolean
-  /** Crédit de la LoRA du personnage actif (auteur, page, licence). */
+  /** Active character's LoRA credit (author, page, license). */
   personaCredit: PersonaCredit | null
-  /** Garde-robe du personnage actif : éléments favoris (tenues, lieux) et lignes libres. */
+  /** Active character's wardrobe: favorite items (outfits, locations) and free lines. */
   personaGarderobe: Garderobe
-  /** voix du personnage (id Kokoro ou « clone:<extrait> »), pour la voix off du reel et l'avatar parlant */
+  /** character voice (Kokoro id or "clone:<sample>"), for the reel voice-over and the talking avatar */
   personaVoix: string | null
   setGarderobe: (g: Garderobe) => Promise<string | null>
-  /** URL de la photo de profil de la persona (avec jeton ?v=), null = rond neutre. */
+  /** Persona profile photo URL (with ?v= token), null = neutral circle. */
   personaAvatar: string | null
   uploadPersonaAvatar: (file: File) => Promise<void>
-  /** Relit le personnage actif (nom, photo) — après un changement de personnage. */
+  /** Reloads the active character (name, photo) — after a character change. */
   refreshPersona: () => Promise<void>
-  /** Personnage des prochains rendus, propre à ce navigateur. */
-  /** Personnage de la page en cours (même effet que choisirPersonnagePage). */
+  /** Character for upcoming renders, specific to this browser. */
+  /** Character of the current page (same effect as choisirPersonnagePage). */
   choisirPersonnage: (id: string) => Promise<void>
-  /** Personnage de la page en cours seulement (sélecteur d'une page, carrousel) ; les autres pages gardent le leur. */
+  /** Character of the current page only (page selector, carousel); other pages keep theirs. */
   choisirPersonnagePage: (id: string) => Promise<void>
-  /** Entrée dans une page : son personnage à elle, sinon celui par défaut du studio. */
+  /** Entering a page: its own character, else the studio default. */
   entrerPage: (page: string) => Promise<void>
   pageCourante: string
-  /** Asset à ouvrir en grande vue (palette ⌘K → galerie). Consommé puis remis à null. */
+  /** Asset to open in large view (⌘K palette → gallery). Consumed then reset to null. */
   focusAssetId: string | null
   setFocusAsset: (id: string | null) => void
-  /** Ce que le serveur préfixe au prompt, lu de /api/health (bloc des 4 couches). */
+  /** What the server prepends to the prompt, read from /api/health (4-layer block). */
   serverInfo: { preambles: Record<string, string>; composerModels: Record<string, string>; renderRates: RenderRates | null } | null
   promoteJob: (id: string) => Promise<void>
-  /** Suppression DÉFINITIVE d'un job terminé/bloqué : la ligne, ses rendus et
-   *  leurs fichiers (cascade serveur). Rend le nombre de rendus emportés. */
+  /** PERMANENT deletion of a finished/blocked job: the row, its renders and
+   *  their files (server cascade). Returns the number of renders removed. */
   deleteJob: (id: string) => Promise<number>
   uploadExtendVideo: (file: File) => Promise<void>
   pickExtendClip: (assetId: string) => Promise<void>
   setExtendPick: (pick: 'last' | 'sharp') => Promise<void>
   setExtendPrequel: (on: boolean) => Promise<void>
   extractExtendFrame: () => Promise<void>
-  /** Nouvel ordre de la file d'attente (ids des jobs en attente, dans l'ordre voulu). */
+  /** New queue order (ids of waiting jobs, in the desired order). */
   reorderJobs: (ids: string[]) => Promise<void>
 
-  /* Sélections par mode */
+  /* Per-mode selections */
   photo: PhotoSelections
   video: VideoSelections
   son: SonSelections
 
-  /* Prompt (colonne 3) */
-  userPrompt: string          // ↻ auto depuis sélecteurs, éditable
-  promptTouched: boolean      // true dès que l'utilisateur édite à la main
+  /* Prompt (column 3) */
+  userPrompt: string          // auto from selectors, editable
+  promptTouched: boolean      // true once the user edits by hand
   userDirectives: string
   composedPositive: string
   composedNegative: string
-  /** Prompt auto tel qu'il était AU MOMENT de la composition. Sert à savoir
-   *  si le composé a été laissé derrière par un changement de sélecteur :
-   *  c'est lui qui part au job, un composé périmé gagne donc silencieusement
-   *  sur des sélections plus récentes. */
+  /** Auto prompt as it was AT composition time. Used to tell whether the
+   *  composed prompt was left behind by a selector change: the composed
+   *  prompt is what is sent, so a stale one would silently win over newer
+   *  selections. */
   composedFrom: string
-  /** Onglet où le composé a été écrit (mode + tâche) : il ne part que de là. */
+  /** Tab where the composed prompt was written (mode + task): it is only sent from there. */
   composedFor: string
   composing: boolean
   t0Error: string | null
-  /** Couches rewriter SOUL/MOOD (scaffold, défaut null = OFF). Passées au
-   *  composeur ; null → prompt composé strictement identique à sans. */
+  /** SOUL/MOOD rewriter layers (default null = OFF). Passed to the
+   *  composer; null → composed prompt identical to having no layer. */
   soulLayer: string | null
   moodLayer: string | null
   seedMode: 'lock' | 'random'
   seedValue: number
-  /** Seed RÉELLEMENT tirée par le serveur au dernier job. En mode aléatoire
-   *  c'est la seule façon de retrouver un rendu qu'on vient de voir. */
+  /** Seed ACTUALLY drawn by the server for the last job. In random mode
+   *  this is the only way to reproduce a render just seen. */
   lastSeed: number | null
 
-  /* LoRA additionnelles empilées sur l'identité (pose/style).
-     La liste OFFERTE vient du backend — jamais figée ici : elle dépend
-     de ce qui est réellement présent dans ~/models/loras. */
+  /* Additional LoRAs stacked on the identity (pose/style).
+     The OFFERED list comes from the backend — never hard-coded here: it
+     depends on what is actually present in ~/models/loras. */
   loraCatalog: LoraInfo[]
   loraPicks: LoraPick[]
 
@@ -126,150 +126,147 @@ interface AppState {
   jobs: Job[]
   assets: Asset[]
 
-  /* Galerie */
+  /* Gallery */
   galleryColumns: number
-  /** Densité de la Bibliothèque. Réglage SÉPARÉ de `galleryColumns` : la
-   *  colonne 4 fait 300 px de large, la Bibliothèque occupe l'écran — une
-   *  valeur commune donnerait des vignettes minuscules d'un côté ou une
-   *  seule colonne de l'autre. */
+  /** Library density. SEPARATE from `galleryColumns`: column 4 is 300 px
+   *  wide while the Library fills the screen, so a shared value would give
+   *  tiny thumbnails on one side or a single column on the other. */
   libraryColumns: number
-  /** Ordre d'apparition des dossiers — réglage unique, valable pour TOUTES
-   *  les listes de dossiers (sidebar, menu « Déplacer vers… », fiche détail,
-   *  feuille mobile). Comme un Finder : le tri suit l'opérateur, pas l'écran. */
+  /** Folder order — one setting for ALL folder lists (sidebar, "Move to…"
+   *  menu, detail sheet, mobile sheet). */
   folderSort: FolderSort
   setFolderSort: (v: FolderSort) => void
 
-  /* Nombre de rendus lancés par « Envoyer » — 1 à 5, même prompt. */
+  /* Number of renders started by "Envoyer" — 1 to 5, same prompt. */
   batchCount: number
-  /** Axe de variation du lot photo (seed par défaut). */
-  /** Carrousel : le lot garde tenue et lieu, change pose, cadrage et focale à
-   *  chaque image (même seed). Décoché : N images du même prompt, seeds
-   *  différentes. Indépendant du nombre de rendus. */
+  /** Photo batch variation axis (seed by default). */
+  /** Carousel: the batch keeps outfit and location, changes pose, framing and
+   *  focal length on each image (same seed). Unchecked: N images of the same
+   *  prompt, different seeds. Independent of the render count. */
   carousel: boolean
 
-  /* Carrousel v5 — VERROUS PAR LIGNE de recette : fermé (true) = valeur fixe
-   *  pour tout le lot ; ouvert (false) = varie à chaque image (tirage front).
-   *  Défaut tout fermé. Le carrousel est actif dès qu'un verrou est ouvert. */
+  /* Carousel — PER-LINE recipe LOCKS: closed (true) = fixed value for the
+   *  whole batch; open (false) = varies per image (drawn client-side).
+   *  All closed by default. The carousel is active as soon as one lock is open. */
   locks: Record<'env' | 'outfit' | 'pose' | 'style', boolean>
   toggleLock: (k: 'env' | 'outfit' | 'pose' | 'style') => void
 
-  /* Mode expert : masque les textes d'aide explicatifs (note d'intrant,
-   *  chaîne déduite) et révèle la chaîne compacte. Préférence d'affichage. */
+  /* Expert mode: hides explanatory help texts (input note, inferred chain)
+   *  and shows the compact chain. Display preference. */
   expert: boolean
   toggleExpert: () => void
 
-  /** Volet « LE TEXTE » (bandeau bas de l'établi) replié. Préférence d'affichage. */
+  /** "LE TEXTE" panel (bottom strip of the workbench) collapsed. Display preference. */
   textCollapsed: boolean
   toggleTextCollapsed: () => void
 
-  /* Bibliothèque : actions de revue (le garde-fou manuel vit ici) */
+  /* Library: review actions (the manual safeguard lives here) */
   reviewAsset: (id: string, status: Asset['reviewStatus']) => void
   toggleExportReady: (id: string) => void
-  /** Caption gravée d'un reel, écrite à la main ou choisie parmi les propositions. */
+  /** Burned-in reel caption, typed by hand or picked from suggestions. */
   setCaption: (id: string, caption: string) => void
-  /** Clé d'idempotence de l'envoi EN COURS. Posée au premier essai, gardée
-   *  tant qu'il n'a pas abouti (une reprise réutilise la même clé et le
-   *  serveur rend le job déjà créé), effacée après succès : l'envoi suivant
-   *  est une nouvelle intention, donc une nouvelle clé. */
+  /** Idempotency key of the submission IN PROGRESS. Set on the first attempt,
+   *  kept until it succeeds (a retry reuses the same key and the server
+   *  returns the job already created), cleared after success: the next
+   *  submission is a new intent, hence a new key. */
   requestId: string | null
-  /** Suppression définitive : ligne, provenance et fichier sur disque. */
+  /** Permanent deletion: row, provenance and file on disk. */
   removeAsset: (id: string) => Promise<void>
-  /** Suppression en lot, tolérante aux échecs partiels. Retourne ce qui a
-   *  réellement été supprimé pour que la vue le dise, plutôt qu'un succès muet. */
+  /** Batch deletion, tolerant of partial failures. Returns what was actually
+   *  deleted so the view can report it. */
   removeAssets: (ids: string[]) => Promise<{ removed: number; failed: string[] }>
-  /** Dernières suppressions (corbeille côté serveur) : de quoi proposer « annuler ». */
+  /** Latest deletions (server-side trash): used to offer "undo". */
   lastDeleted: { ids: string[]; at: number } | null
   dismissDeleted: () => void
   undoDelete: () => Promise<string | null>
   setBatchCount: (n: number) => void
   setCarousel: (on: boolean) => void
-  /** Vide tenue, lieu, pose et style : le texte auto devient vide, l'opérateur pilote au prompt. */
+  /** Clears outfit, location, pose and style: the auto text becomes empty, the operator drives via the prompt. */
   clearComposition: () => void
-  /** « ▷ Animer » depuis une photo : bascule en vidéo i2v avec cette still. */
+  /** "Animer" from a photo: switches to video i2v with this still. */
   animateFrom: (asset: Asset) => Promise<void>
   boucleFrom: (asset: Asset) => Promise<void>
   stageOuvert: boolean
-  /** la bibliothèque s'ouvre sur ses musiques */
+  /** the library opens on its music */
   ongletMusiques: boolean
-  /** onglet de la page audio : studio musique, studio voix, bruitage */
+  /** audio page tab: music studio, voice studio, sound effects */
   ongletAudio: 'musique' | 'voix' | 'bruitage'
-  /** MiniMax H3 en option : installé, et permis sur cette instance. */
+  /** Optional MiniMax H3: installed, and allowed on this instance. */
   h3: { demo: boolean; installe: boolean; disponible: boolean } | null
-  /** onglet de la configuration demandé par un autre écran */
+  /** configuration tab requested by another screen */
   ongletConfig: 'cloud' | 'vocab' | 'workbench' | 'modeles' | null
-  /** famille ouverte dans la galerie (Camera Moves ou Effects), demandée par le menu */
+  /** family opened in the gallery (Camera Moves or Effects), requested by the menu */
   famillePresets: 'camera' | 'effet' | null
-  /** onglet ouvert dans Extensions, demandé par le menu */
+  /** tab opened in Extensions, requested by the menu */
   ongletExtensions: 'tout' | 'comfy' | 'lora' | null
-  /** réglage de départ demandé par le menu à la page ouverte (Restore en HD seule, Clone de voix…) */
+  /** initial setting requested by the menu for the opened page (Restore HD only, Voice clone…) */
   demandeOutil: 'hd' | 'cloner' | 'changer' | null
-  /** l'outil ouvert dans la page dédiée (section « outil ») */
+  /** the tool opened in the dedicated page ("tool" section) */
   outilDedie: import('../v2/OutilsDedies').IdOutil
   stageRepris: StageScene | null
   ouvrirStage: (scene?: StageScene | null) => void
-  /** « ✎ Retoucher » depuis une photo : bascule en photo/edit, image source. */
+  /** "Retoucher" from a photo: switches to photo/edit, source image. */
   retouchFrom: (asset: Asset) => Promise<void>
-  /** « ⇥ Prolonger » depuis une vidéo : bascule en vidéo/extend, ce clip en source. */
+  /** "Prolonger" from a video: switches to video/extend, this clip as source. */
   extendFrom: (asset: Asset) => Promise<void>
 
   /* Actions */
-  /** Charge la bibliothèque persistée (SQLite → galerie) au démarrage. */
+  /** Loads the persisted library (SQLite → gallery) at startup. */
   hydrate: () => Promise<void>
-  /** Recharge un asset dans la console (colonnes 2 & 3), en UN set atomique. */
+  /** Reloads an asset into the console (columns 2 & 3), in ONE atomic set. */
   cloneFrom: (asset: Asset) => void
-  /** Suit un job créé côté serveur (retouche au pinceau, etc.) : il apparaît dans la file de l'interface. */
+  /** Tracks a job created on the server (brush retouch, etc.): it appears in the UI queue. */
   adoptServerJob: (id: string) => Promise<void>
-  /** Demande de navigation posée par le clone : la console vit dans les
-   *  sections Image/Vidéo, or on clone aussi depuis Assets (ou une autre
-   *  section) — sans ça les réglages atterrissaient dans une console
-   *  invisible. Le nonce force la prise en compte même si la cible ne
-   *  change pas. Consommée par le shell (V2App). */
+  /** Navigation request set by clone: the console lives in the Image/Video
+   *  sections, but cloning also happens from Assets (or another section),
+   *  so the settings must not land in an invisible console. The nonce forces
+   *  handling even if the target does not change. Consumed by the shell (V2App). */
   navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config' | 'nouveau-personnage' | 'outil' | 'son' | 'cinema'; nonce: number } | null
-  /** « Utiliser dans… » : le média que la section cible reprend à son ouverture,
-   *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
+  /** "Utiliser dans…": the media the target section picks up when it opens,
+   *  then clears. Sections keep their source in local state; this field is the only bridge. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null
   utiliserDans: (cible: 'presets' | 'parole' | 'reshoot', asset: Asset) => void
-  /** ouvre Movie Studio (la table de montage a déjà été remplie) */
+  /** opens Movie Studio (the editing timeline is already filled) */
   allerCinema: () => void
-  /** Images de référence de la prochaine photo (FLUX.2 Klein), 6 au plus. */
+  /** Reference images for the next photo (FLUX.2 Klein), at most 6. */
   references: { file: string; uri: string }[]
-  /** ce qu'un clic vient d'apporter (Animer, Retoucher, choix d'une frame…) : quand, et quels emplacements */
+  /** what a click just brought (Animer, Retoucher, frame pick…): when, and which slots */
   chargementImage: { t: number; champs: string[] }
-  /** à l'arrivée sur Image / Vidéo sans image apportée par un clic : emplacements vides */
+  /** on arrival at Image / Video without an image brought by a click: empty slots */
   viderImagesSiArriveeLibre: () => void
   ajouterReference: (asset: Asset) => Promise<void>
-  /** une photo de l'ordinateur en référence (sur la démo : contrôlée, sans personne) */
+  /** a photo from the computer as reference (on the demo: checked, no person) */
   deposerReference: (f: File) => Promise<void>
   retirerReference: (file: string) => void
   prendrePasserelle: (cible: 'presets' | 'parole' | 'reshoot') => Asset | null
   setMode: (m: MediaMode) => void
-  /** prompts séparés par mode : chaque section retrouve son texte (image XXX / vidéo YYY). */
+  /** prompts separated per mode: each section gets its own text back. */
   promptStash: Partial<Record<MediaMode, { text: string; touched: boolean }>>
-  /** brief d'origine écrasé par « Remplacer » de l'Enhancer (provenance). */
+  /** original brief overwritten by the Enhancer's "Remplacer" (provenance). */
   initialBrief: string | null
-  /* Description VLM de la still, retenue au moment où l'Enhancer est
-     appliqué. Elle part avec le job pour être relisible en vue détail : un
-     prompt composé surprenant s'explique soit par une image mal lue, soit par
-     une consigne mal suivie, et on ne peut pas trancher sans elle. */
+  /* VLM description of the still, kept when the Enhancer is applied. It is
+     sent with the job so it can be read in the detail view: a surprising
+     composed prompt comes either from a misread image or from an ignored
+     instruction, and this is needed to tell which. */
   promptVision: string | null
   updatePhoto: (patch: Partial<PhotoSelections>) => void
   updateVideo: (patch: Partial<VideoSelections>) => void
-  /** Piles de LoRA nommées, par famille de moteur ('photo', 'h3', 'wan', 'ltx'). */
+  /** Named LoRA stacks, per engine family ('photo', 'h3', 'wan', 'ltx'). */
   loraStacks: Record<string, { name: string; items: LoraPick[] }[]>
-  /** Dernières LoRA vidéo utilisées par famille : rappelées quand on revient sur le moteur. */
+  /** Last video LoRAs used per family: restored when returning to the engine. */
   lastVideoLoras: Record<string, LoraPick[]>
   saveLoraStack: (cle: string, name: string, items: LoraPick[]) => void
   deleteLoraStack: (cle: string, name: string) => void
   updateSon: (patch: Partial<SonSelections>) => void
   setUserPrompt: (v: string) => void
-  /** Annule l'édition manuelle et resynchronise le prompt auto sur les
-   *  sélecteurs. Sans ça, `promptTouched` est un aller simple : une seule
-   *  frappe fige le prompt pour toute la session, sans rien afficher. */
+  /** Cancels manual editing and resyncs the auto prompt with the selectors.
+   *  Without it, `promptTouched` is one-way: a single keystroke would freeze
+   *  the prompt for the whole session. */
   resetPrompt: () => void
   setUserDirectives: (v: string) => void
   setSoulLayer: (v: string | null) => void
   setMoodLayer: (v: string | null) => void
-  /** Charge l'inventaire réel des LoRA depuis le backend. */
+  /** Loads the actual LoRA inventory from the backend. */
   loadLoras: () => Promise<void>
   toggleLora: (name: string) => void
   setLoraStrength: (name: string, strength: number) => void
@@ -283,64 +280,64 @@ interface AppState {
   setGalleryColumns: (n: number) => void
   setLibraryColumns: (n: number) => void
   toggleSeedMode: () => void
-  /** Saisie directe d'une seed en mode lock. */
+  /** Direct seed input in lock mode. */
   setSeedValue: (v: number) => void
-  /** batchId imposé au prochain submitJob (carrousel) — consommé puis remis à null. */
+  /** batchId forced on the next submitJob (carousel) — consumed then reset to null. */
   carouselBatchId: string | null
   setCarouselBatchId: (v: string | null) => void
   carouselLocks: Record<string, boolean> | null
   setCarouselLocks: (v: Record<string, boolean> | null) => void
-  /** Prompt de l'opérateur à l'origine de la lignée, porté par les jobs d'un
-   *  carrousel : un carrousel relancé depuis un de ses plans repart de lui. */
+  /** Operator prompt at the origin of the lineage, carried by a carousel's jobs:
+   *  a carousel restarted from one of its shots starts from it. */
   carouselPromptRacine: string | null
   setCarouselPromptRacine: (v: string | null) => void
-  /** Format photo (v2) : dimensions envoyées avec le job. null = défaut recette. */
+  /** Photo size (v2): dimensions sent with the job. null = recipe default. */
   photoSize: { w: number; h: number; label: string } | null
   photoEngine: PhotoEngine
   setPhotoEngine: (e: PhotoEngine) => void
   setPhotoSize: (v: { w: number; h: number; label: string } | null) => void
   composeNow: () => Promise<void>
-  /** Retouche par instruction : image source depuis le disque… */
+  /** Instruction-based edit: source image from disk… */
   uploadEditSource: (file: File) => Promise<void>
-  /** …ou depuis la galerie (recopiée dans input/ via /api/assets/:id/to-input). */
+  /** …or from the gallery (copied into input/ via /api/assets/:id/to-input). */
   pickEditSource: (assetId: string) => Promise<void>
-  /** Même dépôt que ci-dessus, pour l'image de référence ControlNet. */
+  /** Same upload as above, for the ControlNet reference image. */
   uploadCnRef: (file: File) => Promise<void>
-  /** Choisit une still de la bibliothèque comme image de départ vidéo. Le
-   *  serveur la recopie dans le dossier input/ de ComfyUI et rend le NOM :
-   *  c'est la seule chose qu'un nœud LoadImage sait lire. */
+  /** Picks a library still as the video start image. The server copies it
+   *  into ComfyUI's input/ folder and returns the NAME: the only thing a
+   *  LoadImage node can read. */
   pickStartFrame: (assetId: string) => Promise<void>
-  /** Frame de fin (keyframe d'arrivée, moteurs MiniMax H3) : copiée dans
-   *  l'input ComfyUI comme la frame de départ. */
+  /** End frame (arrival keyframe, MiniMax H3 engines): copied into
+   *  ComfyUI's input like the start frame. */
   pickEndFrame: (assetId: string) => Promise<void>
-  /** Dépôt d'une image de départ venue du disque (hors bibliothèque). */
+  /** Upload of a start image from disk (outside the library). */
   uploadStartFrame: (file: File) => Promise<void>
-  /** Inspirations : la photo de départ livrée avec le studio, posée par le serveur comme un rendu. */
+  /** Inspirations: the starter photo shipped with the studio, placed by the server like a render. */
   poserDepartInspiration: (id: string) => Promise<void>
-  /** Dépôt de la vidéo driver du Motion Control. */
+  /** Upload of the Motion Control driver video. */
   uploadMotionDriver: (file: File) => Promise<void>
-  /** Dépôt de la still du Motion Control (réf directe). */
+  /** Upload of the Motion Control still (direct reference). */
   uploadMotionStill: (file: File) => Promise<void>
-  /** Still du Motion Control choisie dans la bibliothèque. */
+  /** Motion Control still picked from the library. */
   pickMotionStill: (assetId: string) => Promise<void>
-  /** Annule un job en file ou en cours. Rend le message d'échec éventuel. */
-  /** Relance un job terminé avec ses réglages d'origine ; rend le message d'erreur, ou null. */
+  /** Cancels a queued or running job. Returns the failure message, if any. */
+  /** Reruns a finished job with its original settings; returns the error message, or null. */
   retryJob: (id: string, draft?: boolean, nouvelleGraine?: boolean) => Promise<string | null>
-  /** « Encore une » : relance le job d'un rendu avec ses réglages et une graine neuve. */
+  /** "Encore une": reruns a render's job with its settings and a new seed. */
   encoreUne: (asset: Asset) => Promise<string | null>
   cancelJob: (id: string) => Promise<string | null>
   submitJob: () => Promise<void>
 
-  /** Envoi mobile : envoie et dit si l'envoi est parti (bandeau sinon). */
+  /** Mobile submit: submits and reports whether it went through (banner otherwise). */
   submitJobMobile: () => Promise<boolean>
-  /** « ↻ seed » de l'onglet Jobs : même recette, seed re-tirée, sans rouvrir
-   *  la composition. S'appuie sur ce que la liste des jobs expose. */
+  /** Jobs tab "↻ seed": same recipe, re-drawn seed, without reopening the
+   *  composition. Relies on what the job list exposes. */
   relaunchJob: (jobId: string) => Promise<void>
 }
 
-/* ---------- Défauts ---------- */
+/* ---------- Defaults ---------- */
 
-/* Défauts = premiers items de chaque vocabulaire. */
+/* Defaults = first items of each vocabulary. */
 const defaultPhoto: PhotoSelections = {
   task: 'generate',
   outfitId: firstId(OUTFITS),
@@ -366,12 +363,12 @@ const defaultPhoto: PhotoSelections = {
   editUploadError: '',
 }
 
-/** Un clic vient d'apporter une image dans tel emplacement : il est gardé à l'arrivée sur Image / Vidéo (4 s). */
+/** A click just brought an image into a slot: it is kept on arrival at Image / Video (4 s). */
 function marquerChargement(set: (p: { chargementImage: { t: number; champs: string[] } }) => void, get: () => { chargementImage: { t: number; champs: string[] } }, champ: string) {
   const c = get().chargementImage, t = Date.now()
   set({ chargementImage: { t, champs: t - c.t < 4000 ? [...c.champs, champ] : [champ] } })
 }
-/** Les navigateurs gardent l'ancien défaut caché du mouvement : on l'efface au rechargement. */
+/** Browsers keep the old hidden motion default: cleared on reload. */
 const ANCIEN_MOUVEMENT = 'gentle breathing, hair moving slightly, a soft smile toward the camera'
 function sansAncienDefaut<T extends { motionText: string; cameraText: string }>(v: T): T {
   if (v.motionText !== ANCIEN_MOUVEMENT) return v
@@ -379,8 +376,8 @@ function sansAncienDefaut<T extends { motionText: string; cameraText: string }>(
 }
 const defaultVideo: VideoSelections = {
   task: 'i2v',
-  // Wan par défaut : muet, mais c'est lui qui rend l'image la plus propre,
-  // et un plan muet propre se rattrape au montage alors qu'un plan sale non.
+  // Wan by default: silent, but it renders the cleanest image,
+  // and a clean silent shot can be fixed in editing while a dirty one cannot.
   engine: 'wan',
   withAudio: false,
   audioText: '',
@@ -394,8 +391,8 @@ const defaultVideo: VideoSelections = {
   motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, mixPersonnes: [], motionRefStrength: 1, motionMode: 'animate',
   multiShot: false, draft: false, videoLoras: [],
   motionOutFps: 'origine', motionOutRes: 'origine',
-  /* Vides : ces deux champs n'ont pas d'écran ; un défaut « portrait » (respiration, sourire face caméra, push-in)
-     partait en prompt dès qu'on ne tapait rien, et retournait une super-héroïne vue de dos (446-yglt). */
+  /* Empty: these two fields have no screen; any default here would be sent
+     as the prompt whenever nothing is typed. */
   motionText: '',
   cameraText: '',
   motionStrength: 0.3,
@@ -410,22 +407,22 @@ const defaultSon: SonSelections = {
   projectId: 'proj-12',
 }
 
-/* Les identifiants de job sont la clé primaire côté SQLite : deux sessions
-   du navigateur ne doivent pas produire le même. Le compteur reste lisible
-   (#443), un suffixe de session le rend unique dans la durée. */
+/* Job ids are the SQLite primary key: two browser sessions must not
+   produce the same one. The counter stays readable (#443); a session
+   suffix makes it unique over time. */
 let jobCounter = 442
-/** Moteurs à keyframes (MiniMaxH3ImageToVideo : first_frame / last_frame). */
+/** Keyframe engines (MiniMaxH3ImageToVideo: first_frame / last_frame). */
 const H3: string[] = ['minimax']
-/** Moteurs qui savent arriver sur une frame de fin : H3 (last_frame), Wan (FirstLastFrame), LTX (guide en dernière image). */
+/** Engines that can end on an end frame: H3 (last_frame), Wan (FirstLastFrame), LTX (guide on last frame). */
 const FIN_OK: string[] = [...H3, 'wan', 'ltx', 'ltx_hq']
-/** Une LoRA vidéo nommée « …wan… » (paire haut / bas bruit) : identité portée par Wan. */
+/** A video LoRA named "…wan…" (high/low noise pair): identity carried by Wan. */
 const estLoraWan = (l: unknown[] | undefined) => (l ?? []).some(x => /wan/i.test(String((x as { name?: string })?.name ?? '')))
-/** Un envoi de lot est en cours (les POST partent un par un). */
+/** A batch submission is in progress (POSTs go out one by one). */
 let envoiEnCours = false
 const SESSION_TAG = Math.random().toString(36).slice(2, 6)
 
-/** Références de conditionnement dérivées des sélections
- *  (image source, frames, vidéo de référence motion…). */
+/** Conditioning references derived from the selections
+ *  (source image, frames, motion reference video…). */
 function buildConditioningRefs(
   mode: MediaMode,
   sel: PhotoSelections | VideoSelections | SonSelections,
@@ -446,9 +443,9 @@ function buildConditioningRefs(
   return refs
 }
 
-/** Dimensions de latent au FORMAT d'une référence, ~1 Mpx, multiples de 16.
- *  Renvoie {} si la référence n'a pas de taille connue : la recette garde
- *  alors son défaut plutôt que de recevoir des dimensions inventées. */
+/** Latent dimensions at a reference's ASPECT, ~1 Mpx, multiples of 16.
+ *  Returns {} if the reference has no known size: the recipe then keeps
+ *  its default instead of receiving made-up dimensions. */
 function latentFor(w: number, h: number): { width?: number; height?: number } {
   if (!w || !h) return {}
   const k = Math.sqrt(1_000_000 / (w * h))
@@ -456,9 +453,9 @@ function latentFor(w: number, h: number): { width?: number; height?: number } {
   return { width: r(w), height: r(h) }
 }
 
-/** Retire les marqueurs de plan ajoutés à la SOUMISSION vidéo. Sans ça, un
- *  clone repart avec un prompt qui les porte déjà et la soumission les
- *  re-suffixe : « single continuous shot, no cuts » s'empile à chaque clone. */
+/** Removes the shot markers added at video SUBMISSION. Otherwise a clone
+ *  starts from a prompt that already carries them and submission appends
+ *  them again, stacking on each clone. */
 function stripShotMarkers(p: string): string {
   return p
     .replace(/^multi-shot sequence with cinematic cuts\.\s*/i, '')
@@ -467,7 +464,7 @@ function stripShotMarkers(p: string): string {
 
 /* ---------- Store ---------- */
 
-/** Un job tel que l'API le rend → le Job du store (reprise après rechargement, relance). */
+/** A job as returned by the API → the store Job (resume after reload, rerun). */
 function jobFromApi(j: Record<string, unknown>): Job {
   return {
             id: j.id as string, createdAt: j.createdAt as number,
@@ -495,28 +492,28 @@ function jobFromApi(j: Record<string, unknown>): Job {
   }
 }
 
-/* Persistance : UNIQUEMENT les préférences d'affichage.
-   `partialize` n'est pas une optimisation, c'est la condition pour que ça
-   marche : sans lui, `jobs` et `assets` partiraient en localStorage et la
-   galerie se rechargerait sur un instantané périmé, en concurrence avec
-   `hydrate()` qui lit la base. Ce qui vient du serveur doit venir du serveur. */
+/* Persistence: display preferences ONLY.
+   `partialize` is required for correctness: without it, `jobs` and
+   `assets` would go to localStorage and the gallery would reload a stale
+   snapshot, racing `hydrate()` which reads the database. Server data must
+   come from the server. */
 let suiviFileLance = false
-/* Le personnage choisi DANS une page, page par page, pour l'onglet (sessionStorage). */
+/* The character chosen WITHIN a page, per page, for the tab (sessionStorage). */
 const CLE_PAGES = 'creatoros.personnagesPages'
 function lirePersonnagesPages(): Record<string, string> { try { return JSON.parse(sessionStorage.getItem(CLE_PAGES) || '{}') } catch { return {} } }
-function ecrirePersonnagesPages(v: Record<string, string>) { try { sessionStorage.setItem(CLE_PAGES, JSON.stringify(v)) } catch { /* stockage indisponible */ } }
+function ecrirePersonnagesPages(v: Record<string, string>) { try { sessionStorage.setItem(CLE_PAGES, JSON.stringify(v)) } catch { /* storage unavailable */ } }
 
 export const useAppStore = create<AppState>()(persist((set, get) => {
-  // Abonnement unique aux updates du worker (mock ou réel).
+  // Single subscription to worker updates (mock or real).
   worker.onUpdate((job, asset) => {
-    // un envoi refusé par le serveur (garde-fou, fichier absent…) : la raison s'affiche sous le prompt
+    // a submission rejected by the server (safeguard, missing file…): the reason is shown under the prompt
     if ((job as Job & { refusEnvoi?: boolean }).refusEnvoi && job.error) set({ t0Error: tServeur(job.error) ?? job.error })
     set(s => ({
       jobs: s.jobs.map(j => (j.id === job.id ? job : j)),
-      // le rendu d'un autre personnage (lancé avant un changement) n'entre pas dans la grille
+      // a render of another character (started before a switch) does not enter the grid
       assets: asset ? [asset, ...s.assets] : s.assets,
-      // En mode aléatoire la seed est tirée côté serveur : sans ce retour,
-      // l'opérateur voit une image qu'il ne peut plus reproduire.
+      // In random mode the seed is drawn server-side: without this,
+      // the operator sees an image they cannot reproduce.
       lastSeed: Number.isFinite(job.seed?.value) ? (job.seed!.value as number) : s.lastSeed,
     }))
   })
@@ -556,8 +553,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
     reorderJobs: async ids => {
       await fetch('/api/jobs/reorder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
-      // Refléter l'ordre localement : les jobs en attente dans l'ordre demandé,
-      // les autres inchangés à leur place.
+      // Reflect the order locally: waiting jobs in the requested order,
+      // the others unchanged in place.
       set(s => {
         const queued = s.jobs.filter(j => j.status === 'queued')
         const byId = new Map(queued.map(j => [j.id, j]))
@@ -591,9 +588,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     t0Error: null,
     soulLayer: null,
     moodLayer: null,
-    /* Défaut ALÉATOIRE : une seed figée ferait se ressembler les rendus sans
-       raison visible. Le verrou reste à un clic, mais
-       il doit être un geste délibéré, pas l'état de départ. */
+    /* RANDOM by default: a fixed seed would make renders look alike for no
+       visible reason. Locking stays one click away, as a deliberate action. */
     seedMode: 'random',
     seedValue: Math.floor(Math.random() * 0xffffffffffff),
     lastSeed: null,
@@ -612,21 +608,20 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     textCollapsed: false,
     toggleTextCollapsed: () => set(s => ({ textCollapsed: !s.textCollapsed })),
 
-    // Borné ici plutôt qu'au rendu : un composant qui enverrait 50 jobs
-    // saturerait la file pour un quart d'heure.
+    // Clamped here rather than at render time: a component sending 50 jobs
+    // would saturate the queue for a quarter of an hour.
     setBatchCount: n => set({ batchCount: Math.max(1, Math.min(10, Math.round(n))) }),
     setCarousel: carousel => set({ carousel }),
     clearComposition: () => get().updatePhoto({ outfitId: null, environmentId: null, styleId: null, textPoseId: null, outfitOverrides: {}, weatherOverride: undefined }),
-    /* Ces trois-là emmènent l'opérateur AILLEURS : ils posent donc la même
-       demande de navigation que le clone. Le desktop passe déjà ses propres
-       callbacks (goVideo/goImage) et ignore le champ — l'ajouter ne change
-       rien pour lui ; le mobile, lui, n'a que ce canal. */
+    /* These three take the operator ELSEWHERE, so they set the same navigation
+       request as clone. The desktop passes its own callbacks (goVideo/goImage)
+       and ignores the field; mobile only has this channel. */
     references: [],
     chargementImage: { t: 0, champs: [] },
     viderImagesSiArriveeLibre: () => {
-      /* On arrive sur Image ou Vidéo : seuls les emplacements qu'un clic vient de remplir (moins de 4 s : Animer → le
-         départ, « Frame fin » → la fin, Retoucher → la source…) gardent leur image ; tout le reste est vidé. Un visiteur
-         héritait d'une frame de fin d'un réglage ancien, invisible le temps que sa vignette charge (446-yglt). */
+      /* Arriving on Image or Video: only the slots a click just filled (under 4 s: Animer → start,
+         "Frame fin" → end, Retoucher → source…) keep their image; everything else is cleared,
+         so no stale frame from an earlier setting carries over. */
       const c = get().chargementImage
       const garde = new Set(Date.now() - c.t < 4000 ? c.champs : [])
       if (garde.has('tout')) return
@@ -675,8 +670,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       marquerChargement(set, get, 'start')
       if (asset.mediaType !== 'photo') return
       get().setMode('video')
-      /* « Animer » part d'un plan vierge : une frame de fin (ou du milieu) laissée par un réglage précédent forçait
-         le moteur à finir sur une autre image — la super-héroïne de 446-yglt finissait en legging dans un studio. */
+      /* "Animer" starts from a blank shot: an end (or middle) frame left from a previous setting
+         would force the engine to end on another image. */
       get().updateVideo({ task: 'i2v', endAssetId: null, endFrameFile: '', endFrameError: '', middleAssetId: null })
       set(st => ({ navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
       await get().pickStartFrame(asset.id)
@@ -694,7 +689,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     stageRepris: null,
     ouvrirStage: (scene = null) => set(st => ({ stageOuvert: true, stageRepris: scene, navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
 
-    /* Boucle : la même photo en départ et en arrivée, sur Wan (seul moteur qui porte les deux). */
+    /* Loop: the same photo as start and end, on Wan (the only engine that takes both). */
     boucleFrom: async asset => {
       await get().animateFrom(asset)
       get().updateVideo({ engine: 'wan' })
@@ -719,17 +714,16 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       await get().pickExtendClip(asset.id)
     },
 
-    /** Suppression définitive. On attend le serveur avant de retirer la
-     *  vignette : disparaître de l'écran puis réapparaître au rechargement
-     *  parce que la suppression a échoué est pire que d'attendre 100 ms. */
+    /** Permanent deletion. Waits for the server before removing the thumbnail,
+     *  so it never disappears and then reappears on reload after a failed delete. */
     removeAsset: async id => {
       await apiDeleteAsset(id)
       set(s => ({ assets: s.assets.filter(a => a.id !== id) }))
     },
 
-    /** Séquentiel et tolérant : un asset qui échoue ne doit ni interrompre les
-     *  suivants, ni disparaître de la liste alors qu'il est toujours en base.
-     *  On ne retire que ce que le serveur a confirmé. */
+    /** Sequential and tolerant: a failing asset must neither stop the next ones
+     *  nor disappear from the list while it is still in the database.
+     *  Only what the server confirmed is removed. */
     removeAssets: async ids => {
       const ok: string[] = []
       const failed: string[] = []
@@ -739,7 +733,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       }
       if (ok.length) {
         const gone = new Set(ok)
-        /* Suppressions rapprochées : une seule annonce, une seule annulation. */
+        /* Deletions in quick succession: a single notice, a single undo. */
         set(s => {
           const prec = s.lastDeleted && Date.now() - s.lastDeleted.at < 10_000 ? s.lastDeleted.ids : []
           return { assets: s.assets.filter(a => !gone.has(a.id)), lastDeleted: { ids: [...prec, ...ok], at: Date.now() } }
@@ -793,13 +787,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         set({ personaVideo: Boolean(p.videoLoras?.length), personaVideoWan: estLoraWan(p.videoLoras), personaCredit: p.credit ?? null, personaGarderobe: p.garderobe ?? GARDEROBE_VIDE, personaVoix: p.voix ?? null })
         const change = (p.id ?? null) !== get().personaId
         const klein = Boolean(p.lorasKlein?.length)
-        // personnage Krea seul : la recette Klein n'a rien pour tenir son visage
+        // Krea-only character: the Klein recipe has nothing to hold its face
         set({ personaKlein: klein, personaKrea: Boolean(p.loras?.length) || p.id === SANS_PERSONNAGE, personaFlux3: Boolean(p.lorasFlux3?.length) })
         set({ personaName: p.id === SANS_PERSONNAGE ? t('Sans personnage') : p.name?.trim() || t('Personnage'), personaAvatar: p.id === SANS_PERSONNAGE ? null : p.avatar ?? null, personaId: p.id ?? null })
         if (change) set({ assets: await fetchAssets() })
-      } catch { /* hors ligne : on garde l'affichage */ }
+      } catch { /* offline: keep the current display */ }
     },
-    // l'en-tête et la page Personnages choisissent, eux aussi, pour la page en cours seulement
+    // the header and the Characters page also choose for the current page only
     choisirPersonnage: async id => get().choisirPersonnagePage(id),
     pageCourante: 'accueil',
     choisirPersonnagePage: async id => {
@@ -807,8 +801,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       retenirPersonnage(id, false)
       await get().refreshPersona()
     },
-    /* Pas de personnage par défaut, pour personne (visiteurs compris) : une page montre tout et n'impose aucun
-       visage, sauf si un personnage y a été choisi. */
+    /* No default character, for anyone (visitors included): a page shows everything and forces
+       no face, unless a character was chosen on it. */
     entrerPage: async page => {
       set({ pageCourante: page })
       const id = lirePersonnagesPages()[page] ?? SANS_PERSONNAGE
@@ -816,20 +810,20 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     hydrate: async () => {
-      // Photo de profil : un fichier, pas une donnée — chargée à part, sans bloquer.
+      // Profile photo: a file, not data — loaded separately, without blocking.
       void fetch('/api/persona/avatar/meta').then(r => r.json()).then((m: { url: string | null }) => set({ personaAvatar: m.url })).catch(() => {})
-      // Le mode « son » n'a pas de chaîne : un état persisté dessus repart en photo.
+      // "son" mode has no pipeline: a persisted state on it falls back to photo.
       if (get().mode === 'son') get().setMode('photo')
-      // moteur vidéo retiré de cette édition (MiniMax H3, LTX rapide) mais resté en mémoire du navigateur
+      // video engine not in this edition (MiniMax H3, fast LTX) but still stored in the browser
       if (!VIDEO_ENGINES.some(e => e.key === get().video.engine)) get().updateVideo({ engine: get().video.engine === 'ltx' ? 'ltx_hq' : 'wan' })
-      /* Plafonds, minutes, brouillons et liste T0 : le serveur est la source,
-         le front n'en garde qu'un repli hors ligne. */
+      /* Caps, minutes, drafts and T0 list: the server is the source, the
+         front end only keeps an offline fallback. */
       try {
         const h = await (await fetch('/api/health')).json()
         setEngineCatalog(h.videoEngines)
         set({ h3: (h.h3 as AppState['h3']) ?? null })
         setT0Blocklist(h.t0Blocklist)
-        // Nom du personnage : configuré côté serveur, « Personnage » à défaut.
+        // Character name: configured on the server, "Personnage" otherwise.
         const nom = (h.persona?.name ?? h.personaName) as string | undefined
         set({ serverInfo: { preambles: h.preambles ?? {}, composerModels: h.composerModels ?? {}, renderRates: h.renderRates ?? null },
           personaId: (h.persona?.id as string | undefined) ?? null,
@@ -842,15 +836,15 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           ...(nom?.trim() ? { personaName: nom.trim() } : {}) })
       } catch (e) { console.warn('[store] catalogue moteurs non chargé :', e) }
       if (personnageChoisi()) await get().refreshPersona()
-      // la bibliothèque arrive quand le navigateur est libre : l'accueil s'affiche sans l'attendre
+      // the library loads when the browser is idle: the home screen shows without waiting for it
       const chargerBibliotheque = () => void fetchAssets().then(assets => set({ assets })).catch(e => console.error('[store] bibliothèque non chargée :', e))
       if (typeof requestIdleCallback === 'function') requestIdleCallback(chargerBibliotheque, { timeout: 1500 })
       else setTimeout(chargerBibliotheque, 300)
-      /* Les jobs aussi — TOUS, y compris ceux en vol : la base est la source
-         de vérité, et chaque appareil s'ABONNE aux jobs en cours (adopt =
-         même boucle d'interrogation que submit, sans re-soumettre). C'est ce
-         qui rend la file visible après un rechargement, sur l'ordinateur comme sur
-         le téléphone, avec progression et asset à l'arrivée. */
+      /* Jobs too — ALL of them, including in-flight ones: the database is the
+         source of truth, and each device SUBSCRIBES to running jobs (adopt =
+         same polling loop as submit, without resubmitting). This keeps the
+         queue visible after a reload, on desktop and phone, with progress and
+         the asset on arrival. */
       try {
         const r = await fetch('/api/jobs?limit=30')
         const { jobs } = await r.json() as { jobs: Array<Record<string, unknown>> }
@@ -861,14 +855,14 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         if (restored.length) set(st => ({ jobs: [...st.jobs, ...restored] }))
         for (const j of restored)
           if (j.status !== 'done' && j.status !== 'blocked') worker.adopt(j)
-        /* Les jobs DÉJÀ connus et encore « en cours » à l'écran sont re-suivis :
-           si leur suivi s'est perdu, c'est ce qui rattrape l'état réel (le
-           worker n'ouvre jamais deux suivis pour le même job). */
+        /* Jobs ALREADY known and still "running" on screen are re-tracked: if
+           their tracking was lost, this catches up with the real state (the
+           worker never opens two trackers for the same job). */
         for (const j of get().jobs)
           if (known.has(j.id) && j.status !== 'done' && j.status !== 'blocked') worker.adopt(j)
       } catch (e) { console.error('[store] jobs non rechargés :', e) }
-      /* Rendus lancés ailleurs après l'ouverture de la page (un autre onglet, le téléphone, l'API) :
-         toutes les 8 s, ceux qui sont encore en cours et inconnus de cet onglet sont adoptés, leur carte s'affiche. */
+      /* Renders started elsewhere after the page opened (another tab, the phone, the API):
+         every 8 s, those still running and unknown to this tab are adopted and their card shown. */
       if (!suiviFileLance) {
         suiviFileLance = true
         window.setInterval(async () => {
@@ -880,32 +874,32 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
             if (!neufs.length) return
             set(st => ({ jobs: [...st.jobs, ...neufs] }))
             for (const j of neufs) worker.adopt(j)
-          } catch { /* serveur injoignable : on réessaie au tour suivant */ }
+          } catch { /* server unreachable: retry on the next tick */ }
         }, 8000)
       }
     },
 
-    /** Clone : réinjecte toute la lignée d'un asset dans la console.
+    /** Clone: reinjects an asset's full lineage into the console.
      *
-     *  Un SEUL `set` : passer par updatePhoto + setComposed ne marche pas.
-     *  updatePhoto ne régénère `userPrompt` que si `promptTouched` est faux —
-     *  donc dès que l'utilisateur a édité le prompt à la main, le champ
-     *  resterait figé sur l'ancien texte. On écrit ici `userPrompt` explicitement
-     *  et on pose `promptTouched: true` pour qu'aucune reconstruction
-     *  automatique ne vienne écraser la valeur clonée juste après.
+     *  A SINGLE `set`: going through updatePhoto + setComposed does not work.
+     *  updatePhoto only regenerates `userPrompt` when `promptTouched` is false,
+     *  so once the user has edited the prompt by hand the field would stay on
+     *  the old text. `userPrompt` is written explicitly here and
+     *  `promptTouched: true` is set so no automatic rebuild overwrites the
+     *  cloned value right after.
      *
-     *  Repli : les assets d'avant l'élargissement de `provenance` n'ont pas de
-     *  `userPrompt` — on retombe sur le prompt composé pour ne rien casser. */
+     *  Fallback: assets without `userPrompt` in their provenance fall back
+     *  to the composed prompt. */
     cloneFrom: asset => {
-      marquerChargement(set, get, 'tout')   // un clone rejoue tout son réglage
+      marquerChargement(set, get, 'tout')   // a clone replays its full setting
       const p = asset.provenance
       const isVideo = asset.mediaType === 'video'
       set(s => ({
         mode: asset.mediaType,
         photo: isVideo ? s.photo : { ...s.photo, ...(p.selections as Partial<PhotoSelections>) },
         video: isVideo ? { ...s.video, ...(p.selections as Partial<VideoSelections>) } : s.video,
-        /* Le VRAI prompt (composé, celui qui a rendu) — pas le brief code
-           court (« corr#30v0 still42 fix ») saisi par l'opérateur. */
+        /* The REAL prompt (composed, the one that rendered) — not the short coded
+           brief typed by the operator. */
         userPrompt: stripShotMarkers(p.composedPositive || p.userPrompt || ''),
         promptTouched: true,
         userDirectives: p.userDirectives ?? '',
@@ -917,34 +911,34 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         navRequest: { section: isVideo ? 'video' as const : 'image' as const,
                       nonce: (s.navRequest?.nonce ?? 0) + 1 },
       }))
-      /* Vidéo : re-préparer la STILL du job cloné. La provenance INLINE des
-         vignettes est allégée (selections souvent absentes) : on va chercher
-         la provenance COMPLÈTE au besoin, et `sourceImage` (le fichier input
-         du job, toujours enregistré en i2v) sert de repli universel. */
+      /* Video: re-prepare the cloned job's STILL. Thumbnails' INLINE provenance
+         is trimmed (selections often missing): the FULL provenance is fetched
+         when needed, and `sourceImage` (the job's input file, always stored
+         for i2v) is the universal fallback. */
       if (isVideo) {
         void (async () => {
           let sel = p.selections as Partial<VideoSelections> | undefined
           let source = (p as { sourceImage?: string }).sourceImage
           type Reel = { videoEngine?: string | null; endImage?: string | null; videoSeconds?: number | null; withAudio?: boolean | null }
           let reel: Reel = {}
-          /* La provenance INLINE des vignettes n'a PAS les selections (trop
-             lourdes pour la liste) : sans ce fetch, `task` ne serait jamais
-             restaurée et un clone d'un rendu « Créer » laisserait la sidebar
-             sur l'onglet Rejouer en cours. */
-          /* Toujours la provenance complète : elle porte aussi ce que le job a reçu (moteur,
-             frame de fin, durée), seul repère pour un rendu lancé sans selections. */
+          /* Thumbnails' INLINE provenance does NOT include selections (too heavy
+             for the list): without this fetch, `task` would never be restored
+             and cloning a "Créer" render would leave the sidebar on the current
+             tab. */
+          /* Always the full provenance: it also carries what the job received (engine,
+             end frame, duration), the only reference for a render started without selections. */
           try {
             const full = await (await fetch(`/api/assets/${encodeURIComponent(asset.id)}/provenance`)).json()
             sel = (full.selections as Partial<VideoSelections> | null) ?? sel
             source = full.sourceImage ?? source
             reel = full as Reel
-          } catch { /* injoignable : on garde l'inline */ }
-          // Onglet + réglages du job cloné (le premier set n'avait que
-          // l'inline, souvent vide). Le mode courant ne doit pas survivre.
+          } catch { /* unreachable: keep the inline one */ }
+          // Tab + settings of the cloned job (the first set only had
+          // the inline data, often empty). The current mode must not persist.
           if (sel && Object.keys(sel).length)
             get().updateVideo(sel as Partial<VideoSelections>)
-          /* Moteur, durée et frame de fin du job cloné : sans eux, la console gardait le moteur
-             et la frame de fin du réglage précédent. */
+          /* Engine, duration and end frame of the cloned job: without them, the console would keep the
+             engine and end frame of the previous setting. */
           const moteur = (reel.videoEngine ?? asset.videoEngine) as string | undefined
           const patch: Partial<VideoSelections> = {}
           if (moteur && moteur !== 'motion' && !sel?.engine) patch.engine = moteur as VideoSelections['engine']
@@ -957,9 +951,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           const startId = sel?.startAssetId
           if (startId && get().assets.some(a => a.id === startId)) { void get().pickStartFrame(startId); return }
           const file = sel?.startFrameFile || source
-          // Dims remises à zéro : celles de la still PRÉCÉDENTE resteraient et
-          // fausseraient le format « origine ».
-          // Le serveur sonde le fichier réel au dispatch de toute façon.
+          // Dims reset to zero: those of the PREVIOUS still would remain and
+          // distort the "origine" aspect.
+          // The server probes the actual file at dispatch anyway.
           if (file) get().updateVideo({ startAssetId: null, startFrameFile: file,
             startFrameW: (sel?.startFrameW as number | undefined) ?? 0,
             startFrameH: (sel?.startFrameH as number | undefined) ?? 0,
@@ -971,9 +965,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     setMode: mode =>
       set(s => {
         if (mode === s.mode) return {}
-        /* Prompts SÉPARÉS par mode : le texte du mode quitté
-           est rangé, celui du mode rejoint est restauré s'il avait été édité
-           à la main — sinon prompt auto du mode. */
+        /* Prompts SEPARATED per mode: the text of the mode being left is stored,
+           the text of the mode being entered is restored if it was edited by
+           hand — otherwise the mode's auto prompt. */
         const promptStash = { ...s.promptStash, [s.mode]: { text: s.userPrompt, touched: s.promptTouched } }
         const saved = promptStash[mode]
         return {
@@ -985,16 +979,16 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           promptTouched: saved?.touched ?? false,
         }
       }),
-    /** Patch les sélections photo + régénère le prompt auto
-     *  (sauf si l'utilisateur a pris la main sur le champ). */
+    /** Patches photo selections + regenerates the auto prompt
+     *  (unless the user has taken over the field). */
     updatePhoto: patch =>
       set(s => {
         const photo = { ...s.photo, ...patch }
-        // Changer de tâche change la NATURE du champ texte : prompt de scène
-        // en génération, instruction en retouche. Reporter l'un dans l'autre
-        // enverrait une description de scène complète comme instruction.
-        // On repart donc du prompt auto, même si l'opérateur avait pris la
-        // main sur le champ précédent.
+        // Changing task changes the NATURE of the text field: scene prompt
+        // in generation, instruction in edit. Carrying one into the other
+        // would send a full scene description as an instruction.
+        // So it restarts from the auto prompt, even if the operator had taken
+        // over the previous field.
         const taskChanged = patch.task !== undefined && patch.task !== s.photo.task
         return {
           photo,
@@ -1011,8 +1005,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     updateVideo: patch =>
       set(s => {
         const video = { ...s.video, ...patch }
-        /* Changement de famille de moteur : les LoRA de l'ancien ne valent rien sur
-           le nouveau. On range la pile en cours et on rappelle celle du moteur visé. */
+        /* Engine family change: the old engine's LoRAs are useless on the new one.
+           The current stack is stored and the target engine's stack is restored. */
         const fam = (e: string) => e.startsWith('minimax') ? 'h3' : e.startsWith('ltx') ? 'ltx' : e
         let lastVideoLoras = s.lastVideoLoras
         if (patch.engine && fam(patch.engine) !== fam(s.video.engine) && !('videoLoras' in patch)) {
@@ -1036,8 +1030,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         : s.userPrompt,
     })),
 
-    /* Catalogue chargé une fois, au montage du sélecteur. Un échec n'est pas
-       masqué : la liste reste vide et le sélecteur le dit. */
+    /* Catalog loaded once, when the selector mounts. A failure is not hidden:
+       the list stays empty and the selector says so. */
     loadLoras: async () => {
       try {
         const r = await fetch('/api/loras')
@@ -1050,8 +1044,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     toggleLora: (name: string) => set(s => {
       if (s.loraPicks.some(l => l.name === name))
         return { loraPicks: s.loraPicks.filter(l => l.name !== name) }
-      // Pré-remplir le déclencheur connu : l'opérateur corrige si besoin,
-      // mais il ne part pas d'un champ vide sur les LoRA bien étiquetées.
+      // Pre-fill the known trigger: the operator corrects it if needed,
+      // but does not start from an empty field on well-labelled LoRAs.
       const info = s.loraCatalog.find(l => l.name === name)
       return { loraPicks: [...s.loraPicks, { name, strength: 1, trigger: info?.trigger ?? '' }] }
     }),
@@ -1079,8 +1073,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     setUserDirectives: v => set({ userDirectives: v }),
     setSoulLayer: v => set({ soulLayer: v || null }),
     setMoodLayer: v => set({ moodLayer: v || null }),
-    // Éditer le composé à la main l'aligne sur le prompt auto du moment :
-    // l'opérateur vient de le relire, il n'est plus périmé.
+    // Editing the composed prompt by hand aligns it with the current auto prompt:
+    // the operator just reviewed it, so it is no longer stale.
     setComposed: (pos, neg) => set(s => ({
       composedPositive: pos, composedNegative: neg, composedFrom: s.userPrompt, composedFor: ongletDe(s),
     })),
@@ -1100,11 +1094,11 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     setPhotoEngine: e => set({ photoEngine: e }),
     toggleSeedMode: () => set(s => (s.seedMode === 'lock'
       ? { seedMode: 'random' }
-      // Passer en verrou signifie presque toujours « refaire la même que la
-      // dernière », pas « reprendre un nombre choisi il y a trois heures ».
+      // Switching to lock almost always means "redo the same as the last one",
+      // not "reuse a number chosen hours ago".
       : { seedMode: 'lock', seedValue: s.lastSeed ?? s.seedValue })),
 
-    /** Composer : userPrompt + directives → prompt composé (reveal+edit). */
+    /** Compose: userPrompt + directives → composed prompt (reveal+edit). */
     composeNow: async () => {
       const { userPrompt, userDirectives } = get()
       set({ composing: true, t0Error: null })
@@ -1113,16 +1107,16 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         out = await composer.compose({ register: 'sfw', userPrompt, userDirectives, mode: get().mode,
           engine: get().mode === 'video'
             ? (get().video.task === 'motion_pure' ? 'motion' : get().video.engine)
-            // Retouche : system prompt dédié (engine_edit.txt) — reformule
-            // l'instruction d'édition au lieu de décrire une scène.
+            // Edit: dedicated system prompt (engine_edit.txt) — rephrases
+            // the edit instruction instead of describing a scene.
             : get().mode === 'photo' && get().photo.task === 'edit' ? 'edit'
             : get().photoEngine,
-          // Couches rewriter SOUL/MOOD (défaut null = OFF → composé inchangé).
+          // SOUL/MOOD rewriter layers (default null = OFF → composed prompt unchanged).
           soul: get().soulLayer, mood: get().moodLayer })
       } catch (e) {
-        // Le LLM tourne sur CPU : 20 à 60 s selon le modèle, et il peut être
-        // absent. On le dit dans le bandeau, sinon le bouton semble ne rien
-        // faire et l'opérateur envoie un job avec un composé vide.
+        // The LLM runs on CPU: 20 to 60 s depending on the model, and it may be
+        // missing. Show it in the banner, otherwise the button seems to do nothing
+        // and the operator submits a job with an empty composed prompt.
         set({ composing: false, t0Error: t('réécriture impossible — {e}', { e: (e as Error).message }) })
         return
       }
@@ -1192,10 +1186,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     pickStartFrame: async (assetId: string) => {
       marquerChargement(set, get, 'start')
       const { updateVideo } = get()
-      // startFrameUri vidé : sinon l'aperçu direct (clone/upload) resterait
-      // peint par-dessus la nouvelle sélection (priorité d'affichage).
+      // startFrameUri cleared: otherwise the direct preview (clone/upload) would stay
+      // painted over the new selection (display priority).
       updateVideo({ startAssetId: assetId, startFrameFile: '', startFrameUri: '', startFrameError: '' })
-      // le personnage suit la photo de départ : une photo de Jessica s'anime avec Jessica
+      // the character follows the start photo: a photo of a character animates with that character
       const photoPerso = get().assets.find(a => a.id === assetId)?.personaId
       if (photoPerso && photoPerso !== get().personaId) void get().choisirPersonnage(photoPerso)
       try {
@@ -1205,14 +1199,14 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         updateVideo({ startFrameFile: body.filename,
                       startFrameW: body.width ?? 0, startFrameH: body.height ?? 0 })
       } catch (e) {
-        // La vignette resterait sélectionnée alors que le graphe n'a rien à
-        // lire : on la désélectionne et on dit pourquoi.
+        // The thumbnail would stay selected while the graph has nothing to
+        // read: deselect it and say why.
         updateVideo({ startAssetId: null, startFrameError: String((e as Error).message || e) })
       }
     },
 
-    /** Dépôt de la vidéo driver du Motion Control — même mécanique que les
-     *  images : ce qui compte est le NOM rendu par le serveur. */
+    /** Upload of the Motion Control driver video — same mechanism as images:
+     *  what matters is the NAME returned by the server. */
     adoptServerJob: async id => {
       try {
         const { job } = await (await fetch(`/api/jobs/${encodeURIComponent(id)}`)).json() as { job: Record<string, unknown> }
@@ -1239,8 +1233,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     cancelJob: async (id: string) => {
       try {
         await apiCancelJob(id)
-        // Le poll du worker rapportera l'état final ; on reflète tout de
-        // suite l'intention pour que le chip ne reste pas « queued ».
+        // The worker poll will report the final state; reflect the intent
+        // immediately so the chip does not stay "queued".
         set(st => ({ jobs: st.jobs.map(j => j.id === id ? { ...j, status: 'blocked' } : j) }))
         return null
       } catch (e) {
@@ -1248,10 +1242,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       }
     },
 
-    /* ---------- extension vidéo ----------
-       Deux entrées (upload / galerie), un seul chemin : la vidéo est résolue
-       en DERNIÈRE FRAME côté serveur, et cette frame devient la start-frame
-       i2v ordinaire (startFrameFile) — toute la chaîne existante suit. */
+    /* ---------- video extension ----------
+       Two inputs (upload / gallery), one path: the video is resolved to its
+       LAST FRAME on the server, and that frame becomes the ordinary i2v
+       start frame (startFrameFile) — the existing pipeline follows. */
     uploadExtendVideo: async (file: File) => {
       marquerChargement(set, get, 'extend')
       const { updateVideo } = get()
@@ -1272,8 +1266,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     pickExtendClip: async (assetId: string) => {
       marquerChargement(set, get, 'extend')
       const a = get().assets.find(x => x.id === assetId)
-      /* Nouvelle suite : l'image de fin d'un réglage précédent (clone d'un autre plan) n'a rien à voir
-         avec ce clip — gardée, elle forçait LTX à finir sur une still western au milieu d'un vol de dragon. */
+      /* New continuation: an end frame from a previous setting (clone of another shot) is unrelated
+         to this clip, so it is cleared. */
       get().updateVideo({ extendError: '', extendWarn: '', extendAssetId: assetId, extendVideoFile: '',
                           startFrameFile: '', extendVideoUri: a?.uri ?? '', endAssetId: null, endFrameFile: '', endFrameError: '' })
       await get().extractExtendFrame()
@@ -1290,7 +1284,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
     extractExtendFrame: async () => {
       const v = get().video
-      // Prequel : 1re frame → frame de FIN (pas de frame de départ) ; sequel : dernière → départ.
+      // Prequel: 1st frame → END frame (no start frame); sequel: last → start.
       const pick = v.extendPrequel ? 'first' : v.extendPick
       try {
         let body: { filename: string; width: number; height: number; warn?: string | null; error?: string }
@@ -1337,8 +1331,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     pickMotionStill: async (assetId: string) => {
       marquerChargement(set, get, 'still')
       const { updateVideo } = get()
-      // Aperçu immédiat via l'URI de l'asset : seul le chemin upload posait
-      // motionStillUri — depuis une vignette, le slot restait vide.
+      // Immediate preview via the asset URI: from a thumbnail, motionStillUri
+      // must be set here too, otherwise the slot stays empty.
       const uri = get().assets.find(a => a.id === assetId)?.uri ?? ''
       updateVideo({ motionStillAssetId: assetId, motionStillFile: '', motionStillError: '', motionStillUri: uri })
       try {
@@ -1395,9 +1389,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(tServeur(body.error) ?? `HTTP ${res.status}`)
-        // Vidéo déposée comme image de départ = PROLONGATION : on extrait sa
-        // DERNIÈRE frame et c'est elle qui devient la start-frame i2v (le clip
-        // reprend là où il s'était arrêté). Image = comportement normal.
+        // Video dropped as start image = EXTENSION: its LAST frame is
+        // extracted and becomes the i2v start frame (the clip
+        // continues where it stopped). Image = normal behavior.
         if ((file.type || '').startsWith('video/')) {
           const r = await fetch('/api/input/last-frame', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1443,11 +1437,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     relaunchJob: async (jobId: string) => {
       const src = get().jobs.find(j => j.id === jobId)
       if (!src) return
-      /* Les entrées d'exécution (driver, still, moteur, image source…) ne
-         vivent PAS au niveau racine du Job : elles sont dans `selections`.
-         Les remonter est ce qui rend la relance possible — sans ça le
-         serveur reçoit un job vidéo nu et le refuse en 400, et le clone
-         passe « blocked » à la seconde. */
+      /* Execution inputs (driver, still, engine, source image…) do NOT live at
+         the Job's root level: they are in `selections`. Lifting them makes a
+         rerun possible — otherwise the server receives a bare video job and
+         rejects it with 400, and the clone becomes "blocked" immediately. */
       const sel = (src.selections ?? {}) as Partial<VideoSelections> & Partial<PhotoSelections>
       const video = src.mode === 'video'
       const isMotion = video && sel.task === 'motion_pure'
@@ -1467,15 +1460,15 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           sourceImage: sel.startFrameFile || undefined,
           videoSeconds: Math.min(sel.durationS ?? 5, engineInfo(sel.engine ?? 'wan').maxSeconds),
           videoFps: sel.fps ?? 24,
-          // Le clone ne prend le brouillon que si le moteur le porte : après
-          // un changement de moteur en mémoire, le serveur refuserait.
+          // The clone only takes draft mode if the engine supports it: after
+          // an engine change in memory, the server would reject it.
           videoDraft: Boolean(sel.draft) && Boolean(engineInfo(sel.engine ?? 'wan').draft),
         } : {}),
         ...(isMotion ? {
           motionDriver: sel.motionDriverFile,
           motionPreview: Boolean(sel.motionPreview),
           motionMode: sel.motionMode === 'replace' ? 'replace' : 'animate',
-          // La still déposée est la réf du personnage animé (Move) ; le Mix part de la vidéo seule.
+          // The uploaded still is the animated character's reference (Move); Mix starts from the video alone.
           ...(sel.motionStillFile && sel.motionMode !== 'replace' ? { motionRef: sel.motionStillFile } : {}),
         } : {}),
       }
@@ -1487,26 +1480,25 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       const s = get()
       const isEdit = s.mode === 'photo' && s.photo.task === 'edit'
       const register: Register = 'sfw'
-      // Tout vide et rien d'écrit : le serveur refuserait « prompt vide » — on le dit ici.
+      // All empty and nothing written: the server would reject "empty prompt" — report it here.
       if (s.mode === 'photo' && !s.userPrompt.trim() && !s.composedPositive.trim()) {
         set({ t0Error: t('prompt vide : choisis un élément de composition ou écris le prompt') }); return
       }
 
-      /* Un composé n'est envoyé que s'il a été réécrit depuis CE prompt.
-         Sinon c'est le texte brut qui part : un composé périmé l'emporterait
-         en silence sur le texte affiché. Sur
-         mobile le composé n'est même pas visible : ce qui est à l'écran doit
-         être ce qui part. */
-      /* …et seulement dans l'onglet où il a été écrit : un composé tiré de
-         l'image dans « Créer » à partir d'un brief VIDE passait pour frais dans
-         « Rejouer » au champ vide ('' === ''), et le prompt de Créer partait. */
+      /* A composed prompt is only sent if it was rewritten from THIS prompt.
+         Otherwise the raw text is sent: a stale composed prompt would silently
+         win over the displayed text. On mobile the composed prompt is not even
+         visible: what is on screen must be what is sent. */
+      /* …and only in the tab where it was written: a composed prompt derived
+         from the image in "Créer" from an EMPTY brief would otherwise look
+         fresh in "Rejouer" with an empty field ('' === ''). */
       const fresh = !!s.composedPositive && s.composedFrom === s.userPrompt && s.composedFor === ongletDe(s)
       const positive = !fresh ? s.userPrompt : s.composedPositive
       const t0 = validateT0(positive)
       if (!t0.ok) { set({ t0Error: t0.reason ?? t('Bloqué T0') }); return }
-      /* Garde-fou vidéo : le serveur refuse déjà un i2v sans image de départ,
-         mais l'erreur arriverait après l'envoi, une fois le job en file. On
-         l'attrape ici pour que le refus soit lisible à l'endroit du clic. */
+      /* Video safeguard: the server already rejects an i2v job without a start
+         image, but the error would arrive after submission, once queued.
+         Catch it here so the rejection is shown where the user clicked. */
       if (s.mode === 'video' && s.video.task === 'motion_pure' && s.video.motionMode === 'replace' && !s.video.motionDriverFile) {
         set({ t0Error: s.video.motionDriverError || t('vidéo source manquante : déposer la vidéo où mettre le personnage') })
         return
@@ -1524,18 +1516,18 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         set({ t0Error: s.video.extendError || t('extension vidéo sans source : déposer une vidéo ou choisir un clip, la dernière frame devient l’image de départ') })
         return
       }
-      // Tout job vidéo par MOTEUR (i2v) — hors motion/extend qui ont leur
-      // propre source — anime une image : sans start-frame le serveur 400.
-      // On couvre TOUS ces tasks (pas juste 'i2v') pour ne pas laisser un
-      // 'generate' résiduel filer jusqu'au 400 → « blocked » opaque.
-      /* MiniMax H3 accepte la frame de FIN seule (le clip arrive sur elle).
-         Les autres moteurs partent d'une image. */
-      /* Vignette de fin choisie sans copie vers ComfyUI (état restauré, ou copie
-         pas encore revenue) : on la fait maintenant. */
+      // Every ENGINE video job (i2v) — except motion/extend, which have their
+      // own source — animates an image: without a start frame the server returns 400.
+      // ALL these tasks are covered (not just 'i2v') so a leftover
+      // 'generate' does not slip through to an opaque 400 → "blocked".
+      /* MiniMax H3 accepts the END frame alone (the clip arrives on it).
+         The other engines start from an image. */
+      /* End thumbnail chosen without a copy to ComfyUI (restored state, or copy
+         not yet returned): do it now. */
       if (s.mode === 'video' && s.video.endAssetId && !s.video.endFrameFile) await get().pickEndFrame(s.video.endAssetId)
       const finSeule = H3.includes(get().video.engine) && !!get().video.endFrameFile
-      /* Prequel : seul Wan (WanFirstLastFrameToVideo) sait arriver sur une
-         frame de fin ; LTX n'a pas d'entrée équivalente. */
+      /* Prequel: only Wan (WanFirstLastFrameToVideo) can end on an end frame;
+         LTX has no equivalent input. */
       const prequel = s.mode === 'video' && s.video.task === 'extend' && !!s.video.extendPrequel
       if (prequel) {
         if (!['wan', ...H3].includes(s.video.engine)) { set({ t0Error: t('prequel : choisir Wan (LTX ne sait pas arriver sur une frame de fin)') }); return }
@@ -1548,9 +1540,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           && !['motion_pure', 'extend', 't2v'].includes(s.video.task)
           && !s.video.startFrameFile && !finSeule) {
         set({ t0Error: s.video.startFrameError
-          // Une vignette sélectionnée dont la copie vers ComfyUI n'est pas
-          // finie n'est PAS une absence : on le dit, au lieu d'accuser
-          // l'opérateur de n'avoir rien choisi.
+          // A selected thumbnail whose copy to ComfyUI has not finished
+          // is NOT a missing selection: say so, instead of telling
+          // the operator nothing was chosen.
           || (s.video.startAssetId
             ? t('image de départ en cours de préparation — réessayer dans une seconde')
             : t('image de départ manquante : choisir une still dans la bibliothèque ou en déposer une')) })
@@ -1568,22 +1560,21 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       const selections =
         s.mode === 'photo' ? s.photo : s.mode === 'video' ? s.video : s.son
 
-      /* Lot : le MÊME prompt, N fois. La seule chose qui doit différer d'un
-         rendu à l'autre est la seed — sinon le lot rendrait N fois la même
-         image et n'aurait aucun intérêt.
-         En mode aléatoire c'est le serveur qui tire, donc rien à faire ici.
-         En mode verrouillé, on incrémente : demander un lot ET une seed fixe
-         est contradictoire, et incrémenter reste reproductible (la provenance
-         garde la seed exacte de chaque rendu). */
+      /* Batch: the SAME prompt, N times. Only the seed must differ between
+         renders, otherwise the batch would render the same image N times.
+         In random mode the server draws, so nothing to do here.
+         In locked mode the seed is incremented: a batch AND a fixed seed
+         contradict each other, and incrementing stays reproducible (the
+         provenance keeps each render's exact seed). */
       const n = Math.max(1, Math.min(10, s.batchCount))
       const batchId = s.carouselBatchId ?? (n > 1 ? crypto.randomUUID() : undefined)
-      /* Une clé par ENVOI, déclinée par index de lot : `base-0`, `base-1`…
-         Sans le suffixe, les 4 jobs d'un lot partageraient la même clé et le
-         serveur n'en créerait qu'un seul. */
-      /* Un envoi encore en cours garde SA clé : un second appui pendant ce
-         temps est une nouvelle intention, pas une reprise. Reprendre sa
-         clé ferait rendre au serveur les jobs déjà créés, et des vignettes
-         resteraient « en attente » sur des jobs inexistants. */
+      /* One key per SUBMISSION, suffixed by batch index: `base-0`, `base-1`…
+         Without the suffix, the jobs of a batch would share one key and the
+         server would create only one. */
+      /* A submission still in progress keeps ITS key: a second press meanwhile
+         is a new intent, not a retry. Reusing its key would make the server
+         return the jobs already created, and thumbnails would stay "waiting"
+         on nonexistent jobs. */
       const reprise = envoiEnCours ? null : s.requestId
       const reqBase = reprise ?? `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
       if (!envoiEnCours) set({ requestId: reqBase })
@@ -1596,10 +1587,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         width: s.mode === 'photo' ? s.photoSize?.w : undefined,
         height: s.mode === 'photo' ? s.photoSize?.h : undefined,
         createdAt: Date.now(),
-        // une retouche reste rangée sous le personnage de sa photo, pas sous le personnage actif
+        // an edit stays filed under the character of its photo, not the active character
         personaId: (isEdit && s.assets.find(a => a.id === s.photo.editSourceAssetId)?.personaId) || s.personaId || 'default',
         ...(s.mode === 'photo' && !isEdit ? { photoEngine: s.photoEngine, ...(s.references.length ? { references: s.references.map(x => x.file) } : {}) } : {}),
-        // carrousel sans personnage : la première référence est la photo d'origine, son visage est tenu
+        // carousel without a character: the first reference is the original photo, its face is held
         ...(s.carouselBatchId && s.personaId === SANS_PERSONNAGE && s.references.length ? { refVisage: true } : {}),
         register,
         mode: s.mode,
@@ -1613,48 +1604,47 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 
         userDirectives: s.userDirectives,
         composedPositive: positive,
-        /* Le négatif suit la même garde que le positif : celui d'un composé périmé (clone d'un autre
-           plan) partait en silence — « second horse » d'un western sur une suite de dragon (443-4sq1).
-           Vide, le serveur prend le négatif du workflow. */
+        /* The negative follows the same guard as the positive: a stale composed
+           prompt's negative must not be sent. Empty, the server uses the workflow's negative. */
         composedNegative: fresh ? s.composedNegative : '',
         conditioningRefs: buildConditioningRefs(s.mode, selections),
         loras: s.loraPicks.filter(l => !l.off),
-        // ControlNet : uniquement en Génération, et seulement si le dépôt a
-        // abouti — envoyer un nom de fichier que le serveur n'a pas reçu ferait
-        // échouer le graphe à l'exécution, pas à la validation.
+        // ControlNet: only in Generation, and only if the upload has
+        // succeeded — sending a file name the server has not received would
+        // fail the graph at execution, not at validation.
         ...(CONTROLNET_AVAILABLE && !isEdit && s.mode === 'photo' && s.photo.cnRefFile
           ? {
             controlNet: { file: s.photo.cnRefFile, type: s.photo.cnType,
                           strength: s.photo.cnStrength },
-            // Le latent prend le FORMAT de la référence : sinon la carte de
-            // contrôle est recadrée en silence et le cadrage rendu n'est pas
-            // celui qu'on voit dans la vignette.
+            // The latent takes the reference's ASPECT: otherwise the control map
+            // is silently cropped and the rendered framing is not
+            // the one seen in the thumbnail.
             ...latentFor(s.photo.cnRefW, s.photo.cnRefH),
           }
           : {}),
-        // La vidéo part d'une still : le serveur refuse un job i2v sans elle.
-        // `audioEffective` plutôt que la case brute : sur un moteur muet la
-        // case ne veut rien dire, et envoyer `true` ferait croire, en
-        // provenance, qu'on a demandé un son qui n'a jamais pu exister.
-        // Le format « origine » est résolu ICI, sur les dimensions de la
-        // still : le serveur ne connaît que les ratios du ResolutionSelector.
+        // Video starts from a still: the server rejects an i2v job without it.
+        // `audioEffective` rather than the raw checkbox: on a silent engine the
+        // checkbox is meaningless, and sending `true` would record in provenance
+        // a sound request that could never be fulfilled.
+        // The "origine" aspect is resolved HERE, from the still's dimensions:
+        // the server only knows the ResolutionSelector ratios.
         ...(s.mode === 'video' && s.video.task === 'motion_pure' ? {
           motionDriver: s.video.motionDriverFile,
-          // Mix : la vidéo seule, le serveur fabrique la référence du personnage
+          // Mix: video only, the server builds the character reference
           motionRef: s.video.motionMode === 'replace' ? undefined : s.video.motionStillFile,
           motionMode: s.video.motionMode === 'replace' ? 'replace' : 'animate',
           motionPreview: s.video.motionPreview,
           motionSceneText: s.video.motionSceneText || undefined,
           motionPoseStrength: s.video.motionPoseStrength,
           mixDebut: s.video.mixDebut,
-          // Mix à plusieurs : de gauche à droite, une passe par personne
+          // Multi-character Mix: left to right, one pass per person
           ...(s.video.motionMode === 'replace' && s.video.mixPersonnes.length > 1 ? { personaId: s.video.mixPersonnes[0], mixRang: 0, mixTotal: s.video.mixPersonnes.length, mixSuite: s.video.mixPersonnes.slice(1) } : {}),
           motionRefStrength: s.video.motionRefStrength,
         } : s.mode === 'video' && s.video.task === 't2v' ? {
-          /* Plan d'ambiance : seul LTX-2.5 part du texte. Pas de still, pas de
-             LoRA vidéo du personnage (le serveur les écarte aussi). */
+          /* Ambient shot: only LTX-2.5 starts from text. No still, no character
+             video LoRA (the server drops them too). */
           t2v: true,
-          // avec le personnage : sa LoRA vidéo et son mot déclencheur (serveur)
+          // with the character: its video LoRA and trigger word (server)
           t2vPersonnage: Boolean(s.video.t2vPersonnage && s.personaVideo) || undefined,
           videoEngine: moteurT2v(Boolean(s.video.t2vPersonnage && s.personaVideo && s.personaVideoWan)),
           withAudio: audioEffective(moteurT2v(Boolean(s.video.t2vPersonnage && s.personaVideo && s.personaVideoWan)), s.video.withAudio),
@@ -1668,27 +1658,27 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           videoLoras: s.video.videoLoras.filter(l => !l.off),
           withAudio: audioEffective(s.video.engine, s.video.withAudio),
           sourceImage: s.video.startFrameFile || undefined,
-          /* Keyframe d'arrivée : le serveur lit le fichier, pas l'id d'asset.
-             H3, Wan et LTX savent y arriver (FIN_OK). */
+          /* Arrival keyframe: the server reads the file, not the asset id.
+             H3, Wan and LTX can end on it (FIN_OK). */
           endImage: prequel ? s.video.extendEndFile || undefined
             : FIN_OK.includes(s.video.engine) ? get().video.endFrameFile || undefined : undefined,
           ...(prequel ? { prequel: true } : {}),
-          /* Multi-plans : aucun paramètre de nœud n'existe, c'est le PROMPT
-             qui pilote. Coché, on annonce la séquence ; décoché, on impose
-             le plan unique — sans quoi MiniMax coupe parfois de lui-même. */
-          // Idempotent (stripShotMarkers) : un prompt qui porte déjà un
-          // marqueur — vieux clone, resoumission — n'en reçoit pas un second.
+          /* Multi-shot: no node parameter exists, the PROMPT drives it. Checked,
+             the sequence is announced; unchecked, a single shot is enforced —
+             otherwise MiniMax sometimes cuts on its own. */
+          // Idempotent (stripShotMarkers): a prompt that already carries a
+          // marker (clone, resubmission) does not get a second one.
           composedPositive: s.video.multiShot
             ? `multi-shot sequence with cinematic cuts. ${stripShotMarkers(positive)}`
             : `${stripShotMarkers(positive)}. single continuous shot, no cuts`,
-          // Borné au moteur : après un changement de moteur, la valeur en
-          // mémoire peut dépasser le plafond du nouveau — le serveur
-          // refuserait, autant envoyer ce que le sélecteur affiche.
+          // Clamped to the engine: after an engine change, the stored value
+          // may exceed the new engine's cap — the server
+          // would reject it, so send what the selector shows.
           videoSeconds: Math.min(s.video.durationS, engineInfo(s.video.engine).maxSeconds),
           videoFps: s.video.fps,
           videoDraft: s.video.draft && Boolean(engineInfo(s.video.engine).draft),
-          /* Suite ou prequel : toujours le montage (origine + suite) ; le serveur met ensuite la suite
-             seule à la corbeille. */
+          /* Continuation or prequel: always the edit (source + continuation); the server then moves the
+             continuation alone to the trash. */
           ...(s.video.task === 'extend'
             ? (s.video.extendVideoFile
               ? { concatWith: s.video.extendVideoFile, concatFrom: 'input' as const }
@@ -1696,9 +1686,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
                 ? { concatWith: (s.assets.find(a => a.id === s.video.extendAssetId)?.uri ?? '').split('/').pop() ?? undefined, concatFrom: 'media' as const }
                 : {})
             : {}),
-          /* « origine » part TEL QUEL : le serveur sonde le fichier réel de la
-             still au dispatch (les dims du front, jointes en repli, peuvent
-             être périmées). */
+          /* "origine" is sent AS IS: the server probes the still's actual file
+             at dispatch (front-end dims, attached as fallback, may be stale). */
           videoAspect: s.video.aspect,
           ...(s.video.aspect === 'origine' && s.video.startFrameW && s.video.startFrameH
             ? { videoSrcW: s.video.startFrameW, videoSrcH: s.video.startFrameH } : {}),
@@ -1707,26 +1696,25 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           op: 'edit' as const,
           sourceImage: s.photo.editSourceFile,
           editStyle: s.photo.editStyle ?? undefined,
-          // La retouche GARDE le composé de la colonne 3 : c'est lui
-          // l'instruction d'édition (composée par le LLM), pas un descriptif
-          // de scène. On ne l'écrase donc pas.
+          // Edit KEEPS the composed prompt from column 3: it is
+          // the edit instruction (composed by the LLM), not a scene
+          // description. So it is not overwritten.
         } : {}),
         status: 'queued',
       })
 
-      /* CARROUSEL (photo, génération, lot > 1) : même tenue, même lieu, même
-         seed — et à chaque image une pose, un cadrage et une focale
-         différents. Le texte est le prompt AUTO reconstruit sur chaque
-         variante : un composé LLM ou un prompt édité à la main décrit la
-         scène d'origine, pas la variante. La seed est verrouillée pour tout
-         le lot (tirée ici si aléatoire) pour que les N rendus partagent
-         lumière et grain. La pose et le style courants ouvrent le lot, les
-         autres sont tirés sans remise dans le vocabulaire.
-         Décoché, le lot est N tirages du MÊME prompt (seeds différentes). */
-      /* Carrousel : les VERROUS OUVERTS (locks[k] === false) désignent les
-         dimensions qui varient par image. Photo/génération, lot > 1, ≥1 ouvert.
-         Chaque dimension ouverte est tirée sans remise dans le vocabulaire ;
-         les fermées restent fixes. */
+      /* CAROUSEL (photo, generation, batch > 1): same outfit, same location, same
+         seed — and for each image a different pose, framing and focal length.
+         The text is the AUTO prompt rebuilt for each variant: an LLM-composed
+         or hand-edited prompt describes the original scene, not the variant.
+         The seed is locked for the whole batch (drawn here if random) so the
+         N renders share lighting and grain. The current pose and style open
+         the batch; the others are drawn without replacement from the vocabulary.
+         Unchecked, the batch is N draws of the SAME prompt (different seeds). */
+      /* Carousel: OPEN LOCKS (locks[k] === false) mark the dimensions that vary
+         per image. Photo/generation, batch > 1, at least one open.
+         Each open dimension is drawn without replacement from the vocabulary;
+         closed ones stay fixed. */
       const openLocks = (s.mode === 'photo' && !isEdit && n > 1)
         ? (['env', 'outfit', 'pose', 'style'] as const).filter(k => !s.locks[k])
         : []
@@ -1760,18 +1748,18 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
             userPrompt: text, composedPositive: text }
         })
       }
-      // Les plus récents en tête de liste, donc le lot à l'envers.
+      // Most recent at the top of the list, so the batch is reversed.
       set({ jobs: [...[...batch].reverse(), ...s.jobs], t0Error: null })
-      // Séquentiel : le worker sérialise de toute façon (un seul GPU), et
-      // envoyer en parallèle ne ferait qu'entrelacer les erreurs.
+      // Sequential: the worker serializes anyway (single GPU), and
+      // sending in parallel would only interleave errors.
       const proprietaire = !envoiEnCours
       envoiEnCours = true
       try { for (const j of batch) await worker.submit(j) }
       finally { if (proprietaire) envoiEnCours = false }
-      // Envoi parti : on efface la sélection galerie — l'établi montre la
-      // progression (rien à afficher tant que le rendu n'existe pas).
-      /* Envoi abouti : la clé a joué son rôle. La suivante sera neuve — un
-         nouvel appui est une nouvelle intention, pas une reprise. */
+      // Submission sent: clear the gallery selection — the workbench shows
+      // progress (nothing to display until the render exists).
+      /* Submission succeeded: the key has served its purpose. The next one will
+         be new — a new press is a new intent, not a retry. */
       set({ focusAssetId: null, initialBrief: null, promptVision: null,
         ...(get().requestId === reqBase ? { requestId: null } : {}) })
     },
@@ -1779,8 +1767,8 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 }, {
   name: 'creatoros-ui',
   partialize: s => ({
-    /* La composition survit au rechargement — mode, tâche,
-       sélections, prompt édité, nombre de rendus. */
+    /* The composition survives reload — mode, task, selections, edited
+       prompt, render count. */
     mode: s.mode,
     photo: s.photo,
     video: s.video,
@@ -1788,10 +1776,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     userPrompt: s.userPrompt,
     promptTouched: s.promptTouched,
     userDirectives: s.userDirectives,
-    /* Le composé aussi : sur mobile, l'écran se verrouille pendant les 50 à
-       100 s de réécriture et la page se recharge au retour — sans ça le texte
-       réécrit disparaissait. `composedFrom` voyage avec lui : la garde de
-       fraîcheur (composedFrom === userPrompt) reste exacte après rechargement. */
+    /* The composed prompt too: on mobile the screen locks during the 50 to
+       100 s rewrite and the page reloads on return. `composedFrom` travels
+       with it so the freshness guard (composedFrom === userPrompt) stays
+       exact after reload. */
     composedPositive: s.composedPositive,
     composedNegative: s.composedNegative,
     composedFrom: s.composedFrom,
@@ -1809,11 +1797,11 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     textCollapsed: s.textCollapsed,
     carousel: s.carousel,
   }),
-  /* Un état sauvé par un bundle ANTÉRIEUR ne connaît pas les champs ajoutés
-     depuis. Comme partialize persiste les
-     objets photo/video/son ENTIERS, la rehydratation par défaut les REMPLACE
-     et un accès non protégé (`.trim()`) planterait submitJob en silence. On fusionne
-     donc le persisté PAR-DESSUS les défauts : tout champ manquant est comblé. */
+  /* A state saved by an OLDER bundle lacks fields added since. Since
+     partialize persists the photo/video/son objects WHOLE, default
+     rehydration REPLACES them and an unguarded access (`.trim()`) would
+     silently crash submitJob. So the persisted state is merged ON TOP of
+     the defaults: every missing field is filled. */
   merge: (persisted, current) => {
     const p = (persisted ?? {}) as Partial<typeof current>
     return {

@@ -1,18 +1,17 @@
 /* ============================================================
-   Diagnostic de la machine de rendu.
+   Render machine diagnostic.
 
-   Né de pannes découvertes par un rendu qui échouait au lieu d'être
-   annoncées : un noyau mis à jour sans son module NVIDIA (« No CUDA GPUs »),
-   une mise à jour du système qui change la version de Python sous le venv de
-   ComfyUI (« No module named sqlalchemy »).
+   Detects environment breakage before a render fails: e.g. a kernel
+   updated without its NVIDIA module ("No CUDA GPUs"), or a system update
+   changing the Python version under the ComfyUI venv ("No module named
+   sqlalchemy").
 
-   Le diagnostic ne RÉPARE rien et ne modifie rien : il lit, compare, et dit
-   en une phrase ce qui ne va pas et quoi faire. Chaque contrôle est borné
-   dans le temps et indépendant des autres — un contrôle qui échoue ne fait
-   pas tomber les suivants.
+   The diagnostic REPAIRS and modifies nothing: it reads, compares, and
+   states in one sentence what is wrong and what to do. Each check is
+   time-bounded and independent: a failing check does not stop the others.
 
-   Deux gravités : « bloquant » (un rendu échouera) et « alerte » (ça marche,
-   mais quelque chose a changé ou va gêner).
+   Two severities: "bloquant" (a render will fail) and "alerte" (works,
+   but something changed or will get in the way).
    ============================================================ */
 import { alleger } from './allege.js'
 import fs from 'node:fs'
@@ -35,7 +34,7 @@ const json = async (url, timeout = 15_000) => {
   return r.json()
 }
 
-/* ---------- contrôles ---------- */
+/* ---------- checks ---------- */
 
 async function carteGraphique(p, infos) {
   const r = await run('nvidia-smi', ['--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'])
@@ -48,7 +47,7 @@ async function carteGraphique(p, infos) {
   infos.carte = r.out.trim().split('\n')[0]
 }
 
-/** Les paquets que ComfyUI et les scripts de CreatorOS importent réellement. */
+/** Packages that ComfyUI and CreatorOS scripts actually import. */
 const PAQUETS = ['torch', 'torchvision', 'numpy', 'PIL', 'cv2', 'sqlalchemy', 'alembic', 'aiohttp', 'safetensors', 'av']
 async function python(p, infos) {
   if (!fs.existsSync(COMFY_PY)) {
@@ -72,10 +71,10 @@ print("DIAG" + json.dumps(r))`
   }
   const d = JSON.parse(m[1])
   infos.python = `${d.version} · torch ${d.torch ?? '?'}`
-  /* Les paquets sont installés pour UNE version mineure (lib/pythonX.Y) : si
-     l'interpréteur n'est plus celle-là, plus rien ne s'importe. */
+  /* Packages are installed for ONE minor version (lib/pythonX.Y): if the
+     interpreter is no longer that version, nothing imports. */
   let libs = []
-  try { libs = fs.readdirSync(path.join(path.dirname(path.dirname(COMFY_PY)), 'lib')).filter(x => /^python\d/.test(x)) } catch { /* pas un venv classique */ }
+  try { libs = fs.readdirSync(path.join(path.dirname(path.dirname(COMFY_PY)), 'lib')).filter(x => /^python\d/.test(x)) } catch { /* not a standard venv */ }
   const attendue = libs[0]?.replace('python', '')
   if (attendue && !d.version.startsWith(attendue + '.'))
     p.push({ gravite: 'bloquant', domaine: 'python', quoi: `le venv de ComfyUI tourne en Python ${d.version} mais ses paquets sont installés pour ${attendue}`,
@@ -88,10 +87,10 @@ print("DIAG" + json.dumps(r))`
     p.push({ gravite: 'bloquant', domaine: 'python', quoi: 'torch ne voit pas la carte graphique', conseil: 'voir le contrôle « carte graphique » ; sinon version de torch incompatible avec le pilote' })
 }
 
-/** Options d'une entrée de type liste, dans les deux formats de /object_info. */
+/** Options of a list input, in both /object_info formats. */
 const optionsDe = spec => Array.isArray(spec?.[0]) ? spec[0] : (spec?.[0] === 'COMBO' && Array.isArray(spec?.[1]?.options)) ? spec[1].options : null
-/* Entrées remplacées à chaque rendu par le serveur : leur valeur dans la
-   recette est un exemple, pas un fichier requis. */
+/* Inputs replaced by the server on each render: their recipe value is an
+   example, not a required file. */
 const ENTREES_INJECTEES = new Set(['image', 'video', 'file', 'audio', 'mask', 'upload'])
 
 async function comfy(p, infos, recettes) {
@@ -101,13 +100,13 @@ async function comfy(p, infos, recettes) {
     return
   }
   infos.noeuds = Object.keys(info).length
-  /* 1. Les recettes servies : chaque nœud doit exister, chaque fichier de
-        modèle nommé doit être dans la liste que ComfyUI propose. */
-  const manquants = new Map()   // nœud → recettes
-  const fichiers = new Map()    // « valeur (entrée) » → recettes
+  /* 1. Served recipes: every node must exist, every named model file must
+     be in the list ComfyUI offers. */
+  const manquants = new Map()   // node -> recipes
+  const fichiers = new Map()    // "value (input)" -> recipes
   for (const f of recettes) {
     let wf
-    // tel qu'il partira : sur une petite carte, avec ses variantes allégées (cf. allege.js)
+    // as it will be sent: on a small card, with its lighter variants (see allege.js)
     try { wf = (await alleger(JSON.parse(fs.readFileSync(path.join(CONFIG.workflowsDir, f), 'utf8')))).graphe } catch (e) {
       p.push({ gravite: 'bloquant', domaine: 'recettes', quoi: `recette ${f} illisible`, conseil: String(e.message).slice(0, 120) })
       continue
@@ -130,8 +129,8 @@ async function comfy(p, infos, recettes) {
     p.push({ gravite: 'bloquant', domaine: 'recettes', quoi: `nœud « ${n} » absent de ComfyUI`, conseil: `requis par ${[...new Set(fs_)].join(', ')} — une extension ne s'est pas chargée (voir le journal de ComfyUI au démarrage)` })
   for (const [v, fs_] of fichiers)
     p.push({ gravite: 'bloquant', domaine: 'recettes', quoi: `fichier ou valeur absent : ${v}`, conseil: `requis par ${[...new Set(fs_)].join(', ')}` })
-  /* 2. Les graphes construits en code (pinceau, RIFE…) : leurs nœuds sont
-        relevés dans les sources du serveur. */
+  /* 2. Graphs built in code (brush, RIFE...): their nodes are collected from
+     the server sources. */
   const dir = import.meta.dirname
   const enCode = new Set()
   for (const f of ['jobs.js', 'comfy.js'])
@@ -141,7 +140,7 @@ async function comfy(p, infos, recettes) {
   infos.recettes = `${recettes.length} recettes servies contrôlées`
 }
 
-/** Version (commit git) de ComfyUI et de chaque extension. */
+/** Version (git commit) of ComfyUI and each extension. */
 async function versions() {
   const v = {}
   const lire = async (nom, d) => {
@@ -154,7 +153,7 @@ async function versions() {
   for (const d of fs.existsSync(cn) ? fs.readdirSync(cn) : []) await lire(d, path.join(cn, d))
   return v
 }
-/** Fige les versions actuelles comme référence. À appeler quand tout marche. */
+/** Freezes current versions as the baseline. Call when everything works. */
 export async function figerNoeuds() {
   const v = await versions()
   fs.writeFileSync(VERROU, JSON.stringify({ figeLe: new Date().toISOString(), versions: v }, null, 1))
@@ -219,7 +218,7 @@ async function disque(p, infos) {
 
 let dernier = null
 let enCours = null
-/** @param {{recettes?: string[], frais?: boolean}} o — `recettes` : fichiers servis en production. */
+/** @param {{recettes?: string[], frais?: boolean}} o — `recettes`: files served in production. */
 export async function diagnostiquer({ recettes = [], frais = false } = {}) {
   if (!frais && dernier && Date.now() - dernier.quand < 120_000) return dernier
   if (enCours) return enCours
@@ -244,7 +243,7 @@ export async function diagnostiquer({ recettes = [], frais = false } = {}) {
   })().finally(() => { enCours = null })
   return enCours
 }
-/** Résumé pour /api/health : le dernier diagnostic connu, sans en lancer un. */
+/** Summary for /api/health: the last known diagnostic, without running one. */
 export const resumeDiagnostic = () => dernier
   ? { quand: dernier.quand, ok: dernier.ok, bloquants: dernier.bloquants, alertes: dernier.alertes }
   : null

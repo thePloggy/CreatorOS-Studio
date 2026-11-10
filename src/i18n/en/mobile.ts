@@ -1,4 +1,4 @@
-/* Traductions anglaises — zone « mobile ». Clé = texte français exact passé à t(). */
+/* English translations — "mobile" area. Key = exact French text passed to t(). */
 export const mobile: Record<string, string> = {
   // MApp / bits
   'navigation principale': 'main navigation',
@@ -362,7 +362,7 @@ export const mobile: Record<string, string> = {
   'Job': 'Job',
   'copier': 'copy',
 
-  // MViewer — action en cours (« …son »)
+  // MViewer — action in progress ("…son")
   'encore une': 'one more',
   'son': 'sound',
   'fluidité': 'smoothness',

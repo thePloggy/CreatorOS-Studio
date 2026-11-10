@@ -1,12 +1,12 @@
 /* ============================================================
-   Studio son : une section de premier niveau, au rang d'Image et de Vidéo.
-   Trois onglets (Musique, Dialogue et voix, Bruitages). À gauche le panneau
-   de création (presets en cartes, champs essentiels, réglages avancés
-   repliés, bouton collé en bas) ; à droite la zone des rendus avec trois
-   vues : Résultats (file, progression, les deux prises côte à côte avec leur
-   forme d'onde), Historique (tous les rendus passés du type, filtrables,
-   avec leurs réglages) et Comment ça marche. Sur téléphone la zone des
-   rendus passe au-dessus du formulaire.
+   Sound studio: a top-level section, alongside Image and Video.
+   Three tabs (Music, Dialogue and voice, Sound effects). On the left the
+   creation panel (preset cards, essential fields, collapsed advanced
+   settings, button stuck to the bottom); on the right the renders area with three
+   views: Results (queue, progress, both takes side by side with their
+   waveform), History (all past renders of the type, filterable,
+   with their settings) and How it works. On phones the renders
+   area goes above the form.
    ============================================================ */
 import { HowItWorks, howto } from './HowItWorks'
 import { useMouvementReduit } from './Galerie'
@@ -41,7 +41,7 @@ const nomCourt = (n: string) => n.replace(/_[a-z0-9]{6}(_\d)?\.\w+$/, '').replac
 const quand = (ms: number) => !ms ? '' : new Date(ms).toLocaleString(getLang() === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const estMobile = () => window.innerWidth < 821
 
-/** Serveur d'avant les réglages audio : le style vient du prompt, les prises de la bibliothèque (…_<6 car. de l'id>…). */
+/** Fallback for jobs without stored audio settings: style from the prompt, takes from the library (…_<last 6 chars of id>…). */
 function deduire(j: JobBrut, sons: Son[]): ReglagesAudio {
   const marque = `_${String(j.id).slice(-6)}`
   const prises = j.status === 'done' ? sons.map(s => s.nom).filter(n => n.includes(`${marque}.`) || n.includes(`${marque}_`)).sort() : []
@@ -49,7 +49,7 @@ function deduire(j: JobBrut, sons: Son[]): ReglagesAudio {
   return { genre: bruit ? 'bruitage' : 'musique', style: j.userPrompt ?? '', secondes: null, paroles: '', bpm: null, tonalite: null, mesure: null, langue: null, voix: null, instruments: [], prises }
 }
 
-/** Rendus musique et bruitage (GET /api/jobs?op=musique) et sons de la bibliothèque audio, suivis tant qu'un rendu tourne. */
+/** Music and sound-effect renders (GET /api/jobs?op=musique) and audio library sounds, polled while a render is running. */
 function useDonneesSon() {
   const [jobs, setJobs] = useState<JobAudio[] | null>(null)
   const [biblio, setBiblio] = useState<Son[]>([])
@@ -71,19 +71,19 @@ function useDonneesSon() {
   return { jobs, biblio, charger }
 }
 
-/** Répliques rendues depuis ce navigateur, avec leurs réglages (la synthèse est immédiate, sans job). */
+/** Lines rendered from this browser, with their settings (synthesis is immediate, no job). */
 function useVoixRendues() {
   const lire = (): RenduVoix[] => { try { return JSON.parse(localStorage.getItem('son:voix') ?? '[]') } catch { return [] } }
   const [liste, setListe] = useState<RenduVoix[]>(lire)
   const ajouter = (r: RenduVoix) => setListe(l => {
     const n = [r, ...l.filter(x => x.nom !== r.nom)].slice(0, 300)
-    try { localStorage.setItem('son:voix', JSON.stringify(n)) } catch { /* stockage indisponible */ }
+    try { localStorage.setItem('son:voix', JSON.stringify(n)) } catch { /* storage unavailable */ }
     return n
   })
   return { liste, ajouter }
 }
 
-/** Retire des sons de la bibliothèque ; un son employé au montage demande une confirmation (409). */
+/** Removes sounds from the library; a sound used in an edit requires confirmation (409). */
 async function retirer(noms: string[], confirme: boolean): Promise<{ usages: string[]; erreur: string | null }> {
   const usages: string[] = []
   for (const nom of noms) {
@@ -95,7 +95,7 @@ async function retirer(noms: string[], confirme: boolean): Promise<{ usages: str
   return { usages: [...new Set(usages)], erreur: null }
 }
 
-/** Bouton Supprimer en deux temps (et un troisième si le son sert dans un montage). */
+/** Two-step Delete button (three if the sound is used in an edit). */
 function Suppression({ noms, apres }: { noms: string[]; apres: () => void }) {
   const [etat, setEtat] = useState<null | 'confirmer' | { usages: string[] }>(null)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -118,7 +118,7 @@ function Suppression({ noms, apres }: { noms: string[]; apres: () => void }) {
   )
 }
 
-/** Les réglages d'un rendu, en puces lisibles. */
+/** A render's settings, as readable chips. */
 function Reglages({ a }: { a: ReglagesAudio }) {
   const puces: string[] = []
   if (a.secondes) puces.push(`${a.secondes} s`)
@@ -134,7 +134,7 @@ function Reglages({ a }: { a: ReglagesAudio }) {
   return <span className="puces-sous">{puces.map((p, i) => <em key={`${p}-${i}`}>{p}</em>)}</span>
 }
 
-/** Rang dans la file ou avancement du rendu (progression ComfyUI, sinon le temps écoulé sur l'estimation). */
+/** Queue position or render progress (ComfyUI progress, otherwise elapsed time against the estimate). */
 function Avancement({ j }: { j: JobAudio }) {
   const sj = useAppStore(st => st.jobs.find(x => x.id === j.id))
   const [, tic] = useState(0)
@@ -160,7 +160,7 @@ function Avancement({ j }: { j: JobAudio }) {
 
 type Actions = { onRegen: (a: ReglagesAudio) => void; onReprendre: (a: ReglagesAudio) => void; onMontage?: () => void; apres: () => void }
 
-/** Un rendu musique ou bruitage : titre, réglages, état, les prises côte à côte, les actions. */
+/** A music or sound-effect render: title, settings, status, takes side by side, actions. */
 function CarteRendu({ j, durees, compact, actions }: { j: JobAudio; durees: Map<string, number>; compact?: boolean; actions: Actions }) {
   const edition = useEdition()
   const a = j.audio
@@ -200,7 +200,7 @@ function CarteRendu({ j, durees, compact, actions }: { j: JobAudio; durees: Map<
   )
 }
 
-/** Une réplique rendue (voix du studio, clonée ou changée). */
+/** A rendered line (studio, cloned or changed voice). */
 function CarteVoix({ r, durees, compact, onRedire, onMontage, apres }: { r: RenduVoix; durees: Map<string, number>; compact?: boolean; onRedire?: (r: RenduVoix) => void; onMontage?: () => void; apres: () => void }) {
   const edition = useEdition()
   const modes = { dire: 'Réplique', cloner: 'Voix clonée', changer: 'Voix changée' } as const
@@ -230,7 +230,7 @@ function CarteVoix({ r, durees, compact, onRedire, onMontage, apres }: { r: Rend
   )
 }
 
-/** « Comment ça marche » : une courte explication par onglet. */
+/** "How it works": a short explanation per tab. */
 const AIDE: Record<Onglet, { titre: string; texte: string }[]> = {
   musique: [
     { titre: 'Ce que fait le modèle', texte: 'ACE-Step 1.5 compose un morceau complet d’après une description : instruments, structure, voix chantée et paroles, mixés ensemble.' },
@@ -284,7 +284,7 @@ export function SonView({ goMontage }: { goMontage?: () => void }) {
     const d = await r.json().catch(() => ({})) as { jobId?: string; error?: string }
     if (!r.ok || !d.jobId) return tServeur(d.error ?? null) ?? `HTTP ${r.status}`
     suivi.ajouter([d.jobId])
-    // la carte « en cours » du studio suit aussi le rendu (îlot de rendu, onglet du navigateur)
+    // the studio's "in progress" card also tracks the render (render island, browser tab)
     void useAppStore.getState().adoptServerJob(d.jobId)
     void charger(); montrerRendus()
     return null
@@ -308,13 +308,13 @@ export function SonView({ goMontage }: { goMontage?: () => void }) {
     surVoix({ ...r, nom: d.nom, at: Date.now() })
   }
 
-  // musique et bruitages : la file (tous les rendus en cours), puis ceux lancés depuis ce navigateur
+  // music and sound effects: the queue (all running renders), then those launched from this browser
   const duGenre = (jobs ?? []).filter(j => j.audio.genre === onglet)
   const enCours = duGenre.filter(j => !FINIS.includes(j.status))
   const miens = duGenre.filter(j => FINIS.includes(j.status) && suivi.ids.has(j.id)).slice(0, 8)
-  // sur téléphone la zone des rendus est au-dessus du formulaire : on y garde peu de cartes
+  // on phones the renders area sits above the form: keep few cards there
   const derniers = (miens.length ? miens : duGenre.filter(j => j.status === 'done').slice(0, 4)).slice(0, estMobile() ? (miens.length ? 2 : 1) : 8)
-  // voix : les répliques de ce navigateur, puis les autres voix de la bibliothèque (sans leurs réglages)
+  // voice: this browser's lines, then the other library voices (without their settings)
   const voixHisto = useMemo(() => {
     const presentes = new Set(biblio.map(s => s.nom))
     const connues = voix.liste.filter(r => presentes.has(r.nom))
@@ -368,7 +368,7 @@ export function SonView({ goMontage }: { goMontage?: () => void }) {
       </div>
       <div className="son-corps">
         <aside ref={zoneForm} className="son-volet" aria-label={t('Créer')}>
-          {/* les trois studios restent montés : un formulaire garde sa saisie d'un onglet à l'autre */}
+          {/* all three studios stay mounted: a form keeps its input across tabs */}
           <div hidden={onglet !== 'musique'}><StudioMusique lancer={lancer} aCharger={recharge} /></div>
           <div hidden={onglet !== 'voix'}><StudioVoix surPret={surVoix} /></div>
           <div hidden={onglet !== 'bruitage'}><StudioBruitage lancer={lancer} aCharger={recharge} /></div>

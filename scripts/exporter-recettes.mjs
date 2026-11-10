@@ -1,8 +1,8 @@
-// Exporte en JSON (format API de ComfyUI) les graphes que le serveur construit dans le code
-// plutôt que de les lire dans workflows/ : Re-shoot (deux variantes), avatar parlant, scène 3D.
-// Les fichiers d'entrée sont des noms d'exemple à remplacer (SOURCE.mp4, PHOTO.png, VOIX.wav).
+// Exports as JSON (ComfyUI API format) the graphs the server builds in code
+// instead of reading from workflows/: Re-shoot (two variants), talking avatar, 3D scene.
+// Input files are placeholder names to replace (SOURCE.mp4, PHOTO.png, VOIX.wav).
 //   node scripts/exporter-recettes.mjs
-// Le serveur n'est pas lancé : données dans un dossier temporaire, ComfyUI jamais contacté.
+// The server is not started: data in a temp folder, ComfyUI never contacted.
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,7 +15,7 @@ const { CONFIG } = await import('../server/config.js')
 
 const dossier = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'workflows')
 const nettoyer = g => JSON.parse(JSON.stringify(g).split(CONFIG.mediaDir + path.sep).join(''))
-// la description va dans workflows/README.md : un nœud en plus casserait le format API
+// the description goes in workflows/README.md: an extra node would break the API format
 const ecrire = (nom, g, note) => {
   fs.writeFileSync(path.join(dossier, nom), JSON.stringify(nettoyer(g), null, 1) + '\n')
   console.log('écrit', nom, '—', note)

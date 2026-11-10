@@ -1,4 +1,4 @@
-/* Comparaison des prises d'un lot vidéo */
+/* Comparison of the takes in a video batch */
 .pr-fond { position: fixed; inset: 0; z-index: 120; background: rgba(6, 6, 8, 0.86); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; padding: 24px; }
 .pr-boite { width: min(1480px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px;

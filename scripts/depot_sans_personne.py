@@ -1,15 +1,15 @@
 #!/usr/bin/env python
-"""Contrôle d'une photo déposée par un visiteur : aucune personne humaine.
+"""Checks a visitor-uploaded photo contains no human.
 
-Usage : depot_sans_personne.py IMAGE [MODELES_CONTROLE]
-Lancé avec le Python de ComfyUI (COMFY_DIR), sur le processeur.
-Sortie : une ligne JSON {"personne": bool, "raisons": [...]}.
+Usage: depot_sans_personne.py IMAGE [MODELES_CONTROLE]
+Run with ComfyUI's Python (COMFY_DIR), on CPU.
+Output: one JSON line {"personne": bool, "raisons": [...]}.
 
-- GroundingDINO cherche une personne, un visage, un corps ou un enfant,
-  photographiés ou dessinés ;
-- YuNet (OpenCV) cherche les visages, même petits.
-Le moindre signal suffit à refuser : un faux refus coûte moins qu'un visage
-réel qui passe."""
+- GroundingDINO looks for a person, face, body or child,
+  photographed or drawn;
+- YuNet (OpenCV) looks for faces, even small ones.
+Any signal is enough to reject: a false rejection costs less than a real
+face getting through."""
 import json
 import os
 import sys
@@ -31,7 +31,7 @@ img = Image.open(image).convert('RGB')
 img.thumbnail((1280, 1280))
 
 try:
-    # tout sur le processeur : la carte reste aux rendus (option lue par ComfyUI à l'import)
+    # everything on CPU: the GPU stays free for renders (option read by ComfyUI at import)
     import comfy.options  # noqa: E402
     comfy.options.enable_args_parsing()
     sys.argv = [sys.argv[0], '--cpu']
@@ -39,8 +39,8 @@ try:
     import torch  # noqa: E402
     from local_groundingdino.datasets import transforms as T  # noqa: E402
     dino = sa.load_groundingdino_model('GroundingDINO_SwinT_OGC (694MB)')
-    # mots humains mêlés à des mots d'objets : chaque boîte va au mot qui la décrit le mieux,
-    # un mot seul serait collé sur l'objet principal quel qu'il soit
+    # human words mixed with object words: each box goes to the word that best describes it;
+    # a lone word would be attached to the main object whatever it is
     HUMAINS = ['person', 'human face', 'child', 'hand']
     AUTRES = ['animal', 'robot', 'toy', 'statue', 'bottle', 'product', 'food', 'furniture',
               'vehicle', 'building', 'plant', 'landscape', 'object']
@@ -51,14 +51,14 @@ try:
     x, _ = tr(img, None)
     with torch.no_grad():
         out = dino(x[None], captions=[legende])
-    logits = out['pred_logits'].sigmoid()[0]          # (requêtes, 256 jetons)
+    logits = out['pred_logits'].sigmoid()[0]          # (queries, 256 tokens)
     tok = dino.tokenizer(legende)
     ids = tok['input_ids']
-    # position des jetons de chaque mot dans la légende
+    # token positions of each word in the caption
     spans, pos = [], 1
     for m in mots:
         n = len(dino.tokenizer(m)['input_ids']) - 2
-        spans.append((pos, pos + n)); pos += n + 1     # + le point qui sépare
+        spans.append((pos, pos + n)); pos += n + 1     # + the separating period
     for q in range(logits.shape[0]):
         if logits[q].max() < 0.35:
             continue
@@ -66,7 +66,7 @@ try:
         k = max(range(len(mots)), key=lambda i: scores[i])
         if mots[k] in HUMAINS and scores[k] >= 0.35:
             raisons.append(f'groundingdino:{mots[k]}:{scores[k]:.2f}')
-except Exception as e:  # sans détecteur, on refuse : on ne laisse pas passer à l'aveugle
+except Exception as e:  # no detector: reject rather than pass blindly
     raisons.append(f'erreur-groundingdino:{str(e)[:120]}')
 
 try:

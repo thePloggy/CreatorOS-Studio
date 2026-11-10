@@ -1,10 +1,10 @@
 /* ============================================================
-   Éditeur du personnage — nom, mot déclencheur, description, préambule
-   d'identité, LoRA photo et vidéo, dépôt d'une LoRA d'identité.
+   Character editor: name, trigger word, description, identity
+   preamble, photo and video LoRAs, identity LoRA upload.
 
-   Une seule source : persona.json côté serveur (PUT /api/persona). Partagé
-   par la vue Personnage du bureau et l'atelier mobile : styles en ligne et
-   couleurs héritées, pour tenir dans les deux thèmes sans dépendre de l'un.
+   Single source: server-side persona.json (PUT /api/persona). Shared by
+   the desktop Character view and the mobile workshop: inline styles and
+   inherited colours, so it works in both themes.
    ============================================================ */
 import { useEffect, useState } from 'react'
 import { ChoixVoix } from '../v2/ChoixVoix'
@@ -35,12 +35,12 @@ const mo = (o?: number | null) => (o ? t('{n} Mo', { n: Math.round(o / 1e6) }) :
 
 function ListeLoras({ titre, aide, liste, dispo, onChange, garde }: {
   titre: string; aide: string; liste: LoraRef[]; dispo: LoraDispo[]; onChange: (l: LoraRef[]) => void
-  /** Architectures acceptées par cette liste (Krea 2, Klein…) ; absente = toutes. */
+  /** Architectures accepted by this list (Krea 2, Klein…); absent = all. */
   garde?: (arch: string) => boolean
 }) {
   const [envoi, setEnvoi] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  // la bibliothèque du modèle : seulement les LoRA de son architecture (ou non reconnues)
+  // the model's library: only LoRAs of its architecture (or unrecognised)
   const libres = dispo.filter(d => !liste.some(l => l.name === d.name) && (!garde || garde(d.arch ?? 'inconnue')))
 
   async function televerser(f: File, remplacer = false): Promise<void> {
@@ -98,7 +98,7 @@ export function PersonaEditeur() {
   const edition = useEdition()
 
   const charger = () => {
-    // le personnage choisi dans ce navigateur, sinon l'actif du serveur
+    // the character chosen in this browser, else the server's active one
     const c = personnageChoisi()
     void fetch(c && c !== SANS_PERSONNAGE ? `/api/persona?id=${encodeURIComponent(c)}` : '/api/persona')
       .then(r => r.json()).then((d: Persona) => { setP(d); setModifie(false) }).catch(() => setEtat(t('lecture impossible')))
@@ -117,7 +117,7 @@ export function PersonaEditeur() {
     if (!r.ok) { setEtat(t('refusé : {e}', { e: tServeur(d.error) ?? r.status })); return }
     setP(d); setModifie(false); setEtat(t('enregistré — appliqué aux prochains rendus'))
     useAppStore.setState({ personaName: d.name?.trim() || t('Personnage') })
-    void useAppStore.getState().refreshPersona()   // recette Klein grisée ou non selon ses LoRA
+    void useAppStore.getState().refreshPersona()   // Klein recipe greyed out or not depending on its LoRAs
     charger()
   }
 

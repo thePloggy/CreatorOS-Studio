@@ -1,15 +1,15 @@
 /* ============================================================
-   Importer sa propre LoRA (.safetensors) depuis un sélecteur de LoRA.
+   Import your own LoRA (.safetensors) from a LoRA picker.
 
-   Le fichier part en flux vers POST /api/persona/lora (route réservée au
-   propriétaire : le serveur refuse un visiteur de la démo publique). Le
-   serveur vérifie l'en-tête safetensors et lit l'architecture ; le catalogue
-   est rechargé, et la LoRA apparaît dans la liste si elle agit sur le moteur
-   en cours.
+   The file is streamed to POST /api/persona/lora (owner-only route: the
+   server refuses public demo visitors). The server checks the
+   safetensors header and reads the architecture; the catalogue is
+   reloaded, and the LoRA appears in the list if it applies to the
+   current engine.
 
-   Sur la démo publique, pas de bouton : une note explique que l'import marche
-   en local mais qu'il est coupé ici (fichier inconnu sur une machine partagée).
-   Partagé bureau / mobile : styles en ligne, couleurs héritées.
+   On the public demo there is no button: a note explains that import
+   works locally but is disabled here (unknown file on a shared machine).
+   Shared desktop / mobile: inline styles, inherited colours.
    ============================================================ */
 import { useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -17,18 +17,18 @@ import { useEdition } from '../lib/proprietaire'
 import { t, tServeur } from '../i18n'
 import { Ic } from '../v2/bits'
 
-/** Envoi en flux avec progression : fetch n'en donne pas sur un envoi. */
+/** Streamed upload with progress: fetch does not report upload progress. */
 export function deposerLora(f: File, remplacer: boolean, progres: (p: number) => void) {
   return new Promise<{ nom: string; arch?: string }>((ok, ko) => {
     const x = new XMLHttpRequest()
     x.open('POST', `/api/persona/lora?nom=${encodeURIComponent(f.name)}${remplacer ? '&remplacer=1' : ''}`)
     x.setRequestHeader('Content-Type', 'application/octet-stream')
-    // XHR ne passe pas par le fetch patché : la clé du propriétaire est ajoutée ici
-    try { const cle = localStorage.getItem('creatoros.ownerKey'); if (cle) x.setRequestHeader('X-Owner-Key', cle) } catch { /* stockage indisponible */ }
+    // XHR bypasses the patched fetch: the owner key is added here
+    try { const cle = localStorage.getItem('creatoros.ownerKey'); if (cle) x.setRequestHeader('X-Owner-Key', cle) } catch { /* storage unavailable */ }
     x.upload.onprogress = e => { if (e.lengthComputable) progres(e.loaded / e.total) }
     x.onload = () => {
       let r: { nom?: string; error?: string; lora?: { arch?: string } | null } = {}
-      try { r = JSON.parse(x.responseText) } catch { /* réponse vide */ }
+      try { r = JSON.parse(x.responseText) } catch { /* empty response */ }
       if (x.status === 409) ko(Object.assign(new Error(tServeur(r.error) ?? t('existe déjà')), { existe: true }))
       else if (x.status >= 400 || !r.nom) ko(new Error(tServeur(r.error) ?? `HTTP ${x.status}`))
       else ok({ nom: r.nom, arch: r.lora?.arch })
@@ -44,9 +44,9 @@ const bouton: React.CSSProperties = {
 }
 
 export function ImportLora({ compatible, onAjout, style }: {
-  /** La LoRA importée agit-elle sur le moteur en cours ? (lu dans l'en-tête du fichier) */
+  /** Does the imported LoRA apply to the current engine? (read from the file header) */
   compatible?: (l: { name: string; arch?: string }) => boolean
-  /** Appelé quand la LoRA est compatible : le sélecteur peut la cocher d'office. */
+  /** Called when the LoRA is compatible: the picker may tick it automatically. */
   onAjout?: (nom: string) => void
   style?: React.CSSProperties
 }) {
@@ -55,7 +55,7 @@ export function ImportLora({ compatible, onAjout, style }: {
   const champ = useRef<HTMLInputElement>(null)
   const [envoi, setEnvoi] = useState<number | null>(null)
   const [msg, setMsg] = useState<{ texte: string; ko?: boolean } | null>(null)
-  const [enAttente, setEnAttente] = useState<File | null>(null)   // même nom déjà présent : remplacer ?
+  const [enAttente, setEnAttente] = useState<File | null>(null)   // same name already present: replace?
 
   if (!edition) return (
     <p style={{ fontSize: 12, opacity: 0.75, margin: '8px 0', lineHeight: 1.45, ...style }}>

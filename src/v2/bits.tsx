@@ -1,7 +1,7 @@
 /* ============================================================
-   v2 — briques partagées : vignette d'asset, placeholder de job,
-   barre de tri. Le langage visuel vit dans v2.css (élévation par
-   luminance, zéro bordure) ; ici uniquement la structure.
+   v2 — shared building blocks: asset thumbnail, job placeholder,
+   sort bar. The visual language lives in v2.css (elevation by
+   luminance, no borders); only structure here.
    ============================================================ */
 import { telechargerWorkflow } from '../lib/workflowComfy'
 import { Children, useEffect, useRef, useState, useCallback } from 'react'
@@ -19,7 +19,7 @@ import { t, tp, tServeur } from '../i18n'
 import { Comparer } from '../components/Comparer'
 import { useEdition } from '../lib/proprietaire'
 
-/* ---------- icônes SVG outline (trait 2px arrondi) ---------- */
+/* ---------- outline SVG icons (2px rounded stroke) ---------- */
 const IC: Record<string, React.ReactNode> = {
   hd: <><path d="M3 7v10" /><path d="M9 7v10" /><path d="M3 12h6" /><path d="M13 7h3a5 5 0 0 1 0 10h-3z" /></>,
   edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
@@ -75,7 +75,7 @@ export function Ic({ n, s: size = 13 }: { n: keyof typeof IC; s?: number }) {
   )
 }
 
-/* ---------- filtres de la barre de tri ---------- */
+/* ---------- sort bar filters ---------- */
 export type ReviewFilter = 'pending' | 'approved' | 'rejected' | null
 
 export type DraftFilter = 'all' | 'draft' | 'full'
@@ -87,12 +87,12 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
   onPurge: () => void
   q: string; setQ: (v: string) => void
   onTriage?: () => void
-  /** tri brouillon/full (vidéo) — puces affichées seulement si fourni */
+  /** draft/full sort (video): chips shown only if provided */
   draft?: DraftFilter; setDraft?: (d: DraftFilter) => void
 }) {
   const edition = useEdition()
   const qRef = useRef<HTMLInputElement>(null)
-  // ⌘K / Ctrl+K : focus la recherche (remplace la palette v1 — filtre les prompts)
+  // ⌘K / Ctrl+K: focus the search (filters prompts)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); qRef.current?.focus() }
@@ -137,7 +137,7 @@ export function SortBar({ assets, review, setReview, cols, setCols, picking: _pi
   )
 }
 
-/** Recherche : chaque mot doit se trouver dans le prompt, le brief, la recette, le moteur ou une LoRA. */
+/** Search: every word must appear in the prompt, brief, recipe, engine or a LoRA. */
 export function matchSearch(a: Asset, q: string): boolean {
   const mots = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
   if (!mots.length) return true
@@ -152,13 +152,13 @@ export function applyFilters(assets: Asset[], media: 'photo' | 'video', review: 
     && matchSearch(a, q))
 }
 
-/* ---------- masonry ordonné PAR LIGNES ----------
-   CSS columns remplit colonne par colonne (ordre illisible). Ici :
-   round-robin — l'item i va dans la colonne i % N, donc la lecture
-   gauche→droite suit l'ordre (le plus récent en haut à gauche). */
+/* ---------- row-ordered masonry ----------
+   CSS columns fill column by column (unreadable order). Here:
+   round-robin, item i goes to column i % N, so reading
+   left→right follows the order (most recent top left). */
 export function Masonry({ cols, children }: { cols: number; children: React.ReactNode }) {
-  /* Children.toArray APLATIT les tableaux imbriqués ({jobs.map()} +
-     {assets.map()} = 2 enfants-tableaux sinon → 2 colonnes max). */
+  /* Children.toArray flattens nested arrays ({jobs.map()} +
+     {assets.map()} would otherwise be 2 array children → 2 columns max). */
   const items = Children.toArray(children)
   const n = Math.max(1, cols)
   const buckets: React.ReactNode[][] = Array.from({ length: n }, () => [])
@@ -172,22 +172,21 @@ export function Masonry({ cols, children }: { cols: number; children: React.Reac
   )
 }
 
-/* ---------- grille « justified rows » ----------
-   Lignes de hauteur ~fixe (cible dérivée de la densité), chaque vignette
-   garde son RATIO exact et la ligne est mise à l'échelle pour remplir
-   pile la largeur — zéro crop, zéro trou, rangées toujours alignées. */
+/* ---------- "justified rows" grid ----------
+   Rows of roughly fixed height (target derived from density); each thumbnail
+   keeps its exact ratio and the row is scaled to fill
+   the width exactly: no crop, no gaps, rows always aligned. */
 export const ratioOf = (a: Asset): number => {
   if (a.width && a.height) return a.width / a.height
   const m = /^(\d+):(\d+)$/.exec(a.aspect ?? '')
   return m ? Number(m[1]) / Number(m[2]) : 9 / 16
 }
 
-/** Chargement progressif d'une grille : les `depart` premières cartes,
- *  puis `pas` de plus chaque fois que la sentinelle (posée sous la grille)
- *  approche de l'écran — une ligne à la fois, jamais tout d'un coup. Sans ça,
- *  une bibliothèque de 1 800 rendus montait 1 800 cartes et leurs images.
- *  L'observateur est recréé à chaque palier : observer un élément déjà visible
- *  redéclenche le rappel, la grille se remplit donc jusqu'à déborder l'écran. */
+/** Progressive grid loading: the first `depart` cards,
+ *  then `pas` more each time the sentinel (placed under the grid)
+ *  nears the viewport, one row at a time.
+ *  The observer is recreated at each step: observing an already visible element
+ *  re-fires the callback, so the grid fills until it overflows the screen. */
 export function useProgressif(total: number, depart = 40) {
   const [limite, setLimite] = useState(depart)
   const sentinelle = useRef<HTMLDivElement>(null)
@@ -207,15 +206,15 @@ export function useProgressif(total: number, depart = 40) {
 export function JustifiedGrid({ cols, items: recus, progressif = true }: {
   cols: number
   items: { key: string; ratio: number; node: React.ReactNode }[]
-  /** false quand la vue gère elle-même le chargement progressif (plusieurs grilles) */
+  /** false when the view handles progressive loading itself (several grids) */
   progressif?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  /* Réorganisation différée : un rendu qui arrive pendant que le pointeur
-     travaille dans la grille décalerait la carte visée juste avant le clic. Tant que
-     le pointeur bouge dessus, les cartes NOUVELLES attendent ; un retrait (tri,
-     suppression : un geste de l'opérateur) s'applique tout de suite. Relâché dès que
-     le pointeur sort ou s'arrête deux secondes. */
+  /* Deferred reordering: a render arriving while the pointer is
+     over the grid would shift the targeted card just before the click. While
+     the pointer moves over it, NEW cards wait; a removal (sort,
+     deletion: an operator action) applies immediately. Released when
+     the pointer leaves or stays still for two seconds. */
   const affiches = useRef(recus)
   const actifJusqua = useRef(0)
   const [, relacher] = useState(0)
@@ -226,7 +225,7 @@ export function JustifiedGrid({ cols, items: recus, progressif = true }: {
   let items = recus
   if (gele) {
     const frais = new Map(recus.map(i => [i.key, i]))
-    items = affiches.current.filter(i => frais.has(i.key)).map(i => frais.get(i.key)!)   // ordre figé, contenu à jour
+    items = affiches.current.filter(i => frais.has(i.key)).map(i => frais.get(i.key)!)   // frozen order, up-to-date content
   } else affiches.current = recus
   const prog = useProgressif(items.length)
   if (progressif) items = items.slice(0, prog.limite)
@@ -257,7 +256,7 @@ export function JustifiedGrid({ cols, items: recus, progressif = true }: {
     }
     if (cur.length) rows.push({ h: Math.min(target, (w - GAP * (cur.length - 1)) / sum), cells: cur })
   }
-  // le palier suivant = une ligne de plus, à la largeur actuelle
+  // next step = one more row, at the current width
   if (rows.length) prog.pas.current = rows[0].cells.length
   return (
     <div ref={ref} className="jgrid" onPointerMove={bouge} onPointerLeave={sort}>
@@ -273,17 +272,17 @@ export function JustifiedGrid({ cols, items: recus, progressif = true }: {
   )
 }
 
-/* ---------- menu « Déplacer vers… » : dossiers à appartenances multiples ----------
-   « + ajouter un dossier » STICKY en tête (champ + Créer, actif dès 1 lettre,
-   doublons suffixés côté serveur) ; liste scrollable dans l'ordre choisi par
-   l'opérateur (store.folderSort), une checkbox par dossier — cochée si TOUS
-   les assets visés y sont. */
+/* ---------- "Move to…" menu: multi-membership folders ----------
+   "+ add a folder" sticky at the top (field + Create, enabled from 1 letter,
+   duplicates suffixed server-side); scrollable list in the operator's chosen
+   order (store.folderSort), one checkbox per folder, checked if ALL
+   targeted assets are in it. */
 export interface FolderInfo { id: string; name: string; createdAt: number; count: number; personaId?: string | null }
 
-/* ---------- sélecteur d'ordre des dossiers ----------
-   Le réglage vit dans le store (persisté) et vaut pour TOUTES les listes de
-   dossiers de l'app : changer l'ordre ici range aussi le menu « Déplacer
-   vers… », la fiche détail et le mobile. */
+/* ---------- folder order picker ----------
+   The setting lives in the store (persisted) and applies to ALL folder lists
+   in the app: changing the order here also sorts the "Move
+   to…" menu, the detail sheet and mobile. */
 export function FolderSortButton() {
   const s = useAppStore()
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
@@ -327,7 +326,7 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
   assetIds: string[]
   onClose: () => void
   onChanged?: () => void
-  /** SOUS-menu d'un menu parent (⋯) : rendu absolu collé au parent, sans fermer celui-ci */
+  /** SUB-menu of a parent (⋯) menu: absolutely positioned against the parent, without closing it */
   nested?: boolean
   side?: 'left' | 'right'
 }) {
@@ -335,8 +334,8 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
   const [folders, setFolders] = useState<FolderInfo[]>([])
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
-  /* Coches OPTIMISTES : l'état local est la vérité de CE menu — dépendre du
-     hydrate() global (1-2 s) ferait disparaître la coche entre deux clics. */
+  /* Optimistic checks: local state is the truth for this menu; relying on the
+     global hydrate() (1-2 s) would make the check vanish between two clicks. */
   const [checked, setChecked] = useState<Record<string, boolean>>(() => {
     const sel = useAppStore.getState().assets.filter(a => assetIds.includes(a.id))
     const out: Record<string, boolean> = {}
@@ -392,8 +391,8 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
       </div>
   )
   if (nested) return (
-    /* SOUS-menu : absolu, collé au bord du menu parent (left:100%), repli à
-       gauche près du bord d'écran via side. */
+    /* SUB-menu: absolute, against the parent menu's edge (left:100%), flips
+       left near the screen edge via side. */
     <div className={`submenu ${side === 'left' ? 'left' : ''}`}
       onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>{body}</div>
   )
@@ -405,7 +404,7 @@ export function FolderMenu({ at, assetIds, onClose, onChanged, nested, side }: {
   )
 }
 
-/* ---------- badges des vignettes : moteur, brouillon, son, texte, finition ---------- */
+/* ---------- thumbnail badges: engine, draft, sound, text, finish ---------- */
 const MOTEUR_COURT: Record<string, string> = { wan: 'Wan', ltx_hq: 'LTX', minimax: 'MiniMax', motion: 'Motion', moss: 'MOSS', flux3: 'FLUX 3', krea: 'Krea', klein: 'Klein' }
 const FINITION: Record<string, string> = { foley: 'bruitage', interpolate: 'fluide', upscale: 'upscale', photo_hd: 'HD' }
 export function badgesOf(a: Asset): { cle: string; txt: string; cls?: string }[] {
@@ -419,12 +418,12 @@ export function badgesOf(a: Asset): { cle: string; txt: string; cls?: string }[]
   return out
 }
 
-/* ---------- vignette d'asset ---------- */
+/* ---------- asset thumbnail ---------- */
 export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
   a: Asset
   onOpen: (a: Asset) => void
   picking?: boolean; picked?: boolean; onPick?: (id: string) => void
-  /** boutons du bas de vignette (Animer / Départ / Fin / Rejouer…) */
+  /** thumbnail bottom buttons (Animate / Start / End / Replay…) */
   extra?: React.ReactNode
 }) {
   const review = useAppStore(s => s.reviewAsset)
@@ -436,13 +435,13 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
   const cls = a.reviewStatus === 'approved' ? 'approved' : a.reviewStatus === 'rejected' ? 'rejected' : ''
   return (
     <div className={`card ${cls} ${picked ? 'picked' : ''} ${menu ? 'menu-open' : ''}`} onClick={() => (picking && onPick ? onPick(a.id) : onOpen(a))}
-      // glisser une vignette sur une zone de prompt : référence (Image) ou image de départ (Vidéo)
+      // drag a thumbnail onto a prompt area: reference (Image) or start image (Video)
       draggable onDragStart={e => { e.dataTransfer.setData('text/asset-id', a.id); e.dataTransfer.effectAllowed = 'copy' }}
-      onMouseEnter={() => { void vid.current?.play().catch(() => { /* autoplay refusé : tant pis */ }) }}
+      onMouseEnter={() => { void vid.current?.play().catch(() => { /* autoplay refused: ignore */ }) }}
       onMouseLeave={() => { const el = vid.current; if (el) { el.pause(); el.currentTime = 0 } }}>
       {a.mediaType === 'video'
-        /* preload none : metadata chargées au 1er hover (le play() les tire) —
-           preload=metadata déclenchait N requêtes vidéo au chargement de la grille. */
+        /* preload none: metadata loads on first hover (play() fetches it);
+           preload=metadata would fire N video requests when the grid loads. */
         ? <video ref={vid} src={a.uri} poster={posterOf(a)} muted loop playsInline preload="none"
             onLoadedMetadata={e => setClipS((e.target as HTMLVideoElement).duration || null)} />
         : <img src={vignetteOf(a)} alt="" loading="lazy" />}
@@ -484,8 +483,8 @@ export function AssetCard({ a, onOpen, picking, picked, onPick, extra }: {
   )
 }
 
-/* ---------- placeholder de job en file / rendu ---------- */
-/* Jauge en anneau : part utilisée d'une ressource (VRAM, quota). Orange au-delà de 75 %, rouge au-delà de 90 %. */
+/* ---------- queued / rendering job placeholder ---------- */
+/* Ring gauge: used share of a resource (VRAM, quota). Orange above 75 %, red above 90 %. */
 export function Anneau({ pct, taille = 18, titre }: { pct: number; taille?: number; titre?: string }) {
   const p = Math.max(0, Math.min(100, pct)), r = (taille - 4) / 2, c = 2 * Math.PI * r
   const couleur = p >= 90 ? 'var(--danger)' : p >= 75 ? 'var(--attention)' : 'url(#anneau-grad)'
@@ -500,13 +499,13 @@ export function Anneau({ pct, taille = 18, titre }: { pct: number; taille?: numb
 }
 
 export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
-  // la file est commune : annuler et réordonner sont réservés au propriétaire
+  // the queue is shared: cancel and reorder are owner-only
   const proprio = useEdition()
   const cancel = useAppStore(st => st.cancelJob)
   const reorder = useAppStore(st => st.reorderJobs)
   const [over, setOver] = useState(false)
-  /* Tick local 1 s : le poll n'émet QUE sur changement de statut/progression —
-     sans ce tick, compteur et barre restent figés sur leur valeur de naissance. */
+  /* Local 1 s tick: the poll only emits on status/progress change;
+     without it the counter and bar would stay frozen at their initial value. */
   const [, forceTick] = useState(0)
   useEffect(() => {
     const iv = window.setInterval(() => forceTick(n => n + 1), 1000)
@@ -514,9 +513,9 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   }, [])
   const active = STATUTS_EN_CALCUL.includes(j.status)
   const finition = j.status === 'post-process'
-  /* Silhouette du placeholder = ratio du DERNIER rendu du même média :
-     la fournée en cours produit presque toujours le même format, la
-     masonry ne se décale plus. Repli 9/16. */
+  /* Placeholder shape = ratio of the LAST render of the same media type:
+     the current batch almost always has the same format, so the
+     masonry does not shift. Fallback 9/16. */
   const lastRatio = useAppStore(st => {
     const a = st.assets.find(x => x.mediaType === j.mode && x.width && x.height)
     return a?.width && a?.height ? a.width / a.height : null
@@ -532,18 +531,17 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   }
   const prog = j.progress
   const elapsed = active && j.startedAt ? Date.now() - j.startedAt : 0
-  /* ---------- barre de progression HYBRIDE ----------
-     ComfyUI ne pousse `progress` que par intermittence, et value/max ne
-     couvrent que le NŒUD en cours : ni une mesure de bout en bout, ni un flux
-     continu. Deux régimes, donc :
-       · sans mesure  → on avance à la vitesse nominale (écoulé / estimé) ;
-       · à chaque mesure → on RECALE la barre sur la valeur réelle, puis on
-         repart à une vitesse recalculée pour atteindre 100 % à l'échéance
-         estimée. Une mesure tardive ralentit donc la suite au lieu de figer
-         la barre, et une mesure en avance l'accélère.
-     La barre ne recule jamais au-delà du seuil de recalage (garde `floor`) :
-     un retour en arrière visible se lit comme un bug, pas comme une
-     correction. */
+  /* ---------- HYBRID progress bar ----------
+     ComfyUI pushes `progress` only intermittently, and value/max only
+     cover the current NODE: neither an end-to-end measure nor a continuous
+     stream. So two modes:
+       · no measurement → advance at nominal speed (elapsed / estimated);
+       · on each measurement → snap the bar to the real value, then
+         continue at a recomputed speed to reach 100 % at the estimated
+         deadline. A late measurement slows the rest instead of freezing
+         the bar; an early one speeds it up.
+     The bar never goes back below the snap threshold (`floor` guard):
+     a visible regression reads as a bug. */
   const anchor = useRef<{ pct: number; at: number; elapsed: number } | null>(null)
   const floor = useRef(0)
   useEffect(() => { if (!active) { anchor.current = null; floor.current = 0 } }, [active])
@@ -551,11 +549,11 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
     if (!active || !prog?.max) return
     const measured = Math.min(0.99, prog.value / prog.max)
     anchor.current = { pct: measured, at: Date.now(), elapsed }
-    // Recalage vers le BAS toléré d'un cran seulement (la mesure fait foi),
-    // mais jamais en dessous de ce qui était déjà affiché moins 15 points.
+    // Downward snap allowed by one step only (the measurement wins),
+    // but never below what was already shown minus 15 points.
     floor.current = Math.max(0, measured - 0.15)
-    // `elapsed` volontairement hors dépendances : il change chaque seconde et
-    // ne doit pas recréer d'ancre — seule une nouvelle mesure en pose une.
+    // `elapsed` deliberately left out of deps: it changes every second and
+    // must not create an anchor; only a new measurement does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, prog?.value, prog?.max])
 
@@ -564,16 +562,16 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   if (!active) ratio = 0
   else if (anchor.current) {
     const a = anchor.current
-    // Temps restant PRÉVU au moment de l'ancre ; plancher à 2 s pour éviter
-    // une division par ~0 quand la mesure arrive après l'échéance estimée.
+    // EXPECTED remaining time at anchor; floored at 2 s to avoid
+    // division by ~0 when the measurement arrives after the estimated deadline.
     const remaining = Math.max(2000, est - a.elapsed)
     const since = Date.now() - a.at
     ratio = a.pct + (1 - a.pct) * (since / remaining)
   } else if (est) ratio = elapsed / est
   else ratio = 0.3
-  // 96 % max : un rendu plus long que l'estimation doit rester « en vie ».
+  // 96 % max: a render longer than estimated must still look alive.
   const pct = Math.round(Math.min(0.96, Math.max(floor.current, ratio)) * 100)
-  /* Lenteur anormale : 60 % et au moins 90 s de plus que l'estimation (moyenne des derniers rendus). */
+  /* Abnormal slowness: 60 % and at least 90 s over the estimate (average of recent renders). */
   const lent = active && !finition && est > 0 && elapsed > est * 1.6 && elapsed - est > 90_000
   const eta = active && elapsed
     ? `${fmtDur(elapsed)} / ${j.estimatedMs ? `~${fmtDur(j.estimatedMs)}` : '…'}`
@@ -586,8 +584,8 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
       onDragOver={e => { if (draggable) { e.preventDefault(); setOver(true) } }}
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}>
-      {/* Aperçu en direct : l'image que le modèle est en train de former, floue mais lisible —
-          de quoi annuler tôt un rendu mal parti. */}
+      {/* Live preview: the image the model is forming, blurry but readable,
+          enough to cancel a bad render early. */}
       {active && j.apercu && (
         <img src={`/api/jobs/${encodeURIComponent(j.id)}/apercu?t=${j.apercu}`} alt="" aria-hidden
           onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
@@ -611,10 +609,10 @@ export function JobCard({ j, queueIds }: { j: Job; queueIds?: string[] }) {
   )
 }
 
-/* ---------- rendu en échec : la carte reste dans la galerie ----------
-   Un job `blocked` garde sa carte dans les vues du bureau. Elle porte la phrase du serveur
-   (server/erreurs.js : « cause — conseil ») et les gestes de reprise. Une
-   annulation par l'opérateur n'est pas un échec : elle n'a pas de carte. */
+/* ---------- failed render: the card stays in the gallery ----------
+   A `blocked` job keeps its card in desktop views. It carries the server's sentence
+   (server/erreurs.js: "cause — advice") and retry actions. An
+   operator cancellation is not a failure: it has no card. */
 export function failedJobs(jobs: Job[], video: boolean): Job[] {
   const depuis = Date.now() - 72 * 3600 * 1000
   return jobs.filter(j => (j.mode === 'video') === video && j.status === 'blocked'
@@ -645,7 +643,7 @@ export function FailCard({ j }: { j: Job }) {
           <span className="pill9 ko">{t('échec')}</span>
           <span className="pill9">{j.mode === 'video' ? (j.videoEngine ?? 'video') : (j.recipeId?.split('@')[0] ?? 'photo')}</span>
         </div>
-        {/* la phrase utile d'abord (ce qu'il faut faire) ; le détail technique se déplie au clic */}
+        {/* the useful sentence first (what to do); technical detail expands on click */}
         {conseil ? <>
           <div className="fcause" style={{ color: 'var(--text)' }}>{conseil[0].toUpperCase() + conseil.slice(1)}.</div>
           <div className="fconseil" style={{ opacity: .6, cursor: 'pointer', ...(detail ? {} : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}
@@ -669,31 +667,31 @@ export function FailCard({ j }: { j: Job }) {
   )
 }
 
-/* ---------- portal scopé .v2 ----------
-   Un portal rend dans document.body, HORS de l'arbre .v2 : les styles
-   et variables CSS scopés .v2 ne s'appliquent plus (menu invisible,
-   posé en bas du body → page étirée). On ré-enveloppe dans un calque
-   .v2 transparent non bloquant. */
-/* Un seul menu contextuel ouvert dans toute l'app : chaque menu s'enregistre
-   au montage et ferme le précédent (pills d'îlot, ⋯ de vignette, animer ⌄…). */
+/* ---------- .v2-scoped portal ----------
+   A portal renders into document.body, OUTSIDE the .v2 tree: .v2-scoped
+   styles and CSS variables no longer apply (invisible menu,
+   placed at the bottom of body → stretched page). So re-wrap in a
+   transparent, non-blocking .v2 layer. */
+/* Only one context menu open in the whole app: each menu registers
+   on mount and closes the previous one (island pills, thumbnail ⋯, animate ⌄…). */
 let closeCurrentMenu: (() => void) | null = null
-/** Pastille d'un outil : nouveau ou le plus utilisé. */
+/** Tool badge: new or most used. */
 export function Pastille({ k }: { k: 'new' | 'top' }) {
   return <span style={{ fontSize: 12, fontWeight: 700, padding: '1px 6px', borderRadius: 6, marginLeft: 6, verticalAlign: 'middle', letterSpacing: '.02em',
     color: k === 'new' ? '#1a0d10' : 'var(--text)', background: k === 'new' ? 'linear-gradient(90deg, #f6a961, #ea4e89)' : 'var(--lv4)' }}>{k === 'new' ? t('Nouveau') : 'Top'}</span>
 }
 
 export function useExclusiveMenu(onClose: () => void, nested = false) {
-  /* onClose est recréé à chaque render : s'y abonner en dépendance ferait
-     re-tourner l'effet et les menus se fermeraient mutuellement en boucle.
-     Ref stable + effet AU MONTAGE seulement (un menu monté = ouvert).
-     `nested` : le menu REMPLACE son parent (Déplacer vers… depuis un ⋯) —
-     fermer « le précédent » démonterait le parent et nous avec. */
+  /* onClose is recreated each render: depending on it would re-run
+     the effect and menus would close each other in a loop.
+     Stable ref + effect ON MOUNT only (a mounted menu = open).
+     `nested`: the menu REPLACES its parent (Move to… from a ⋯);
+     closing "the previous one" would unmount the parent and this menu with it. */
   const ref = useRef(onClose)
   ref.current = onClose
   useEffect(() => {
     const me = () => ref.current()
-    if (!nested) closeCurrentMenu?.() // ouvrir ce menu ferme le précédent
+    if (!nested) closeCurrentMenu?.() // opening this menu closes the previous one
     closeCurrentMenu = me
     const off = () => ref.current()
     window.addEventListener('pointerdown', off)
@@ -711,7 +709,7 @@ export function V2Portal({ children }: { children: React.ReactNode }) {
     </div>, document.body)
 }
 
-/* ---------- menu ⋯ d'une vignette ---------- */
+/* ---------- thumbnail ⋯ menu ---------- */
 function CardMenu({ a, at, onClose }: { a: Asset; at: { x: number; y?: number; bottom?: number }; onClose: () => void }) {
   const s = useAppStore()
   const edition = useEdition()
@@ -747,7 +745,7 @@ function CardMenu({ a, at, onClose }: { a: Asset; at: { x: number; y?: number; b
   )
 }
 
-/* ---------- finitions d'un clip : son sur clip muet, fluidité 48 i/s ---------- */
+/* ---------- clip finishing: sound on a silent clip, 48 fps smoothing ---------- */
 export async function lancerFinition(a: Asset, op: 'foley' | 'interpolate', prompt?: string): Promise<string | null> {
   const r = await fetch(`/api/assets/${encodeURIComponent(a.id)}/${op}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prompt ? { prompt } : {}) })
@@ -775,7 +773,7 @@ function FinitionsMenu({ a, onDone }: { a: Asset; onDone: () => void }) {
   </>)
 }
 
-/* ---------- popup contextuelle Style ---------- */
+/* ---------- Style context popup ---------- */
 export function StyleMenu({ at, onClose, styles }: {
   at: { x: number; y?: number; bottom?: number }; onClose: () => void
   styles: { id: string; label?: string; name?: string; prompt?: string }[]
@@ -799,7 +797,7 @@ export function StyleMenu({ at, onClose, styles }: {
   )
 }
 
-/* ---------- menu « Animer ⌄ » : Frame Placement (départ / fin) ---------- */
+/* ---------- "Animate ⌄" menu: Frame Placement (start / end) ---------- */
 export function AnimMenu({ at, onClose, onStart, onEnd }: {
   at: { x: number; y?: number; bottom?: number }; onClose: () => void
   onStart: () => void; onEnd: () => void
@@ -817,7 +815,7 @@ export function AnimMenu({ at, onClose, onStart, onEnd }: {
   )
 }
 
-/* ---------- menu format photo : liste + rectangle aux proportions ---------- */
+/* ---------- photo format menu: list + proportional rectangle ---------- */
 export const PHOTO_SIZES: { w: number; h: number; label: string }[] = [
   { w: 768, h: 1344, label: '9:16' },
   { w: 832, h: 1216, label: '2:3' },
@@ -856,13 +854,13 @@ export function DimsMenu({ at, onClose }: { at: { x: number; y?: number; bottom?
   )
 }
 
-/* ---------- pill seed : lock éditable à la main ---------- */
+/* ---------- seed pill: lock with hand-editable value ---------- */
 export function SeedPill() {
   const s = useAppStore()
   if (s.seedMode === 'random')
     return <button className="pill" onClick={s.toggleSeedMode} title={t('cliquer pour verrouiller la seed')}><Ic n="dice" s={13} /> {t('seed')}</button>
-  /* verrouillée : lock + chiffre éditable + croix rouge = retour au random
-     (la pill entière ne toggle plus — éditer le chiffre ne doit rien fermer). */
+  /* locked: lock + editable number + red cross = back to random
+     (the pill itself does not toggle, so editing the number closes nothing). */
   return (
     <span className="pill" style={{ gap: 6, cursor: 'default' }} title={t('seed verrouillée')}>
       <Ic n="lock" s={12} />
@@ -876,7 +874,7 @@ export function SeedPill() {
   )
 }
 
-/* ---------- bottom-sheet mobile à crans (mini / half / full) ---------- */
+/* ---------- mobile bottom sheet with snap points (mini / half / full) ---------- */
 export function MobileSheet({ children, initial = 'half' }: {
   children: React.ReactNode
   initial?: 'mini' | 'half' | 'full'
@@ -898,7 +896,7 @@ export function MobileSheet({ children, initial = 'half' }: {
   )
 }
 
-/* ---------- estimation par moyenne glissante des 5 derniers rendus ---------- */
+/* ---------- time estimate: rolling average of the last 5 renders ---------- */
 export function rollingEta(assets: Asset[], pick: (a: Asset) => boolean, fallbackMs: number): number {
   const last = assets.filter(a => pick(a) && a.renderMs && a.renderMs > 500).slice(0, 5)
   if (!last.length) return fallbackMs
@@ -909,20 +907,20 @@ export function fmtEta(ms: number): string {
   if (sec < 90) return `~${sec} s`
   return `~${(sec / 60).toFixed(sec < 600 ? 1 : 0).replace('.', ',')} min`
 }
-/** Durée lisible « 45 s » · « 1 min 20 s » · « 12 min ». */
+/** Human-readable duration: "45 s" · "1 min 20 s" · "12 min". */
 export function fmtDur(ms: number): string {
   const sec = Math.max(1, Math.round(ms / 1000))
   if (sec < 60) return `${sec} s`
   const m = Math.floor(sec / 60), r = sec % 60
   return r && m < 10 ? `${m} min ${r} s` : `${m} min`
 }
-/* moyenne glissante persistée (localStorage) — durées de la réécriture LLM */
+/* rolling average persisted in localStorage — LLM rewrite durations */
 export function pushRolling(key: string, ms: number) {
   try {
     const arr: number[] = JSON.parse(localStorage.getItem(key) ?? '[]')
     arr.unshift(ms)
     localStorage.setItem(key, JSON.stringify(arr.slice(0, 5)))
-  } catch { /* stockage indisponible : tant pis */ }
+  } catch { /* storage unavailable: ignore */ }
 }
 export function readRolling(key: string, fallbackMs: number): number {
   try {
@@ -932,7 +930,7 @@ export function readRolling(key: string, fallbackMs: number): number {
   } catch { return fallbackMs }
 }
 
-/* ---------- confirmation inline (purge) ---------- */
+/* ---------- inline confirmation (purge) ---------- */
 export function useConfirm(timeout = 4000): [boolean, () => boolean] {
   const [armed, setArmed] = useState(false)
   return [armed, () => {
@@ -941,18 +939,18 @@ export function useConfirm(timeout = 4000): [boolean, () => boolean] {
   }]
 }
 
-/* ---------- lots : groupement + vignette mosaïque ----------
-   Les assets d'un même batchId (lot > 1 / carrousel) se replient en UNE
-   vignette-mosaïque ; le clic ouvre la vue du lot. Les
-   assets sans batchId restent des vignettes simples. */
+/* ---------- batches: grouping + mosaic thumbnail ----------
+   Assets sharing a batchId (batch > 1 / carousel) collapse into ONE
+   mosaic thumbnail; clicking opens the batch view. Assets without
+   batchId stay plain thumbnails. */
 export type GridItem = { kind: 'asset'; a: Asset } | { kind: 'batch'; id: string; items: Asset[] }
 
 export function groupBatches(assets: Asset[]): GridItem[] {
   const out: GridItem[] = []
   const seen = new Map<string, { kind: 'batch'; id: string; items: Asset[] }>()
   for (const a of assets) {
-    /* multi-appartenance : batchId (création) + batchIds (origines de
-       carrousels) — l'asset est DUPLIQUÉ dans chaque lot. */
+    /* multi-membership: batchId (creation) + batchIds (carousel origins);
+       the asset is DUPLICATED into each batch. */
     const ids = [...new Set([...(a.batchId ? [a.batchId] : []), ...(a.batchIds ?? [])])]
     if (!ids.length) { out.push({ kind: 'asset', a }); continue }
     for (const id of ids) {
@@ -963,11 +961,11 @@ export function groupBatches(assets: Asset[]): GridItem[] {
       out.push(ng)
     }
   }
-  // un « lot » d'une seule image redevient une vignette simple
+  // a single-image batch falls back to a plain thumbnail
   return out.map(it => (it.kind === 'batch' && it.items.length < 2 ? { kind: 'asset', a: it.items[0] } : it))
 }
 
-/** Les lots de PHOTOS seulement (carrousels, séries) : un lot de clips reste en vignettes (ses prises ont leur comparateur). */
+/** PHOTO batches only (carousels, series): a clip batch stays as thumbnails (its takes have their own comparator). */
 export function groupLotsPhotos(assets: Asset[]): GridItem[] {
   return groupBatches(assets).flatMap(it => it.kind === 'batch' && it.items.some(a => a.mediaType !== 'photo')
     ? it.items.filter((a, i, l) => l.findIndex(x => x.id === a.id) === i).map(a => ({ kind: 'asset' as const, a })) : [it])
@@ -985,8 +983,8 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
   const allRejected = items.every(a => a.reviewStatus === 'rejected')
   const minis = items.slice(0, 9)
   const cols = minis.length > 4 ? 3 : 2
-  /* Feuilletage au survol : la position du pointeur sur la largeur de la carte
-     choisit l'image du lot affichée en grand — un aperçu sans ouvrir le lot. */
+  /* Hover flip-through: the pointer position across the card width
+     picks which batch image is shown large — a preview without opening the batch. */
   const [vue, setVue] = useState<number | null>(null)
   const feuilleter = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return
@@ -1016,7 +1014,7 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
         {minis.map(a => (
           <img key={a.id} src={vignetteOf(a)} alt="" loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'cover',
-              /* refusée individuellement : même gris que les vignettes rejetées */
+              /* individually rejected: same grey as rejected thumbnails */
               ...(a.reviewStatus === 'rejected' ? { filter: 'grayscale(.55) brightness(.55)' } : null) }} />
         ))}
       </div>
@@ -1046,9 +1044,9 @@ export function BatchCard({ items, onOpen, picking, allPicked, onPickAll }: {
   )
 }
 
-/* ---------- barre de sélection : remplace la barre de création quand ≥1 coché ---------- */
-/* Tâche longue du serveur (captions ou livraison des reels), suivie par
-   interrogation : un lot de 60 vidéos dure plusieurs minutes. */
+/* ---------- selection bar: replaces the creation bar when ≥1 item is checked ---------- */
+/* Long server task (captions or reel delivery), tracked by polling:
+   a batch of 60 videos takes several minutes. */
 interface TacheReels { type: 'captions' | 'livraison'; total: number; faits: number; fini: boolean
   erreurs: { id: string | null; erreur: string }[]; dossier?: string; livres?: { nom: string }[] }
 
@@ -1083,7 +1081,7 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
   const [folderMenu, setFolderMenu] = useState<{ x: number; bottom: number } | null>(null)
   const [comparer, setComparer] = useState(false)
   const sel = assets.filter(a => ids.includes(a.id))
-  /* upscale de masse : actif seulement si TOUTE la sélection est en brouillon vidéo */
+  /* bulk upscale: enabled only if the WHOLE selection is video drafts */
   const allDrafts = sel.length > 0 && sel.every(a => a.mediaType === 'video' && a.videoDraft)
   const upscaleAll = async () => {
     for (const a of sel) await fetch(`/api/assets/${encodeURIComponent(a.id)}/upscale`, { method: 'POST' })
@@ -1091,8 +1089,8 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
   }
   const videos = sel.filter(a => a.mediaType === 'video')
   const toutesCaptionnees = videos.length > 0 && videos.every(a => a.caption)
-  /* Sans caption : on écrit celles qui manquent, sans toucher aux autres.
-     Toutes remplies : on les réécrit toutes (vider un champ = le faire réécrire seul). */
+  /* Some captions missing: write only the missing ones, leave the others.
+     All filled: rewrite them all (clearing a field = rewrite that one alone). */
   const captionner = () => void lancer('/api/captions', { ids: videos.map(a => a.id), tout: toutesCaptionnees })
   const livrer = async () => {
     const { prochain } = await (await fetch('/api/captions/etat')).json()
@@ -1100,7 +1098,7 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
     if (debut) void lancer('/api/reels/livrer', { ids: videos.map(a => a.id), debut: debut.trim(), folderId })
   }
   const download = async () => {
-    /* Nom de base (ex. « J74C ») → J74C1, J74C2… dans l'ordre affiché. Vide = noms d'origine. */
+    /* Base name (e.g. "J74C") → J74C1, J74C2… in display order. Empty = original names. */
     const base = window.prompt(t("Nom de base des fichiers (ex. J74C → J74C1, J74C2…). Vide = noms d'origine."), '')
     if (base === null) return
     for (const [i, a] of sel.entries()) {
@@ -1152,11 +1150,11 @@ export function SelectionBar({ ids, assets, folderId, onClear }: { ids: string[]
   )
 }
 
-/** Ref d'une vidéo qui s'arrête vraiment quand elle quitte l'écran : certains navigateurs
- *  (Safari) continuent de lire le son d'un élément retiré de la page. */
+/** Ref for a video that really stops when it leaves the screen: some browsers
+ *  (Safari) keep playing the audio of an element removed from the page. */
 export function useVideoArretee() {
-  /* La référence de React est vidée AVANT le nettoyage au démontage : on garde la nôtre,
-     sinon rien n'est mis en pause et Safari continue de lire la vidéo retirée, en boucle. */
+  /* React clears its ref BEFORE the unmount cleanup: keep our own copy,
+     otherwise nothing gets paused and Safari keeps looping the removed video. */
   const garde = useRef<HTMLVideoElement | null>(null)
   const ref = useCallback((v: HTMLVideoElement | null) => {
     if (v) { garde.current = v; return }
@@ -1167,5 +1165,5 @@ export function useVideoArretee() {
 }
 function arreterVideo(v: HTMLVideoElement | null) {
   if (!v) return
-  try { v.pause(); v.removeAttribute('src'); v.load() } catch { /* déjà détachée */ }
+  try { v.pause(); v.removeAttribute('src'); v.load() } catch { /* already detached */ }
 }

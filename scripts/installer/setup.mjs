@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 /* ============================================================
-   Assistant d'installation de CreatorOS Studio — `npm run setup`.
+   CreatorOS Studio setup wizard: `npm run setup`.
 
-   Ce qu'il fait, dans l'ordre : prérequis de la machine, ComfyUI (trouvé ou
-   installé), packs de nœuds, modèles, Ollama, persona. Il DEMANDE avant
-   chaque étape qui écrit quelque chose ; `--check` (alias `--dry-run`) ne
-   fait que constater.
+   In order: machine prerequisites, ComfyUI (found or installed), node
+   packs, models, Ollama, persona. It ASKS before each step that writes
+   anything; `--check` (alias `--dry-run`) only reports.
 
-   La liste des nœuds et des modèles ne vient pas du README : les recettes
-   workflows/PROD_*.json sont relues à chaque lancement, et tout fichier ou
-   nœud qu'elles nomment sans que modeles.json le connaisse est signalé.
+   The node and model list comes from the recipes, not the README:
+   workflows/PROD_*.json are read on every run, and any file or node they
+   name that modeles.json does not know is reported.
 
-   Il n'écrit aucun secret. HF_TOKEN (dépôts à licence acceptée) est lu dans
-   l'environnement, envoyé en en-tête Authorization vers huggingface.co
-   seulement, jamais affiché.
+   It writes no secrets. HF_TOKEN (gated repos) is read from the
+   environment, sent as an Authorization header to huggingface.co only,
+   never displayed.
    ============================================================ */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -58,11 +57,11 @@ HF_TOKEN (gated Hugging Face repos), CREATOROS_TORCH_INDEX (override the PyTorch
 const CHECK = drapeau('--check', '--dry-run')
 const OUI = drapeau('--yes', '-y')
 
-/* La config du serveur donne les mêmes valeurs par défaut que `npm start`
-   (dossier de données, modèles Ollama, URL) : une seule source. */
+/* The server config provides the same defaults as `npm start`
+   (data folder, Ollama models, URL): a single source. */
 const { CONFIG } = await import(pathToFileURL(path.join(REPO, 'server', 'config.js')).href)
 
-/* ---------- questions ---------- */
+/* ---------- prompts ---------- */
 
 let rl = null
 const interactif = process.stdin.isTTY && !CHECK
@@ -71,7 +70,7 @@ async function demander(q, def = '') {
   const r = (await rl.question(`  ${jaune('?')} ${q}${def ? gris(` [${def}]`) : ''} `)).trim()
   return r || def
 }
-/** Oui/non. En --check on ne pose rien (et l'on répond non) ; avec --yes, oui. */
+/** Yes/no. With --check nothing is asked (answers no); with --yes, yes. */
 async function confirmer(q, def = true) {
   if (CHECK) return false
   if (OUI) { console.log(`  ${jaune('?')} ${q} ${gris('yes (--yes)')}`); return true }
@@ -83,13 +82,13 @@ async function confirmer(q, def = true) {
 const bilan = { manque: [], fait: [], suite: [] }
 
 /* ============================================================
-   1. Recettes : ce qu'elles demandent vraiment
+   1. Recipes: what they actually require
    ============================================================ */
 
-/* Nœuds que le serveur AJOUTE aux recettes à l'exécution (server/jobs.js,
-   server/comfy.js) — ils n'apparaissent dans aucun JSON. Les chemins
-   MiniMax et ControlNet Z-Image sont laissés de côté : aucune recette
-   livrée ne les emprunte (cf. modeles.json, `_exclus`). */
+/* Nodes the server ADDS to recipes at run time (server/jobs.js,
+   server/comfy.js); they appear in no JSON. The MiniMax and Z-Image
+   ControlNet paths are left out: no shipped recipe uses them
+   (see modeles.json, `_exclus`). */
 const INJECTES = ['GrowMaskWithBlur', 'GetImageSizeAndCount', 'ImageToMask', 'RepeatImageBatch', 'ImageCompositeMasked',
   'SetLatentNoiseMask', 'SolidMask', 'ImageCrop', 'RIFE VFI', 'LoadVideo', 'GetVideoComponents', 'CreateVideo', 'SaveVideo']
 
@@ -116,8 +115,8 @@ const CLASSES_PACK = new Map(MANIFESTE.noeuds.flatMap(p => p.classes.map(c => [c
 const CLASSES_REQUISES = new Set([...Object.values(RECETTES).flatMap(r => [...r.classes]), ...INJECTES])
 const CLASSES_COEUR = [...CLASSES_REQUISES].filter(c => !CLASSES_PACK.has(c)).sort()
 
-/** Le manifeste suit-il les recettes ? Un fichier nommé par une recette et
-    inconnu de modeles.json serait silencieusement oublié à l'installation. */
+/** Does the manifest cover the recipes? A file named by a recipe but
+    unknown to modeles.json would be silently skipped at install. */
 function controlerManifeste() {
   const connus = new Set(MANIFESTE.modeles.map(m => m.chemin))
   const ecarts = []
@@ -127,7 +126,7 @@ function controlerManifeste() {
 }
 
 /* ============================================================
-   2. Prérequis
+   2. Prerequisites
    ============================================================ */
 
 function versionPython(cmd, args = ['--version']) {
@@ -135,7 +134,7 @@ function versionPython(cmd, args = ['--version']) {
   return (r.out + r.err).match(/Python (\d+\.\d+\.\d+)/)?.[1] ?? null
 }
 
-/** Un Python 3.12 utilisable pour créer un venv : uv d'abord, sinon le PATH. */
+/** A Python 3.12 usable to create a venv: uv first, else PATH. */
 function trouverPython312(uv) {
   if (uv) {
     const r = lire(uv, ['python', 'find', '3.12'])
@@ -159,8 +158,8 @@ function gpu() {
   return { nom, vram: Number(mem) * 1024 * 1024, pilote, cuda }
 }
 
-/* Index de roues PyTorch selon le CUDA que le pilote sait servir : on prend
-   le plus récent que le pilote couvre. CREATOROS_TORCH_INDEX l'emporte. */
+/* PyTorch wheel index for the CUDA version the driver supports: the most
+   recent one the driver covers. CREATOROS_TORCH_INDEX takes precedence. */
 function indexTorch(cuda) {
   if (process.env.CREATOROS_TORCH_INDEX) return process.env.CREATOROS_TORCH_INDEX
   const v = Number(cuda) || 0
@@ -207,9 +206,9 @@ function prerequis() {
    ============================================================ */
 
 async function localiserComfy() {
-  /* Un dossier désigné (--comfy, COMFY_DIR) est pris au mot : s'il n'est pas
-     un ComfyUI, c'est là qu'on propose d'installer, sans aller en chercher
-     un autre ailleurs. */
+  /* A designated folder (--comfy, COMFY_DIR) is taken literally: if it is
+     not a ComfyUI, installing there is offered, without searching
+     elsewhere. */
   const designe = valeur('--comfy') ?? process.env.COMFY_DIR
   const defaut = deplier(designe ?? path.join(os.homedir(), 'ComfyUI'))
   if (estComfy(defaut)) return path.resolve(defaut)
@@ -229,12 +228,12 @@ async function installerComfy(dir, p) {
   fs.mkdirSync(path.dirname(dir), { recursive: true })
   await executer(p.git, ['clone', '--depth', '1', COMFY_GIT, dir])
   bilan.fait.push(`ComfyUI cloned into ${tilde(dir)}`)
-  return true   // venv et torch : etapeComfy enchaîne sur preparerVenv
+  return true   // venv and torch: etapeComfy continues with preparerVenv
 }
 
-/** venv de ComfyUI, PyTorch CUDA, requirements — pour une installation
-    neuve, ou un ComfyUI présent sans venv. Jamais appelé sur un venv qui a
-    déjà torch : on ne touche pas à un ComfyUI qui marche. */
+/** ComfyUI venv, CUDA PyTorch, requirements, for a fresh install or an
+    existing ComfyUI without a venv. Never called on a venv that already
+    has torch: a working ComfyUI is left untouched. */
 async function preparerVenv(dir, p) {
   if (!p.python && p.uv && await confirmer('Python 3.12 is missing. Install it with uv?')) {
     await executer(p.uv, ['python', 'install', '3.12'])
@@ -263,27 +262,27 @@ async function preparerVenv(dir, p) {
   }
 }
 
-/** pip dans le venv de ComfyUI — via uv s'il est là (un venv créé par uv
-    n'a pas toujours pip). */
+/** pip in ComfyUI's venv, through uv when available (a uv-created venv
+    does not always have pip). */
 function pip(py, p, args) {
   return p.uv ? executer(p.uv, ['pip', 'install', '--python', py, ...args]) : executer(py, ['-m', 'pip', 'install', ...args])
 }
 
-/* Les nœuds cœur que les recettes emploient (WanAnimate2ToVideo, SAM3_*,
-   LTXV*, ResolutionSelector…) n'existent que dans un ComfyUI récent. Sans
-   ComfyUI en marche, on les cherche dans ses sources. */
+/* Core nodes used by the recipes (WanAnimate2ToVideo, SAM3_*, LTXV*,
+   ResolutionSelector…) only exist in a recent ComfyUI. Without a running
+   ComfyUI, they are searched for in its sources. */
 function noeudsCoeurAbsents(dir) {
   let src = ''
-  const lireDir = d => { try { for (const f of fs.readdirSync(d)) if (f.endsWith('.py')) src += fs.readFileSync(path.join(d, f), 'utf8') } catch { /* absent */ } }
-  try { src += fs.readFileSync(path.join(dir, 'nodes.py'), 'utf8') } catch { /* absent */ }
+  const lireDir = d => { try { for (const f of fs.readdirSync(d)) if (f.endsWith('.py')) src += fs.readFileSync(path.join(d, f), 'utf8') } catch { /* missing */ } }
+  try { src += fs.readFileSync(path.join(dir, 'nodes.py'), 'utf8') } catch { /* missing */ }
   lireDir(path.join(dir, 'comfy_extras'))
   return CLASSES_COEUR.filter(c => !src.includes(`"${c}"`) && !src.includes(`'${c}'`) && !new RegExp(`class ${c}\\b`).test(src))
 }
 
-/** /object_info si ComfyUI tourne : la seule vérité sur les nœuds chargés.
-    Encore faut-il que l'instance qui répond soit CELLE du dossier examiné
-    (un ComfyUI déjà en service sur le port pendant qu'on en installe un
-    second) : /internal/folder_paths dit quels dossiers elle sert. */
+/** /object_info when ComfyUI is running: the only truth about loaded nodes.
+    The responding instance must be THE ONE in the examined folder (a
+    ComfyUI may already serve the port while a second one is installed):
+    /internal/folder_paths tells which folders it serves. */
 async function objectInfo(dir) {
   try {
     const f = await fetch(new URL('/internal/folder_paths', CONFIG.comfyUrl), { signal: AbortSignal.timeout(5000) })
@@ -317,7 +316,7 @@ async function etapeComfy(p) {
   if (!CHECK && (!py || torchAbsent)) { await preparerVenv(dir, p); py = pythonDeComfy(dir) }
   if (!py) { ko('no venv found in the ComfyUI folder (venv/ or .venv/)', 'run `npm run setup` to create it, or set COMFY_PYTHON to the Python ComfyUI runs with'); bilan.manque.push('ComfyUI venv') }
   else {
-    // Lecture seule : version de Python et de torch, CUDA visible ou non.
+    // Read-only: Python and torch versions, whether CUDA is visible.
     const r = lire(py, ['-I', '-c', 'import sys\ntry:\n import torch; t=torch.__version__; c=torch.cuda.is_available()\nexcept Exception as e: t=None; c=False\nprint("PY", sys.version.split()[0], t, c)'], 120_000)
     const m = r.out.match(/PY (\S+) (\S+) (True|False)/)
     if (!m) { ko(`the ComfyUI Python does not start (${tilde(py)})`, (r.err.trim().split('\n').pop() || '').slice(0, 160)); bilan.manque.push('ComfyUI Python') }
@@ -338,12 +337,11 @@ async function etapeComfy(p) {
 }
 
 /* ============================================================
-   4. Packs de nœuds
+   4. Node packs
    ============================================================ */
 
-/* Les requirements d'un pack listent parfois torch/torchvision sans version :
-   les laisser passer pourrait remplacer la build CUDA du venv par une autre.
-   On les retire avant pip. */
+/* A pack's requirements sometimes list torch/torchvision unpinned, which
+   could replace the venv's CUDA build. They are removed before pip. */
 function requirementsSansTorch(fichier) {
   const lignes = fs.readFileSync(fichier, 'utf8').split('\n')
     .filter(l => !/^\s*(torch|torchvision|torchaudio)\s*([<>=!~;[]|$)/i.test(l))
@@ -391,7 +389,7 @@ async function etapeNoeuds(comfy, p, groupes) {
 }
 
 /* ============================================================
-   5. Modèles
+   5. Models
    ============================================================ */
 
 function etatModeles(comfyDir) {
@@ -405,17 +403,17 @@ function etatModeles(comfyDir) {
       }
       const candidats = dossiersDe(m.dossier, comfyDir, extra).map(d => path.join(d, m.chemin))
       const present = candidats.find(f => fs.existsSync(f)) ?? null
-      // Un lien symbolique dont la cible a disparu : le nom est là, le fichier non.
+      // A symlink whose target is gone: the name exists, the file does not.
       const casse = present ? null : candidats.find(f => { try { return fs.lstatSync(f).isSymbolicLink() } catch { return false } }) ?? null
       return { ...m, present, casse, dest: path.join(destinationDe(m.dossier, comfyDir, extra), m.chemin) }
     }),
   }
 }
 
-/* « Ta carte peut-elle le faire ? » : estimation, pas mesure. Le plus gros modèle
-   de diffusion du groupe doit tenir en VRAM, plus ~3 Go pour les activations et le VAE ;
-   ComfyUI décharge les encodeurs de texte. Sous 75 % du besoin, le déchargement partiel
-   devient trop lent ou finit en manque de mémoire. */
+/* "Can your card do it?": an estimate, not a measurement. The group's largest
+   diffusion model must fit in VRAM, plus ~3 GB for activations and the VAE;
+   ComfyUI offloads text encoders. Below 75 % of the need, partial offloading
+   becomes too slow or runs out of memory. */
 const DIFFUSION = new Set(['diffusion_models', 'unet', 'checkpoints', 'unet_gguf'])
 function besoinVram(modeles, g) {
   const gros = Math.max(0, ...modeles.filter(m => m.groupes.includes(g) && DIFFUSION.has(m.dossier)).map(m => m.taille))
@@ -429,7 +427,7 @@ function verdictVram(besoin, vram) {
 
 async function choisirGroupes(modeles, vram, profil = 24) {
   const noms = Object.keys(MANIFESTE.groupes)
-  // sous 16 Go, Klein (allégé) remplace Krea 2 comme moteur photo
+  // under 16 GB, Klein (lightweight) replaces Krea 2 as the photo engine
   const defaut = g => profil < 16 && g === 'photo_klein' ? true : profil < 16 && g === 'photo' ? false : MANIFESTE.groupes[g].defaut
   const lignes = noms.map((g, i) => {
     const du = modeles.filter(m => m.groupes.includes(g))
@@ -452,10 +450,10 @@ async function choisirGroupes(modeles, vram, profil = 24) {
   return [...new Set(r.split(/[\s,]+/).map(Number).filter(n => n >= 1 && n <= noms.length).map(n => noms[n - 1]))]
 }
 
-/* Petites cartes : le profil (24, 16, 12, 8 Go) décide quelles variantes
-   allégées du manifeste (`leger`) remplacent les modèles lourds. Le serveur fait la
-   même substitution à l'envoi (server/allege.js) ; ici on ne télécharge que ce qui
-   servira. Mêmes marches que le serveur. */
+/* Small cards: the profile (24, 16, 12, 8 GB) decides which lightweight
+   variants of the manifest (`leger`) replace the heavy models. The server
+   makes the same substitution on submit (server/allege.js); only what will
+   be used is downloaded here. Same steps as the server. */
 const profilDe = o => { const go = o / 2 ** 30; return !go ? 24 : go >= 22 ? 24 : go >= 14 ? 16 : go >= 10 ? 12 : 8 }
 function selonCarte(modeles, profil) {
   const nom = m => m.chemin.split('/').pop()
@@ -512,7 +510,7 @@ async function etapeModeles({ modeles, groupes }) {
   console.log(`\n  ${gras(`${manquants.length} files to download, ${octets(total)}`)}`)
   for (const m of manquants) info(`${octets(m.taille).padStart(8)}  ${m.chemin}  → ${tilde(path.dirname(m.dest))}${m.gated ? jaune('  (gated)') : ''}`)
 
-  // Espace disque, par système de fichiers de destination.
+  // Disk space, per destination filesystem.
   const parFs = new Map()
   for (const m of manquants) {
     const e = espaceLibre(m.dest)
@@ -561,7 +559,7 @@ async function etapeOllama() {
   try {
     const r = await fetch(new URL('/api/tags', CONFIG.ollamaUrl), { signal: AbortSignal.timeout(5000) })
     if (r.ok) tags = (await r.json()).models?.map(m => m.name) ?? []
-  } catch { /* injoignable */ }
+  } catch { /* unreachable */ }
   if (!cli && !tags) {
     ko('Ollama not found', 'install it: curl -fsSL https://ollama.com/install.sh | sh  (https://ollama.com/download)')
     bilan.manque.push('Ollama')
@@ -573,7 +571,7 @@ async function etapeOllama() {
     return
   }
   ok(`Ollama at ${CONFIG.ollamaUrl}`, `${tags.length} models`)
-  // « mistral-small » et « mistral-small:latest » désignent le même modèle.
+  // "mistral-small" and "mistral-small:latest" are the same model.
   const aLe = n => tags.some(t => t === n || t === `${n}:latest` || `${t}:latest` === n)
   for (const m of voulus) {
     const role = m === CONFIG.visionDescribeModel ? 'vision (CREATOROS_VLM_DESCRIBE)' : 'prompt rewriter (CREATOROS_LLM)'
@@ -589,7 +587,7 @@ async function etapeOllama() {
   }
 }
 
-/** Sans CLI (Ollama distant) : /api/pull, en flux de lignes JSON. */
+/** Without the CLI (remote Ollama): /api/pull, streamed JSON lines. */
 async function tirerParApi(nom) {
   const r = await fetch(new URL('/api/pull', CONFIG.ollamaUrl), { method: 'POST', body: JSON.stringify({ name: nom }) })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -626,9 +624,9 @@ async function etapePersona() {
 }
 
 /* ============================================================
-   8. Réglages du studio (studio.env)
-   Ce qui bloque d'habitude un usage local, réglé une fois : qui utilise le studio, sur quelle
-   adresse, le filtre de nudité, le modèle local sur la carte, le dossier des LoRA.
+   8. Studio settings (studio.env)
+   Common blockers for local use, set once: who uses the studio, on which
+   address, the nudity filter, the local model on the GPU, the LoRA folder.
    ============================================================ */
 
 async function choisir(q, options, def = 1) {
@@ -642,7 +640,7 @@ async function etapeReglages() {
   titre('8. Studio settings (studio.env)')
   const f = path.join(CONFIG.dataDir, 'studio.env')
   const actuel = {}
-  try { for (const l of fs.readFileSync(f, 'utf8').split('\n')) { const m = /^([A-Z0-9_]+)=(.*)$/.exec(l.trim()); if (m) actuel[m[1]] = m[2] } } catch { /* nouveau fichier */ }
+  try { for (const l of fs.readFileSync(f, 'utf8').split('\n')) { const m = /^([A-Z0-9_]+)=(.*)$/.exec(l.trim()); if (m) actuel[m[1]] = m[2] } } catch { /* new file */ }
   if (Object.keys(actuel).length) ok(`${tilde(f)} exists`, Object.keys(actuel).join(', '))
   if (CHECK) { info('check only: nothing written'); return }
   if (Object.keys(actuel).length && !(await confirmer('Review these settings now?', false))) return
@@ -661,14 +659,14 @@ async function etapeReglages() {
   if (ecoute === 2) r.CREATOROS_HOST = '0.0.0.0'; else delete r.CREATOROS_HOST
   if (ecoute === 2 && usage === 1) alerte('anyone on your network gets the full studio: pick "Shared" above if that is not what you want')
 
-  // Mode adulte : installation locale à un seul utilisateur, jamais avec une clé propriétaire
+  // Adult mode: single-user local install only, never with an owner key
   let adulte = false
   if (usage === 1 && ecoute === 1) {
     console.log(`\n    ${gras('Adult content (18+)')} ${gris('(local, single-user install only)')}`)
     info('on: text-only renders are no longer filtered for nudity or sexual content')
     info('still refused, always: anything about minors; and sexual content on any render that starts from an')
     info('imported photo, uses a character or any LoRA (a face that could belong to a real person)')
-    // jamais par --yes : une réponse tapée au clavier, et rien par défaut
+    // never via --yes: an answer typed on the keyboard, no default
     if (OUI || !interactif) info('adult content: left as is (answer it in an interactive run)')
     adulte = OUI || !interactif ? r.CREATOROS_CONTENU_ADULTE === '1'
       : (await demander(`Type ${gras('adult')} to turn it on, Enter to leave it off:`, '')).trim().toLowerCase() === 'adult'
@@ -690,7 +688,7 @@ async function etapeReglages() {
       } catch (e) { ko(`NudeNet not installed: ${e.message}`); bilan.manque.push('NudeNet (nudity filter)') }
     }
     r.CREATOROS_FILTRE_PYTHON = py
-  } else r.CREATOROS_FILTRE_PYTHON = path.join(os.homedir(), '.creatoros-filtre-coupe', 'python')   // un chemin absent : le filtre se dit indisponible
+  } else r.CREATOROS_FILTRE_PYTHON = path.join(os.homedir(), '.creatoros-filtre-coupe', 'python')   // a missing path: the filter reports itself unavailable
 
   console.log(`\n    ${gras('Local LLM (prompt writer, carousel, vision)')}`)
   const llm = await choisir('Choice:', [
@@ -720,7 +718,7 @@ async function etapeReglages() {
 }
 
 /* ============================================================
-   Vérification des URL du manifeste
+   Manifest URL check
    ============================================================ */
 
 async function verifierUrls() {
@@ -730,7 +728,7 @@ async function verifierUrls() {
     try {
       const s = await sonder(m.url)
       let taille = s.taille
-      // Dépôt à licence acceptée : HEAD répond 401, l'API liste encore la taille.
+      // Gated repo: HEAD returns 401, the API still lists the size.
       if (s.statut === 401 && s.erreur === 'GatedRepo') taille = await tailleParApi(m.url)
       const joignable = s.statut < 400 || s.erreur === 'GatedRepo'
       if (!joignable) { ko(`${m.chemin}  HTTP ${s.statut}`, m.url); ecarts++ }
@@ -744,7 +742,7 @@ async function verifierUrls() {
 }
 
 /* ============================================================
-   Déroulé
+   Run
    ============================================================ */
 
 async function principal() {
@@ -756,7 +754,7 @@ async function principal() {
   const comfy = await etapeComfy(p)
   let groupes = null
   if (comfy) {
-    // Le choix des fonctions vient d'abord : il décide des packs ET des modèles.
+    // Feature choice comes first: it decides both packs AND models.
     const etat = await etapeGroupes(comfy, p.gpu?.vram)
     groupes = etat.groupes
     await etapeNoeuds(comfy, p, groupes)

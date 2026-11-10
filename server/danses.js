@@ -1,14 +1,14 @@
 /* ============================================================
-   Danses — un personnage reprend une danse du catalogue.
+   Dances: a character performs a dance from the catalog.
 
-   Le catalogue : des danses en capture de mouvement, rendues en vidéo par
-   scripts/rendre_danse.py (un mannequin gris neutre, en pied, sur fond clair,
-   caméra fixe, 9:16). Aucune personne réelle n'y apparaît : le motion control
-   n'en lit que la pose. Chaque danse est une vidéo du dossier `danses/` des
-   données ; elle est copiée dans input/ de ComfyUI comme vidéo de mouvement.
+   Catalog: motion-capture dances rendered to video by
+   scripts/rendre_danse.py (a neutral grey full-body mannequin on a light
+   background, static camera, 9:16). No real person appears: motion control
+   only reads the pose. Each dance is a video in the data `danses/` folder,
+   copied into ComfyUI's input/ as the motion video.
 
-   Le visiteur choisit une danse et une photo de son personnage ; le motion
-   control (Wan Animate) anime la photo sur la danse.
+   The visitor picks a dance and a photo of their character; motion control
+   (Wan Animate) animates the photo on the dance.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -19,9 +19,9 @@ import * as store from './db.js'
 
 export const DOSSIER = path.join(CONFIG.dataDir, 'danses')
 const APERCUS = path.join(DOSSIER, 'apercus')
-/* danses écartées du catalogue public : trop suggestive pour une démo tout public (twerk), ou qui
-   traversent tant la scène qu'avec la caméra fixe le corps devient minuscule et le motion control
-   le perd (acrobaties au sol, grands déplacements) */
+/* dances excluded from the public catalog: too suggestive for an all-audiences demo (twerk), or
+   moving across the stage so much that with a static camera the body becomes tiny and motion
+   control loses it (floor acrobatics, large moves) */
 const ECARTEES = new Set(['dancing-twerk', 'breakdance-1990', 'dancing-1', 'salsa-dancing-1'])
 const nomDriver = slug => `crs_danse_${slug}.mp4`
 const titre = slug => slug.replace(/-(\d+)$/, ' $1').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase())
@@ -31,8 +31,8 @@ function duree(f) {
   catch { return null }
 }
 
-/* Au démarrage : chaque danse rendue est copiée dans input/ (vidéo de mouvement, origine « danse »)
-   et reçoit son aperçu (vidéo réduite et vignette) pour la galerie. */
+/* At startup: each rendered dance is copied into input/ (motion video, origin "danse") and
+   gets its preview (reduced video and thumbnail) for the gallery. */
 export function preparerDanses() {
   if (!fs.existsSync(DOSSIER)) return []
   fs.mkdirSync(APERCUS, { recursive: true })
@@ -56,12 +56,12 @@ export function preparerDanses() {
   return liste
 }
 let catalogue = []
-// la version de l'aperçu (date du fichier) : une vignette refaite n'est pas resservie depuis le cache du navigateur
+// preview version (file date): a redone thumbnail is not served from the browser cache
 const version = slug => { try { return Math.round(fs.statSync(path.join(APERCUS, `${slug}.webp`)).mtimeMs / 1000) } catch { return 0 } }
 export const listeDanses = () => catalogue.map(d => ({ ...d, v: version(d.slug) }))
-/** Version d'une vignette de studio (studio-<id>.webp) : même principe que les danses. */
+/** Version of a studio thumbnail (studio-<id>.webp): same principle as dances. */
 export const versionStudio = id => version(`studio-${id}`)
-/* Le fichier FBX d'une danse : danses/fbx des données, ou le dossier donné par CREATOROS_DANSES_FBX. */
+/* A dance's FBX file: data danses/fbx, or the folder given by CREATOROS_DANSES_FBX. */
 const DOSSIER_FBX = process.env.CREATOROS_DANSES_FBX || path.join(CONFIG.dataDir, 'danses', 'fbx')
 const slugDe = nom => nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 export function fbxDe(slug) {

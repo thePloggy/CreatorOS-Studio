@@ -1,10 +1,10 @@
 /* ============================================================
-   Montage — mini-éditeur de reel. Les plans viennent de la
-   bibliothèque (clips et photos) ; on les ordonne, on les coupe, on choisit
-   la transition vers le suivant, un texte par plan et une musique. L'aperçu
-   rejoue la suite dans le navigateur (coupes et textes ; les fondus ne sont
-   rendus qu'à l'export). L'export est un rendu ffmpeg côté serveur
-   (server/montage.js) livré comme un asset vidéo de la bibliothèque.
+   Montage: mini reel editor. Shots come from the library (clips and
+   photos); they are ordered and trimmed, with a transition to the
+   next one, a text per shot and a music track. The preview replays
+   the sequence in the browser (cuts and texts; crossfades are only
+   rendered on export). Export is a server-side ffmpeg render
+   (server/montage.js) delivered as a video asset in the library.
    ============================================================ */
 import { nomMedia } from '../lib/nomMedia'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -21,7 +21,7 @@ type Transition = 'coupe' | 'fondu' | 'noir'
 interface Plan {
   assetId: string; debut: number; fin: number | null; duree: number
   texte: string; textePos: 'haut' | 'centre' | 'bas'; transition: Transition; transitionDuree: number
-  /** Zone gardée de l'image source, en fractions (0..1). Absente = image entière. */
+  /** Kept area of the source image, as fractions (0..1). Absent = whole image. */
   crop?: Crop | null
 }
 interface Crop { x: number; y: number; w: number; h: number }
@@ -36,7 +36,7 @@ interface MusiqueRow { nom: string; duree: number }
 
 const RATIO: Record<Donnees['format'], number> = { '9:16': 9 / 16, '4:5': 4 / 5, '1:1': 1, '16:9': 16 / 9 }
 const PX_SEC = 46
-const ESPACE = 26        // largeur du bouton de transition entre deux vignettes
+const ESPACE = 26        // width of the transition button between two thumbnails
 const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
@@ -50,10 +50,10 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
   const [musiques, setMusiques] = useState<MusiqueRow[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [rendu, setRendu] = useState<{ jobId: string; p: number | null; etat: 'en cours' | 'livre' | 'echec'; msg?: string } | null>(null)
-  const [durees, setDurees] = useState<Record<string, number>>({})   // durée réelle des clips, lue sur le fichier
+  const [durees, setDurees] = useState<Record<string, number>>({})   // actual clip duration, read from the file
 
   const charger = useCallback(() => void fetch('/api/montages').then(json).then(d => setListe(d.montages ?? [])).catch(e => setErr(String(e.message))), [])
-  // un vrai changement de personnage ferme le projet ; l'arrivée de l'actif au chargement, non
+  // a real character change closes the project; the active one arriving on load does not
   const personaVu = useRef(s.personaId)
   useEffect(() => {
     charger()
@@ -62,7 +62,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
   }, [charger, s.personaId])
   useEffect(() => { void fetch('/api/montage/musiques').then(json).then(d => setMusiques(d.musiques ?? [])).catch(() => {}) }, [])
 
-  /* Enregistrement automatique, 700 ms après la dernière modification. */
+  /* Autosave, 700 ms after the last change. */
   const aEcrire = useRef<Projet | null>(null)
   useEffect(() => {
     if (!projet) return
@@ -85,19 +85,19 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     if (projet?.id === id) setProjet(null)
     charger()
   }
-  // arrivée depuis un reel en un clic : on ouvre son montage
+  // arriving from a reel in one click: open its montage
   useEffect(() => { if (ouvrirId) void ouvrir(ouvrirId) }, [ouvrirId]) // eslint-disable-line react-hooks/exhaustive-deps
   const maj = (f: (d: Donnees) => Donnees) => setProjet(p => p && { ...p, data: f(p.data) })
   const majPlan = (i: number, patch: Partial<Plan>) => maj(d => ({ ...d, clips: d.clips.map((c, k) => k === i ? { ...c, ...patch } : c) }))
-  /* Transition générée : LTX-2.5 relie la dernière image gardée d'un plan à la première gardée du suivant
-     (coupe et recadrage des plans, format du montage), avec le son ; le clip rendu est inséré entre les deux,
-     en coupes franches. Clé = le plan de départ (son asset), pour retrouver sa place si l'ordre a bougé. */
+  /* Generated transition: LTX-2.5 links the last kept frame of a shot to the first kept frame of the next
+     (shot trim and crop, montage format), with sound; the rendered clip is inserted between them
+     with hard cuts. Key = the source shot (its asset), to find its place if the order changed. */
   const [transitions, setTransitions] = useState<Record<string, { jobId: string; vers: string; duree: number }>>({})
   const [effetsTrans, setEffetsTrans] = useState<{ id: string; nom: string }[]>([])
   const [effetTrans, setEffetTrans] = useState('fondu')
   const [dureeTrans, setDureeTrans] = useState(5)
   useEffect(() => { void fetch('/api/montage/transition').then(r => r.json()).then((x: { effets?: { id: string; nom: string }[] }) => setEffetsTrans(x.effets ?? [])).catch(() => {}) }, [])
-  // gardées par projet dans le navigateur : quitter la page pendant le rendu ne perd pas l'insertion
+  // kept per project in the browser: leaving the page during the render does not lose the insertion
   const cleTrans = projet ? `creatoros-transitions-${projet.id}` : null
   useEffect(() => {
     if (!cleTrans) return
@@ -105,7 +105,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
   }, [cleTrans])
   useEffect(() => {
     if (!cleTrans) return
-    try { if (Object.keys(transitions).length) localStorage.setItem(cleTrans, JSON.stringify(transitions)); else localStorage.removeItem(cleTrans) } catch { /* stockage refusé */ }
+    try { if (Object.keys(transitions).length) localStorage.setItem(cleTrans, JSON.stringify(transitions)); else localStorage.removeItem(cleTrans) } catch { /* storage refused */ }
   }, [cleTrans, transitions])
   const genererTransition = async (i: number) => {
     if (!projet) return
@@ -121,7 +121,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
       setTransitions(x => ({ ...x, [A.assetId]: { jobId: r.id, vers: B.assetId, duree: dureeTrans } }))
     } catch (e) { setErr(String((e as Error).message)) }
   }
-  // dès que le clip de transition arrive dans la bibliothèque, il prend sa place dans le montage
+  // as soon as the transition clip reaches the library, it takes its place in the montage
   useEffect(() => {
     for (const [de, { jobId, vers, duree: dt }] of Object.entries(transitions)) {
       const clip = s.assets.find(a => a.jobId === jobId && a.mediaType === 'video')
@@ -137,8 +137,8 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     }
   }, [s.assets, transitions])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Un plan peut venir d'un rendu absent de la bibliothèque chargée (autre
-     personnage, au-delà de la page chargée) : on va le chercher au serveur. */
+  /* A shot may come from a render missing from the loaded library (another
+     character, beyond the loaded page): fetch it from the server. */
   const [ailleurs, setAilleurs] = useState<Record<string, Asset>>({})
   const assets = useMemo(() => ({ ...ailleurs, ...Object.fromEntries(s.assets.map(a => [a.id, a])) }), [s.assets, ailleurs])
   const manquants = (projet?.data.clips ?? []).filter(c => !assets[c.assetId]).length
@@ -187,13 +187,13 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
         if (job.status === 'done') setRendu(x => x && { ...x, p: 1, etat: 'livre' })
         else if (job.status === 'blocked') setRendu(x => x && { ...x, etat: 'echec', msg: tServeur(job.error) ?? '' })
         else setRendu(x => x && { ...x, p: progression })
-      } catch { /* on réessaie au tour suivant */ }
+      } catch { /* retry on next tick */ }
     }, 1200)
     return () => clearInterval(h)
   }, [rendu?.jobId, rendu?.etat]) // eslint-disable-line react-hooks/exhaustive-deps
   const livre = rendu?.etat === 'livre' ? s.assets.find(a => a.jobId === rendu.jobId) : undefined
 
-  /* ---------- musique ---------- */
+  /* ---------- music ---------- */
   const deposerMusique = async (f: File) => {
     setErr(null)
     try {
@@ -205,9 +205,9 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
 
   const plan = sel !== null && d ? d.clips[sel] : null
 
-  /* ---------- lecture et tête de lecture ----------
-     Position = (plan, temps dans le plan). La frise et la règle partagent la
-     même géométrie : vignette i de x[i] à x[i] + w[i], ESPACE entre deux. */
+  /* ---------- playback and playhead ----------
+     Position = (shot, time within shot). The strip and the ruler share the
+     same geometry: thumbnail i spans x[i] to x[i] + w[i], ESPACE between them. */
   const [lecture, setLecture] = useState(false)
   const [recadre, setRecadre] = useState(false)
   const [pos, setPos] = useState({ i: 0, t: 0 })
@@ -241,8 +241,8 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     setLecture(on)
   }
 
-  /* Temps GLOBAL du reel (celui de l'export, fondus compris) ↔ (plan, temps
-     dans le plan). Pendant un fondu, c'est le plan suivant qui prend la main. */
+  /* GLOBAL reel time (the export's, including crossfades) <-> (shot, time
+     within shot). During a crossfade, the next shot takes over. */
   const tGlobal = d && d.clips[pos.i] ? geo.debut[pos.i] + pos.t : 0
   const versPlan = (T: number) => {
     const l = d?.clips ?? []
@@ -252,8 +252,8 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     return { i, t: Math.min(dureePlan(l[i]) - 0.02, Math.max(0, T - geo.debut[i])) }
   }
 
-  /* Entrée ou Espace : lecture / pause, sauf en tapant dans un champ. Capturé
-     avant le bouton qui a le focus, sinon Entrée « recliquerait » ce bouton. */
+  /* Enter or Space: play / pause, except while typing in a field. Captured
+     before the focused button, otherwise Enter would re-click that button. */
   const bascule = useRef(basculerLecture)
   bascule.current = basculerLecture
   const lectureRef = useRef(lecture)
@@ -271,7 +271,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     return () => window.removeEventListener('keydown', k, true)
   }, [projet, choisir, recadre])
 
-  /* ---------- découpe à la souris : bords des vignettes ---------- */
+  /* ---------- mouse trimming: thumbnail edges ---------- */
   const rogne = useRef<null | { i: number; cote: 'g' | 'd'; x0: number; debut: number; fin: number; duree: number; total: number; video: boolean }>(null)
   const commencerRogne = (e: React.PointerEvent, i: number, cote: 'g' | 'd') => {
     e.stopPropagation(); e.preventDefault()
@@ -295,12 +295,12 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
     }
     const fin = () => {
       window.removeEventListener('pointermove', bouge); window.removeEventListener('pointerup', fin)
-      setTimeout(() => { rogne.current = null }, 0)        // le clic qui suit le relâcher ne sélectionne pas
+      setTimeout(() => { rogne.current = null }, 0)        // the click following the release does not select
     }
     window.addEventListener('pointermove', bouge); window.addEventListener('pointerup', fin)
   }
 
-  /* ---------- recadrage ---------- */
+  /* ---------- crop ---------- */
   const [cropLibre, setCropLibre] = useState(false)
   useEffect(() => { if (sel === null) setRecadre(false) }, [sel])
   const ouvrirRecadre = () => {
@@ -313,7 +313,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
 
   return (
     <div className="flex-1 min-h-0 flex mt-racine" style={{ gap: 0 }}>
-      {/* ---------- projets ---------- */}
+      {/* ---------- projects ---------- */}
       <aside className="mt-projets" style={{ width: 210, flex: 'none', borderRight: '1px solid var(--lv2)', padding: 12, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', alignContent: 'start', gap: 6 }}>
         <button className="cta" style={{ padding: 10, flexDirection: 'row' }} onClick={() => void nouveau()}>＋ {t('Nouveau montage')}</button>
         {liste.length === 0 && <div style={{ fontSize: 12, color: 'var(--faint)', padding: '6px 2px' }}>{t('Aucun montage pour ce personnage.')}</div>}
@@ -339,7 +339,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
         </div>
       ) : (
         <div className="flex-1 min-w-0 flex flex-col">
-          {/* ---------- barre du projet ---------- */}
+          {/* ---------- project bar ---------- */}
           <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--lv2)', flexWrap: 'wrap' }}>
             <input value={projet.nom} onChange={e => setProjet({ ...projet, nom: e.target.value })} maxLength={80}
               style={{ background: 'transparent', border: 0, color: 'var(--text)', font: 'inherit', fontSize: 14, fontWeight: 700, minWidth: 120, flex: '0 1 240px' }} />
@@ -369,7 +369,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
           )}
 
           <div className="flex-1 min-h-0 flex mt-corps">
-            {/* ---------- aperçu ---------- */}
+            {/* ---------- preview ---------- */}
             <div className="flex-1 min-w-0 flex items-center justify-center mt-apercu" style={{ padding: 16, background: '#08090b' }}>
               <Apercu d={d} assets={assets} dureePlan={dureePlan} cible={cible} lecture={lecture} onLecture={basculerLecture}
                 onPos={(i, t2) => setPos(p => p.i === i && Math.abs(p.t - t2) < 0.03 ? p : { i, t: t2 })}
@@ -377,7 +377,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                 recadre={recadre && sel !== null} libre={cropLibre} onCrop={c2 => sel !== null && majPlan(sel, { crop: c2 })} />
             </div>
 
-            {/* ---------- inspecteur ---------- */}
+            {/* ---------- inspector ---------- */}
             <aside className="mt-inspecteur" style={{ width: 300, flex: 'none', borderLeft: '1px solid var(--lv2)', padding: 14, overflowY: 'auto', display: 'grid', alignContent: 'start', gap: 12, fontSize: 12 }}>
               {plan && sel !== null ? (<>
                 <div className="flex items-center gap-2">
@@ -482,9 +482,9 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
             </aside>
           </div>
 
-          {/* ---------- timeline globale : le reel à l'échelle, de 0 à la fin ----------
-              Clic ou glisser n'importe où (la barre verticale suit) pour se
-              promener dans le montage ; les plans se chevauchent sur leurs fondus. */}
+          {/* ---------- global timeline: the reel to scale, from 0 to the end ----------
+              Click or drag anywhere (the vertical bar follows) to move
+              through the montage; shots overlap on their crossfades. */}
           {d.clips.length > 0 && (
             <div style={{ borderTop: '1px solid var(--lv2)', padding: '8px 14px 2px', flex: 'none' }}>
               <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
@@ -506,7 +506,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                     </div>
                   )
                 })}
-                {/* graduation : une marque par seconde, chiffrée toutes les 5 s */}
+                {/* ticks: one per second, labeled every 5 s */}
                 {Array.from({ length: Math.floor(longueur) + 1 }, (_, k) => (
                   <span key={`g${k}`} style={{ position: 'absolute', left: `${k / Math.max(longueur, 0.01) * 100}%`, bottom: 0, width: 1, height: k % 5 ? 3 : 6, background: 'rgba(255,255,255,.35)' }} />
                 ))}
@@ -517,10 +517,10 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
             </div>
           )}
 
-          {/* ---------- frise ---------- */}
+          {/* ---------- timeline ---------- */}
           <div style={{ padding: '6px 14px 10px', overflowX: 'auto', flex: 'none' }}>
-            {/* Règle : clic ou glisser pour se placer dans le montage. Même géométrie
-                que les vignettes en dessous, la tête de lecture tombe donc juste. */}
+            {/* Ruler: click or drag to seek in the edit. Same geometry as the thumbnails
+                below, so the playhead lines up. */}
             <div onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); allerA(versTemps(e.clientX - r.left)) }}
               onPointerMove={e => { if (!e.currentTarget.hasPointerCapture(e.pointerId)) return; const r = e.currentTarget.getBoundingClientRect(); allerA(versTemps(e.clientX - r.left)) }}
               style={{ position: 'relative', height: 18, width: geo.total, cursor: 'pointer', marginBottom: 4, touchAction: 'none' }}>
@@ -550,7 +550,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                       <span style={{ position: 'absolute', left: 12, bottom: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>{i + 1} · {fmt(dureePlan(c))}</span>
                       {c.texte.trim() && <span style={{ position: 'absolute', right: 12, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>T</span>}
                       {c.crop && <span style={{ position: 'absolute', left: 12, top: 4, fontSize: 12, padding: '1px 5px', borderRadius: 6, background: 'rgba(0,0,0,.65)' }}>✂</span>}
-                      {/* poignées de découpe : bord gauche = début, bord droit = fin (durée pour une photo) */}
+                      {/* trim handles: left edge = start, right edge = end (duration for a photo) */}
                       {estVideo(c) && <Poignee cote="g" onDown={e => commencerRogne(e, i, 'g')} />}
                       <Poignee cote="d" onDown={e => commencerRogne(e, i, 'd')} />
                     </div>
@@ -563,7 +563,7 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                   </div>
                 )
               })}
-              {/* le point de départ du montage : bien visible, plus large quand la frise est vide */}
+              {/* edit start marker: wider when the timeline is empty */}
               <button className="cta montage-ajout" onClick={() => setChoisir(true)}
                 style={{ width: d.clips.length ? 120 : 220, height: 92, marginLeft: d.clips.length ? 12 : 0, flex: 'none' }}>
                 <Ic n="plus" s={20} /><span>{t('ajouter un plan')}</span>
@@ -587,7 +587,7 @@ function Curseur({ label, min, max, pas, val, onChange, pct }: { label: string; 
   )
 }
 
-/** Poignée de découpe au bord d'une vignette de la frise. */
+/** Trim handle on the edge of a timeline thumbnail. */
 function Poignee({ cote, onDown }: { cote: 'g' | 'd'; onDown: (e: React.PointerEvent) => void }) {
   return (
     <div onPointerDown={onDown} title={cote === 'g' ? t('glisser pour couper le début') : t('glisser pour couper la fin')}
@@ -598,9 +598,9 @@ function Poignee({ cote, onDown }: { cote: 'g' | 'd'; onDown: (e: React.PointerE
   )
 }
 
-/** Place un média recadré (`crop`, fractions de l'image source) dans un cadre
- *  de FW×FH : la zone gardée couvre le cadre (`cover`) ou y tient entière
- *  (`contain`). Même calcul que l'export : recadrage, puis remplissage. */
+/** Places a cropped media (`crop`, fractions of the source image) in an
+ *  FW×FH frame: the kept area covers the frame (`cover`) or fits inside it
+ *  (`contain`). Same computation as the export: crop, then fill. */
 function placer(FW: number, FH: number, sw: number, sh: number, crop: Crop | null | undefined, mode: 'cover' | 'contain'): React.CSSProperties {
   const cr = crop ?? { x: 0, y: 0, w: 1, h: 1 }
   const RA = (cr.w * sw) / (cr.h * sh)
@@ -610,16 +610,16 @@ function placer(FW: number, FH: number, sw: number, sh: number, crop: Crop | nul
   return { position: 'absolute', width: mw, height: mh, left: (FW - rw) / 2 - cr.x * mw, top: (FH - rh) / 2 - cr.y * mh, maxWidth: 'none', objectFit: 'fill' }
 }
 
-/** Plus grand rectangle centré au rapport `R` (largeur / hauteur en pixels). */
+/** Largest centered rectangle with aspect ratio `R` (width / height in pixels). */
 function cropAuFormat(sw: number, sh: number, R: number): Crop {
   let w = Math.min(1, (R * sh) / sw), h = (w * sw) / (sh * R)
   if (h > 1) { h = 1; w = (h * sh * R) / sw }
   return { x: (1 - w) / 2, y: (1 - h) / 2, w, h }
 }
 
-/** Aperçu : rejoue les plans à la suite (coupes franches, recadrages et
- *  textes ; les fondus et la musique ne s'entendent qu'à l'export). Piloté
- *  par le montage : `cible` dit où se placer, `onPos` rend la position. */
+/** Preview: plays the shots in sequence (hard cuts, crops and texts;
+ *  fades and music are only rendered at export). Driven by the editor:
+ *  `cible` is the seek target, `onPos` reports the position. */
 function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDuree, recadre, libre, onCrop }: {
   d: Donnees; assets: Record<string, Asset>; dureePlan: (c: Plan) => number
   cible: { i: number; t: number; n: number }; lecture: boolean; onLecture: (on: boolean) => void
@@ -627,7 +627,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
   recadre: boolean; libre: boolean; onCrop: (c: Crop) => void
 }) {
   const [ci, setCi] = useState(0)
-  const local0 = useRef(0)                       // position à appliquer au chargement / à la reprise
+  const local0 = useRef(0)                       // position to apply on load / resume
   const photo = useRef({ at: 0, t: 0 })
   const vid = useRef<HTMLVideoElement>(null)
   const cadreRef = useRef<HTMLDivElement>(null)
@@ -646,10 +646,10 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
   const video = a?.mediaType === 'video'
   const sw = a?.width || 1080, sh = a?.height || 1920
 
-  /* Fondus (comme à l'export) : le plan i+1 commence `fondu` secondes avant
-     la fin du plan i. Pendant ses premières secondes, le plan précédent joue
-     encore dessous — fondu enchaîné : le nouveau apparaît par-dessus ; noir :
-     l'ancien descend au noir, le nouveau en remonte. */
+  /* Fades (same as export): shot i+1 starts `fondu` seconds before the end
+     of shot i. During those seconds the previous shot still plays underneath:
+     crossfade = the new one appears on top; black = the old one fades to
+     black and the new one fades in. */
   const fonduApres = (k: number) => {
     const x = d.clips[k], y = d.clips[k + 1]
     return x && y && x.transition !== 'coupe' ? Math.min(x.transitionDuree, dureePlan(x) / 2, dureePlan(y) / 2) : 0
@@ -662,7 +662,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
   const xF = prec ? locT / fp : 1
   const tempsPrec = (t: number) => prec ? prec.debut + dureePlan(prec) - fp + t : 0
 
-  // ordre de se placer, venu de la frise
+  // seek request from the timeline
   useEffect(() => {
     if (!d.clips.length) return
     const k = Math.min(cible.i, d.clips.length - 1)
@@ -676,7 +676,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
     if (vp && pk && vp.dataset.plan === String(k - 1)) vp.currentTime = pk.debut + dureePlan(pk) - fonduApres(k - 1) + cible.t
   }, [cible.n]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // lecture : une boucle d'animation suit le temps et passe au plan suivant
+  // playback: an animation loop tracks time and advances to the next shot
   useEffect(() => {
     if (!c || !lecture || recadre) { vid.current?.pause(); vidPrec.current?.pause(); return }
     if (video) void vid.current?.play().catch(() => {})
@@ -687,7 +687,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
       const dur = dureePlan(c)
       const v = vid.current
       const loc = video ? (v ? v.currentTime - c.debut : 0) : photo.current.t + (performance.now() - photo.current.at) / 1000
-      // on passe au plan suivant au DÉBUT du fondu : il commence là sur la timeline
+      // switch to the next shot at the START of the fade, where it begins on the timeline
       if (i + 1 < d.clips.length && loc >= dur - fonduApres(i) - 0.03) { local0.current = 0; setLocT(0); setCi(i + 1); onPos(i + 1, 0); return }
       if (loc >= dur - 0.03) { onLecture(false); onPos(i, dur); return }
       local0.current = Math.max(0, loc)
@@ -699,7 +699,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
     return () => cancelAnimationFrame(raf)
   }, [lecture, recadre, i, c?.assetId, c?.debut, c?.fin, c?.duree]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---------- recadrage : rectangle déplaçable, coins tirables ---------- */
+  /* ---------- crop: draggable rectangle, resizable corners ---------- */
   const R = RATIO[d.format]
   const geste = useRef<null | { mode: 'bouge' | 'nw' | 'ne' | 'sw' | 'se'; x0: number; y0: number; crop: Crop }>(null)
   const crop = c?.crop ?? null
@@ -715,12 +715,12 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
     const k = g.crop
     const borne = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
     if (g.mode === 'bouge') { onCrop({ ...k, x: borne(k.x + dx, 0, 1 - k.w), y: borne(k.y + dy, 0, 1 - k.h) }); return }
-    // coin opposé fixe
+    // opposite corner stays fixed
     const ax = g.mode.includes('w') ? k.x + k.w : k.x, ay = g.mode.includes('n') ? k.y + k.h : k.y
     const px = borne((g.mode.includes('w') ? k.x : k.x + k.w) + dx, 0, 1), py = borne((g.mode.includes('n') ? k.y : k.y + k.h) + dy, 0, 1)
     let w = Math.max(0.05, Math.abs(px - ax)), h = Math.max(0.05, Math.abs(py - ay))
     if (!libre) {
-      // largeur pilote, hauteur déduite du format ; on réduit si ça sort de l'image
+      // width drives, height follows the aspect ratio; shrink if it leaves the image
       h = (w * sw) / (sh * R)
       const hMax = g.mode.includes('n') ? ay : 1 - ay, wMax = g.mode.includes('w') ? ax : 1 - ax
       if (h > hMax) { h = hMax; w = (h * sh * R) / sw }
@@ -784,7 +784,7 @@ function Apercu({ d, assets, dureePlan, cible, lecture, onLecture, onPos, onDure
   )
 }
 
-/** Choix des plans : les clips et photos de la bibliothèque, les validés d'abord. */
+/** Shot picker: library clips and photos, approved ones first. */
 function ChoixPlans({ assets, onClose, onPick }: { assets: Asset[]; onClose: () => void; onPick: (a: Asset) => void }) {
   const [type, setType] = useState<'video' | 'photo'>('video')
   const [pris, setPris] = useState(0)

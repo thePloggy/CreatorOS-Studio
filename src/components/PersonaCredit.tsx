@@ -1,9 +1,9 @@
 /* ============================================================
-   Crédit du personnage : l'auteur de sa LoRA, sa page et la licence.
-   Les licences Civitai demandent souvent de nommer l'auteur : le crédit
-   reste visible sur la carte du personnage. Il se renseigne une fois, puis
-   il est verrouillé (le serveur refuse de le changer).
-   Styles en ligne, couleurs héritées : partagé bureau et mobile.
+   Character credit: the author of its LoRA, their page and the licence.
+   Civitai licences often require crediting the author: the credit stays
+   visible on the character card. Filled in once, then locked (the server
+   refuses changes).
+   Inline styles, inherited colours: shared desktop and mobile.
    ============================================================ */
 import { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -20,7 +20,7 @@ const bouton: React.CSSProperties = {
   color: 'inherit', background: 'rgba(127,127,127,0.14)', border: '1px solid rgba(127,127,127,0.30)',
 }
 
-/** Ligne de crédit compacte (cartes). */
+/** Compact credit line (cards). */
 export function CreditLigne({ credit }: { credit: PersonaCredit | null | undefined }) {
   if (!credit?.auteur && !credit?.url) return <span style={{ fontSize: 12, opacity: 0.45 }}>{t('crédit à renseigner')}</span>
   return (
@@ -33,7 +33,7 @@ export function CreditLigne({ credit }: { credit: PersonaCredit | null | undefin
   )
 }
 
-/** Bloc complet, personnage actif : renseignable s'il est vide, verrouillé ensuite. */
+/** Full block for the active character: editable while empty, locked afterwards. */
 export function CreditPersonnage() {
   const id = useAppStore(s => s.personaId)
   const credit = useAppStore(s => s.personaCredit)

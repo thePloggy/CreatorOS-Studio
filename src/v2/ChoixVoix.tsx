@@ -1,5 +1,5 @@
-/* Choix d'une voix : celle du personnage, une voix du studio (Kokoro) ou, pour le propriétaire,
-   une voix clonée (un extrait de la bibliothèque audio, Chatterbox). Valeur : id Kokoro, « perso » ou « clone:<extrait> ». */
+/* Voice picker: the character's voice, a studio voice (Kokoro) or, for the owner,
+   a cloned voice (a clip from the audio library, Chatterbox). Value: Kokoro id, "perso" or "clone:<clip>". */
 import { useEffect, useState } from 'react'
 import { t } from '../i18n'
 import { useAppStore } from '../store/useAppStore'
@@ -13,9 +13,9 @@ export function useVoix() {
 
 export function ChoixVoix({ valeur, onChange, perso = true, vide, ariaLabel }: {
   valeur: string; onChange: (v: string) => void
-  /** proposer « la voix du personnage » */
+  /** offer "the character's voice" */
   perso?: boolean
-  /** libellé d'un choix vide (aucune voix), absent si non proposé */
+  /** label for an empty choice (no voice); absent if not offered */
   vide?: string
   ariaLabel?: string
 }) {

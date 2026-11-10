@@ -1,35 +1,33 @@
 /* ============================================================
-   Machines modestes — la même recette, des poids plus légers.
+   Small machines: same recipe, lighter weights.
 
-   Les recettes sont écrites pour une carte de 24 Go et plus. Sur une carte
-   plus petite, juste avant l'envoi à ComfyUI, chaque chargeur de modèle lourd
-   est remplacé par une variante allégée du même modèle : FLUX.2 Klein 4B au
-   lieu du 9B, Wan 2.2 en GGUF Q4 au lieu du fp8. Le graphe ne change pas
-   autrement : mêmes nœuds, mêmes réglages, même sortie.
+   Recipes target a 24 GB+ card. On a smaller card, just before sending to
+   ComfyUI, each heavy model loader is swapped for a lighter variant of the
+   same model: FLUX.2 Klein 4B instead of 9B, Wan 2.2 GGUF Q4 instead of fp8.
+   The graph is otherwise unchanged: same nodes, settings and output.
 
-   Le profil vient de CREATOROS_VRAM (24, 16, 12 ou 8), ou est déduit de la
-   carte que ComfyUI déclare (/system_stats). Une variante n'est employée que
-   si son fichier est installé ; sinon une variante plus légère encore, sinon
-   le modèle d'origine (ComfyUI décharge alors par morceaux, plus lentement).
+   The profile comes from CREATOROS_VRAM (24, 16, 12 or 8), or is derived
+   from the card ComfyUI reports (/system_stats). A variant is used only if
+   its file is installed; otherwise a lighter one, otherwise the original
+   model (ComfyUI then offloads in chunks, more slowly).
 
-   Seules les variantes vérifiées sont dans le manifeste : une variante
-   non vérifiée qui casse un rendu coûte plus cher qu'un rendu lent.
+   Only verified variants are in the manifest.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { CONFIG } from './config.js'
 
-/** Profils, du plus grand au plus petit (Go de VRAM visés). */
+/** Profiles, largest to smallest (target GB of VRAM). */
 export const PROFILS = [24, 16, 12, 8]
-/** Côté long maximal d'une vidéo Wan au profil 8 Go (480p). */
+/** Max long side of a Wan video on the 8 GB profile (480p). */
 const WAN_COTE_8GO = 832
 
-/* Les variantes viennent du manifeste de l'assistant d'installation : une seule liste
-   pour ce qu'on télécharge et ce qu'on emploie. Sur l'original, `tient` = le plus petit
-   profil où il passe encore (modèle + ~3 Go d'activations) ; sur la variante, `leger` =
-   { remplace, pour : plus petit profil où elle passe, chargeur : classe de nœud qui la
-   lit (GGUF : pack ComfyUI-GGUF), suit : ne sert qu'avec ce fichier }. */
+/* Variants come from the setup assistant manifest: one list for what is downloaded and
+   what is used. On the original, `tient` = smallest profile it still fits (model + ~3 GB
+   of activations); on the variant, `leger` = { remplace, pour: smallest profile it fits,
+   chargeur: node class that loads it (GGUF: ComfyUI-GGUF pack), suit: only used with
+   this file }. */
 const MANIFESTE = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'scripts', 'installer', 'modeles.json'), 'utf8'))
 const VARIANTES = {}
 for (const v of MANIFESTE.modeles.filter(m => m.leger)) {
@@ -38,10 +36,10 @@ for (const v of MANIFESTE.modeles.filter(m => m.leger)) {
   e.variantes.push({ pour: v.leger.pour, fichier: v.chemin.split('/').pop(), chargeur: v.leger.chargeur, suit: v.leger.suit })
 }
 
-/* Le nom d'entrée de chaque chargeur, et ses entrées propres. */
+/* Input name of each loader, and its own inputs. */
 const ENTREE = { UNETLoader: 'unet_name', UnetLoaderGGUF: 'unet_name', CLIPLoader: 'clip_name', CLIPLoaderGGUF: 'clip_name' }
 
-/** Profil d'une carte de `octets` de VRAM : la plus grande marche qu'elle atteint. */
+/** Profile of a card with `octets` of VRAM: the largest step it reaches. */
 export function profilDe(octets) {
   const go = octets / 2 ** 30
   if (!go) return 24
@@ -52,10 +50,10 @@ let carte = { at: 0, profil: null, vram: 0 }
 let installes = { at: 0, parClasse: {} }
 const comfyJson = async (p, ms = 15_000) => (await fetch(CONFIG.comfyUrl + p, { signal: AbortSignal.timeout(ms) })).json()
 
-/** Profil forcé pour le job en cours (réservé au propriétaire : job.profilVram), posé par jobs.js. */
+/** Profile forced for the current job (owner only: job.profilVram), set by jobs.js. */
 export const profilDuJob = new AsyncLocalStorage()
 
-/** Le profil en vigueur : celui du job s'il en force un, CREATOROS_VRAM, sinon la carte vue par ComfyUI (relue toutes les 10 min). */
+/** Active profile: the job's if it forces one, else CREATOROS_VRAM, else the card seen by ComfyUI (re-read every 10 min). */
 export async function profilActuel() {
   const duJob = profilDuJob.getStore()
   if (PROFILS.includes(duJob)) return { profil: duJob, source: 'job', vram: carte.vram }
@@ -65,47 +63,47 @@ export async function profilActuel() {
     try {
       const d = (await comfyJson('/system_stats', 5000))?.devices?.[0]
       carte = { at: Date.now(), vram: d?.vram_total ?? 0, profil: profilDe(d?.vram_total ?? 0) }
-    } catch { carte = { ...carte, at: Date.now() - 540_000 } }  // ComfyUI absent : on réessaie dans une minute
+    } catch { carte = { ...carte, at: Date.now() - 540_000 } }  // ComfyUI unreachable: retry in a minute
   }
   return { profil: carte.profil ?? 24, source: 'carte', vram: carte.vram }
 }
 
-/** Les fichiers que ComfyUI voit pour un chargeur (relu toutes les 2 min). */
+/** Files ComfyUI sees for a loader (re-read every 2 min). */
 async function fichiersDe(classe) {
   if (Date.now() - installes.at > 120_000) installes = { at: Date.now(), parClasse: {} }
   if (!installes.parClasse[classe]) {
     try {
       const info = (await comfyJson(`/object_info/${classe}`))?.[classe]
       const opt = info?.input?.required?.[ENTREE[classe]]?.[0]
-      // deux formats : ['a', 'b'] ou 'COMBO' + { options: [...] }
+      // two formats: ['a', 'b'] or 'COMBO' + { options: [...] }
       installes.parClasse[classe] = new Set(Array.isArray(opt) ? opt : info?.input?.required?.[ENTREE[classe]]?.[1]?.options ?? [])
     } catch { installes.parClasse[classe] = new Set() }
   }
   return installes.parClasse[classe]
 }
 
-/** La variante à employer pour `nom` au profil `profil`, parmi les installées ; null = garder l'original. */
+/** Variant to use for `nom` at profile `profil`, among installed ones; null = keep the original. */
 async function choisir(nom, profil, dejaChoisis) {
   const e = VARIANTES[String(nom).split('/').pop()]
   if (!e || profil >= e.tient) return null
-  // la plus fidèle qui passe au profil, puis les plus légères ; à défaut, la plus légère de toutes
+  // most faithful variant that fits the profile, then lighter ones; failing that, the lightest of all
   const passe = e.variantes.filter(v => v.pour <= profil).sort((a, b) => b.pour - a.pour)
   const ordre = passe.length ? passe : [...e.variantes].sort((a, b) => a.pour - b.pour)
   for (const v of ordre) {
-    if (v.suit && !dejaChoisis.has(v.suit)) continue   // l'encodeur 4B ne sert qu'avec le modèle 4B
+    if (v.suit && !dejaChoisis.has(v.suit)) continue   // the 4B encoder is only used with the 4B model
     if ((await fichiersDe(v.chargeur)).has(v.fichier)) return v
   }
   return null
 }
 
-/** Remplace les chargeurs lourds d'un graphe au format API. Rend { graphe, remplaces: [[de, vers]] }. */
+/** Replaces heavy loaders in an API-format graph. Returns { graphe, remplaces: [[from, to]] }. */
 export async function alleger(graphe) {
   const { profil } = await profilActuel()
   if (profil >= 24 || !graphe || typeof graphe !== 'object') return { graphe, remplaces: [] }
   const out = structuredClone(graphe)
   const remplaces = []
   const choisis = new Set()
-  // modèles de diffusion d'abord : le choix de l'encodeur en dépend
+  // diffusion models first: the encoder choice depends on them
   const noeuds = Object.values(out).filter(n => n?.class_type in ENTREE)
     .sort((a, b) => (a.class_type.startsWith('CLIP') ? 1 : 0) - (b.class_type.startsWith('CLIP') ? 1 : 0))
   for (const n of noeuds) {
@@ -119,8 +117,8 @@ export async function alleger(graphe) {
     else if (v.chargeur === 'UnetLoaderGGUF') { n.class_type = v.chargeur; n.inputs = { unet_name: v.fichier } }
     else if (v.chargeur === 'CLIPLoaderGGUF') { n.class_type = v.chargeur; n.inputs = { clip_name: v.fichier, type: n.inputs.type } }
   }
-  // Wan sur 8 Go : les poids Q4 tiennent, pas les activations en 720p ; la vidéo passe en 480p
-  // (côté long 832), même cadrage. À 12 Go, le 720p passe (banc docs/LAB.md).
+  // Wan on 8 GB: Q4 weights fit but not 720p activations, so the video drops to 480p
+  // (long side 832), same framing. 720p fits at 12 GB.
   if (profil <= 8 && remplaces.some(([, f]) => /^Wan2\.2-.*\.gguf$/.test(f))) {
     for (const n of Object.values(out)) {
       if (!/^Wan.*ToVideo$/.test(n?.class_type ?? '')) continue
@@ -135,7 +133,7 @@ export async function alleger(graphe) {
   return { graphe: out, remplaces }
 }
 
-/** Ce que le studio dit de la machine : profil, source, variantes prêtes ou manquantes. */
+/** What the studio reports about the machine: profile, source, ready or missing variants. */
 export async function etatAllegement() {
   const { profil, source, vram } = await profilActuel()
   const variantes = []

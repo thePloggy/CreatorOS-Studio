@@ -1,6 +1,6 @@
-/* Annonce « N supprimé(s) · annuler » — commune au bureau et au mobile.
-   La suppression est une mise à la corbeille côté serveur (30 jours) ; cette
-   annonce offre l'annulation immédiate pendant 10 secondes. */
+/* "N deleted · undo" notice, shared by desktop and mobile.
+   Deletion moves items to the server-side trash (30 days); this notice
+   offers an immediate undo for 10 seconds. */
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { t, tc, tp } from '../i18n'

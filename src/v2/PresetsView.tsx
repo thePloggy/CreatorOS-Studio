@@ -1,9 +1,9 @@
 /* ============================================================
-   Camera Moves et Effects : la galerie des presets occupe la largeur (cartes 9:16, aperçu au survol),
-   un panneau de création compact reste visible (colonne à gauche sur bureau, barre en bas sur
-   téléphone) : la photo, le mouvement ou l'effet, la durée, le bouton. Le clip part dans la file de
-   rendu ordinaire et arrive dans l'onglet Rendus et la bibliothèque. Les presets vivent côté serveur
-   (server/presets.js) ; ici on choisit et on lance.
+   Camera Moves and Effects: the preset gallery spans the width (9:16 cards, preview on hover),
+   a compact creation panel stays visible (left column on desktop, bottom bar on
+   phone): photo, move or effect, duration, button. The clip goes through the regular render
+   queue and lands in the Renders tab and the library. Presets live server-side
+   (server/presets.js); this view only picks and launches.
    ============================================================ */
 import { APERCUS, ApercuOutil } from './Apercus'
 import type { IdOutil } from './OutilsDedies'
@@ -24,7 +24,7 @@ type Onglet = Famille | 'clip' | 'rendus'
 type Reglages = { presetId: string; assetId: string; detail: string; duree: number }
 const json = async (r: Response) => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(tServeur(b.error) ?? `HTTP ${r.status}`); return b }
 
-/* Familles de presets, par identifiant ; un preset inconnu reste visible sous « Tout ». */
+/* Preset families, by id; an unknown preset stays visible under "All". */
 const GROUPES: Record<Famille, { id: string; label: string; ids: string[] }[]> = {
   camera: [
     { id: 'pousser', label: 'Avant et arrière', ids: ['push-in', 'pull-out', 'crash-zoom', 'crash-zoom-out', 'dolly-zoom'] },
@@ -38,8 +38,8 @@ const GROUPES: Record<Famille, { id: string; label: string; ids: string[] }[]> =
   ],
 }
 
-/* Aperçus de la galerie : image fixe et clip léger, préparés à côté des fichiers de la page Danse et
-   nommés d'après la version de l'aperçu ; s'ils manquent, l'aperçu complet du serveur prend le relais. */
+/* Gallery previews: still image and light clip, stored next to the Dance page files and
+   named after the preview version; if missing, the server's full preview is used. */
 const version = (p: Preset) => p.apercu?.split('v=')[1] ?? '0'
 const urlFixe = (p: Preset) => `/danses/presets/${p.id}-${version(p)}.webp`
 const urlLeger = (p: Preset) => `/danses/presets/${p.id}-${version(p)}.mp4`
@@ -48,7 +48,7 @@ const minutesDe = (p: Preset) => p.moteur === 'wan21_hq' ? 8 : p.moteur === 'wan
 const moteurDe = (p: Preset) => p.moteur === 'wan_funcam' ? t('Wan 2.2 Fun Camera · trajectoire de caméra · muet · ~5 min') : p.moteur === 'wan21_hq' ? t('Wan 2.1 · LoRA dédiée · muet · ~8 min')
   : p.moteur === 'wan21' ? t('Wan 2.1 · LoRA dédiée · muet') : p.deuxRendus ? t('LTX-2.5 puis Wan 2.2 · deux rendus, le second finit sur ta photo') : `LTX-2.5 · ${t('avec le son')}${p.lora ? ' · LoRA' : ''}`
 
-/* Outils sur un clip : la même vignette qu'à l'accueil (vrais rendus), un clic ouvre la page de l'outil. */
+/* Clip tools: same thumbnail as on the home page (real renders), a click opens the tool page. */
 const OUTILS_CLIP: { label: string; texte: string; dedie?: IdOutil }[] = [
   { label: 'Remove Objects', texte: 'Retire une personne ou un objet du clip : le décor derrière est reconstitué.', dedie: 'remove-objects' },
   { label: 'Change Background', texte: 'Le sujet reste, le décor du clip change : décris le nouveau.', dedie: 'change-bg' },
@@ -59,7 +59,7 @@ const OUTILS_CLIP: { label: string; texte: string; dedie?: IdOutil }[] = [
   { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.' },
 ]
 
-/* « Comment ça marche », par famille */
+/* "How it works", per family */
 const HOWTO: Record<Famille, { cle: string; titre: string; texte: string; label: string; repli: string; etapes: [string, string][] }> = {
   camera: {
     cle: 'camera', repli: '/vitrine/camera-w.webp', label: 'Exemples de mouvements de caméra',
@@ -85,7 +85,7 @@ const HOWTO: Record<Famille, { cle: string; titre: string; texte: string; label:
   },
 }
 
-/* La famille à l'ouverture : demandée par le menu, sinon par l'adresse (?f=effet, sur téléphone aussi). */
+/* Family on open: requested by the menu, otherwise by the URL (?f=effet, on phones too). */
 const familleDemandee = (): Famille => {
   const f = useAppStore.getState().famillePresets ?? new URLSearchParams(window.location.search).get('f')
   return f === 'effet' ? 'effet' : 'camera'
@@ -124,18 +124,18 @@ export function PresetsView({ goVideo, onOpen }: { goVideo: () => void; onOpen?:
     void fetch('/api/presets').then(json).then(d => { setPresets(d.presets ?? []); setEtat('pret') }).catch(() => setEtat('erreur'))
   }
   useEffect(charger, [])
-  // « Utiliser dans… » depuis la visionneuse : la photo est déjà choisie, il reste le mouvement
+  // "Use in…" from the viewer: the photo is preselected, only the move remains
   useEffect(() => { const a = useAppStore.getState().prendrePasserelle('presets'); if (a) setPhoto({ asset: a }) }, [])
-  useEffect(() => { try { localStorage.setItem(CLE_CHOIX, JSON.stringify(choix)) } catch { /* stockage indisponible */ } }, [choix])
+  useEffect(() => { try { localStorage.setItem(CLE_CHOIX, JSON.stringify(choix)) } catch { /* storage unavailable */ } }, [choix])
 
-  // changer d'onglet ramène en haut de la galerie, sous « Comment ça marche » (jamais au-dessus)
+  // switching tabs scrolls back to the top of the gallery, below "How it works" (never above)
   const changerOnglet = (o: Onglet) => {
     setOnglet(o); setFiltre('tout'); setRecherche('')
     if (o === 'camera' || o === 'effet') setFamille(o)
     const g = galerie.current; const haut = o === 'rendus' || o === 'clip' ? 0 : ancre.current?.offsetTop ?? 0
     if (g && g.scrollTop > haut) g.scrollTo({ top: haut })
   }
-  // le menu ouvre Camera Moves ou Effects : la galerie suit, à l'ouverture comme déjà ouverte
+  // the menu opens Camera Moves or Effects: the gallery follows, on open or when already open
   const demandee = useAppStore(st => st.famillePresets)
   useEffect(() => { if (demandee) { changerOnglet(demandee); useAppStore.setState({ famillePresets: null }) } }, [demandee]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -165,14 +165,14 @@ export function PresetsView({ goVideo, onOpen }: { goVideo: () => void; onOpen?:
   const pret = !!preset && !!photo?.asset && !occupe
   const generer = () => { if (preset && photo?.asset) void lancer({ presetId: preset.id, assetId: photo.asset.id, detail, duree }) }
 
-  // les rendus de la page (un preset à deux passes livre sous un id dérivé du premier)
+  // the page's renders (a two-pass preset delivers under an id derived from the first)
   const suiviDe = (id: string) => suivi.ids.has(id) || [...suivi.ids].some(x => id.startsWith(`${x}-`))
   const enCours = s.jobs.filter(j => suiviDe(j.id) && STATUTS_ACTIFS.includes(j.status))
   const echecs = failedJobs(s.jobs, true).filter(j => suiviDe(j.id))
   const livres = s.assets.filter(a => a.jobId && suiviDe(String(a.jobId))).slice(0, 60)
   const reglagesDe = (a: Asset) => reglages[String(a.jobId)] ?? Object.entries(reglages).find(([k]) => String(a.jobId).startsWith(`${k}-`))?.[1]
 
-  // la galerie de l'onglet, filtrée par groupe et par recherche
+  // the tab's gallery, filtered by group and search
   const q = recherche.trim().toLowerCase()
   const liste = presets.filter(p => p.famille === famille)
   const vus = useMemo(() => liste.filter(p => (filtre === 'tout' || GROUPES[famille].find(g => g.id === filtre)?.ids.includes(p.id))
@@ -207,7 +207,7 @@ export function PresetsView({ goVideo, onOpen }: { goVideo: () => void; onOpen?:
             fait: !!preset, vignette: preset ? urlFixe(preset) : undefined, fixe: true, ouvrir: () => changerOnglet(famille), courant: onglet === famille },
         ]} />
 
-        {/* le preset et la photo choisis, en grand : l'aperçu joue */}
+        {/* chosen preset and photo, large: the preview plays */}
         <div className="dz-apercu">
           <figure>
             {preset?.apercu

@@ -1,8 +1,8 @@
 /* ============================================================
-   Point et demande : un clic sur la photo pose un repère, une bulle demande
-   « que changer ici ? », Entrée lance une retouche localisée (même route que le
-   pinceau : /api/assets/:id/inpaint) avec un masque rond autour du point.
-   Plus simple que le pinceau pour une petite retouche ciblée.
+   Point and ask: clicking the photo drops a marker, a bubble asks
+   "what to change here?", Enter launches a local retouch (same route as the
+   brush: /api/assets/:id/inpaint) with a round mask around the point.
+   Simpler than the brush for a small targeted edit.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -10,7 +10,7 @@ import { useAppStore } from '../store/useAppStore'
 import { t, tServeur } from '../i18n'
 import { Ic } from './bits'
 
-/** Rayon du masque, en part du plus petit côté de l'image. */
+/** Mask radius, as a fraction of the image's shorter side. */
 const RAYON = 0.1
 
 export function PointEtDemande({ asset, actif, onFin, className, style }: {
@@ -23,7 +23,7 @@ export function PointEtDemande({ asset, actif, onFin, className, style }: {
   const [consigne, setConsigne] = useState('')
   const [envoi, setEnvoi] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  // taille réelle du disque à l'écran : le masque se base sur le plus petit côté de l'image
+  // on-screen disk size: the mask is based on the image's shorter side
   const [dim, setDim] = useState<{ w: number; h: number } | null>(null)
   useEffect(() => { if (!actif) { setPoint(null); setConsigne(''); setMsg(null) } }, [actif])
   useEffect(() => { if (point) champ.current?.focus() }, [point])
@@ -38,7 +38,7 @@ export function PointEtDemande({ asset, actif, onFin, className, style }: {
     if (!im || !point || !consigne.trim() || envoi) return
     setEnvoi(true); setMsg(null)
     try {
-      // masque blanc sur noir à la définition de l'image : un disque autour du point
+      // white-on-black mask at image resolution: a disk around the point
       const w = im.naturalWidth, h = im.naturalHeight
       const m = document.createElement('canvas'); m.width = w; m.height = h
       const ctx = m.getContext('2d')!

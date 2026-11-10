@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Télécharge les LoRA des personnages de démo depuis Civitai.
-# Jeton Civitai lu dans un FICHIER (jamais en argument ni dans l'URL) :
-#   CIVITAI_TOKEN_FILE (défaut ~/.config/civitai/token), une seule ligne.
-# Usage : scripts/demo/loras-civitai.sh [dossier des LoRA]
+# Downloads the demo characters' LoRAs from Civitai.
+# The Civitai token is read from a FILE (never an argument or in the URL):
+#   CIVITAI_TOKEN_FILE (default ~/.config/civitai/token), a single line.
+# Usage: scripts/demo/loras-civitai.sh [LoRA folder]
 set -euo pipefail
 DEST="${1:-$HOME/apps/ComfyUI/models/loras}"
 TOK_FILE="${CIVITAI_TOKEN_FILE:-$HOME/.config/civitai/token}"
 [ -r "$TOK_FILE" ] || { echo "jeton introuvable : $TOK_FILE" >&2; exit 1; }
 TOKEN="$(tr -d '[:space:]' < "$TOK_FILE")"
-# version Civitai  nom du fichier
+# Civitai version  file name
 while read -r v f; do
   [ -z "$v" ] && continue
   if [ -f "$DEST/$f" ]; then echo "déjà là : $f"; continue; fi

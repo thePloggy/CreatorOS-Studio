@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFont
 W, H = 1080, 1920
 POLICE = os.environ.get('CREATOROS_CAPTION_FONT', '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf')
 TAILLE = 50
-# Centre vertical du bandeau, en fraction de la hauteur : tiers bas, milieu, tiers haut.
+# Vertical center of the caption band, as a fraction of height: lower third, middle, upper third.
 ZONES = [('bas', 0.68), ('milieu', 0.50), ('haut', 0.30)]
 
 
@@ -47,7 +47,7 @@ def visages(src, duree, n=10):
         gris = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         for (_, y, _, hb) in det.detectMultiScale(gris, scaleFactor=1.1, minNeighbors=5, minSize=(h // 20, h // 20)):
             y0, y1 = y / h, (y + hb) / h
-            # le front et le menton débordent de la boîte : 20 % de marge
+            # forehead and chin overflow the detection box: 20 % margin
             haut, bas = min(haut, y0 - 0.2 * (y1 - y0)), max(bas, y1 + 0.2 * (y1 - y0))
     cap.release()
     return (max(0.0, float(haut)), min(1.0, float(bas))) if bas > haut else None
@@ -63,7 +63,7 @@ def lignes(texte, police, largeur_max):
             out.append(cur); cur = m
     if cur:
         out.append(cur)
-    # deux lignes équilibrées plutôt qu'une longue et un mot orphelin
+    # two balanced lines rather than a long one and an orphan word
     if len(out) == 2 and len(out[1].split()) == 1 and len(out[0].split()) > 2:
         a = out[0].split()
         out = [' '.join(a[:-1]), a[-1] + ' ' + out[1]]
@@ -85,7 +85,7 @@ def bandeau(texte):
                 break
         if len(ls) <= maxi:
             break
-    while len(ls) > 3:  # texte démesuré : on réduit encore jusqu'à trois lignes
+    while len(ls) > 3:  # oversized text: keep shrinking down to three lines
         taille -= 2
         police = ImageFont.truetype(POLICE, taille)
         ls = lignes(texte, police, W - 2 * marge - 2 * pad_x)
@@ -96,7 +96,7 @@ def bandeau(texte):
     img = Image.new('RGBA', (W, h_tot), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     x0 = (W - larg) / 2
-    d.rounded_rectangle([x0, 0, x0 + larg, h_tot], radius=22, fill=(0, 0, 0, 128))  # noir à 50 %
+    d.rounded_rectangle([x0, 0, x0 + larg, h_tot], radius=22, fill=(0, 0, 0, 128))  # 50 % black
     y = pad_y
     for l in ls:
         d.text(((W - police.getlength(l)) / 2, y), l, font=police, fill=(255, 255, 255, 255))
@@ -110,18 +110,18 @@ def choisir_zone(h_bandeau, visage):
         z0, z1 = c - hb / 2 - 0.02, c + hb / 2 + 0.02
         if visage is None or z1 < visage[0] or z0 > visage[1]:
             return nom, c
-    return ZONES[0]  # visage partout : le tiers bas reste le moins gênant
+    return ZONES[0]  # faces everywhere: the lower third is the least intrusive
 
 
 def main():
     src, dst, texte = sys.argv[1], sys.argv[2], sys.argv[3]
     w, h, duree = sonde(src)
-    # Le cadre final est 9:16 rempli (recadrage centré) : les fractions de
-    # hauteur du visage restent celles de la source tant qu'on rogne en largeur.
+    # The final frame is a filled 9:16 (center crop): face height fractions
+    # stay those of the source as long as cropping is horizontal.
     rogne_largeur = w / h >= W / H
     visage = visages(src, duree)
     if visage and not rogne_largeur:
-        # rognage en hauteur : ramener les fractions dans le cadre final
+        # vertical crop: map the fractions into the final frame
         hf = w * H / W / h
         m = (1 - hf) / 2
         visage = (max(0.0, (visage[0] - m) / hf), min(1.0, (visage[1] - m) / hf))
@@ -136,7 +136,7 @@ def main():
            '-map', '[o]', '-map', '0:a?', '-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '19',
            '-b:v', '0', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', dst]
     r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:  # carte indisponible (pilote, sessions NVENC pleines) : CPU
+    if r.returncode != 0:  # GPU unavailable (driver, NVENC sessions full): use CPU
         cmd[cmd.index('h264_nvenc')] = 'libx264'
         i = cmd.index('-preset'); cmd[i + 1] = 'medium'
         for k in ('-rc', '-cq', '-b:v'):

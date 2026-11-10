@@ -1,5 +1,5 @@
-/* Entraîner le personnage : une LoRA par moteur coché (FLUX.2 Klein, Krea 2, FLUX 3 Klein), apprise sur ses images de la bibliothèque.
-   Réservé au propriétaire du studio ; le GPU y est occupé une demi-heure environ par moteur. */
+/* Train the character: one LoRA per checked engine (FLUX.2 Klein, Krea 2, FLUX 3 Klein), trained on its library images.
+   Owner only; the GPU is busy for about half an hour per engine. */
 import { useEffect, useMemo, useState } from 'react'
 import { t, tServeur } from '../../i18n'
 import { useAppStore } from '../../store/useAppStore'
@@ -11,7 +11,7 @@ type Travail = { id: string; personaId: string | null; statut: string; moteur?: 
   debut: number | null; fin: number | null; resteMs: number; erreur: string | null; lora: string | null }
 const EN_COURS = ['queued', 'rendering', 'running', 'pending']
 
-/** Les entraînements du personnage : en file, en cours (pas faits, temps restant), finis (LoRA ajoutée) ou en échec. */
+/** The character's trainings: queued, running (steps, time left), done (LoRA added) or failed. */
 function SuiviEntrainements({ travaux, onAnnuler, moteurs }: { travaux: Travail[]; onAnnuler: (id: string) => void; moteurs: Moteur[] }) {
   if (!travaux.length) return null
   return (
@@ -92,7 +92,7 @@ export function Entrainement() {
     <div className="border border-border rounded-card bg-surface2 p-4" style={{ display: 'grid', gap: 12, fontSize: 13 }}>
       <b>{t('Entraîner ce personnage')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {t('une LoRA par moteur coché')} · ai-toolkit</span></b>
       {!edition ? (
-        // visiteur : l'entraînement occupe le GPU longtemps, il reste au propriétaire ; on montre comment il se passe
+        // visitor: training holds the GPU for a long time, so it is owner-only; show how it works instead
         <div className="entrainement-visiteur">
           <img src="/vitrine/v2-personnage.webp" alt={t('Planche de référence d’un personnage : face, trois-quarts, profil, dos')} loading="lazy" />
           <div style={{ display: 'grid', gap: 8 }}>
@@ -109,7 +109,7 @@ export function Entrainement() {
         : pret === false ? <span className="texte-doux">{t('ai-toolkit n’est pas installé sur ce studio.')}</span> : (<>
         <SuiviEntrainements travaux={miens} moteurs={moteurs} onAnnuler={id => void annuler(id)} />
         {aConfirmer && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{t('Clique encore sur Annuler pour arrêter cet entraînement (le travail fait est perdu).')}</span>}
-        {/* réglages et lancement d'abord, au-dessus du choix des images */}
+        {/* settings and launch first, above the image selection */}
         <div className="entrainement-reglages">
           <div className="flex gap-3 items-center flex-wrap">
             <span className="texte-doux">{t('LoRA pour')}</span>
@@ -135,7 +135,7 @@ export function Entrainement() {
           {msg && <span style={{ color: msg.ok ? 'var(--positif)' : 'var(--danger)' }}>{msg.txt}</span>}
         </div>
         <span className="texte-doux">{t('Choisis 8 à 30 images du personnage, variées (angles, lumières, tenues) : son visage sera appris et tenu sur les moteurs cochés.')}</span>
-        {/* images entières, sans recadrage : on juge le visage et la tenue */}
+        {/* full images, uncropped: face and outfit are judged */}
         <div className="entrainement-images">
           {photos.map(a => (
             <button key={a.id} onClick={() => basculer(a.id)} aria-pressed={choix.has(a.id)} aria-label={t('sélectionner')} className={choix.has(a.id) ? 'choisie' : ''}>

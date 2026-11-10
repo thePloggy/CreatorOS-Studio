@@ -1,6 +1,6 @@
 /* ============================================================
-   Accueil — la vitrine : chaque outil montre ce qu'il fait,
-   sur de vrais rendus du studio (voir Apercus.tsx), un clic pour l'ouvrir.
+   Home: the showcase. Each tool shows what it does using real studio
+   renders (see Apercus.tsx); one click opens it.
    ============================================================ */
 import { useState } from 'react'
 import { t } from '../i18n'
@@ -10,7 +10,7 @@ import { APERCUS, ApercuOutil, BANDEAU_CINEMA, BANDEAU_RESTORE, BANDEAU_REEL, BA
 import type { Asset } from '../types'
 import { ChoixMedia, GROUPES, useOuvrirOutil, type ActionOutil, type Section } from './Navigation'
 
-/* sous-titre gris sous le titre de chaque famille d'outils */
+/* grey subtitle under each tool family title */
 const SOUS: Record<string, string> = {
   Image: 'Créer, retoucher, restaurer et mettre en scène une photo.',
   'Vidéo': 'Animer une photo, réaliser un plan, modifier et finir un clip.',
@@ -18,12 +18,12 @@ const SOUS: Record<string, string> = {
   Extensions: 'Modèles, LoRA et workflows en plus, installés sur ta machine.',
 }
 
-/* accès rapide : les outils qu'on ouvre le plus, en tuiles compactes à icône */
+/* quick access: the most-used tools, as compact icon tiles */
 const RAPIDES: [string, Parameters<typeof Ic>[0]['n']][] = [
   ['Text to Image', 'image'], ['Image to Video', 'camera'], ['Dance', 'play'], ['One-click Reel', 'film'], ['Product Shot', 'tag'], ['Music Studio', 'sound'],
 ]
 
-/* bloc vedette entre deux familles : média d'un côté, texte et bouton de l'autre */
+/* featured block between two families: media on one side, text and button on the other */
 function Vedette({ surtitre, titre, texte, bouton, media, inverse, onOuvrir }: { surtitre: string; titre: string; texte: string; bouton: string; media: React.ReactNode; inverse?: boolean; onOuvrir: () => void }) {
   return (
     <section className={`home-vedette maille lueur ${inverse ? 'inverse' : ''}`}>
@@ -53,7 +53,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
     { cible: 'restaurer', titre: 'Restore', texte: t('Vieille photo ou clip abîmé : réparé, colorisé, en HD, avec le comparateur avant / après.'), apercu: BANDEAU_RESTORE },
   ]
   const mot = cherche.trim().toLowerCase()
-  // un outil rangé dans deux familles (Restaurer : photo et clip) ne s'affiche qu'une fois dans « Tout »
+  // a tool listed in two families (Restore: photo and clip) appears only once under "All"
   const vus = new Set<string>()
   const groupes = GROUPES.filter(g => !groupe || g.titre === groupe)
     .map(g => ({ ...g, outils: g.outils.filter(o => (!mot || `${t(o.label)} ${t(o.texte)}`.toLowerCase().includes(mot)) && (groupe || !vus.has(o.label)) && (vus.add(o.label), true)) })).filter(g => g.outils.length)
@@ -62,7 +62,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
       <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 28 }}>
         <div className="bandeaux">
           {BANDEAUX.map((b, i) => i === 0 ? (
-            // l'outil vedette : nom, réglages et texte posés sur l'image, sur un dégradé noir
+            // featured tool: name, settings and text over the image, on a black gradient
             <button key={b.titre} onClick={() => go(b.cible)} className="bandeau bandeau-vedette lueur">
               <span className="bandeau-media"><ApercuOutil apercu={b.apercu} /></span>
               <span className="vedette-texte">
@@ -102,7 +102,7 @@ export function HomeView({ go, aller, onPick }: { go: (s: Cible) => void; aller:
               {SOUS[g.titre] && <p>{t(SOUS[g.titre])}</p>}
             </div>
             {(() => {
-              // deux rangées, puis un fondu et « Voir tout » (sauf recherche ou famille filtrée)
+              // two rows, then a fade and "See all" (except when searching or filtering by family)
               const plie = !mot && !groupe && g.outils.length > PLI && !deplies.has(g.titre)
               return <div className={`section-grille ${plie ? 'pliee' : ''}`}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 14 }}>

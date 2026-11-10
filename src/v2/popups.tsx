@@ -1,7 +1,7 @@
 /* ============================================================
-   v2 — popups : Enhancer (composer avec instructions, résultat,
-   Remplacer/Annuler), Éléments (vocabulaires), Picker de frame
-   (Générations | Uploads). Tous montés en portail plein écran.
+   v2 — popups: Enhancer (compose with instructions, result,
+   Replace/Cancel), Elements (vocabularies), frame picker
+   (Generations | Uploads). All mounted as full-screen portals.
    ============================================================ */
 import { SANS_PERSONNAGE } from '../lib/personnage'
 import { ChoixPersonnage } from './ChoixPersonnage'
@@ -15,25 +15,25 @@ import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { corrigerFiche, NOMS_DIM, type Corrections } from '../lib/ficheCorrigee'
 
-/* ---------- Enhancer : /api/compose avec directives, remplacement explicite ---------- */
+/* ---------- Enhancer: /api/compose with directives, explicit replacement ---------- */
 export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorUri, anchorFile, previousPrompt, onReplace }: {
   open: boolean; onClose: () => void
   mode: MediaMode; engine?: string | null
   userPrompt: string
-  /* Still de départ / image source, si le contexte en a une. Le serveur la
-     fait décrire par le VLM et coud la description dans le message du
-     réécriveur : sans elle il invente la tenue et la pose de départ.
-     `anchorFile` (nom déposé dans l'input ComfyUI) prime sur `anchorUri` :
-     c'est le fichier que le RENDU utilisera. */
+  /* Starting still / source image, if the context has one. The server has
+     the VLM describe it and stitches the description into the rewriter
+     message; without it the rewriter invents the starting outfit and pose.
+     `anchorFile` (name uploaded to the ComfyUI input) takes precedence over
+     `anchorUri`: it is the file the RENDER will use. */
   anchorUri?: string | null
   anchorFile?: string | null
-  /* Onglet Étendre : le prompt du clip prolongé. Le réécriveur le reçoit
-     comme contexte pour enchaîner le plan suivant au même rythme, sans
-     rejouer ce qui a déjà eu lieu. */
+  /* Extend tab: prompt of the clip being extended. The rewriter gets it
+     as context to chain the next shot at the same pace without
+     replaying what already happened. */
   previousPrompt?: string | null
-  /* Le second argument porte ce que le VLM a lu : il doit voyager avec le
-     prompt jusqu'au job, sinon la vue détail ne peut plus expliquer d'où
-     vient une tenue ou une pose décrite. */
+  /* The second argument carries what the VLM read: it must travel with
+     the prompt to the job, otherwise the detail view cannot explain where
+     a described outfit or pose comes from. */
   onReplace: (positive: string, vision: string | null) => void
 }) {
   const [directives, setDirectives] = useState('')
@@ -42,9 +42,9 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
   const [err, setErr] = useState<string | null>(null)
   const [meta, setMeta] = useState('')
   const [seen, setSeen] = useState<string | null>(null)
-  /* « Tenue de l'image » : verrouille la tenue sur ce que le VLM voit dans
-     la still (appel dédié, inséré tel quel par le serveur). La description
-     complète de la scène reste envoyée dans tous les cas. */
+  /* "Outfit from image": locks the outfit to what the VLM sees in the
+     still (dedicated call, inserted verbatim by the server). The full scene
+     description is sent in every case. */
   const [keepOutfit, setKeepOutfit] = useState(false)
   const [tenue, setTenue] = useState<{ asked: boolean; text: string | null } | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -83,12 +83,12 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
 
   const cancel = () => { abortRef.current?.abort(); onClose() }
   return (
-    /* clic hors fenêtre : ne ferme PAS (une composition CPU en cours serait
-       perdue par mégarde) — seuls ✕ et Annuler ferment, Annuler ABORT. */
+    /* click outside: does NOT close (an in-progress CPU composition would be
+       lost by accident); only ✕ and Cancel close, Cancel aborts. */
     <div className="pop">
       <div className="pbox" onClick={e => e.stopPropagation()}>
         <h3>✦ Enhancer (composer) <button className="x" onClick={cancel}>✕</button></h3>
-        {/* contexte de composition : ce qui décide de l'intent et du format */}
+        {/* composition context: decides the intent and the format */}
         <div className="flex gap-1.5 items-center mt-1 flex-wrap">
           {mode === 'video' && engine && engine !== 'edit' && (
             <span className="pill tool" style={{ fontSize: 12, cursor: 'default' }}>{t('moteur : {engine}', { engine })}</span>
@@ -110,11 +110,11 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
         <textarea className="pin" rows={2} placeholder={t('Instructions à l\'enhancer (optionnel)')}
           value={directives} onChange={e => setDirectives(e.target.value)} />
         {err && <div className="pres" style={{ color: 'var(--danger)' }}>{err}</div>}
-        {/* Ce que le VLM a vu. Replié par défaut, mais consultable : quand la
-            réécriture surprend, la première question est de savoir si l'image
-            a été bien lue — ça ne se corrige pas au même endroit qu'une
-            consigne mal suivie. */}
-        {/* trace de la réécriture : les étapes défilent pendant le travail, puis se replient en une ligne */}
+        {/* What the VLM saw. Collapsed by default but viewable: when a rewrite
+            is surprising, the first question is whether the image was read
+            correctly, which is fixed in a different place than an
+            instruction that was not followed. */}
+        {/* rewrite trace: steps scroll during the work, then collapse into one line */}
         {busy && (
           <ol className="trace-etapes" aria-live="polite">
             {(anchorFile || anchorUri) && <li className={elapsed * 1000 < readRolling('v2_compose_ms', 30000) * 0.4 ? 'en-cours' : 'faite'}>
@@ -138,8 +138,8 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
         <div className="prow">
           <button className="b2" onClick={cancel}>{t('Annuler')}</button>
           {busy ? (
-            /* jauge de patience : le fond iridescent remplit le bouton selon la
-               moyenne glissante des dernières compositions (même motif carrousel). */
+            /* patience gauge: the iridescent fill grows across the button based on the
+               rolling average of recent compositions (same pattern as carousel). */
             <button className="b1 fillbtn" disabled>
               <i className="fill" style={{ width: `${Math.min(100, (elapsed * 1000 / readRolling('v2_compose_ms', 30000)) * 100)}%` }} />
               <span>{t('… composition · {elapsed} s / {eta}', { elapsed, eta: fmtEta(readRolling('v2_compose_ms', 30000)) })}</span>
@@ -154,10 +154,10 @@ export function EnhancerPopup({ open, onClose, mode, engine, userPrompt, anchorU
   )
 }
 
-/* ---------- Éléments : 4 onglets (Tenues · Environnements · Positions ·
-   Styles) + LoRAs + Composition. Dans chaque onglet : recherche, puis
-   clic = la ligne de prompt de l'item s'insère dans le prompt. Sources :
-   vocabulaires (base + ajouts), catalogue /api/loras pour le picker LoRA. */
+/* ---------- Elements: 4 tabs (Outfits · Environments · Positions ·
+   Styles) + LoRAs + Composition. In each tab: search, then
+   click = the item's prompt line is inserted into the prompt. Sources:
+   vocabularies (base + additions), /api/loras catalog for the LoRA picker. */
 interface ElItem { id: string; label: string; prompt: string }
 const asItems = (xs: { id: string; label: string; labelFr?: string; prompt?: string; framing?: string; lens?: string }[]): ElItem[] =>
   xs.map(x => ({ id: x.id, label: x.labelFr ?? x.label,
@@ -226,9 +226,9 @@ export function ElementsPopup({ open, onClose, onInsert }: {
   )
 }
 
-/* ---------- LoRA picker photo (arch image : flux2/zimage/flux1) ----------
-   Empile dans loraPicks (suivies par mkJob). Force 0-2, trigger résolu
-   serveur si vide. */
+/* ---------- photo LoRA picker (image arch: flux2/zimage/flux1) ----------
+   Stacks into loraPicks (picked up by mkJob). Strength 0-2, trigger resolved
+   server-side if empty. */
 const ARCH_MOTEUR: Record<string, string> = { krea: 'krea2', klein: 'flux2', moss: 'moss', flux3: 'flux3' }
 function LoraPickTab({ q }: { q: string }) {
   const catalog = useAppStore(st => st.loraCatalog)
@@ -236,9 +236,9 @@ function LoraPickTab({ q }: { q: string }) {
   const picks = useAppStore(st => st.loraPicks)
   const moteur = useAppStore(st => st.photoEngine)
   useEffect(() => { if (!catalog.length) void loadLoras() }, [catalog.length, loadLoras])
-  /* UNIQUEMENT les LoRA compatibles avec le moteur photo choisi, d'après l'architecture lue
-     dans l'en-tête du fichier. Une autre se charge sans erreur mais tourne À VIDE.
-     Exclue aussi : la LoRA d'identité, déjà cuite dans la recette. */
+  /* ONLY LoRAs compatible with the chosen photo engine, based on the architecture
+     read from the file header. Another one loads without error but has NO effect.
+     Also excluded: the identity LoRA, already baked into the recipe. */
   const usable = catalog
     .filter(l => l.arch === ARCH_MOTEUR[moteur])
     .filter(l => l.kind !== 'identite')
@@ -288,20 +288,20 @@ function LoraPickTab({ q }: { q: string }) {
   )
 }
 
-/* ---------- Picker de frame : Générations | Uploads ---------- */
+/* ---------- frame picker: Generations | Uploads ---------- */
 interface UploadRow { name: string; mtime: number; bytes: number }
 
 export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickUpload, onUploadFile, accept = 'image/*', media = 'photo' }: {
   open: boolean; onClose: () => void
   assets: Asset[]
   title: string
-  /** ce qu'on choisit : un clip pour les outils vidéo */
+  /** what is picked: a clip for the video tools */
   media?: 'photo' | 'video'
-  /** un asset de la galerie est choisi (sera copié vers input via to-input) */
+  /** a gallery asset is picked (copied to input via to-input) */
   onPickAsset: (a: Asset) => void
-  /** un upload existant (nom de fichier input) est choisi */
+  /** an existing upload (input file name) is picked */
   onPickUpload: (name: string) => void
-  /** un NOUVEAU fichier pris sur le disque (l'onglet Uploads ne montre que les envois passés) */
+  /** a NEW file from disk (the Uploads tab only shows past uploads) */
   onUploadFile?: (f: File) => void
   accept?: string
 }) {
@@ -309,7 +309,7 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
   const [uploads, setUploads] = useState<UploadRow[]>([])
   const edition = useEdition()
   useEffect(() => {
-    // la liste des envois passés est au propriétaire ; un visiteur ne voit que le bouton de dépôt
+    // past uploads list is owner-only; a visitor only sees the upload button
     if (open && tab === 'up' && edition) void fetch(`/api/uploads${media === 'video' ? '?type=video' : ''}`).then(r => r.json()).then(d => setUploads(d.uploads ?? []))
   }, [open, tab, media, edition])
   if (!open) return null
@@ -358,10 +358,10 @@ export function FramePicker({ open, onClose, assets, title, onPickAsset, onPickU
   )
 }
 
-/* ---------- Composition (sélecteurs v1 + overrides) ----------
-   Réutilise buildPhotoPrompt : tenue (+ overrides matière/coupe/
-   couleur), pose texte, environnement, style. Le texte composé s'insère
-   dans le prompt — onglet « Composition » de la popup Éléments. */
+/* ---------- Composition (v1 selectors + overrides) ----------
+   Uses buildPhotoPrompt: outfit (+ material/cut/colour overrides),
+   text pose, environment, style. The composed text is inserted
+   into the prompt — "Composition" tab of the Elements popup. */
 import { allOutfits, allEnvironments, allStyles, allTextPoses } from '../store/useVocabStore'
 import { buildPhotoPrompt } from '../core/promptBuilder'
 import { useAppStore } from '../store/useAppStore'
@@ -417,7 +417,7 @@ export function CompositionTab({ onInsert, onClose }: { onInsert: (t: string) =>
   )
 }
 
-/* ---------- Triage plein écran (mobile & desktop) : ✓ / ✕ enchaîné ---------- */
+/* ---------- full-screen triage (mobile & desktop): chained ✓ / ✕ ---------- */
 export function TriagePopup({ open, onClose, assets }: { open: boolean; onClose: () => void; assets: Asset[] }) {
   const review = useAppStore(st => st.reviewAsset)
   const [done, setDone] = useState({ ok: 0, ko: 0 })
@@ -463,42 +463,41 @@ export function TriagePopup({ open, onClose, assets }: { open: boolean; onClose:
   )
 }
 
-/* ---------- Carrousel ⊞ : 9 variations en gardant les éléments cochés ----------
-   Les éléments FERMÉS sont gardés, les OUVERTS varient (seed constante si
-   demandée). Les sélections restaurées viennent de la provenance de l'asset
-   — sur un asset au prompt libre (sans selections), seule la seed est reprise. */
+/* ---------- Carousel ⊞: 9 variations keeping the checked elements ----------
+   LOCKED elements are kept, UNLOCKED ones vary (constant seed if
+   requested). Restored selections come from the asset's provenance;
+   on a free-prompt asset (no selections), only the seed is reused. */
 export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
   asset: Asset; onClose: () => void; onLaunched: (lot?: string) => void
-  /** posé dans la page Carousel au lieu d'une fenêtre par-dessus */
+  /** rendered inside the Carousel page instead of an overlay window */
   integre?: boolean
 }) {
   const s = useAppStore()
   const basePrompt = asset.provenance.composedPositive || asset.provenance.userPrompt || ''
-  /* Cadenas FERMÉ = la dimension reste CONSTANTE dans tout le shooting ;
-     ouvert = le rédacteur en fait ce qu'il veut. `props` (les accessoires
-     autour d'elle — la voiture, l'îlot, la baignoire) est une dimension à
-     part entière, dissociable du décor. */
-  /* `light` : la lumière est une dimension à part, ni décor ni style. */
+  /* LOCKED padlock = the dimension stays CONSTANT across the whole shoot;
+     unlocked = the writer is free to change it. `props` (objects around
+     her — the car, the kitchen island, the bathtub) is a dimension of its
+     own, separate from the setting. */
+  /* `light`: lighting is its own dimension, neither setting nor style. */
   const [keep, setKeep] = useState({ outfit: true, env: true, props: true, light: true, pose: false, style: false, seed: false, lora: true })
-  /* Mode SHOOTING : le writer n'édite pas le prompt, il écrit des PLANS
-     (action, pose, cadrage, angle) calibrés sur un corpus de référence.
-     Défaut ACTIVÉ : le mode variation ne varie ni le cadrage ni l'action. */
+  /* SHOOTING mode: the writer does not edit the prompt, it writes SHOTS
+     (action, pose, framing, angle) calibrated on a reference corpus.
+     Enabled by default: variation mode varies neither framing nor action. */
   const [shoot, setShoot] = useState(true)
-  /* Décomposition montrée AVANT les cadenas : sans elle on verrouille à
-     l'aveugle, sans savoir si « appuyée contre l'îlot » a été rangé dans la
-     pose ou dans les accessoires. Le résultat est réutilisé à la réécriture,
-     donc le VLM ne tourne qu'une fois. */
+  /* Breakdown shown BEFORE the padlocks so the user knows which dimension
+     each detail landed in (e.g. pose vs props) before locking. The result
+     is reused by the rewrite, so the VLM runs only once. */
   const [dims, setDims] = useState<Record<string, string> | null>(null)
   const [dimsErr, setDimsErr] = useState(false)
-  /* Préparation du carrousel : prompt racine (lignée), description VLM et
-     fiche — renvoyés tels quels à la rédaction pour ne pas les recalculer. */
+  /* Carousel preparation: root prompt (lineage), VLM description and
+     sheet — sent back as-is to the writer to avoid recomputing them. */
   const [prep, setPrep] = useState<{ racine: string | null; vlm: string | null; fiche: unknown } | null>(null)
-  /* Corrections de l'opérateur sur la lecture du VLM (lib/ficheCorrigee). */
+  /* Operator corrections to the VLM reading (lib/ficheCorrigee). */
   const [corr, setCorr] = useState<Corrections>({})
   const [edite, setEdite] = useState<string | null>(null)
   const [extraLoras, setExtraLoras] = useState<{ name: string; strength?: number; trigger?: string }[]>([])
-  /* Le personnage du carrousel est celui de la photo d'origine, jamais le personnage actif par défaut ;
-     une photo sans personnage garde son propre visage (référence Klein, cf. send). */
+  /* The carousel character is the one from the source photo, never the default active character;
+     a photo without a character keeps its own face (Klein reference, see send). */
   useEffect(() => {
     const p = asset.personaId
     if (p && p !== SANS_PERSONNAGE && p !== 'default') void s.choisirPersonnagePage(p)
@@ -524,8 +523,8 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
   const [phase, setPhase] = useState<'config' | 'rewriting' | 'review' | 'send'>('config')
   const [elapsed, setElapsed] = useState(0)
   const [variants, setVariants] = useState<string[]>([])
-  /* LoRA attribuée par la grille à chaque plan (carrousel v2) ; null = le
-     catalogue devine au rendu. */
+  /* LoRA assigned by the grid to each shot (carousel v2); null = the
+     catalog guesses at render time. */
   const [lorasPlans, setLorasPlans] = useState<({ name: string; strength: number; trigger: string }[] | null)[]>([])
   const [tab, setTab] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -538,10 +537,10 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
     style: 'the photographic style / lighting',
   }
 
-  /* étape 1 : UN passage LLM → 9 variantes proposées à la relecture */
+  /* step 1: ONE LLM pass → 9 proposed variants for review */
   const rewrite = async () => {
     const vary = (['outfit', 'pose', 'env', 'style'] as const).filter(k => !keep[k]).map(k => VARY_LABELS[k])
-    /* Contrat par dimension : `env` s'appelle `location` côté serveur. */
+    /* Per-dimension contract: `env` is called `location` server-side. */
     const contrat = { outfit: keep.outfit, pose: keep.pose, location: keep.env, props: keep.props, light: keep.light, style: keep.style }
     const ouverts = (['outfit', 'pose', 'env', 'props', 'light', 'style'] as const).filter(k => !keep[k])
     if (shoot ? !ouverts.length : !vary.length) { setErr(t('décoche au moins un élément (décoché = varie)')); return }
@@ -550,8 +549,8 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
     const tick = window.setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000)
 
     try {
-      /* Mode shooting → carrousel v2 (server/carrousel.js) ; le mode
-         variation reste sur l'ancienne route, qui seule le sait faire. */
+      /* Shooting mode → carousel v2 (server/carrousel.js); variation
+         mode uses the other route, the only one that supports it. */
       const r = shoot
         ? await fetch('/api/carrousel', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -569,7 +568,7 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
       if (!r.ok || d.error) throw new Error(tServeur(d.error) || `HTTP ${r.status}`)
       if (!Array.isArray(d.variants) || !d.variants.length) throw new Error(t('aucune variante produite'))
       pushRolling('v2_rewrite_ms', Date.now() - t0)
-      // l'ORIGINE ouvre le carrousel, suivie des 8 réécritures
+      // the ORIGIN opens the carousel, followed by the 8 rewrites
       setVariants([basePrompt, ...d.variants.slice(0, 8)])
       setLorasPlans(Array.isArray(d.loras) ? d.loras.slice(0, 8) : [])
       setTab(0)
@@ -582,33 +581,33 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
     setBusy(false)
   }
 
-  /* étape 2 : envoi des variantes validées/éditées — flux normal, batchId commun */
+  /* step 2: submit the approved/edited variants — normal flow, shared batchId */
   const send = async () => {
     setPhase('send'); setBusy(true)
     const seedVal = keep.seed ? asset.provenance.seed?.value : undefined
     const bid = crypto.randomUUID()
-    /* l'ORIGINAL n'est pas re-généré : son rendu existant rejoint le lot */
+    /* the ORIGINAL is not re-rendered: its existing render joins the batch */
     try { await fetch(`/api/jobs/${encodeURIComponent(asset.jobId)}/batch-id`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batchId: bid }) }) } catch { /* non bloquant */ }
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batchId: bid }) }) } catch { /* non-blocking */ }
     s.setMode('photo')
     s.updatePhoto({ task: 'generate' })
     s.setBatchCount(1)
     s.setCarouselBatchId(bid)
     s.setCarouselLocks(keep)
     s.setCarouselPromptRacine(prep?.racine ?? null)
-    /* les LoRAs du job d'origine (et leurs déclencheurs) doivent suivre les
-       variantes : sans elles, les 8 plans perdent le style de l'original. */
+    /* the source job's LoRAs (and their triggers) must carry over to the
+       variants, otherwise the 8 shots lose the original's style. */
     useAppStore.setState({ loraPicks: keep.lora ? extraLoras.map(l => ({
       name: l.name, strength: l.strength ?? 1, trigger: l.trigger ?? '' })) : [] })
-    // sans personnage : la photo d'origine est la seule référence, son visage tient tout le carrousel
+    // no character: the source photo is the only reference, its face holds the whole carousel
     const refsAvant = useAppStore.getState().references
     const sansPerso = useAppStore.getState().personaId === SANS_PERSONNAGE
     if (sansPerso) { useAppStore.setState({ references: [] }); await s.ajouterReference(asset) }
     let done = 0
-    for (const [j, v] of variants.slice(1).entries()) {   // onglet « origine » exclu : jamais re-rendu
+    for (const [j, v] of variants.slice(1).entries()) {   // "origin" tab excluded: never re-rendered
       if (!v.trim()) continue
-      /* LoRA du plan : seulement si l'opérateur n'a pas gardé celles de
-         l'original (cadenas LoRA) — son choix prime. */
+      /* Shot LoRA: only if the operator did not keep the original's LoRAs
+         (LoRA padlock); the operator's choice wins. */
       if (!(keep.lora && extraLoras.length))
         useAppStore.setState({ loraPicks: lorasPlans[j] ?? [] })
       s.setUserPrompt(v.trim())
@@ -621,8 +620,8 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
     s.setCarouselBatchId(null)
     s.setCarouselLocks(null)
     s.setCarouselPromptRacine(null)
-    /* l'original vient d'être re-tagué côté serveur : recharger les assets
-       pour que sa vignette rejoigne le lot sans attendre un reload. */
+    /* the original was just re-tagged server-side: reload assets so its
+       thumbnail joins the batch without a page reload. */
     await s.hydrate()
     setBusy(false)
     if (done > 0) onLaunched(bid)
@@ -657,8 +656,8 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
                 onClick={() => !busy && flip(k)}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Ic n={keep[k] ? 'lock' : 'unlock'} s={12} /> {t(label)}</span><small>{keep[k] ? t('constant') : t('libre')}</small>
                 {(() => {
-                  /* Ce que le VLM a trouvé dans cette dimension. `env` s'appelle
-                     `location` côté serveur ; seed et lora n'en sont pas une. */
+                  /* What the VLM found for this dimension. `env` is called
+                     `location` server-side; seed and lora are not dimensions. */
                   const clef = k === 'env' ? 'location' : k
                   if (!dims && !dimsErr && clef !== 'seed' && clef !== 'lora')
                     return <span className="dimload" aria-label={t('lecture de l\'image en cours')}><i /><i /></span>
@@ -697,7 +696,7 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
             {phase === 'config' ? (
               <button className="b1" onClick={() => void rewrite()}>{t('✦ Réécrire 8 variantes')}</button>
             ) : (
-              /* jauge : le fond iridescent remplit le bouton de gauche à droite en ~100 s */
+              /* gauge: the iridescent fill grows left to right over ~100 s */
               <button className="b1 fillbtn" disabled>
                 <i className="fill" style={{ width: `${Math.min(100, (elapsed * 1000 / readRolling('v2_rewrite_ms', 100000)) * 100)}%` }} />
                 <span>{t('… réécriture · {elapsed} s / {eta}', { elapsed, eta: fmtEta(readRolling('v2_rewrite_ms', 100000)) })}</span>
@@ -746,12 +745,12 @@ export function CarouselPopup({ asset, onClose, onLaunched, integre = false }: {
   )
 }
 
-/* ---------- vue d'un lot (multishot) : tous les rendus + actions ---------- */
+/* ---------- batch view (multishot): all renders + actions ---------- */
 export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
   items: Asset[]
   onClose: () => void
   onOpenAsset: (a: Asset) => void
-  /** actions par vignette (Animer / Départ / Fin / …) fournies par la vue hôte */
+  /** per-thumbnail actions (Animate / Start / End / …) provided by the host view */
   extraFor?: (a: Asset) => React.ReactNode
 }) {
   const s = useAppStore()
@@ -767,7 +766,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
   const varied = locks ? Object.entries(locks).filter(([, v]) => !v).map(([k]) => LOCK_LABELS[k] ?? k) : []
   return (
     <div className="pop" style={{ alignItems: 'stretch', justifyContent: 'flex-start', background: 'var(--bg)', position: 'fixed' }}>
-      {/* ---- grille des shots ---- */}
+      {/* ---- shot grid ---- */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-3 px-4 py-3">
           <button className="b2" onClick={onClose}>{t('‹ retour')}</button>
@@ -775,9 +774,9 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
           <b className="text-[13px]">{t('Lot — {n} rendus', { n: items.length })}</b>
           {pending > 0 && <span className="text-[12px]" style={{ color: 'var(--attention)' }}>{t('{n} à revoir', { n: pending })}</span>}
         </div>
-        {/* pleine LARGEUR, format d'origine, scroll vertical assumé : chaque
-            colonne fait ~1/3 de la largeur, la hauteur suit le ratio réel
-            (9:16 → cartes hautes, on scrolle). Aucune contrainte de hauteur. */}
+        {/* full WIDTH, original aspect, vertical scroll: each column is
+            ~1/3 of the width, height follows the real ratio
+            (9:16 → tall cards). No height constraint. */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-8">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, width: '100%' }}>
             {items.map(a => (
@@ -794,7 +793,7 @@ export function BatchViewer({ items, onClose, onOpenAsset, extraFor }: {
           <SelectionBar ids={[...picked]} assets={items} onClear={() => setPicked(new Set())} />
         </div>
       )}
-      {/* ---- panneau détails du lot ---- */}
+      {/* ---- batch details panel ---- */}
       <aside className="flex-none flex flex-col gap-2.5 p-4 overflow-y-auto" style={{ width: 300, background: 'var(--lv1)' }}>
         <div className="rounded-xl p-3 text-[12px]" style={{ background: 'var(--lv2)' }}>
           {([

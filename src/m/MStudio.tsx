@@ -1,8 +1,8 @@
 /* ============================================================
-   CreatorOS mobile — espace Studio : reel en un clic, caméra & effets,
-   avatar parlant et montage. Ce sont les vues du bureau (src/v2), posées
-   telles quelles dans un conteneur `.v2` pour leurs styles : un seul code
-   métier, deux présentations.
+   CreatorOS mobile, Studio space: one-click reel, camera & effects,
+   talking avatar and editing. These are the desktop views (src/v2),
+   mounted as is in a `.v2` container for their styles: one business
+   logic, two presentations.
    ============================================================ */
 import { useAppStore } from '../store/useAppStore'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -30,7 +30,7 @@ import { t } from '../i18n'
 import { lienMobile } from './lien'
 import type { IdOutil } from '../v2/OutilsDedies'
 
-/* Les outils d'un seul geste servis par la page galerie (OutilGalerie), une vue « o:<outil> » chacun. */
+/* One-gesture tools served by the gallery page (OutilGalerie), one "o:<outil>" view each. */
 const OUTILS_GALERIE_MOBILE: [IdOutil, string][] = [['inpaint', 'Inpaint'], ['remove-bg', 'Remove Background'], ['upscale', 'Upscale Image'], ['depth', 'Depth Map'],
   ['coverage', 'Coverage'], ['next-shot', 'Next Shot'], ['image-3d', 'Image to 3D'], ['retouch', 'Retouch'], ['remove-objects', 'Remove Objects'], ['change-bg', 'Change Background'],
   ['upscale-1080', 'Upscale 1080p'], ['green-screen', 'Green Screen'], ['add-sound', 'Add Sound'], ['hdr', 'HDR Masters']]
@@ -39,11 +39,11 @@ const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['danse', 'Danse'], [
   ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check'],
   ...OUTILS_GALERIE_MOBILE.map(([id, label]) => [`o:${id}`, label] as [Vue, string])]
 
-/** L'effet vidéo demandé par l'adresse (?s=outil&o=day-to-night…), sinon Refine Details. */
+/** The video effect requested by the URL (?s=outil&o=day-to-night…), else Refine Details. */
 const EFFETS_VIDEO = ['refine-details', 'day-to-night', 'deblur', 'decompression', 'colorize', 'restore-clip', 'water'] as const
 const effetDemande = (): IdOutil => EFFETS_VIDEO.find(e => e === lienMobile()?.outil) ?? 'effets-video'
 
-/** Vue du Studio demandée depuis un autre espace (« Utiliser au montage » du studio son). */
+/** Studio view requested from another space ("Use in edit" from the sound studio). */
 export const vueStudioDemandee: { v: Vue | null } = { v: null }
 
 export function MStudio({ goVideo }: { goVideo: () => void }) {
@@ -52,10 +52,10 @@ export function MStudio({ goVideo }: { goVideo: () => void }) {
     const v = d ?? lienMobile()?.vue; return (VUES.some(([x]) => x === v) ? v : 'reel') as Vue
   })
   const [montageAOuvrir, setMontageAOuvrir] = useState<string | null>(null)
-  // chaque vue du studio a son personnage (choisi dans la vue), sinon celui par défaut
+  // each studio view has its own character (chosen in the view), else the default one
   useEffect(() => { void useAppStore.getState().entrerPage(`m:${vue}`) }, [vue])
   const [vu, setVu] = useState<{ a: Asset; list: Asset[] } | null>(null)
-  // l'onglet actif reste visible dans la barre qui défile
+  // the active tab stays visible in the scrolling bar
   const barre = useRef<HTMLDivElement>(null)
   useEffect(() => { barre.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }) }, [vue])
   return (

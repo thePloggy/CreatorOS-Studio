@@ -1,12 +1,11 @@
 /* ============================================================
-   Presets en un clic — une galerie de mouvements de caméra et
-   d'effets : une photo de la bibliothèque, un clic, un clip. Chaque preset
-   est une phrase de mise en scène calibrée pour le moteur (et, quand elle
-   existe et que sa licence le permet, une LoRA dédiée). Le clip passe par la
-   file de rendu ordinaire, comme une vidéo lancée à la main.
+   One-click presets: a gallery of camera moves and effects. A library
+   photo, one click, one clip. Each preset is a staging sentence tuned for
+   the engine (plus a dedicated LoRA when one exists and its license allows).
+   The clip goes through the regular render queue, like a manual video.
 
-   Les aperçus de la galerie sont des clips rendus une fois pour toutes et
-   rangés dans <données>/presets/<id>.mp4 (cf. scripts/demo/presets.mjs).
+   Gallery previews are clips rendered once and stored in
+   <data>/presets/<id>.mp4 (see scripts/demo/presets.mjs).
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -19,39 +18,36 @@ import { t0Hit } from './t0.js'
 
 export const APERCUS_DIR = path.join(CONFIG.dataDir, 'presets')
 
-/* `prompt` décrit le MOUVEMENT de caméra, le sujet reste celui de la photo ;
-   `{sujet}` est remplacé par le détail optionnel de l'opérateur. Formulations
-   au présent, une seule action de caméra, vitesse dite : LTX suit mieux une
-   consigne de caméra explicite et unique. */
-/* `moteur` : 'ltx_hq' (LTX-2.5, avec le son), 'wan21' (Wan 2.1 I2V 480p, la base
-   des LoRA d'effets, 4 pas) ou 'wan21_hq' (même base, réglage Remade 28 pas : les
-   effets). Effets : la phrase type de la fiche Remade (« The video shows… »),
-   le sujet nommé « the woman » de bout en bout : la
-   phrase courte laisse l'effet tomber à côté d'elle. `lora` : fichier relatif au dossier des LoRA, sa licence en
-   commentaire ; son mot déclencheur est en tête du prompt.
-   Licences : LTX-2 Community (Lightricks, usage commercial libre sous 10 M$ de CA) ;
-   Remade-AI et ostris : Apache-2.0. Écartés : « muscle » (le déclencheur déshabille),
-   Hulk, Super Saiyan, Fus Ro Dah (propriétés intellectuelles de tiers), et « jumpscare »
-   (moyen dans les deux réglages). Visage de robot, mâchoire
-   et explosion restent au réglage rapide : meilleurs qu'en 28 pas. */
+/* `prompt` describes the camera MOVE, the subject stays the photo's;
+   `{sujet}` is replaced by the operator's optional detail. Present tense,
+   a single camera action, speed stated: LTX follows a single explicit
+   camera instruction best. */
+/* `moteur`: 'ltx_hq' (LTX-2.5, with audio), 'wan21' (Wan 2.1 I2V 480p, base of the
+   effect LoRAs, 4 steps) or 'wan21_hq' (same base, Remade 28-step setting: effects).
+   Effects use the Remade model card sentence pattern ("The video shows…"), with the
+   subject named "the woman" throughout: a short sentence makes the effect miss her.
+   `lora`: file relative to the LoRA folder, license in a comment; its trigger word
+   leads the prompt.
+   Licenses: LTX-2 Community (Lightricks, free commercial use under $10M revenue);
+   Remade-AI and ostris: Apache-2.0. Excluded: third-party IP effects and effects
+   that undress the subject. Robot face, jaw and explosion use the fast setting. */
 const LTX = n => ({ name: `ltx_camera/ltx-2-19b-lora-camera-control-${n}.safetensors`, strength: 0.9 })
 const REMADE = (dossier, f) => ({ name: `${dossier}/wan21_i2v_remade_${f}.safetensors`, strength: 1 })
 export const PRESETS = [
-  // ---- caméra, LTX-2.5 (avec le son) ----
+  // ---- camera, LTX-2.5 (with audio) ----
   { id: 'push-in', famille: 'camera', moteur: 'ltx_hq', lora: LTX('dolly-in'), nom: 'Travelling avant', nomEn: 'Push in', icone: '⇥',
     prompt: 'The camera slowly and smoothly dollies forward toward her, steady cinematic push-in, ending closer on her face. {sujet}' },
-  // ---- caméra, Wan 2.2 Fun Camera (trajectoire, muet) ----
+  // ---- camera, Wan 2.2 Fun Camera (trajectory, silent) ----
   { id: 'pull-out', famille: 'camera', moteur: 'wan_funcam', camera: 'Zoom Out', nom: 'Travelling arrière', nomEn: 'Pull out reveal', icone: '⇤',
     prompt: 'She stays in place facing the camera, only her hair and clothes move in the wind. The camera smoothly pulls back away from her, revealing the whole place around her by the end of the shot, cinematic. {sujet}' },
   { id: 'travelling-lateral', famille: 'camera', moteur: 'ltx_hq', lora: LTX('dolly-left'), nom: 'Travelling latéral', nomEn: 'Side tracking', icone: '⇆',
     prompt: 'The camera trucks sideways to the left on a rail, moving parallel to the scene, the background sliding past behind her, she stays centered in the frame, a clear unobstructed view. {sujet}' },
   { id: 'drone', famille: 'camera', moteur: 'ltx_hq', lora: LTX('jib-up'), nom: 'Grue ascendante', nomEn: 'Jib up', icone: '⤒',
     prompt: 'The camera rises smoothly on a jib, lifting above her and revealing the place from higher up. {sujet}' },
-  /* En DEUX rendus : une grue ascendante depuis la
-     photo, puis sa dernière image (vue d'en haut) sert de DÉBUT à un plan Wan 2.2
-     qui FINIT sur la photo (image de début + image de fin, comme le Prequel).
-     Demandée d'un coup depuis la photo, la descente fait entrer une grue dans
-     le cadre ; lue à l'envers, le sujet marche à reculons. */
+  /* Two renders: a rising crane from the photo, then its last frame (top
+     view) is the START of a Wan 2.2 shot that ENDS on the photo (start + end
+     frame). Requested directly from the photo, the descent brings a crane into
+     the frame; played backwards, the subject walks backwards. */
   { id: 'jib-down', famille: 'camera', moteur: 'ltx_hq', lora: LTX('jib-up'), nom: 'Grue descendante', nomEn: 'Jib down', icone: '⤓',
     prompt: 'The camera rises smoothly straight up above her, revealing the place from higher up. {sujet}',
     suite: { moteur: 'wan', prompt: 'The camera descends smoothly from high above down to her eye level and settles on her, one continuous smooth crane move. {sujet}' } },
@@ -61,7 +57,7 @@ export const PRESETS = [
     prompt: 'Handheld camera follows her closely with a natural slight shake as she keeps walking, her hands relaxed and empty at her sides, documentary style, intimate and spontaneous. {sujet}' },
   { id: 'panoramique', famille: 'camera', moteur: 'ltx_hq', nom: 'Panoramique', nomEn: 'Pan', icone: '↔',
     prompt: 'The camera pans slowly from left to right across the scene and settles on her, smooth tripod pan. {sujet}' },
-  // ---- caméra, Wan 2.1 + LoRA Remade / ostris, réglage Remade 28 pas (orbite meilleure) ----
+  // ---- camera, Wan 2.1 + Remade / ostris LoRA, Remade 28-step setting ----
   { id: 'orbite', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', '360_Orbit'), nom: 'Orbite 360°', nomEn: '360° orbit', icone: '↻',
     prompt: '0rb4it 360 degree orbit. The camera orbits all the way around her while she stays in place. {sujet}' },
   { id: 'arc', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'Arc_shot'), nom: 'Arc', nomEn: 'Arc shot', icone: '◠',
@@ -71,14 +67,14 @@ export const PRESETS = [
   { id: 'crash-zoom-out', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crash_zoom_out'), nom: 'Crash zoom arrière', nomEn: 'Crash zoom out', icone: '⊖',
     prompt: 'The video begins with a close-up shot of a woman\'s face. The cr34sh crash zoom out effect then begins, quickly pulling back to reveal the whole place around her, the woman small in the frame. {sujet}' },
   { id: 'bullet-time', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'matrix_shot'), nom: 'Bullet time', nomEn: 'Bullet time', icone: '⧗',
-    // même structure que les exemples de la LoRA : le déclencheur en tête, l'instant figé, des éléments suspendus, puis la caméra qui tourne
+    // same structure as the LoRA examples: trigger first, frozen moment, suspended elements, then the orbiting camera
     prompt: 'b4ll3t t1m3 bullet time shot A woman is captured mid-leap, her hair, her clothes and the dust around her suspended in mid-air. The scene utilizes a b4ll3t t1m3 bullet time shot effect, where the action is dramatically slowed down, freezing her in her dynamic pose. The background stays the same place, slightly blurred by the effect. The camera smoothly rotates around her, offering varying views of the frozen moment from all angles. {sujet}' },
   { id: 'grue-haute', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'crane_overhead'), nom: 'Grue au-dessus', nomEn: 'Overhead crane', icone: '⊙',
     prompt: 'cr4n3 crane over the head movement, the camera passes high above her. {sujet}' },
   { id: 'dolly-zoom', famille: 'camera', moteur: 'wan21_hq', lora: REMADE('wan_camera', 'dolly_25_epochs'), nom: 'Dolly zoom', nomEn: 'Dolly zoom', icone: '◎',
-    // l'effet ne se lit qu'avec du décor autour d'elle : plan américain ou plus large
+    // the effect only reads with scenery around her: medium-long shot or wider
     prompt: 'd011Ye33ect dolly effect. The video shows a woman standing in a wide place, seen from mid-thigh up. The camera slowly zooms out while moving forward, keeping her face centered and the same size, while the place behind her stretches and distorts dramatically. {sujet}' },
-  // ---- effets, Wan 2.1 + LoRA Remade, réglage Remade (28 pas) ----
+  // ---- effects, Wan 2.1 + Remade LoRA, Remade setting (28 steps) ----
   { id: 'squish', famille: 'effet', moteur: 'wan21_hq', lora: REMADE('wan_effects', 'squish_18'), nom: 'Écrasé', nomEn: 'Squish', icone: '🫳',
     prompt: "In the video, a woman is presented. The woman is held in a person's hands. The person then presses on the woman, causing a sq41sh squish effect. The person keeps pressing down on the woman, further showing the sq41sh squish effect. {sujet}" },
   { id: 'inflate', famille: 'effet', moteur: 'wan21_hq', lora: REMADE('wan_effects', 'inflate_20_epochs'), nom: 'Gonfle', nomEn: 'Inflate', icone: '🎈',
@@ -104,7 +100,7 @@ export const PRESETS = [
 export function listerPresets() {
   return PRESETS.map(p => ({
     id: p.id, famille: p.famille, nom: p.nom, nomEn: p.nomEn, icone: p.icone, lora: p.lora?.name ?? null, moteur: p.moteur, deuxRendus: !!p.suite,
-    // la date du fichier dans l'adresse : un aperçu remplacé n'est pas resservi depuis le cache du navigateur
+    // file date in the URL: a replaced preview is not served from the browser cache
     apercu: fs.existsSync(path.join(APERCUS_DIR, `${p.id}.mp4`)) ? `/api/presets/${p.id}/apercu?v=${Math.round(fs.statSync(path.join(APERCUS_DIR, `${p.id}.mp4`)).mtimeMs)}` : null,
   }))
 }
@@ -113,7 +109,7 @@ export const cheminApercu = id => {
   return fs.existsSync(f) ? f : null
 }
 
-/** Lance un preset sur une photo de la bibliothèque. */
+/** Runs a preset on a library photo. */
 export function lancer({ presetId, assetId, detail, duree }) {
   const p = PRESETS.find(x => x.id === presetId)
   if (!p) throw new Error('preset inconnu')
@@ -125,15 +121,15 @@ export function lancer({ presetId, assetId, detail, duree }) {
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, nom))
   store.noterInput(nom)
   const texte = p.prompt.replace('{sujet}', d).trim()
-  // Wan 2.1 480p et Fun Camera : 16 i/s, 5 s au plus, un format standard à leur surface d'entraînement
+  // Wan 2.1 480p and Fun Camera: 16 fps, 5 s max, a standard format at their training resolution
   const wan480 = /^(wan21|wan_funcam)/.test(p.moteur)
   const job = enqueue({
-    // le personnage de la PHOTO (sa LoRA vidéo, son mot déclencheur), pas l'actif
+    // the PHOTO's character (its video LoRA, its trigger word), not the active one
     mode: 'video', register: 'sfw', personaId: a.persona_id ?? persona().id, purpose: 'creative',
     videoEngine: p.moteur, withAudio: p.moteur === 'ltx_hq',
     sourceImage: nom, composedPositive: `${texte}. single continuous shot, no cuts`, userPrompt: texte, composedNegative: '',
-    /* LTX : le format exact de la photo. Wan 2.1 480p : un format standard à sa
-       surface d'entraînement (480×832) — « origine » le pousserait en 1080p. */
+    /* LTX: the exact photo format. Wan 2.1 480p: a standard format at its training
+       resolution (480×832); "origine" would push it to 1080p. */
     videoSeconds: Math.min(wan480 ? 5 : 8, Math.max(3, Number(duree) || 5)), videoFps: wan480 ? 16 : 24,
     videoAspect: wan480 ? ((a.width ?? 9) > (a.height ?? 16) * 1.15 ? '16:9' : (a.width ?? 9) * 1.15 < (a.height ?? 16) ? '9:16' : '1:1') : 'origine',
     videoSrcW: a.width ?? undefined, videoSrcH: a.height ?? undefined,
@@ -147,15 +143,15 @@ export function lancer({ presetId, assetId, detail, duree }) {
   return job
 }
 
-/* ---------- presets en deux rendus (grue descendante) ----------
-   État en base : la suite reprend après un redémarrage. La clé Comfy Cloud du
-   visiteur reste en mémoire seulement, comme pour les reels. */
+/* ---------- two-render presets (descending crane) ----------
+   State is stored in the database: the sequence resumes after a restart. The
+   visitor's Comfy Cloud key stays in memory only, as for reels. */
 store.db.exec(`CREATE TABLE IF NOT EXISTS presets_suites (
   job1 TEXT PRIMARY KEY, preset_id TEXT NOT NULL, photo TEXT NOT NULL, asset_id TEXT, detail TEXT, duree REAL,
   etat TEXT NOT NULL, job2 TEXT, created_at INTEGER NOT NULL)`)
 const suitesCles = new Map()
 let cleDe = null
-/** Lance un preset en gardant la clé du visiteur pour l'éventuel second rendu. */
+/** Runs a preset, keeping the visitor's key for the possible second render. */
 export function lancerAvecCle(cle, args) {
   cleDe = cle
   try { return lancer(args) } finally { cleDe = null }
@@ -169,7 +165,7 @@ function avancerSuite(row) {
   if (j1.status !== 'done') return
   const clip = store.assetsOfJob(row.job1).find(x => x.media_type === 'video' && x.filename)
   if (!clip) return store.db.prepare(`UPDATE presets_suites SET etat = 'abandon' WHERE job1 = ?`).run(row.job1)
-  // dernière image du premier rendu → image de DÉBUT du second
+  // last frame of the first render → START frame of the second
   const debut = `crs_suite_${row.job1}.png`
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-sseof', '-0.1', '-i', path.join(CONFIG.mediaDir, path.basename(clip.filename)),
     '-frames:v', '1', '-update', '1', path.join(CONFIG.comfyInput, debut)], { stdio: ['ignore', 'ignore', 'pipe'] })

@@ -1,7 +1,7 @@
-"""Tour texturé d'un modèle 3D (GLB de TRELLIS.2) : éclairage studio, sol discret, caméra en orbite.
+"""Textured turntable of a 3D model (TRELLIS.2 GLB): studio lighting, subtle floor, orbiting camera.
 
-usage : blender -b -P tour_texture.py -- modele.glb sortie.mp4 [images=97] [taille=720]
-Le modèle est centré et mis à l'échelle (1,5 m de haut) ; un tour complet, rendu EEVEE, assemblé par ffmpeg.
+usage: blender -b -P tour_texture.py -- modele.glb sortie.mp4 [images=97] [taille=720]
+The model is centred and scaled (1.5 m tall); one full turn, EEVEE render, assembled by ffmpeg.
 """
 import math
 import os
@@ -23,7 +23,7 @@ objets = [o for o in bpy.context.scene.objects if o.type == 'MESH']
 if not objets:
     sys.exit('aucun maillage')
 
-# boîte englobante de tous les maillages, en coordonnées monde
+# bounding box of all meshes, in world coordinates
 coins = [o.matrix_world @ Vector(c) for o in objets for c in o.bound_box]
 mini = Vector((min(c.x for c in coins), min(c.y for c in coins), min(c.z for c in coins)))
 maxi = Vector((max(c.x for c in coins), max(c.y for c in coins), max(c.z for c in coins)))
@@ -37,7 +37,7 @@ for o in bpy.context.scene.objects:
 pivot.scale = (echelle,) * 3
 pivot.location = (-(mini.x + maxi.x) / 2 * echelle, -(mini.y + maxi.y) / 2 * echelle, -mini.z * echelle)
 
-# sol : un disque gris doux qui reçoit l'ombre
+# floor: a soft grey disc that catches the shadow
 bpy.ops.mesh.primitive_circle_add(vertices=96, radius=6, fill_type='NGON', location=(0, 0, 0))
 sol = bpy.context.active_object
 mat = bpy.data.materials.new('sol'); mat.use_nodes = True
@@ -46,7 +46,7 @@ bsdf.inputs['Base Color'].default_value = (0.09, 0.095, 0.105, 1)
 bsdf.inputs['Roughness'].default_value = 0.85
 sol.data.materials.append(mat)
 
-# monde : gris neutre, éclairage doux
+# world: neutral grey, soft lighting
 monde = bpy.data.worlds.new('monde'); bpy.context.scene.world = monde
 monde.use_nodes = True
 monde.node_tree.nodes['Background'].inputs['Color'].default_value = (0.16, 0.17, 0.19, 1)
@@ -61,7 +61,7 @@ lampe('cle', 520, (2.5, -2.5, 3.2), 2.5)
 lampe('remplissage', 160, (-3, -1.5, 1.8), 3)
 lampe('contre', 420, (0, 3, 2.8), 2)
 
-# caméra en orbite autour du modèle
+# camera orbiting the model
 cam = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
 bpy.context.scene.collection.objects.link(cam)
 cam.data.lens = 50

@@ -1,20 +1,16 @@
 /* ============================================================
-   Vignette (poster) d'une vidéo.
+   Video thumbnail (poster).
 
-   iOS Safari n'affiche PAS la première image d'un <video> tant qu'il n'est
-   pas lu — sans poster, une grille de clips est une grille de noirs, et on
-   ne sait pas à quoi correspond chaque rendu (Safari macOS est
-   capricieux aussi). Un JPEG extrait par ffmpeg,
-   servi par /api/poster/<fichier>, règle les deux.
+   iOS Safari does NOT show the first frame of a <video> until it plays:
+   without a poster, a clip grid is a grid of black boxes. A JPEG extracted
+   by ffmpeg, served by /api/poster/<file>, fixes that.
 
-   Prise à 1 s plutôt qu'à 0 : l'image 0 d'un i2v EST la still de départ,
-   elle ne dit rien du mouvement. Repli sur l'image 0 si le clip est plus
-   court. Généré à la récolte, et à la demande pour l'existant.
+   Taken at 1 s rather than 0: frame 0 of an i2v IS the starting still and
+   says nothing about the motion. Falls back to frame 0 if the clip is
+   shorter. Generated at harvest, and on demand for existing files.
 
-   Même chose pour une photo : le PNG d'origine pèse jusqu'à 3,8 Mo et ~8 Mo
-   une fois décodé, et une bibliothèque parcourue monterait l'onglet à 1 Go.
-   La grille prend ce JPEG de 540 px,
-   la grande vue garde l'original.
+   Same for a photo: the original PNG is heavy to decode in a grid, so the
+   grid uses this 540 px JPEG and the full view keeps the original.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -33,9 +29,9 @@ export function posterPath(filename) {
   return path.join(posterDir(), `${path.basename(filename)}.jpg`)
 }
 
-/** Rend le chemin du poster, en le générant s'il manque. null si la vidéo
- *  n'existe pas ou si ffmpeg échoue (l'appelant sert alors 404 : une
- *  vignette absente vaut mieux qu'une image cassée en cache). */
+/** Returns the poster path, generating it if missing. null if the video
+ *  does not exist or ffmpeg fails (the caller then serves 404: a missing
+ *  thumbnail is better than a broken cached image). */
 export async function ensurePoster(filename) {
   const src = path.join(CONFIG.mediaDir, path.basename(filename))
   const image = IMAGE_EXT.has(path.extname(src).toLowerCase())
@@ -49,8 +45,8 @@ export async function ensurePoster(filename) {
       await run('ffmpeg', ['-y', '-v', 'error', ...(image ? [] : ['-ss', ss]), '-i', src, '-frames:v', '1',
         '-vf', 'scale=540:-2', '-q:v', '4', tmp], { timeout: 30000 })
       if (fs.existsSync(tmp) && fs.statSync(tmp).size > 0) { fs.renameSync(tmp, out); return out }
-    } catch { /* on tente l'image 0 */ }
+    } catch { /* try frame 0 */ }
   }
-  try { fs.unlinkSync(tmp) } catch { /* rien */ }
+  try { fs.unlinkSync(tmp) } catch { /* nothing */ }
   return null
 }

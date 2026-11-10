@@ -1,18 +1,16 @@
 /* ============================================================
-   Textes de façonnage — la couche qui décide de ce que le modèle rend.
+   Shaping texts: the layer that decides what the model renders.
 
-   Plusieurs familles, toutes lues sur le disque À CHAQUE JOB :
-     intent_*      intention globale du réécriveur LLM
-     engine_*      consignes d'écriture propres à chaque moteur de diffusion
-     rewrite_*     system prompts de repli du réécriveur
-     shoot_*, caption.txt, mood_*  carrousel, captions, couches d'ambiance
+   Several families, all read from disk ON EVERY JOB:
+     intent_*      global intent of the LLM rewriter
+     engine_*      writing instructions specific to each diffusion engine
+     rewrite_*     fallback system prompts of the rewriter
+     shoot_*, caption.txt, mood_*  carousel, captions, mood layers
 
-   Pourquoi hors du code : ce sont les textes qui bougent le plus souvent, et
-   ceux dont l'effet se juge sur une image, pas sur une relecture. Les laisser
-   dans le code imposait un déploiement par ajustement de virgule.
+   Kept outside the code because they change often and are judged on images.
 
-   Même mécanique que les recettes : lecture par job (aucun cache), écriture
-   validée, sauvegarde horodatée avant écrasement, jeton de concurrence.
+   Same mechanics as recipes: read per job (no cache), validated write,
+   timestamped backup before overwrite, concurrency token.
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,11 +19,9 @@ import { PROMPT_SEED, PROMPT_META } from './prompts.seed.js'
 
 export { PROMPT_META }
 
-/** Écrit les fichiers manquants à partir de la graine. Appelé une fois au
- *  démarrage : une installation neuve doit marcher sans copie manuelle, et un
- *  fichier effacé par mégarde ne doit pas bloquer la production.
- *  N'ÉCRASE JAMAIS un fichier existant — sinon toute modification de
- *  l'opérateur serait perdue au prochain redémarrage. */
+/** Writes missing files from the seed. Called once at startup so a fresh
+ *  install works without manual copying and an accidentally deleted file does
+ *  not block production. NEVER overwrites an existing file. */
 export function seedPrompts() {
   fs.mkdirSync(CONFIG.promptsDir, { recursive: true })
   const created = []
@@ -48,9 +44,8 @@ export function promptPath(file) {
   return full
 }
 
-/** Lecture pour usage en production. Lève si le fichier manque : un texte de
- *  façonnage absent produirait un rendu silencieusement différent, ce qui est
- *  pire qu'un job en échec avec un message clair. */
+/** Read for production use. Throws if the file is missing: a missing shaping
+ *  text would silently change the render, which is worse than a clear job failure. */
 export function readPrompt(file) {
   const full = promptPath(file)
   let text
@@ -60,7 +55,7 @@ export function readPrompt(file) {
   return text
 }
 
-/** Lecture pour l'éditeur : contenu + horodatage (jeton de concurrence). */
+/** Read for the editor: content + timestamp (concurrency token). */
 export function readPromptRaw(file) {
   const full = promptPath(file)
   const st = fs.statSync(full)
@@ -73,9 +68,9 @@ export function listPrompts() {
   } catch { return [] }
 }
 
-/** Écriture. Validation volontairement LÉGÈRE — ce sont des textes libres, il
- *  n'y a pas de « format valide » à vérifier. Le seul refus est le vide : un
- *  system prompt vide ferait répondre le LLM n'importe quoi sans rien signaler. */
+/** Write. Deliberately LIGHT validation: these are free texts. The only
+ *  rejection is empty content: an empty system prompt would make the LLM answer
+ *  anything without notice. */
 export function writePrompt(file, text, baseMtimeMs) {
   const full = promptPath(file)
   if (typeof text !== 'string' || !text.trim())
@@ -110,14 +105,14 @@ export function writePrompt(file, text, baseMtimeMs) {
   }
 }
 
-/* ---------- résolution registre → fichier ---------- */
+/* ---------- register → file resolution ---------- */
 
 const byKind = kind => Object.entries(PROMPT_META)
   .filter(([, m]) => m.kind === kind)
   .map(([file, m]) => ({ file, ...m }))
 
-/** Fichier servant un (kind, registre). Le registre unique est le SFW :
- *  tout registre inconnu y retombe. */
+/** File serving a (kind, register). The only register is SFW: any unknown
+ *  register falls back to it. */
 export function fileFor(kind, register) {
   const all = byKind(kind)
   return (all.find(x => x.registers.includes(register))

@@ -1,8 +1,8 @@
 /* ============================================================
-   Reel en un clic : un brief, et l'app réalise le reel : plans
-   rédigés, photos, clips LTX, montage avec fondus et accroche, export.
-   Le suivi vient du serveur (server/reel.js) ; ici on lance et on regarde.
-   Le montage produit reste modifiable dans l'onglet Montage.
+   One-click reel: a brief, and the app produces the reel: written
+   shots, photos, LTX clips, edit with fades and hook, export.
+   Progress comes from the server (server/reel.js); this view launches and watches.
+   The resulting edit stays editable in the Editor tab.
    ============================================================ */
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
@@ -37,11 +37,11 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
   const [n, setN] = useState(5)
   const [duree, setDuree] = useState(4)
   const [musique, setMusique] = useState('')
-  // par défaut, la voix enregistrée sur la fiche du personnage
+  // default: the voice saved on the character sheet
   const [voixOff, setVoixOff] = useState(() => (useAppStore.getState().personaVoix ? 'perso' : ''))
   const [caler, setCaler] = useState(true)
   const [musiques, setMusiques] = useState<MusiqueRow[]>([])
-  /* Nouveau morceau depuis le reel : ACE-Step le compose à la durée du reel, puis il est choisi. */
+  /* New track from the reel: ACE-Step composes it at the reel's duration, then it is selected. */
   const [nouvelle, setNouvelle] = useState<{ prompt: string; job: string | null; msg: string } | null>(null)
   const genererMorceau = async () => {
     if (!nouvelle?.prompt.trim()) return
@@ -67,7 +67,7 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     }
   }
   const [reels, setReels] = useState<Reel[]>([])
-  // un preset (saut de tenues, GRWM…) : la structure du reel est tenue par le studio, le brief remplit les cases
+  // a preset (outfit jump, GRWM…): the studio holds the reel structure, the brief fills the slots
   const [presets, setPresets] = useState<PresetReel[]>([])
   const [preset, setPreset] = useState<string>('')
   const [relire, setRelire] = useState(true)
@@ -97,8 +97,8 @@ export function ReelView({ goMontage }: { goMontage: (montageId: string) => void
     setBusy(false); return false
   }
 
-  /* Mise en page : la galerie des formats et la liste des reels occupent la largeur, un panneau compact à étapes
-     (personnage, format, brief, réglages, bouton) reste visible ; sur téléphone il devient une barre en bas. */
+  /* Layout: the format gallery and the reel list span the width, a compact step panel
+     (character, format, brief, settings, button) stays visible; on phones it becomes a bottom bar. */
   const reduit = useMouvementReduit()
   const survolPossible = useSurvolPossible()
   const [onglet, setOnglet] = useState<'formats' | 'reels'>('formats')
@@ -258,7 +258,7 @@ const ETAPES: Reel['etat'][] = ['redaction', 'photos', 'clips', 'export', 'fini'
 const NOM_ETAPE: Record<string, string> = { redaction: 'Rédaction', photos: 'Photos', clips: 'Clips', export: 'Montage', fini: 'Prêt' }
 
 function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage: (id: string) => void; onRetirer: () => void; onAnnuler: () => void }) {
-  // refaire un seul plan : sa photo reste, son clip est rendu à nouveau, le reel est remonté
+  // redo one shot: its photo stays, its clip is re-rendered, the reel is re-edited
   const [planRefait, setPlanRefait] = useState<number | null>(null)
   const [confirme, setConfirme] = useState<'annuler' | 'supprimer' | null>(null)
   const edition = useEdition()
@@ -273,7 +273,7 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
       setPlanRefait(null)
     } catch (e) { setErrPlan(String((e as Error).message)) }
   }
-  // un reel à preset passe par 'storyboard' (relecture) puis 'preset' (images et clips) : on l'affiche sur les mêmes étapes
+  // a preset reel goes through 'storyboard' (review) then 'preset' (images and clips): shown on the same steps
   const etape = r.etat === 'storyboard' ? 'redaction' : r.etat === 'preset' ? (r.plans.some(p => p.clipJob) ? 'clips' : 'photos') : r.etat
   const idx = r.etat === 'echec' ? -1 : (etape as string) === 'montage' ? ETAPES.indexOf('export') : ETAPES.indexOf(etape as typeof ETAPES[number])
   const photos = r.plans.filter(p => p.photoUri).length, clips = r.plans.filter(p => p.clipUri).length
@@ -302,7 +302,7 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
                 : <div className="flex items-center justify-center" style={{ height: '100%', fontSize: 12, color: 'var(--faint)' }}>{t('plan {n}', { n: i + 1 })}</div>}
               {p && !p.clipUri && (p.photoEtat === 'rendering' || p.clipEtat === 'rendering' || p.clipEtat === 'queued-comfy') &&
                 <span className="pastille-media" style={{ left: 4, bottom: 4 }}>{p.clipJob ? t('anime…') : t('photo…')}</span>}
-              {/* contrôle du plan avant le rendu : ce que la réécriture n'a pas su corriger */}
+              {/* shot check before rendering: what the rewrite could not fix */}
               {p?.avertissements?.length ? <span title={p.avertissements.map(x => t(x)).join(' · ')}
                 className="pastille-media" style={{ right: 4, top: 4, background: 'var(--attention)', color: 'var(--bg)' }}>⚠</span> : null}
               {p && (r.etat === 'fini' || r.etat === 'echec') && <button title={t('Refaire ce plan')} onClick={() => { setPlanRefait(i); setGeste(p.motion) }}
@@ -347,8 +347,8 @@ function CarteReel({ r, goMontage, onRetirer, onAnnuler }: { r: Reel; goMontage:
   )
 }
 
-/* Le storyboard d'un reel à preset, avant le tournage : chaque case écrite par le réalisateur
-   se corrige (une tenue, le plat, l'accroche…), puis « Tourner » lance les images et les clips. */
+/* Storyboard of a preset reel, before shooting: each slot written by the director
+   can be corrected (an outfit, the dish, the hook…), then "Shoot" launches images and clips. */
 function Storyboard({ r }: { r: Reel }) {
   const [cases, setCases] = useState(() => JSON.parse(JSON.stringify(r.cases ?? {})) as Record<string, unknown>)
   const [busy, setBusy] = useState(false)
