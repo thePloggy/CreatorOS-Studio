@@ -23,7 +23,9 @@ const FORMATS: Record<string, [number, number]> = {
 }
 const TOUTES = INSPIRATIONS as Inspiration[]
 
-const sourceLisible = (s: string) => s === 'creatoros' ? t('rendu CreatorOS') : t('prompt : workflow ComfyUI « {nom} »', { nom: s })
+const sourceLisible = (s: string) => s === 'creatoros' ? t('rendu CreatorOS')
+  : s.includes('.') ? t('prompt : {nom}', { nom: s })   // a site, e.g. comfy.org
+  : t('prompt : workflow ComfyUI « {nom} »', { nom: s })
 
 /* Characters of this install: on a GitHub install, Mila or Zoelexx do not exist;
    the card then loads its prompt without a character rather than a random face. */
@@ -40,8 +42,10 @@ export async function chargerInspiration(i: Inspiration) {
     const f = FORMATS[i.format]
     if (f) s.setPhotoSize({ w: f[0], h: f[1], label: i.format })
   } else {
-    s.updateVideo({ task: 'i2v', aspect: 'origine', ...(i.moteur ? { engine: i.moteur as never } : {}), ...(i.secondes ? { durationS: i.secondes } : {}) })
-    if (i.depart) await s.poserDepartInspiration(i.depart)
+    const moteur = { ...(i.moteur ? { engine: i.moteur as never } : {}), ...(i.secondes ? { durationS: i.secondes } : {}) }
+    // with a start photo: image to video; without: text to video in the card's format
+    if (i.depart) { s.updateVideo({ task: 'i2v', aspect: 'origine', ...moteur }); await s.poserDepartInspiration(i.depart) }
+    else s.updateVideo({ task: 't2v', aspect: i.format as never, ...moteur })
   }
   useAppStore.getState().setUserPrompt(i.prompt)
 }

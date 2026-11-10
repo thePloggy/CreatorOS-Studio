@@ -234,6 +234,20 @@
   "secondes": 6
  },
  {
+  "id": "rallye",
+  "mode": "video",
+  "titre": "Saut de rallye",
+  "prompt": "The white rally hatchback launches off the gravel crest, hangs in the air for a beat, then slams down sideways in a burst of stones and dust, driving lamps swinging across the pines. The camera whips to follow the car as it powerslides past, gravel spraying into the lens, then racks focus to the settling dust cloud glowing peach in the dusk light. Hard, fast motion, anti-lag pops and a screaming engine, tyres tearing gravel, the dust hissing down after it. Photorealistic, no text.",
+  "perso": "aucun",
+  "uri": "/inspirations/rallye.mp4",
+  "affiche": "/inspirations/rallye.webp",
+  "depart": "rallye",
+  "source": "comfy.org",
+  "format": "16:9",
+  "moteur": "ltx_hq",
+  "secondes": 10
+ },
+ {
   "id": "w-samourai",
   "mode": "video",
   "titre": "Le samouraï dégaine",
@@ -246,6 +260,19 @@
   "format": "16:9",
   "moteur": "ltx_hq",
   "secondes": 6
+ },
+ {
+  "id": "astronaute",
+  "mode": "video",
+  "titre": "L’astronaute et l’aurore",
+  "prompt": "Locked-off cinematic wide shot with a very slow push-in. A lone astronaut in a matte white suit stands on a dark basalt ridge at night, back three-quarters to camera, helmet visor reflecting a vast green and violet aurora that ripples slowly across the sky. Fine snow drifts sideways through the frame in the wind, a faint glow from the suit's chest panel, distant ice peaks catching the aurora light. Minimal motion, high-contrast, film grain. Sound: low wind, the soft crunch of snow, a faint electronic hum.",
+  "perso": "aucun",
+  "uri": "/inspirations/astronaute.mp4",
+  "affiche": "/inspirations/astronaute.webp",
+  "source": "comfy.org",
+  "format": "16:9",
+  "moteur": "ltx_hq",
+  "secondes": 10
  },
  {
   "id": "w-cote",
@@ -262,6 +289,20 @@
   "secondes": 6
  },
  {
+  "id": "coursier",
+  "mode": "video",
+  "titre": "Coursier sous la pluie",
+  "prompt": "Use the reference image as the character; keep the red-and-white helmet, mirrored visor and yellow rain shell identical in every shot. Shot one: wheel-level tracking shot as the cafe racer tears through a rain-flooded night street, neon puddles exploding into spray. Hard cut. Shot two: the courier leans the bike hard into a corner, knee skimming the wet asphalt, camera whip-pans to follow. Hard cut. Shot three: extreme close-up of the visor, traffic lights streaking across the mirror as the rider looks back. Rasping engine, rain, tyre hiss, a distant horn.",
+  "perso": "aucun",
+  "uri": "/inspirations/coursier.mp4",
+  "affiche": "/inspirations/coursier.webp",
+  "depart": "coursier",
+  "source": "comfy.org",
+  "format": "16:9",
+  "moteur": "ltx_hq",
+  "secondes": 10
+ },
+ {
   "id": "w-chateau",
   "mode": "video",
   "titre": "La cavalière",
@@ -274,6 +315,19 @@
   "format": "16:9",
   "moteur": "ltx_hq",
   "secondes": 6
+ },
+ {
+  "id": "vtt",
+  "mode": "video",
+  "titre": "Descente en VTT",
+  "prompt": "Three-shot downhill mountain-bike sequence with hard cuts, one rider in a glossy red full-face helmet, black goggles and a mud-caked teal jersey in every shot. Shot one: low wide shot as the rider drops into a steep root-laced forest chute in pouring rain, spray exploding off the front tyre. Cut. Shot two: handheld tracking alongside through mud and fern, the bike bucking over roots, rain streaking the lens. Cut. Shot three: crash zoom as the rider launches a jump and lands in a fan of brown mud. Hammering rain, tyres tearing wet earth, chain slap, hard breathing.",
+  "perso": "aucun",
+  "uri": "/inspirations/vtt.mp4",
+  "affiche": "/inspirations/vtt.webp",
+  "source": "comfy.org",
+  "format": "16:9",
+  "moteur": "ltx_hq",
+  "secondes": 10
  },
  {
   "id": "w-phare",
