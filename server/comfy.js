@@ -637,7 +637,70 @@ function empilerSur(out, anchor, loras, applied, skipped) {
   }
 }
 
-export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, identityPreamble, width, height, loras, sourceImage, t2v, controlNet, withAudio, videoSeconds, videoAspect, videoSrcDims, videoMegapixels, endImage, videoSteps, opTag }) {
+/* Étages d'échantillonnage LTX : LTXVImgToVideoInplace → LTXVConcatAVLatent → SamplerCustomAdvanced (guider LTXVDualCFGGuider). */
+function ltxEtages(out) {
+  const r = []
+  for (const [sampler, n] of Object.entries(out)) {
+    if (n.class_type !== 'SamplerCustomAdvanced') continue
+    const concat = out[n.inputs.latent_image?.[0]], guider = out[n.inputs.guider?.[0]]
+    if (concat?.class_type !== 'LTXVConcatAVLatent' || !guider?.inputs?.positive) continue
+    const i2vId = concat.inputs.video_latent?.[0]
+    if (out[i2vId]?.class_type !== 'LTXVImgToVideoInplace') continue
+    r.push({ sampler, concat, guider, i2vId, i2v: out[i2vId] })
+  }
+  return r
+}
+
+/* Images clés LTX (recette communautaire LTX-2.5 first/last frame, UCHIJ) : chaque image entre par LTXVAddGuide à son
+   index (multiple de 8, -1 = dernière image), la still de départ comprise (LTXVImgToVideoInplace contourné). Forces
+   0,7 au 1er étage, 1 à l'affinage ; compression 18. Les latents de guide sont retirés (LTXVCropGuides) avant l'étage
+   suivant et le décodage. Collée dans le latent (Inplace) avec une fin guidée, la fin coupait, gelait ou se fondait. */
+function ltxImagesCles(out, cles, secondes) {
+  const etages = ltxEtages(out)
+  const total = Math.round((Number(secondes) || 5) * 24 / 8) * 8   // dernière image = index total
+  const liste = cles.map(k => {
+    const t = Number(k.t)
+    const idx = !Number.isFinite(t) || t * 24 >= total - 4 ? -1 : Math.max(0, Math.min(total - 8, Math.round(t * 24 / 8) * 8))
+    return { image: String(k.image), idx }
+  }).sort((a, b) => (a.idx === -1 ? 1e9 : a.idx) - (b.idx === -1 ? 1e9 : b.idx))
+  const i2v = etages[0].i2v
+  const prep = i2v.inputs.image?.[0]
+  const redim = prep && out[prep]?.class_type === 'LTXVPreprocess' ? out[prep].inputs.image?.[0] : null
+  if (prep && out[prep]?.class_type === 'LTXVPreprocess') out[prep].inputs.img_compression = 18
+  liste.forEach((k, i) => {
+    out[`kf_load_${i}`] = { class_type: 'LoadImage', inputs: { image: k.image } }
+    let img = [`kf_load_${i}`, 0]
+    if (redim && out[redim]) { out[`kf_redim_${i}`] = { class_type: out[redim].class_type, inputs: { ...out[redim].inputs, input: img } }; img = [`kf_redim_${i}`, 0] }
+    out[`kf_prep_${i}`] = { class_type: 'LTXVPreprocess', inputs: { img_compression: 18, image: img } }
+    k.img = [`kf_prep_${i}`, 0]
+  })
+  etages.forEach(({ i2v: e, concat, guider, sampler }, k) => {
+    const by = e.inputs.bypass
+    if (Array.isArray(by) && out[by[0]]?.inputs && 'value' in out[by[0]].inputs) out[by[0]].inputs.value = true
+    else e.inputs.bypass = true
+    let pos = guider.inputs.positive, neg = guider.inputs.negative, lat = concat.inputs.video_latent
+    liste.forEach((c, i) => {
+      const id = `kf_g${k}_${i}`
+      /* Première et dernière image : 0,7 puis 1 (elles tiennent le cadre). Images intermédiaires plus souples, 0,5 puis 0,3 :
+         à 0,7 / 1, LTX les rejoignait par un fondu quand il n'avait pas trouvé de mouvement (table de montage, dragon, 08/11). */
+      const bord = c.idx === 0 || c.idx === -1
+      out[id] = { class_type: 'LTXVAddGuide', inputs: { positive: pos, negative: neg, vae: e.inputs.vae, latent: lat, image: c.img, frame_idx: c.idx, strength: bord ? (k === 0 ? 0.7 : 1) : (k === 0 ? 0.5 : 0.3) } }
+      pos = [id, 0]; neg = [id, 1]; lat = [id, 2]
+    })
+    guider.inputs.positive = pos; guider.inputs.negative = neg; concat.inputs.video_latent = lat
+    const sep = Object.entries(out).find(([, n]) => n.class_type === 'LTXVSeparateAVLatent' && n.inputs.av_latent?.[0] === sampler)?.[0]
+    if (!sep) return
+    const crop = `kf_crop_${k}`
+    out[crop] = { class_type: 'LTXVCropGuides', inputs: { positive: pos, negative: neg, latent: [sep, 0] } }
+    for (const [id, n] of Object.entries(out)) {
+      if (id === crop) continue
+      for (const [c2, v] of Object.entries(n.inputs ?? {})) if (Array.isArray(v) && v[0] === sep && v[1] === 0) n.inputs[c2] = [crop, 2]
+    }
+  })
+  return liste
+}
+
+export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, identityPreamble, width, height, loras, sourceImage, t2v, controlNet, withAudio, videoSeconds, videoAspect, videoSrcDims, videoMegapixels, endImage, contexteVideo, keyframes, videoSteps, opTag }) {
   const out = structuredClone(wf)
   const applied = []
   const skipped = []
@@ -983,6 +1046,9 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       + 'ni dimensions littérales dans la recette')
   }
   let flfWan = null
+  /* Images clés LTX : [{ image, t (s) }]. Données par le job (table de montage du Movie Studio), ou
+     déduites de la première image et de l'image de fin. */
+  let ltxCles = Array.isArray(keyframes) && keyframes.length ? keyframes : null
   /* -- image de FIN (keyframe d'arrivée) --
      Seul MiniMax H3 expose une entrée `last_frame` ; la recette servie ne la
      câble pas (une seule LoadImage, sur `first_frame`). Quand le job fournit
@@ -1007,6 +1073,9 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       flfWan = tid
       applied.push(`#${idLoad} LoadImage.image = ${endImage} → #${tid} end_image (keyframe de fin, nœud WanFirstLastFrameToVideo)`
         + (sourceImage ? '' : ' ; start_image débranché (frame de fin seule)'))
+    } else if (!targets.length && ltxEtages(out).length) {
+      // LTX : traité plus bas avec les images clés (première image et image de fin en guides)
+      ltxCles = [{ image: sourceImage, t: 0 }, { image: endImage, t: Infinity }].filter(k => k.image)
     } else if (!targets.length) {
       skipped.push(`image de fin « ${endImage} » NON injectée : aucune entrée last_frame/end_image dans la recette`)
     } else {
@@ -1025,6 +1094,48 @@ export function injectJob(wf, { cameraPose, positive, negative, seed, jobId, ide
       }
     }
   }
+  if (ltxCles && ltxEtages(out).length) {
+    const n = ltxImagesCles(out, ltxCles, videoSeconds)
+    applied.push(`LTX : ${n.length} image(s) clé(s) en guides (${n.map(k => `${k.image} @ ${k.idx === -1 ? 'fin' : `image ${k.idx}`}`).join(', ')}), forces 0,7 puis 1 aux bords, 0,5 puis 0,3 entre les deux, still de départ en guide`)
+  }
+  /* -- contexte vidéo (continuation) : LTX --
+     Les dernières images du plan précédent (fichier vidéo de 8n+1 images dans input/) entrent comme guide à
+     l'image 0 de chaque étage : le plan reprend le mouvement, la vitesse et la caméra là où le précédent
+     s'arrêtait (les images de contexte, regénérées en tête, sont coupées au montage). La still de départ
+     n'est alors plus imposée (LTXVImgToVideoInplace contourné). */
+  if (contexteVideo) {
+    const etages = ltxEtages(out)
+    if (!etages.length) skipped.push(`contexte vidéo « ${contexteVideo} » NON injecté : recette sans étage LTX`)
+    else {
+      out.ctx_load = { class_type: 'LoadVideo', inputs: { file: contexteVideo } }
+      out.ctx_img = { class_type: 'GetVideoComponents', inputs: { video: ['ctx_load', 0] } }
+      const prep = etages[0].i2v.inputs.image?.[0]
+      let img = ['ctx_img', 0]
+      if (prep && out[prep]?.class_type === 'LTXVPreprocess') { out.ctx_prep = { class_type: 'LTXVPreprocess', inputs: { ...out[prep].inputs, image: img } }; img = ['ctx_prep', 0] }
+      etages.forEach(({ i2vId, i2v, concat, guider, sampler }, k) => {
+        const g = `ctx_guide_${k}`
+        out[g] = { class_type: 'LTXVAddGuide', inputs: { positive: guider.inputs.positive, negative: guider.inputs.negative, vae: i2v.inputs.vae, latent: concat.inputs.video_latent, image: img, frame_idx: 0, strength: 1 } }
+        guider.inputs.positive = [g, 0]; guider.inputs.negative = [g, 1]; concat.inputs.video_latent = [g, 2]
+        const by = i2v.inputs.bypass
+        if (Array.isArray(by) && out[by[0]]?.inputs && 'value' in out[by[0]].inputs) out[by[0]].inputs.value = true
+        else i2v.inputs.bypass = true
+        const crop = out[`kf_crop_${k}`]
+        if (crop) { crop.inputs.positive = [g, 0]; crop.inputs.negative = [g, 1] }
+        else {
+          const sep = Object.entries(out).find(([, n]) => n.class_type === 'LTXVSeparateAVLatent' && n.inputs.av_latent?.[0] === sampler)?.[0]
+          if (!sep) return
+          const c = `ctx_crop_${k}`
+          out[c] = { class_type: 'LTXVCropGuides', inputs: { positive: [g, 0], negative: [g, 1], latent: [sep, 0] } }
+          for (const [id, n] of Object.entries(out)) {
+            if (id === c) continue
+            for (const [cle, v] of Object.entries(n.inputs ?? {})) if (Array.isArray(v) && v[0] === sep && v[1] === 0) n.inputs[cle] = [c, 2]
+          }
+        }
+      })
+      applied.push(`#ctx_load LoadVideo.file = ${contexteVideo} → LTXVAddGuide (image 0, contexte du plan précédent) sur ${etages.length} étage(s), still de départ contournée`)
+    }
+  }
+
 
   // Format « origine » : le brouillon est déjà intégré aux dimensions exactes —
   // repasser setVideoMegapixels re-scalerait les littéraux qu'on vient d'écrire.

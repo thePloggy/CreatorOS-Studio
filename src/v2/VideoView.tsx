@@ -4,9 +4,11 @@
    une still rejoue le geste d'une vidéo) / Étendre.
    Tâches : i2v=Créer · motion_pure=Rejouer · extend=Étendre.
    ============================================================ */
+import { SANS_PERSONNAGE } from '../lib/personnage'
 import { LoraStacks, LoraSwitch, loraFamily } from '../components/LoraStacks'
 import { ImportLora } from '../components/ImportLora'
 import { useBriefHistory } from '../components/BriefHistory'
+import { Inspirations } from '../components/Inspirations'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Asset, VideoAspect } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -72,6 +74,8 @@ const ASPECTS: VideoAspect[] = ['origine', '9:16', '2:3', '3:4', '1:1', '16:9']
 type VTab = 'creer' | 'ambiance' | 'rejouer' | 'etendre' | 'stage'
 
 export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => void }) {
+  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const [prises, setPrises] = useState<string | null>(null)
   const edition = useEdition()
   const s = useAppStore()
@@ -108,7 +112,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
   const tab: VTab = surStage ? 'stage' : v.task === 'extend' ? 'etendre' : v.task === 'motion_pure' ? 'rejouer' : v.task === 't2v' ? 'ambiance' : 'creer'
   const eng = engineInfo(v.task === 't2v' ? moteurT2v(Boolean(v.t2vPersonnage && s.personaVideo && s.personaVideoWan)) : v.engine)
 
-  const shown = useMemo(() => applyFilters(s.assets.filter(a => a.personaId === s.personaId), selecting ? 'photo' : 'video', review, q)
+  const shown = useMemo(() => applyFilters(s.assets.filter(a => !s.personaId || s.personaId === SANS_PERSONNAGE || a.personaId === s.personaId), selecting ? 'photo' : 'video', review, q)
     .filter(a => selecting || draft === 'all' || (draft === 'draft' ? !!a.videoDraft : !a.videoDraft)),
   [s.assets, s.personaId, review, q, selecting, draft])
   const activeJobs = s.jobs.filter(j => j.mode === 'video' && STATUTS_ACTIFS.includes(j.status))
@@ -166,8 +170,8 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
           </div>
           {v.startFrameError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.startFrameError}</div>}
           {v.endFrameError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.endFrameError}</div>}
-          {endUri && v.engine !== 'minimax' && (
-            <div className="text-[12px]" style={{ color: 'var(--attention)' }}>{t('frame de fin ignorée : seuls les moteurs MiniMax H3 savent arriver sur une image')}</div>
+          {endUri && !['minimax', 'wan', 'ltx', 'ltx_hq'].includes(v.engine) && (
+            <div className="text-[12px]" style={{ color: 'var(--attention)' }}>{t('frame de fin ignorée : ce moteur ne sait pas arriver sur une image (MiniMax H3, Wan et LTX oui)')}</div>
           )}
           <button className={`tgl ${v.multiShot ? 'on' : ''}`} onClick={() => s.updateVideo({ multiShot: !v.multiShot })}>
             <b>{t('Multi-plan')}</b> <span className="text-[12px]">{t('plans [Shot 1..n] chaînés')}</span><span className="sw" />
@@ -406,13 +410,22 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
               ? t('Première frame extraite → frame de fin : le rendu arrive dessus et se place devant le clip. Moteur Wan.')
               : t('Dernière frame extraite → frame de départ. Couture : raccord couleur (luma + chroma) au harvest.')}
           </div>
+          {/* durée de la suite / du prequel : ce qui est généré, le montage l'ajoute au clip */}
+          <div className="flex gap-1.5 items-center">
+            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{v.extendPrequel ? t('Durée du prequel') : t('Durée de la suite')}</span>
+            <button className="pill" style={{ marginLeft: 'auto' }} onPointerDown={e => e.stopPropagation()}
+              onClick={e => {
+                if (vMenu?.kind === 'dur') { setVMenu(null); return }
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                setVMenu({ kind: 'dur', x: Math.min(r.left, window.innerWidth - 180), bottom: window.innerHeight - r.top + 6 })
+              }}>{Math.min(v.durationS, eng.maxSeconds)} s</button>
+          </div>
+          {vMenu?.kind === 'dur' && <PickMenu at={vMenu} onClose={() => setVMenu(null)} options={DUR.filter(d => d <= eng.maxSeconds)} current={v.durationS}
+            fmt={o => `${o} s`} onPick={o => s.updateVideo({ durationS: o })} />}
           <div className="flex gap-1.5">
             {!v.extendPrequel && <button className={`pill tool ${v.extendPick === 'sharp' ? 'used' : ''}`} onClick={() => void s.setExtendPick(v.extendPick === 'last' ? 'sharp' : 'last')}>
               {v.extendPick === 'last' ? t('frame dernière') : t('frame plus nette')}
             </button>}
-            <button className={`pill tool ${v.extendConcat ? 'used' : ''}`} onClick={() => s.updateVideo({ extendConcat: !v.extendConcat })}>
-              + concat
-            </button>
           </div>
           {v.extendError && <div className="text-[12px]" style={{ color: 'var(--danger)' }}>{v.extendError}</div>}
           {v.extendWarn && <div className="text-[12px]" style={{ color: 'var(--attention)' }}>{v.extendWarn}</div>}
@@ -473,7 +486,7 @@ export function VideoView({ onOpen }: { onOpen: (a: Asset, list: Asset[]) => voi
         {picking && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 6 }}>
           <SelectionBar ids={[...picked]} assets={s.assets} onClear={() => setPicked(new Set())} />
         </div>}
-        <div className="scrollwrap"><div className="masonry"><JustifiedGrid cols={cols} items={[
+        <div className="scrollwrap">{tab === 'creer' && <Inspirations mode="video" />}<div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
           ...activeJobs.map(j => ({ key: j.id, ratio: 9 / 16, node: <JobCard j={j} queueIds={queueIds} /> })),
           // les prises d'un même lot (× N rendus) se replient en une carte ; le clic ouvre la comparaison

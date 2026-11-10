@@ -28,7 +28,7 @@ export const MENUS: Menu[] = [
   { titre: 'Image', defaut: 'Text to Image', colonnes: [
       { titre: 'Créer une image', outils: [
       { label: 'Text to Image', texte: 'Ton personnage, avec jusqu’à 6 images de référence.', section: 'image' },
-      { label: 'Movie Studio', texte: 'Boîtier, objectif, lumière, pellicule : une fiche de plan.', section: 'cinema' },
+      { label: 'Movie Studio', texte: 'Des images clés cohérentes, puis un seul plan vidéo sur une table de montage.', section: 'cinema', pastille: 'new' },
       { label: 'Carousel', texte: 'Une photo de départ, une série de la même séance : même tenue, même lieu, poses et cadrages variés.', section: 'carrousel', pastille: 'new' },
       { label: 'Character', texte: 'Décris-le : 4 visages, une planche de référence, 12 images et sa LoRA.', section: 'nouveau-personnage', pastille: 'new' },
       { label: 'Product Shot', texte: 'Ton produit en photo ou en mots, ton personnage, une scène : affiche, visuels et clip.', section: 'pub', pastille: 'new' },
@@ -60,6 +60,7 @@ export const MENUS: Menu[] = [
       { titre: 'Créer une vidéo', outils: [
       { label: 'One-click Reel', texte: 'Un brief, un reel monté, son compris.', section: 'reel' },
       { label: 'Dance', texte: 'Une photo de ton personnage et une danse du catalogue : il danse exactement comme elle.', section: 'danse', pastille: 'new' },
+      { label: 'Movie Studio', texte: 'Des images clés cohérentes, puis un seul plan vidéo sur une table de montage.', section: 'cinema', pastille: 'new' },
       { label: 'Image to Video', texte: 'D’une photo vers un clip, avec son.', section: 'video', tache: 'creer' },
       { label: 'Text to Video', texte: 'Un plan d’ambiance sans photo de départ.', section: 'video', tache: 'texte' },
       { label: 'Sketch to Video', texte: 'Dessine la scène au trait : elle devient une image, puis un clip.', section: 'croquis', pastille: 'new' },

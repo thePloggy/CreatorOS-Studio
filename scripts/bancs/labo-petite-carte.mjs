@@ -2,18 +2,21 @@
 /* ============================================================
    Labo, volet petites cartes : rejoue le graphe exact d'un cas du labo
    (celui que le studio a envoyé, relu dans la provenance), avec les poids
-   allégés du profil 12 Go, sur un ComfyUI de test lancé avec --vram-headroom (DynamicVRAM : --reserve-vram ne bride pas)
-   pour n'avoir qu'environ 12 Go de VRAM à lui. Réussir là, c'est tenir sur
-   une carte de 12 Go ; la crête mesurée est celle de ce ComfyUI-là.
+   allégés du profil, sur un ComfyUI de test bridé à la taille de la carte :
+     CARTE_GO=12 python scripts/bancs/comfy-bride.py --port 8190 --disable-dynamic-vram …
+   (PyTorch ne peut pas allouer plus, et ComfyUI décharge comme sur une vraie carte).
+   Réussir là, c'est tenir sur une carte de cette taille.
 
    COMFY_TEST=http://127.0.0.1:8190 CREATOROS_DATA=… node scripts/bancs/labo-petite-carte.mjs photo_klein9 video_wan
-   Ajoute les lignes « *_12go » à docs/lab/resultats.json (relancer labo.mjs ensuite pour LAB.md).
+   Profil : LABO_PROFIL (12 par défaut) ; COMFY_TEST_PID mesure ce seul processus.
+   Ajoute les lignes « *_<profil>go » à docs/lab/resultats.json (relancer labo.mjs ensuite pour LAB.md).
    ============================================================ */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-process.env.CREATOROS_VRAM = '12'
+const PROFIL = Number(process.env.LABO_PROFIL || 12)
+process.env.CREATOROS_VRAM = String(PROFIL)
 const TEST = process.env.COMFY_TEST || 'http://127.0.0.1:8190'
 process.env.COMFY_URL = TEST                  // allege.js lit les fichiers installés sur CE ComfyUI
 const { CONFIG } = await import('../../server/config.js')
@@ -25,8 +28,12 @@ const FICHIER = path.join(RACINE, 'docs', 'lab', 'resultats.json')
 const STUDIO = process.env.STUDIO_URL || 'http://127.0.0.1:8787'
 const CLE = process.env.CREATOROS_OWNER_KEY
 const sleep = ms => new Promise(r => setTimeout(r, ms))
-const vramMo = () => Number(execFileSync('nvidia-smi', ['--query-gpu=memory.used', '--format=csv,noheader,nounits'], { encoding: 'utf8' }).split('\n')[0])
-const TITRES = { photo_klein9: 'Photo · FLUX.2 Klein 4B (12 GB card)', video_wan: 'Image to video · Wan 2.2 A14B GGUF Q4 (12 GB card)' }
+/* Avec COMFY_TEST_PID : la mémoire de ce seul processus, contexte CUDA compris ; sinon la carte entière moins le repos. */
+const PID = process.env.COMFY_TEST_PID
+const vramMo = () => PID
+  ? Number(execFileSync('nvidia-smi', ['--query-compute-apps=pid,used_memory', '--format=csv,noheader,nounits'], { encoding: 'utf8' })
+      .split('\n').map(l => l.split(',').map(x => x.trim())).find(([p]) => p === PID)?.[1] ?? 0)
+  : Number(execFileSync('nvidia-smi', ['--query-gpu=memory.used', '--format=csv,noheader,nounits'], { encoding: 'utf8' }).split('\n')[0])
 
 const d = JSON.parse(fs.readFileSync(FICHIER, 'utf8'))
 for (const id of process.argv.slice(2)) {
@@ -36,12 +43,12 @@ for (const id of process.argv.slice(2)) {
   if (!prov.workflowJson) { console.log(`${id} : provenance sans graphe`); continue }
   const { graphe, remplaces } = await alleger(prov.workflowJson)
   console.log(`${id} : ${remplaces.map(([a, b]) => `${a} → ${b}`).join(' ; ') || 'aucune variante installée'}`)
-  if (!remplaces.length) continue
+  if (!remplaces.length && PROFIL >= 24) continue   // sous 24 Go, même sans variante, le graphe d'origine est mesuré sur la carte bridée
   // les sorties partent dans le dossier du ComfyUI de test, pas dans la bibliothèque
-  for (const n of Object.values(graphe)) if (n.inputs && 'filename_prefix' in n.inputs) n.inputs.filename_prefix = `labo12/${id}`
+  for (const n of Object.values(graphe)) if (n.inputs && 'filename_prefix' in n.inputs) n.inputs.filename_prefix = `labo${PROFIL}/${id}`
   await fetch(`${TEST}/free`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unload_models: true, free_memory: true }) })
   await sleep(4000)
-  const repos = vramMo()
+  const repos = PID ? 0 : vramMo()
   const r = await (await fetch(`${TEST}/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: graphe }) })).json()
   if (!r.prompt_id) { console.log(`${id} : refusé — ${JSON.stringify(r).slice(0, 400)}`); continue }
   const t0 = Date.now()
@@ -54,7 +61,7 @@ for (const id of process.argv.slice(2)) {
   }
   const ok = h.status.status_str === 'success'
   const sorties = Object.values(h.outputs ?? {}).flatMap(o => [...(o.images ?? []), ...(o.gifs ?? []), ...(o.videos ?? [])])
-  const ligne = { id: `${id}_12go`, titre: TITRES[id] ?? `${cas.titre} (12 GB card)`, type: cas.type, statut: ok ? 'done' : 'failed',
+  const ligne = { id: `${id}_${PROFIL}go`, titre: `${remplaces.length ? cas.titre.replace('Klein 9B', 'Klein 4B') : cas.titre} (${PROFIL} GB card)`, type: cas.type, statut: ok ? 'done' : 'failed',
     erreur: ok ? undefined : JSON.stringify(h.status.messages?.find(m => m[0] === 'execution_error')?.[1]?.exception_message ?? '').slice(0, 300),
     secondes: Math.round((Date.now() - t0) / 100) / 10, vramCreteGo: Math.round((crete - repos) / 102.4) / 10, remplaces,
     sortie: sorties[0] ? `${sorties[0].subfolder}/${sorties[0].filename}` : null }

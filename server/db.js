@@ -326,6 +326,7 @@ SELECT a.*, p.recipe_id, p.seed, p.composed_positive, p.composed_negative,
        json_extract(j.payload, '$.carouselLocks') AS carousel_locks,
        json_extract(j.payload, '$.initialBrief') AS initial_brief,
        json_extract(j.payload, '$.promptVision') AS prompt_vision,
+       json_extract(j.payload, '$.promptReecrit') AS prompt_reecrit,
        json_extract(j.payload, '$.videoFps') AS video_fps,
        json_extract(j.payload, '$.withAudio') AS with_audio,
        json_extract(j.payload, '$.t2v') AS t2v,
@@ -525,6 +526,9 @@ const setPayloadStmt = db.prepare(`UPDATE jobs SET payload = ? WHERE id = ?`)
 const setComposedStmt = db.prepare(`UPDATE jobs SET composed_positive = ? WHERE id = ?`)
 /** Prompt écrit au moment du rendu (quand il dépend d'une description de la source). */
 export function setComposedPositive(id, texte) { setComposedStmt.run(String(texte), String(id)) }
+/* Prompt réécrit par le réécriveur FLUX 3 : gardé à part, le prompt de l'opérateur reste tel qu'il l'a écrit. */
+const promptReecritStmt = db.prepare(`UPDATE jobs SET payload = json_set(payload, '$.promptReecrit', ?) WHERE id = ?`)
+export function noterPromptReecrit(id, texte) { promptReecritStmt.run(String(texte), String(id)) }
 export function setJobBatchId(id, batchId) {
   const row = getPayloadStmt.get(id)
   if (!row) return false
@@ -582,3 +586,11 @@ const sonDansReelsStmt = db.prepare("SELECT brief AS nom FROM reels WHERE instr(
 export function usagesSon(nom) {
   return [...sonDansMontagesStmt.all(String(nom)), ...sonDansReelsStmt.all(String(nom))].map(r => String(r.nom ?? '').slice(0, 60))
 }
+
+/** L'asset d'un fichier de la médiathèque (nom nu), ou null. */
+const assetParFichierStmt = db.prepare('SELECT id, uri FROM assets WHERE filename = ? LIMIT 1')
+export function assetParFichier(nom) { return assetParFichierStmt.get(String(nom)) ?? null }
+
+/** Les assets d'un job (id, fichier). */
+const assetsDuJobStmt = db.prepare('SELECT id, filename FROM assets WHERE job_id = ?')
+export function listAssetsByJob(jobId) { return assetsDuJobStmt.all(String(jobId)) }

@@ -1,6 +1,6 @@
 {
  "carte": "NVIDIA GeForce RTX 5090, 32607 MiB",
- "le": "2026-10-30",
+ "le": "2026-11-10",
  "cas": [
   {
    "id": "photo_krea",
@@ -20,12 +20,12 @@
    "titre": "Photo · FLUX.2 Klein 9B",
    "type": "photo",
    "moteur": "klein",
-   "jobId": "cli-mvur4abqro41",
+   "jobId": "cli-mwasc9y98n3t",
    "statut": "done",
-   "secondes": 7.2,
-   "vramCreteGo": 17.8,
-   "media": "a-cli-mvur4abqro41-0",
-   "url": "http://127.0.0.1:8787/media/cli-mvur4abqro41-0-6f028c09.png",
+   "secondes": 6.7,
+   "vramCreteGo": 17.9,
+   "media": "a-cli-mwasc9y98n3t-0",
+   "url": "http://127.0.0.1:8787/media/cli-mwasc9y98n3t-0-4f07a7b0.png",
    "vignette": "photo_klein9.jpg"
   },
   {
@@ -57,12 +57,44 @@
    "vignette": "video_ltx.jpg"
   },
   {
+   "id": "photo_klein9_16go",
+   "titre": "Photo · FLUX.2 Klein 9B (16 GB card)",
+   "type": "photo",
+   "statut": "done",
+   "secondes": 7,
+   "vramCreteGo": 15.5,
+   "remplaces": [],
+   "sortie": "labo16/photo_klein9_00001_.png",
+   "vignette": "photo_klein9_16go.jpg"
+  },
+  {
+   "id": "video_wan_16go",
+   "titre": "Image to video · Wan 2.2 A14B GGUF Q4 (16 GB card)",
+   "type": "video",
+   "statut": "done",
+   "secondes": 280,
+   "vramCreteGo": 14.7,
+   "remplaces": [
+    [
+     "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-HighNoise-Q4_K_S.gguf"
+    ],
+    [
+     "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-LowNoise-Q4_K_S.gguf"
+    ]
+   ],
+   "resolution": "720x1280",
+   "sortie": "labo-video/16_00006_.mp4",
+   "vignette": "video_wan_16go.jpg"
+  },
+  {
    "id": "photo_klein9_12go",
    "titre": "Photo · FLUX.2 Klein 4B (12 GB card)",
    "type": "photo",
    "statut": "done",
-   "secondes": 6.4,
-   "vramCreteGo": 10.7,
+   "secondes": 7.1,
+   "vramCreteGo": 9.3,
    "remplaces": [
     [
      "flux-2-klein-9b-fp8.safetensors",
@@ -73,8 +105,70 @@
      "qwen_3_4b.safetensors"
     ]
    ],
-   "sortie": "labo12/photo_klein9_00002_.png",
+   "sortie": "labo12/photo_klein9_00001_.png",
    "vignette": "photo_klein9_12go.jpg"
+  },
+  {
+   "id": "video_wan_12go",
+   "titre": "Image to video · Wan 2.2 A14B GGUF Q4 (12 GB card)",
+   "type": "video",
+   "statut": "done",
+   "secondes": 281.1,
+   "vramCreteGo": 11.1,
+   "remplaces": [
+    [
+     "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-HighNoise-Q4_K_S.gguf"
+    ],
+    [
+     "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-LowNoise-Q4_K_S.gguf"
+    ]
+   ],
+   "resolution": "720x1280",
+   "sortie": "labo-video/12_00003_.mp4",
+   "vignette": "video_wan_12go.jpg"
+  },
+  {
+   "id": "photo_klein9_8go",
+   "titre": "Photo · FLUX.2 Klein 4B (8 GB card)",
+   "type": "photo",
+   "statut": "done",
+   "secondes": 7.8,
+   "vramCreteGo": 7.8,
+   "remplaces": [
+    [
+     "flux-2-klein-9b-fp8.safetensors",
+     "flux-2-klein-4b.safetensors"
+    ],
+    [
+     "qwen_3_8b_fp8mixed.safetensors",
+     "qwen_3_4b.safetensors"
+    ]
+   ],
+   "sortie": "labo8/photo_klein9_00001_.png",
+   "vignette": "photo_klein9_8go.jpg"
+  },
+  {
+   "id": "video_wan_8go_464p",
+   "titre": "Image to video · Wan 2.2 A14B GGUF Q4, 480p (8 GB card)",
+   "type": "video",
+   "statut": "done",
+   "secondes": 92.4,
+   "vramCreteGo": 6.9,
+   "remplaces": [
+    [
+     "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-HighNoise-Q4_K_S.gguf"
+    ],
+    [
+     "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+     "Wan2.2-I2V-A14B-LowNoise-Q4_K_S.gguf"
+    ]
+   ],
+   "resolution": "464x832",
+   "sortie": "labo-video/8_00002_.mp4",
+   "vignette": "video_wan_8go_464p.jpg"
   }
  ]
 }

@@ -9,7 +9,7 @@ import { t } from '../i18n'
 import { Ic } from './bits'
 
 /** Version des fichiers « Comment ça marche » : la changer force le rechargement après une mise à jour des vidéos. */
-export const VERSION_HOWTO = '20261107b'
+export const VERSION_HOWTO = '20261108d'
 /** Les fichiers d'une page : /danses/howto/<cle>-hero.mp4|jpg et /danses/howto/<cle>-etape-N.mp4|jpg. */
 export const howto = (cle: string) => ({
   hero: { video: `/danses/howto/${cle}-hero.mp4?v=${VERSION_HOWTO}`, affiche: `/danses/howto/${cle}-hero.jpg?v=${VERSION_HOWTO}` },

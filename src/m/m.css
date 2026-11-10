@@ -397,3 +397,20 @@
 .m .mstudio .mt-corps { flex-direction: column; flex: none; }
 .m .mstudio .mt-apercu { height: 62vh; flex: none; }
 .m .mstudio .mt-inspecteur { width: auto !important; border-left: 0 !important; border-top: 1px solid var(--lv2); overflow: visible !important; }
+
+/* Inspirations (Créer) : prompts tout faits avec leur rendu */
+.m .m-insp { margin: 6px 0 14px; }
+.m .m-insp .insp-tete { display: grid; gap: 2px; margin-bottom: 8px; }
+.m .m-insp .insp-tete h2 { font-size: 14px; font-weight: 700; margin: 0; }
+.m .m-insp .insp-tete span { font-size: 12px; color: var(--muted, rgba(255,255,255,.6)); }
+.m .m-insp .insp-rangee { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.m .m-insp .insp-rangee::-webkit-scrollbar { display: none; }
+.m .m-insp .insp-carte { position: relative; flex: 0 0 auto; height: 190px; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; padding: 0; scroll-snap-align: start;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04); }
+.m .m-insp .insp-carte video, .m .m-insp .insp-carte img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.m .m-insp .insp-carte::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.25) 45%, rgba(0,0,0,0) 65%); pointer-events: none; }
+.m .m-insp .insp-texte { position: absolute; left: 8px; right: 8px; bottom: 7px; z-index: 1; display: grid; gap: 1px; text-align: left; }
+.m .m-insp .insp-texte b { font-size: 12px; font-weight: 700; color: #fff; line-height: 1.2; }
+.m .m-insp .insp-texte small { display: none; }
+.m .m-insp .insp-carte:active { transform: scale(.97); }
+.m .m-insp .insp-texte b i { font-style: normal; font-weight: 600; font-size: 10px; color: rgba(255,255,255,.65); margin-left: 3px; }

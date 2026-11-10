@@ -164,7 +164,7 @@ export const bureau_visionneuse: Record<string, string> = {
   'retirer la frame de départ': 'remove the start frame',
   'optionnel': 'optional',
   'retirer la frame de fin': 'remove the end frame',
-  'frame de fin ignorée : seuls les moteurs MiniMax H3 savent arriver sur une image': 'end frame ignored: only MiniMax H3 engines can land on an image',
+  'frame de fin ignorée : ce moteur ne sait pas arriver sur une image (MiniMax H3, Wan et LTX oui)': 'end frame ignored: this engine cannot land on an image (MiniMax H3, Wan and LTX can)',
   'Multi-plan': 'Multi-shot',
   'plans [Shot 1..n] chaînés': 'chained [Shot 1..n] shots',
   'Mouvement — une action claire, temps réel…': 'Motion — one clear action, real time…',

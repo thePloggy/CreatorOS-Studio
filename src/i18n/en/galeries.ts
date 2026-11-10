@@ -325,6 +325,8 @@ export const galeries: Record<string, string> = {
   'Animer (i2v)': 'Animate (i2v)',
   'Boucle': 'Loop',
   'Fluidité 48 i/s': 'Smoother 48 fps',
+  '48 i/s': '48 fps',
+  'Fluidité : RIFE ×2 double les images, le mouvement passe à 48 i/s': 'Smoother: RIFE ×2 doubles the frames, motion goes to 48 fps',
   'Éditer (retouche)': 'Edit (retouch)',
   'workflow ComfyUI': 'ComfyUI workflow',
   'Vision VLM de la still': 'VLM vision of the still',
@@ -399,4 +401,8 @@ export const galeries: Record<string, string> = {
   'Envoi de la voix': 'Uploading the voice',
   'écouter un court échantillon de cette voix': 'play a short sample of this voice',
   'Stop': 'Stop',
+  'FLUX 3 Klein : le rendu le plus réaliste, avec la LoRA de {nom}': 'FLUX 3 Klein: the most realistic render, with {nom}’s LoRA',
+  'FLUX 3 Klein : le rendu le plus réaliste ; {nom} n’a pas de LoRA FLUX 3, son visage n’est pas tenu': 'FLUX 3 Klein: the most realistic render; {nom} has no FLUX 3 LoRA, the face is not held',
+  'Prompt réécrit (envoyé à FLUX 3)': 'Rewritten prompt (sent to FLUX 3)',
+  'Ton prompt': 'Your prompt',
 }

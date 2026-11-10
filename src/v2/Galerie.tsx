@@ -83,8 +83,10 @@ export function useCarteAuCentre(actif: boolean, deps: unknown[]) {
 
 /* Carte de la galerie (9:16, ou carrée) : image fixe au repos, aperçu animé au survol, au clavier ou au centre.
    `apres` : une seconde image (l'avant / après d'un style), montrée en fondu à la place de l'animation. */
-export function Carte({ cle, titre, detail, fixe, anime, video, apres, secours, carree, paysage, badge, lettre, sansLegende, classe, choisie, auCentre, survolPossible, reduit, onChoisir }: {
-  cle: string; titre: string; detail?: string; fixe?: string; anime?: string; video?: string; apres?: string; secours?: string
+export function Carte({ cle, titre, detail, fixe, boucle, anime, video, apres, secours, carree, paysage, badge, lettre, sansLegende, classe, choisie, auCentre, survolPossible, reduit, onChoisir }: {
+  cle: string; titre: string; detail?: string; fixe?: string
+  /** image animée (webp) jouée en continu dans la grille à la place de l'image fixe ; ignorée si le mouvement est réduit */
+  boucle?: string; anime?: string; video?: string; apres?: string; secours?: string
   carree?: boolean; paysage?: boolean; badge?: ReactNode
   /** classe en plus (la carte du vêtement d'un essayage, marquée autrement que la personne) */
   classe?: string
@@ -97,6 +99,7 @@ export function Carte({ cle, titre, detail, fixe, anime, video, apres, secours, 
   const [survol, setSurvol] = useState(false)
   const [joue, setJoue] = useState(false)
   const [videoRatee, setVideoRatee] = useState(false)
+  const [boucleRatee, setBoucleRatee] = useState(false)
   const enMouvement = !reduit && ((survol && survolPossible) || auCentre)
   useEffect(() => { if (!enMouvement) setJoue(false) }, [enMouvement])
   const src = videoRatee ? secours : video
@@ -104,7 +107,8 @@ export function Carte({ cle, titre, detail, fixe, anime, video, apres, secours, 
     <button type="button" data-cle={cle} className={`dz-carte ${carree ? 'carree' : ''} ${paysage ? 'paysage' : ''} ${choisie ? 'choisie' : ''} ${classe ?? ''}`} aria-pressed={choisie}
       aria-label={detail ? `${titre}, ${detail}` : titre} onClick={onChoisir}
       onMouseEnter={() => setSurvol(true)} onMouseLeave={() => setSurvol(false)} onFocus={e => { if (e.currentTarget.matches(':focus-visible')) setSurvol(true) }} onBlur={() => setSurvol(false)}>
-      {fixe ? <ImageFixe src={fixe} largeur={paysage ? 640 : carree ? 480 : 360} hauteur={paysage ? 360 : carree ? 480 : 640} secours={secours ?? video} />
+      {boucle && !reduit && !boucleRatee ? <img className="dz-boucle" src={boucle} alt="" loading="lazy" decoding="async" onError={() => setBoucleRatee(true)} />
+        : fixe ? <ImageFixe src={fixe} largeur={paysage ? 640 : carree ? 480 : 360} hauteur={paysage ? 360 : carree ? 480 : 640} secours={secours ?? video} />
         : <span className="dz-carte-lettre" aria-hidden>{lettre ?? titre.slice(0, 1)}</span>}
       {enMouvement && (src
         ? <video className={`dz-anime ${joue ? 'prete' : ''}`} src={src} muted loop playsInline autoPlay preload="none" onPlaying={() => setJoue(true)}

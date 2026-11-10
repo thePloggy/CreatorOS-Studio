@@ -72,5 +72,7 @@ export function buildVideoPrompt(sel: VideoSelections): string {
   if (sel.motionText.trim()) parts.push(sel.motionText.trim())
   if (sel.cameraText.trim()) parts.push(`camera: ${sel.cameraText.trim()}`)
   if (sel.withAudio && sel.audioText.trim()) parts.push(`son : ${sel.audioText.trim()}`)
+  /* rien de tapé : une consigne neutre qui prolonge l'image, sans geste ni mouvement de caméra imposés */
+  if (!parts.length) return 'Natural, realistic motion that simply continues what the image shows, in real time; the camera keeps the framing of the image.'
   return parts.join('. ')
 }

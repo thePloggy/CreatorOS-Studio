@@ -1,0 +1,378 @@
+[
+ {
+  "id": "phare",
+  "nom": "Gardien de phare",
+  "video": "cinema-film-phare.mp4",
+  "affiche": "cinema-film-phare.jpg",
+  "fiche": {
+   "scene": "a weathered lighthouse keeper in his sixties, grey beard, deep wrinkles and wind-burned skin, wearing a worn yellow oilskin coat glistening with rain, climbs up the narrow iron spiral staircase of an old stone lighthouse during a violent night storm, holding up a brass storm lantern; the warm lantern light carves his face while cold blue lightning flashes through a small salt-streaked window behind him",
+   "plan": "plongee",
+   "lumiere": "clair-obscur",
+   "etalonnage": "naturel"
+  },
+  "prises": [
+   {
+    "id": "a-449-qhl4-0",
+    "uri": "/media/449-qhl4-0-75a70d6b.png"
+   }
+  ],
+  "table": {
+   "duree": 6,
+   "cles": [
+    {
+     "assetId": "a-449-qhl4-0",
+     "uri": "/media/449-qhl4-0-75a70d6b.png",
+     "t": 0
+    },
+    {
+     "assetId": "up:crs_lastframe_mw7qj0ti_451-qhl4-0-d114d712.png",
+     "uri": "/api/uploads/crs_lastframe_mw7qj0ti_451-qhl4-0-d114d712.png",
+     "t": 6
+    }
+   ],
+   "actions": [
+    "The old keeper climbs two more iron steps, lifting the brass lantern higher, his face turning up toward the top of the tower with weary determination; the lantern sways and its warm light swings across the peeling stone walls, a bright blue lightning flash fills the stairwell for an instant, then fades. The camera slowly cranes up from below, following his climb"
+   ],
+   "perso": "He is a weathered lighthouse keeper in his sixties with a grey beard, wearing a worn yellow oilskin coat glistening with rain and holding a brass storm lantern",
+   "son": true,
+   "rendu": {
+    "jobId": "film-phare",
+    "duree": 6,
+    "cles": [
+     {
+      "assetId": "a-449-qhl4-0",
+      "t": 0
+     },
+     {
+      "assetId": "up:crs_lastframe_mw7qj0ti_451-qhl4-0-d114d712.png",
+      "t": 6
+     }
+    ],
+    "uri": "/danses/howto/cinema-seq-phare.mp4"
+   }
+  }
+ },
+ {
+  "id": "superheros",
+  "nom": "Vol au-dessus de Manhattan",
+  "video": "cinema-film-superheros.mp4",
+  "affiche": "cinema-film-superheros.jpg",
+  "fiche": {
+   "scene": "flying fast between the glass skyscrapers of Manhattan in a sleek plain teal superhero suit with no emblem, seen from behind and slightly above as the camera chases her, body stretched forward, hair streaming back, the towers rushing past with a light motion blur, the avenue and tiny yellow taxis far below",
+   "boitier": "cine-num",
+   "optique": "spherique",
+   "focale": "24mm",
+   "ouverture": "f5.6",
+   "plan": "plongee",
+   "lumiere": "heure-doree",
+   "pellicule": "aucune",
+   "look": "action",
+   "etalonnage": "teal-orange"
+  },
+  "prises": [
+   {
+    "id": "a-manhattan2-0-1793792467-0",
+    "uri": "/media/manhattan2-0-1793792467-0-52df22c1.png"
+   },
+   {
+    "id": "a-still-boule-1-1793798004-0",
+    "uri": "/media/still-boule-1-1793798004-0-964717eb.png"
+   },
+   {
+    "id": "a-still-rase-0-1793798004-0",
+    "uri": "/media/still-rase-0-1793798004-0-dda63d53.png"
+   }
+  ],
+  "table": {
+   "duree": 12,
+   "cles": [
+    {
+     "assetId": "a-manhattan2-0-1793792467-0",
+     "uri": "/media/manhattan2-0-1793792467-0-52df22c1.png",
+     "t": 0
+    },
+    {
+     "assetId": "a-still-boule-1-1793798004-0",
+     "uri": "/media/still-boule-1-1793798004-0-964717eb.png",
+     "t": 3.3
+    },
+    {
+     "assetId": "a-still-rase-0-1793798004-0",
+     "uri": "/media/still-rase-0-1793798004-0-dda63d53.png",
+     "t": 12
+    }
+   ],
+   "actions": [
+    "seen from behind, flying high above Manhattan, she slows down and pulls her knees up to her chest and her arms in around her legs, curling smoothly into a tight ball in mid-air, facing down toward the city; she stays in full control, never flips",
+    "curled in a tight ball high above the avenue, she uncurls, stretches her body long with both arms extended in front of her head and dives head first steeply down toward the street, then curves forward into level flight just above the traffic, skimming between the yellow taxis; the camera dives after her"
+   ],
+   "perso": "She is a woman with long red hair in a sleek plain teal superhero suit with no emblem",
+   "son": true,
+   "rendu": {
+    "jobId": "film-superheros",
+    "duree": 12,
+    "cles": [
+     {
+      "assetId": "a-manhattan2-0-1793792467-0",
+      "t": 0
+     },
+     {
+      "assetId": "a-still-boule-1-1793798004-0",
+      "t": 3.3
+     },
+     {
+      "assetId": "a-still-rase-0-1793798004-0",
+      "t": 11.1
+     }
+    ],
+    "uri": "/danses/howto/cinema-seq-superheros.mp4"
+   }
+  }
+ },
+ {
+  "id": "western",
+  "nom": "Western",
+  "video": "cinema-film-western.mp4",
+  "affiche": "cinema-film-western.jpg",
+  "fiche": {
+   "scene": "riding a black horse at full gallop across the red desert of Monument Valley, a wide plume of red dust behind her, mesas on the horizon",
+   "plan": "pied",
+   "lumiere": "heure-doree",
+   "etalonnage": "chaud"
+  },
+  "prises": [
+   {
+    "id": "a-w3-debut-3-0",
+    "uri": "/media/w3-debut-3-0.png"
+   },
+   {
+    "id": "a-w3-deb3-3-0",
+    "uri": "/media/w3-deb3-3-0.png"
+   },
+   {
+    "id": "a-444-lefl-0",
+    "uri": "/media/444-lefl-0-f9c6749f.png"
+   },
+   {
+    "id": "a-w5-mur-0-0",
+    "uri": "/media/w5-mur-0-0-db019564.png"
+   },
+   {
+    "id": "a-w6-1-0-0",
+    "uri": "/media/w6-1-0-0-de64ee76.png"
+   },
+   {
+    "id": "a-w6-2-3-0",
+    "uri": "/media/w6-2-3-0-8a5f1ebf.png"
+   }
+  ],
+  "table": {
+   "duree": 16,
+   "cles": [
+    {
+     "assetId": "a-w3-debut-3-0",
+     "uri": "/media/w3-debut-3-0.png",
+     "t": 0
+    },
+    {
+     "assetId": "a-w3-deb3-3-0",
+     "uri": "/media/w3-deb3-3-0.png",
+     "t": 2.7
+    },
+    {
+     "assetId": "a-444-lefl-0",
+     "uri": "/media/444-lefl-0-f9c6749f.png",
+     "t": 4.7
+    },
+    {
+     "assetId": "a-w5-mur-0-0",
+     "uri": "/media/w5-mur-0-0-db019564.png",
+     "t": 10
+    },
+    {
+     "assetId": "a-w6-1-0-0",
+     "uri": "/media/w6-1-0-0-de64ee76.png",
+     "t": 12.7
+    },
+    {
+     "assetId": "a-w6-2-3-0",
+     "uri": "/media/w6-2-3-0-8a5f1ebf.png",
+     "t": 16
+    }
+   ],
+   "actions": [
+    "high aerial shot, she gallops toward the camera, the camera glides forward and descends",
+    "the camera descends to her height beside her",
+    "the camera swings behind her, a wall of red sand rises and she brakes",
+    "the horse rears up facing the wall of sand",
+    "she turns right and gallops away"
+   ],
+   "perso": "She is a woman with long auburn hair under a dark wide-brimmed cowboy hat, wearing a weathered brown leather duster coat and a red neckerchief, riding a black horse",
+   "son": true,
+   "rendu": {
+    "jobId": "western-16s-multikey-1",
+    "duree": 16,
+    "cles": [
+     {
+      "assetId": "a-w3-debut-3-0",
+      "t": 0
+     },
+     {
+      "assetId": "a-w3-deb3-3-0",
+      "t": 2.7
+     },
+     {
+      "assetId": "a-444-lefl-0",
+      "t": 5.7
+     },
+     {
+      "assetId": "a-w5-mur-0-0",
+      "t": 10
+     },
+     {
+      "assetId": "a-w6-1-0-0",
+      "t": 12.7
+     },
+     {
+      "assetId": "a-w6-2-3-0",
+      "t": 16
+     }
+    ],
+    "uri": "/media/western-16s-multikey-1-0.mp4",
+    "assetId": "a-western-16s-multikey-1-0"
+   }
+  }
+ },
+ {
+  "id": "dragon",
+  "nom": "Le dragon",
+  "video": "cinema-film-dragon.mp4",
+  "affiche": "cinema-film-dragon.jpg",
+  "fiche": {
+   "scene": "stands alone at the very edge of a high cliff above an endless sea of clouds, seen from behind and slightly to the side, she wears a dark green hooded travelling cloak over light brown leather armour, her hair in a long braid down her back, her cloak blowing in the wind, distant snowy peaks",
+   "boitier": "cine-num",
+   "optique": "spherique",
+   "focale": "24mm",
+   "ouverture": "f5.6",
+   "plan": "pied",
+   "lumiere": "heure-doree",
+   "etalonnage": "teal-orange"
+  },
+  "prises": [
+   {
+    "id": "a-dr-k0-d2-1-0",
+    "uri": "/media/dr-k0-d2-1-0-2e3e599c.png"
+   },
+   {
+    "id": "a-dr-k1-d2-1-0",
+    "uri": "/media/dr-k1-d2-1-0-3743709a.png"
+   },
+   {
+    "id": "a-dr-k2-d2-2-0",
+    "uri": "/media/dr-k2-d2-2-0-4945248f.png"
+   },
+   {
+    "id": "a-dr-kP-d4-2-0",
+    "uri": "/media/dr-kP-d4-2-0-f09390cc.png"
+   },
+   {
+    "id": "a-dr-kJ-d3-3-0",
+    "uri": "/media/dr-kJ-d3-3-0-c41126b7.png"
+   },
+   {
+    "id": "a-dr-k3-d2-2-0",
+    "uri": "/media/dr-k3-d2-2-0-b566e5ff.png"
+   },
+   {
+    "id": "a-dr-k4-d2-3-0",
+    "uri": "/media/dr-k4-d2-3-0-a8e4edbd.png"
+   }
+  ],
+  "table": {
+   "duree": 16,
+   "cles": [
+    {
+     "assetId": "a-dr-k0-d2-1-0",
+     "uri": "/media/dr-k0-d2-1-0-2e3e599c.png",
+     "t": 0
+    },
+    {
+     "assetId": "a-dr-k1-d2-1-0",
+     "uri": "/media/dr-k1-d2-1-0-3743709a.png",
+     "t": 2.3
+    },
+    {
+     "assetId": "a-dr-k2-d2-2-0",
+     "uri": "/media/dr-k2-d2-2-0-4945248f.png",
+     "t": 4.7
+    },
+    {
+     "assetId": "a-dr-kP-d4-2-0",
+     "uri": "/media/dr-kP-d4-2-0-f09390cc.png",
+     "t": 6.3
+    },
+    {
+     "assetId": "a-dr-kJ-d3-3-0",
+     "uri": "/media/dr-kJ-d3-3-0-c41126b7.png",
+     "t": 8
+    },
+    {
+     "assetId": "a-dr-k3-d2-2-0",
+     "uri": "/media/dr-k3-d2-2-0-b566e5ff.png",
+     "t": 12
+    },
+    {
+     "assetId": "a-dr-k4-d2-3-0",
+     "uri": "/media/dr-k4-d2-3-0-a8e4edbd.png",
+     "t": 16
+    }
+   ],
+   "actions": [
+    "The camera slowly pivots around her from her side to behind her while the sea of clouds churns and the horned head of the dark bronze dragon slowly rises out of the clouds in front of her",
+    "The dark bronze dragon keeps rising out of the clouds right in front of the cliff and spreads its huge copper-brown wings wide; the wind of its wings blows her braid and cloak back",
+    "The dark bronze dragon lifts off the edge and banks into a wide turn in the air in front of her, showing its full side profile, one copper-brown wing raised high and the other dipping toward the clouds",
+    "It completes the turn and lands with its back to her against the cliff edge, lowering its spined bronze back; she runs forward and leaps onto it",
+    "She climbs to the base of its neck and holds on; the dragon pushes off the cliff and flies upward with powerful wing beats, the camera following right behind them",
+    "The dragon climbs above the clouds, then folds its wings and dives toward the white stone citadel far below, banking hard; she stays seated on its neck, her braid and cloak streaming back"
+   ],
+   "perso": "She is a young woman with red hair in a long braid down her back, wearing a dark green hooded travelling cloak over light brown leather armour. The dragon is colossal, with bare dark bronze scales, a horned head and huge leathery bat-like wings, and wears nothing: no cloth, no cape, no saddle",
+   "son": true,
+   "rendu": {
+    "jobId": "nuit-t4-c4p-g3",
+    "duree": 16,
+    "cles": [
+     {
+      "assetId": "a-dr-k0-d2-1-0",
+      "t": 0
+     },
+     {
+      "assetId": "a-dr-k1-d2-1-0",
+      "t": 2.3
+     },
+     {
+      "assetId": "a-dr-k2-d2-2-0",
+      "t": 4.7
+     },
+     {
+      "assetId": "a-dr-kP-d4-2-0",
+      "t": 6.3
+     },
+     {
+      "assetId": "a-dr-kJ-d3-3-0",
+      "t": 8
+     },
+     {
+      "assetId": "a-dr-k3-d2-2-0",
+      "t": 12
+     },
+     {
+      "assetId": "a-dr-k4-d2-3-0",
+      "t": 16
+     }
+    ],
+    "uri": "/media/nuit-t4-c4p-g3-0-d159c703.mp4",
+    "assetId": "a-nuit-t4-c4p-g3-0"
+   }
+  }
+ }
+]

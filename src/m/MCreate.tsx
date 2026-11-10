@@ -7,6 +7,7 @@
    Le brouillon est conservé par opération : changer d'onglet ne perd jamais le travail en cours,
    puisque tout vit dans le store partagé avec le desktop.
    ============================================================ */
+import { Inspirations } from '../components/Inspirations'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import type { VideoAspect } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -25,6 +26,8 @@ type ImgOp = 'generate' | 'edit'
 type VidOp = 'animate' | 'ambiance' | 'replay' | 'extend'
 
 export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?: () => void }) {
+  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const s = useAppStore()
   // Image, Vidéo ou Son : le son a son propre studio (musique, voix, bruitages)
   const [son, setSon] = useState(() => !!lienMobile()?.son)
@@ -124,6 +127,7 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
           </>)}
         </div>
         <p className="ophint">{hintOf(mode, imgOp, vidOp)}</p>
+        {((mode === 'photo' && imgOp === 'generate') || (mode === 'video' && vidOp === 'animate')) && <Inspirations mode={mode} mobile />}
         {mode === 'video' && vidOp === 'ambiance' && s.personaVideo && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0 8px' }}>
             {([[false, t('Ambiance seule')], [true, t('Avec {nom}', { nom: s.personaName })]] as const).map(([on, label]) => (
@@ -154,10 +158,10 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         {mode === 'video' && vidOp === 'animate' && (<>
           <SourceRow label={t('Image de départ')} required uri={startUri} name={v.startFrameFile}
             onPick={() => setPicker({ role: 'start' })} />
-          {/* keyframe de fin : seul MiniMax H3 expose une entrée `last_frame` */}
-          {v.engine === 'minimax' && (
+          {/* keyframe de fin : MiniMax H3 (last_frame), Wan (FirstLastFrame), LTX (guide en dernière image) */}
+          {['minimax', 'wan', 'ltx', 'ltx_hq'].includes(v.engine) && (
             <SourceRow label={t('Image de fin')} hint={t('facultative — le clip arrive sur cette image')}
-              uri={v.endAssetId ? s.assets.find(a => a.id === v.endAssetId)?.uri : ''}
+              uri={v.endAssetId ? s.assets.find(a => a.id === v.endAssetId)?.uri : v.endFrameFile ? `/api/uploads/${encodeURIComponent(v.endFrameFile)}` : ''}
               onPick={() => setPicker({ role: 'end' })} />
           )}
         </>)}
@@ -230,13 +234,6 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
           <div style={{ marginTop: 16 }}>
             <Toggle on={!!v.motionPreview} title={t('Prévisu 480p')} hint={t('environ deux fois plus rapide')}
               onChange={p => s.updateVideo({ motionPreview: p })} />
-          </div>
-        )}
-        {mode === 'video' && vidOp === 'extend' && (
-          <div style={{ marginTop: 16 }}>
-            <Toggle on={!!v.extendConcat} title={t('Assembler avec l’original')}
-              hint={t('le fichier livré contient la source puis sa suite')}
-              onChange={c => s.updateVideo({ extendConcat: c })} />
           </div>
         )}
 

@@ -23,9 +23,10 @@ const relireH3 = () => etatH3().then(e => { h3Disponible = e.disponible }).catch
 relireH3(); setInterval(relireH3, 30_000).unref()
 import * as comfy from './comfy.js'
 import { blocOllama, pourRendu } from './gpu.js'
+import { aReecrire, reecrireFlux3 } from './flux3Upsampler.js'
 import * as sdk from './transport-sdk.js'
 import * as store from './db.js'
-import { enregistrer as enregistrerPersona, SANS_PERSONNAGE, identityPreambleFor, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
+import { enregistrer as enregistrerPersona, SANS_PERSONNAGE, identityPreambleFor, HUMAIN, lorasPhoto, persona, personaDuDepot, triggerPrefix } from './persona.js'
 import { ensurePoster } from './poster.js'
 import { controlerJob } from './controle.js'
 import * as wildcards from './wildcards.js'
@@ -753,6 +754,14 @@ export function enqueue(job) {
     // seulement ; les autres moteurs la signalent « non injectée ».
     endImage: (mode === 'video' && !isMotion && typeof job.endImage === 'string' && job.endImage.trim())
       ? job.endImage.trim() : null,
+    // Images clés minutées (table de montage du Movie Studio) : LTX les pose chacune à son instant, cf. comfy.js
+    keyframes: (mode === 'video' && !isMotion && Array.isArray(job.keyframes))
+      ? job.keyframes.filter(k => k && typeof k.image === 'string' && /^[\w.-]+$/.test(k.image.trim()) && Number.isFinite(Number(k.t)))
+          .slice(0, 8).map(k => ({ image: k.image.trim(), t: Math.max(0, Math.min(20, Number(k.t))) }))
+      : null,
+    // Continuation : vidéo des dernières images du plan précédent (nom nu dans input/), cf. comfy.js
+    contexteVideo: (mode === 'video' && !isMotion && typeof job.contexteVideo === 'string' && /^[\w.-]+$/.test(job.contexteVideo.trim()))
+      ? job.contexteVideo.trim() : null,
     concatWith: (mode === 'video' && !isMotion && typeof job.concatWith === 'string' && job.concatWith.trim())
       ? job.concatWith.trim() : null,
     concatFrom: job.concatFrom === 'input' ? 'input' : 'media',
@@ -790,6 +799,7 @@ export function enqueue(job) {
     motionVisionRef: isMotion && job.motionVisionRef === true ? true : undefined,
     swapAnimation: isMotion && job.swapAnimation === true ? true : undefined,
     swapLong: isMotion && Number.isInteger(job.swapLong) ? job.swapLong : undefined,
+    swapBlocs: isMotion && Number.isInteger(job.swapBlocs) ? job.swapBlocs : undefined,
     // bancs du propriétaire : forcer Wan Animate, prendre la pose d'une autre vidéo (ex. le mannequin 3D), garder la cadence du driver
     mixWanAnimate: isMotion && job.mixWanAnimate === true ? true : undefined,
     motionPoseDriver: isMotion && typeof job.motionPoseDriver === 'string' && /^[\w.-]+$/.test(job.motionPoseDriver) ? job.motionPoseDriver : undefined,
@@ -2232,7 +2242,7 @@ export const STUDIOS_DANSE = {
   metro: { nom: 'Quai de métro', texte: 'an empty metro platform with white tiled walls, the tracks behind the platform edge and benches, no train, no people' },
   hotel: { nom: 'Hall d’hôtel', texte: 'the lobby of a luxury hotel with marble columns, a reception desk, velvet armchairs and a large chandelier' },
 }
-export function enqueueDanse3d({ fbx, still, decor, scene: description, personaId, suivi, stageForce }) {
+export function enqueueDanse3d({ fbx, still, decor, scene: description, personaId, suivi, stageForce, secondes, debut, sansSwap }) {
   if (!fbx || !fs.existsSync(fbx)) throw new Error('danse inconnue')
   if (!still || /[\\/]/.test(still) || !fs.existsSync(path.join(CONFIG.comfyInput, still))) throw new Error('photo du personnage introuvable')
   const d = String(description ?? '').trim().slice(0, 400)
@@ -2244,7 +2254,13 @@ export function enqueueDanse3d({ fbx, still, decor, scene: description, personaI
     mode: 'video', purpose: 'creative', recipeId: 'danse3d@v1', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'danse3d', videoEngine: 'ltx_layout',
     reshootSource: path.join('.stage', `${id}.mp4`), danseFbx: fbx, danseStill: still, danseSuivi: suivi === true ? true : undefined, danseDecor: STUDIOS_DANSE[decor] ? decor : 'salon', stageForce: Number.isFinite(stageForce) ? stageForce : undefined,
-    reshootAngle: 'danse 3d', reshootCamera: { az: 0, el: 0 }, reshootImages: 121,
+    reshootAngle: 'danse 3d', reshootCamera: { az: 0, el: 0 },
+    /* Durée (propriétaire, comparatifs de capture) : 5 s par défaut ; LTX veut 8k+1 images à 24 i/s. « debut » : la
+       danse part de sa 1re image au lieu de l'image bras baissés choisie par la scène (pour la caler sur une source). */
+    reshootImages: Number.isFinite(secondes) ? Math.floor(Math.min(21, Math.max(5, secondes)) * 24 / 8) * 8 + 1 : 121,
+    danseDebut: debut === true || undefined,
+    // propriétaire : pas de Swap enchaîné (banc : la vidéo LTX seule)
+    danseSansSwap: sansSwap === true || undefined,
     parentAssetId: null, userPrompt: d || 'a woman dancing', userDirectives: null,
     composedPositive: `A real video of the woman dancing with energy and a big smile${d ? `, ${d}` : ''}. Real smartphone footage, natural light, the camera follows her. She is the only person in the place: nobody else appears at any moment, no passers-by, no people in the background, not even tiny figures far away.`,
     composedNegative: null, selections: null, loras: [], videoLoras: [], estimatedMs: 200_000,
@@ -3172,8 +3188,9 @@ async function preparerDanse3d(job) {
   // le teint de la personne de la photo : le mannequin le prend, quelle que soit sa couleur de peau
   let teint = '0.620,0.360,0.250'
   try { teint = (await executer(pythonComfy(), [path.join(SCRIPTS, 'teint.py'), path.join(CONFIG.comfyInput, job.danseStill), path.join(CONFIG.dataDir, 'modeles-controle')], { timeout: 60_000 })).stdout.trim().split('\n').pop() || teint } catch { /* teint moyen */ }
-  await executer(path.join(os.homedir(), 'apps', 'blender', 'blender'), ['-b', '-P', path.join(SCRIPTS, 'scene_danse.py'), '--', job.danseFbx, brut, '5', job.danseDecor, teint], { timeout: 300_000 })
-  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', brut, '-vf', 'fps=24', '-frames:v', '121', '-an', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', maquette], { timeout: 60_000 })
+  const nImages = job.reshootImages || 121, secondesScene = String(Math.ceil((nImages - 1) / 24) + 0.2)
+  await executer(path.join(os.homedir(), 'apps', 'blender', 'blender'), ['-b', '-P', path.join(SCRIPTS, 'scene_danse.py'), '--', job.danseFbx, brut, secondesScene, job.danseDecor, teint, 'portrait', job.danseDebut ? 'debut' : 'auto'], { timeout: 900_000 })
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', brut, '-vf', 'fps=24', '-frames:v', String(nImages), '-an', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', maquette], { timeout: 60_000 })
   const clay = `STAGE_${job.id}.png`
   execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', maquette, '-frames:v', '1', path.join(CONFIG.comfyInput, clay)], { timeout: 30_000 })
   /* Le personnage est posé à la place exacte du mannequin (même taille, pieds au même endroit) : une retouche
@@ -3196,15 +3213,39 @@ async function preparerDanse3d(job) {
   const pose = `STAGE_${job.id}_pose.png`
   await executer(pythonComfy(), [path.join(SCRIPTS, 'poser_personnage.py'), path.join(CONFIG.comfyInput, clay), brut.replace(/\.mp4$/, '_masque.png'),
     path.join(CONFIG.comfyInput, job.danseStill), masquePhoto, path.join(CONFIG.comfyInput, pose)], { timeout: 60_000 })
-  const g = comfy.loadWorkflow(EDIT_WORKFLOW)
-  g['10'].inputs.image = pose
-  g['30'].inputs.prompt = 'Turn this grey 3D blocking into a finished photograph. Keep the exact camera and framing. '
+  const consigne = (fluxRef) => 'Turn this grey 3D blocking into a finished photograph. Keep the exact camera and framing. '
     + 'The woman keeps the same face, hair, outfit and shoes, at exactly the same place and the same size in the frame, '
     + 'but she is relit by the light of the place: the same colour, direction and intensity of light on her skin, hair and clothes as on the scene around her, with matching shadows. '
     + `The grey blocks become ${(STUDIOS_DANSE[job.danseDecor] ?? STUDIOS_DANSE.salon).texte}, with real materials and light. `
+    + (fluxRef ? 'The second image shows the same woman: use it only for her face, hair and outfit, not for her size or place in the frame. ' : '')
     + 'She is the only person in the place: no other people anywhere, not even tiny figures far away in the background. Real photo.'
-  g['40'].inputs.seed = Number(job.seed) || 42
-  g['90'].inputs.filename_prefix = `creatoros/${job.id}/look`
+  let g
+  if (process.env.CREATOROS_DANSE_LOOK === 'qwen') {
+    g = comfy.loadWorkflow(EDIT_WORKFLOW)
+    g['10'].inputs.image = pose
+    g['30'].inputs.prompt = consigne(false)
+    g['40'].inputs.seed = Number(job.seed) || 42
+    g['90'].inputs.filename_prefix = `creatoros/${job.id}/look`
+  } else {
+    /* FLUX 3 Klein : la maquette posée en 1re référence (cadrage, place), la photo du personnage en 2e
+       (visage, cheveux, tenue). Préféré à Qwen-Edit au banc du 07/11 : visage net, décor plus fidèle à la maquette.
+       Mêmes fichiers que la recette photo FLUX 3 (allege.js les remplace sur petite carte ou ROCm). */
+    const r = comfy.loadWorkflow('PROD_gen_flux3_sfw.json')
+    const de = cls => Object.values(r).find(n => n.class_type === cls)?.inputs ?? {}
+    g = {
+      1: { class_type: 'UNETLoader', inputs: { unet_name: de('UNETLoader').unet_name, weight_dtype: 'default' } },
+      2: { class_type: 'CLIPLoader', inputs: { clip_name: de('CLIPLoader').clip_name, type: 'flux3', device: 'default' } },
+      3: { class_type: 'VAELoader', inputs: { vae_name: de('VAELoader').vae_name } },
+      11: { class_type: 'LoadImage', inputs: { image: pose } },
+      12: { class_type: 'LoadImage', inputs: { image: job.danseStill } },
+      4: { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 0], text: consigne(true) } },
+      32: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['4', 0] } },
+      17: { class_type: 'ReferenceMultiLatent', inputs: { positive: ['4', 0], negative: ['32', 0], vae: ['3', 0], resolution: 'resize', 'resolution.megapixels': 1.0, 'images.image0': ['11', 0], 'images.image1': ['12', 0] } },
+      7: { class_type: 'KSampler', inputs: { model: ['1', 0], positive: ['17', 0], negative: ['17', 1], latent_image: ['17', 2], seed: Number(job.seed) || 42, steps: 16, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1 } },
+      8: { class_type: 'VAEDecode', inputs: { samples: ['7', 0], vae: ['3', 0] } },
+      90: { class_type: 'SaveImage', inputs: { images: ['8', 0], filename_prefix: `creatoros/${job.id}/look` } },
+    }
+  }
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
@@ -3246,14 +3287,14 @@ async function runReshoot(job, t0) {
   console.log(`[job ${job.id}] RE-SHOOT ${angle}, ${job.reshootImages} images ${W}×${H} prompt_id=${promptId}`)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
   const n = await harvestJob(job, promptId, history, {
-    applied: [job.op === 'effetltx' ? `effet : LTX-2.5 + IC-LoRA ${EFFETS_LTX[job.effetLtx]?.nom} (Lightricks), ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}` : job.op === 'danse3d' ? `danse 3D : scène Blender (${job.danseDecor}) → 1re image repeinte avec le personnage (Qwen Edit) → LTX-2.5 + IC-LoRA Layout-to-Render, ${job.reshootImages} images ${W}×${H}` : job.op === 'stage' ? `stage : maquette grise → LTX-2.5 + IC-LoRA Layout-to-Render (Lightricks), ${job.reshootImages} images ${W}×${H}` : job.op === 'cleanplate'
+    applied: [job.op === 'effetltx' ? `effet : LTX-2.5 + IC-LoRA ${EFFETS_LTX[job.effetLtx]?.nom} (Lightricks), ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}` : job.op === 'danse3d' ? `danse 3D : scène Blender (${job.danseDecor}) → 1re image repeinte avec le personnage (${process.env.CREATOROS_DANSE_LOOK === 'qwen' ? 'Qwen Edit' : 'FLUX 3 + photo en référence'}) → LTX-2.5 + IC-LoRA Layout-to-Render, ${job.reshootImages} images ${W}×${H}` : job.op === 'stage' ? `stage : maquette grise → LTX-2.5 + IC-LoRA Layout-to-Render (Lightricks), ${job.reshootImages} images ${W}×${H}` : job.op === 'cleanplate'
       ? `clean plate : LTX-2.5 + IC-LoRA Clean-Plate (Lightricks), « ${job.userPrompt} » retiré, ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}`
       : `re-shoot : MoGe-2 → CrossViewWarp → LTX-2.5 + IC-LoRA CrossView-Warp v2 (force 1,3), ${angle}, ${job.reshootImages} images ${W}×${H}, ${sonSource ? 'son de la prise d’origine' : 'son généré'}`],
     skipped: [], finalWorkflow: g,
   })
   store.markFinished(job.id, Date.now() - t0)
   if (job.op === 'danse3d' && n > 0) {
-    try { enchainerSwapDanse(job) } catch (e) { console.warn(`[job ${job.id}] Swap non enchaîné — ${e.message || e}`) }
+    if (!job.danseSansSwap) try { enchainerSwapDanse(job) } catch (e) { console.warn(`[job ${job.id}] Swap non enchaîné — ${e.message || e}`) }
   }
   return n
 }
@@ -3265,7 +3306,12 @@ function enchainerSwapDanse(job) {
   const a = store.assetsOfJob(job.id).find(x => x.media_type === 'video')
   if (!a) throw new Error('rendu LTX introuvable')
   const driver = `crs_${job.id}_drv.mp4`
-  fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, driver))
+  /* La 1re seconde part de la 1re image repeinte : la danseuse y glisse jusqu'à sa place de danse. Coupée avant le
+     Swap, elle n'apparaît pas dans le rendu final (CREATOROS_DANSE_COUPE en secondes, 0 pour la garder). */
+  const coupe = Math.max(0, Number(process.env.CREATOROS_DANSE_COUPE ?? 1) || 0)
+  const src = path.join(CONFIG.mediaDir, path.basename(a.filename))
+  if (coupe > 0) execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-ss', String(coupe), '-i', src, '-map', '0:v', '-map', '0:a?', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv420p', '-c:a', 'aac', path.join(CONFIG.comfyInput, driver)], { timeout: 120_000 })
+  else fs.copyFileSync(src, path.join(CONFIG.comfyInput, driver))
   store.noterInput(driver, 'danse')
   /* La référence du Swap : la 1re image repeinte (STAGE_…_look.png). La danseuse y est déjà à l'échelle de la vidéo et
      sous la lumière du studio (néons, coucher de soleil…) ; avec la photo d'origine, le Swap recollait sa lumière à elle,
@@ -3275,7 +3321,7 @@ function enchainerSwapDanse(job) {
   if (!ref) ref = refAEchelle(job)
   const geste = 'She dances with energy and a big smile, following the rhythm, her whole body visible.'
   enqueue({ id: `${job.id}-swap`, mode: 'video', register: 'sfw', purpose: 'creative', personaId: job.personaId,
-    motionDriver: driver, motionRef: ref, motionMode: 'replace', swapLong: 1280, danseSuivi: job.danseSuivi === true ? true : undefined,
+    motionDriver: driver, motionRef: ref, motionMode: 'replace', swapLong: 1280, swapBlocs: SCAIL_BLOCS_MAX, danseSuivi: job.danseSuivi === true ? true : undefined,
     composedPositive: geste, userPrompt: geste, composedNegative: '',
     motionSceneText: `A young woman dancing alone in ${(STUDIOS_DANSE[job.danseDecor] ?? STUDIOS_DANSE.salon).texte}, lit by the light of the place, with nobody else anywhere in the place. ${geste}`, parentAssetId: a.id })
   console.log(`[job ${job.id}] Swap enchaîné : ${job.id}-swap (référence ${ref})`)
@@ -3937,7 +3983,13 @@ async function refDuPersonnage(job, driverPath, frames, fps) {
    et celle de la référence ; le clip est rendu par blocs de 81 images (deux au plus),
    le second recoloré sur la fin du premier. Au-delà, WanAnimate garde la main. */
 export const SWAP_SCAIL_RECIPE = 'PROD_swap_scail2.json'
-const SCAIL_MAX_IMAGES = 157
+/* Blocs de 81 images, pas de 76 (5 d'ancrage) : 2 blocs = 157 images comme la recette, 6 blocs = 461 images,
+   environ 29 s à 16 i/s. Au-delà, la mémoire vive (toutes les images décodées restent en RAM) devient le risque. */
+const SCAIL_BLOCS_MAX = 6
+const scailBlocs = n => Math.max(2, 1 + Math.ceil(Math.max(0, n - 81) / 76))
+/* Deux blocs (environ 10 s) pour tout le monde, comme la recette ; jusqu'à six pour la danse enchaînée (durée fixée
+   par le serveur) et pour le propriétaire (swapBlocs) : sur la démo, un visiteur ne retient pas la carte 15 minutes. */
+const scailBlocsPermis = job => Math.min(SCAIL_BLOCS_MAX, Math.max(2, Number.isInteger(job.swapBlocs) ? job.swapBlocs : 2))
 // le modèle SCAIL-2 est-il vu par ComfyUI (où qu'il soit rangé) ? lu une fois par minute
 let scailVu = { quand: 0, ok: false }
 async function scailDisponible() {
@@ -3970,6 +4022,26 @@ function grapheSwapScail(job, motion, applied) {
     g[lh].inputs.value = paysage ? court : long
   }
   g['271'].inputs.filename_prefix = `creatoros/${job.id}/out`
+  /* Plans longs : la recette s'arrête à deux blocs (157 images). SCAIL-2 sait enchaîner : chaque bloc repart des
+     5 dernières images DÉCODÉES du précédent (previous_frames), le geste continue au lieu de recoller deux rendus
+     indépendants. On clone donc le second bloc autant de fois qu'il faut ; modèles, encodeurs et suivi de la
+     référence restent partagés, la couleur de chaque bloc est recalée sur la fin du premier comme dans la recette. */
+  const blocs = scailBlocs(motion.frames)
+  const PAR_BLOC = ['235', '240', '241', '218', '220', '244', '245', '259', '227', '250', '251', '252']
+  for (let k = 3; k <= blocs; k++) {
+    const pre = `b${k}:`
+    const renomme = v => (Array.isArray(v) && typeof v[0] === 'string' && v[0].startsWith('262:') && PAR_BLOC.includes(v[0].slice(4))
+      ? [pre + v[0].slice(4), v[1]] : v)
+    for (const id of PAR_BLOC) {
+      const n = JSON.parse(JSON.stringify(g[`262:${id}`]))
+      for (const [cle, v] of Object.entries(n.inputs)) n.inputs[cle] = renomme(v)
+      g[pre + id] = n
+    }
+    g[`${pre}240`].inputs.value = k
+    g[`${pre}259`].inputs.previous_frames = [k === 3 ? '262:250' : `b${k - 1}:250`, 0]
+    g['269'].inputs[`images.image${k - 1}`] = [`${pre}252`, 0]
+  }
+  if (blocs > 2) applied.push(`SCAIL-2 : ${blocs} blocs enchaînés (${motion.frames} images), chacun ancré sur les 5 dernières images du précédent`)
   /* Mode animation (banc du propriétaire) : le personnage de la still reste dans SON décor et reprend
      les gestes du driver, au lieu de remplacer la personne du driver dans le décor du driver. */
   if (job.swapAnimation === true && g['213:203'] && g['262:247']) {
@@ -4165,7 +4237,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
          phrase entière (« Aisha-AW, she has dark hair »), que le champ mot
          déclencheur, réduit à un jeton, ne peut pas porter. */
       : isVideo ? (persoVideo.length && p.trigger ? { key: 'persona-video', file: null, text: `${p.trigger}, ${p.preamble ? `${p.preamble}, ` : ''}an adult woman in her mid-twenties, ` } : null)
-      : identityPreambleFor(job.personaId, job.mode === 'photo' ? (job.photoEngine ?? CONFIG.photoEngine) : undefined)
+      : identityPreambleFor(job.personaId, job.mode === 'photo' ? (job.photoEngine ?? CONFIG.photoEngine) : undefined, `${job.userPrompt ?? ''} ${job.composedPositive ?? ''}`)
 
     // Mots déclencheurs des LoRA empilées par le JOB. C'est LE point qui décide
     // si une LoRA agit : sans son mot dans le prompt, elle est chargée, occupe
@@ -4192,7 +4264,23 @@ async function runJob(job, isRetry = false, connRetried = false) {
        RÉSOLU — le front n'a vu que le token. Un terme bloqué fait échouer
        le job en le disant, plutôt que de rendre une image qu'on ne peut
        pas livrer. */
-    const drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
+    let drawn = wildcards.resolve(triggerTxt + job.composedPositive, job.seed)
+    /* FLUX 3 : la scène passe par le réécriveur officiel (description complète), le déclencheur du
+       personnage reste en tête. Repli sur le texte d'origine si le LLM échoue : le rendu part quand même. */
+    const flux3Photo = job.mode === 'photo' && !isEdit && (job.photoEngine === 'flux3' || /flux3/.test(String(job.workflowFile ?? '')))
+    const personnageFlux3 = !!job.personaId && job.personaId !== SANS_PERSONNAGE && lorasPhoto(persona(job.personaId), 'flux3').length > 0
+    if (flux3Photo && !job.flux3Brut) {
+      const scene = drawn.text.startsWith(triggerTxt) ? drawn.text.slice(triggerTxt.length) : drawn.text
+      if (aReecrire(scene)) {
+        try {
+          const t0r = Date.now()
+          const riche = await reecrireFlux3(scene, { largeur: job.width, hauteur: job.height, personnage: personnageFlux3 })
+          drawn = { ...drawn, text: triggerTxt + riche }
+          store.noterPromptReecrit(job.id, riche)
+          console.log(`[job ${job.id}] FLUX 3 : prompt réécrit (${riche.split(/\s+/).length} mots, ${Date.now() - t0r} ms)`)
+        } catch (e) { console.warn(`[job ${job.id}] FLUX 3 : réécriveur indisponible, prompt d'origine (${e.message})`) }
+      }
+    }
     // Vidéo avec son : la réplique est la SEULE parole (voir speechGuard).
     const speech = (isVideo && job.withAudio && job.videoEngine !== 'motion') ? speechGuard(drawn.text) : null
     // photo SFW : la recette tourne sans prompt négatif efficace (cfg 1), la tenue opaque est donc demandée en clair
@@ -4200,11 +4288,14 @@ async function runJob(job, isRetry = false, connRetried = false) {
     /* Mode adulte (installation locale) : seulement quand AUCUN visage ne peut venir d'une vraie personne — pas
        de personnage, aucune LoRA (une LoRA importée peut porter un visage réel), aucune photo importée (une
        source d'origine inconnue compte comme importée). Le plancher « mineurs » reste toujours. */
-    const entrees = [job.sourceImage, job.endImage, ...(job.references ?? [])].filter(x => typeof x === 'string' && x.trim())
+    const entrees = [job.sourceImage, job.endImage, ...(job.references ?? []), ...(job.keyframes ?? []).map(k => k.image)].filter(x => typeof x === 'string' && x.trim())
     const adulteLibre = CONFIG.contenuAdulte && (!job.personaId || job.personaId === SANS_PERSONNAGE)
       && !(job.loras ?? []).length && !(job.videoLoras ?? []).length
       && entrees.every(n => store.origineInput(path.basename(n)) === 'genere')
-    const vetuOpaque = !adulteLibre && !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo'
+    /* La consigne de tenue ne vaut que s'il y a quelqu'un à habiller : sur un paysage vide, « fully covered » faisait
+       dessiner une silhouette drapée de blanc au milieu de la neige (08/11). */
+    const quelquun = (job.personaId && job.personaId !== SANS_PERSONNAGE) || HUMAIN.test(`${job.userPrompt ?? ''} ${job.composedPositive ?? ''}`)
+    const vetuOpaque = !adulteLibre && !isVideo && !isEdit && job.register !== 'explicit' && job.mode === 'photo' && quelquun
     const texteBrut = speech?.text ?? drawn.text
     // un maillot sur une adulte reste permis : la consigne ne demande alors que des tissus opaques
     const maillot = /\b(bikini|swimsuit|swimwear|one-piece|swim trunks)\b/i.test(texteBrut)
@@ -4277,6 +4368,8 @@ async function runJob(job, isRetry = false, connRetried = false) {
         ? VIDEO_ENGINES[job.videoEngine]?.draft?.steps
         : VIDEO_ENGINES[job.videoEngine]?.steps,
       endImage: job.mode === 'video' ? (job.endImage ?? undefined) : undefined,
+      contexteVideo: job.mode === 'video' ? (job.contexteVideo ?? undefined) : undefined,
+      keyframes: job.mode === 'video' && Array.isArray(job.keyframes) ? job.keyframes : undefined,
     })
     // Entrées déclarées dans <recette>.pilotage.json : appliquées après le câblage (sans fichier, rien ne change).
     if (job.videoEngine !== 'motion')
@@ -4291,6 +4384,28 @@ async function runJob(job, isRetry = false, connRetried = false) {
       const r = comfy.rendre2MP(workflow)
       if (r.manque) skipped.push(`2 MP non ajouté : ${r.manque}`)
       else applied.push(...r.notes)
+    }
+    /* FLUX 3 avec la LoRA du personnage : un visage petit dans le cadre (plan large) sort flou et générique.
+       FaceDetailer (Impact Pack) le détecte, le redessine à 1024 px avec la même LoRA puis le recolle :
+       la pose, la lumière et le décor ne bougent pas. CREATOROS_FLUX3_VISAGE=0 le coupe. */
+    if (flux3Photo && personnageFlux3 && process.env.CREATOROS_FLUX3_VISAGE !== '0') {
+      const ks = Object.entries(workflow).find(([, n]) => n.class_type === 'KSampler')
+      const save = Object.entries(workflow).find(([, n]) => n.class_type === 'SaveImage')
+      const clip = Object.entries(workflow).find(([, n]) => n.class_type === 'CLIPLoader')
+      const vae = Object.entries(workflow).find(([, n]) => n.class_type === 'VAELoader')
+      if (ks && save && clip && vae) {
+        const [, k] = ks
+        workflow.visage_txt = { class_type: 'CLIPTextEncode', inputs: { clip: [clip[0], 0], text: `${preamble?.text ?? ''}close-up photograph of her face, natural skin texture, sharp focus, same light and colour grade as the scene` } }
+        workflow.visage_neg = { class_type: 'CLIPTextEncode', inputs: { clip: [clip[0], 0], text: '' } }
+        workflow.visage_det = { class_type: 'UltralyticsDetectorProvider', inputs: { model_name: 'bbox/face_yolov8m.pt' } }
+        workflow.visage = { class_type: 'FaceDetailer', inputs: { image: save[1].inputs.images, model: k.inputs.model, clip: [clip[0], 0], vae: [vae[0], 0],
+          guide_size: 1024, guide_size_for: true, max_size: 1024, seed: k.inputs.seed, steps: 16, cfg: 1, sampler_name: 'euler', scheduler: 'simple',
+          positive: ['visage_txt', 0], negative: ['visage_neg', 0], denoise: 0.6, feather: 8, noise_mask: true, force_inpaint: true,
+          bbox_threshold: 0.4, bbox_dilation: 12, bbox_crop_factor: 2.4, sam_detection_hint: 'none', sam_dilation: 0, sam_threshold: 0.93,
+          sam_bbox_expansion: 0, sam_mask_hint_threshold: 0.7, sam_mask_hint_use_negative: 'False', drop_size: 10, bbox_detector: ['visage_det', 0], wildcard: '', cycle: 1 } }
+        save[1].inputs.images = ['visage', 0]
+        applied.push('FLUX 3 : visage redessiné à 1024 px avec la LoRA du personnage (FaceDetailer, denoise 0,6)')
+      }
     }
     // Klein sans LoRA du personnage : sa photo de profil tient le visage, références ou non
     const kleinSansLora = job.mode === 'photo' && job.photoEngine === 'klein' && !isEdit
@@ -4323,7 +4438,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.videoEngine === 'motion' && job.motionMode === 'replace') {
       const ref = await buildMotionRef(job)
       // une personne et un clip court : SCAIL-2 ; à plusieurs ou plus long : WanAnimate
-      const scail = !job.mixTotal && !job.mixWanAnimate && ref.frames <= SCAIL_MAX_IMAGES && await scailDisponible()
+      const scail = !job.mixTotal && !job.mixWanAnimate && scailBlocs(ref.frames) <= scailBlocsPermis(job) && await scailDisponible()
       finalWorkflow = scail ? grapheSwapScail(job, ref, applied) : await grapheMix(job, ref, applied, skipped)
       /* Carte vidée avant Wan-Animate : derrière le rendu Krea
          de la référence, ou un rendu interrompu, les modèles restés chargés ne
@@ -4633,6 +4748,18 @@ async function harvestJob(job, promptId, history, extras = {}) {
               : 'plan complet : source + continuation concaténées (24 fps, résolution de la continuation)'], skipped: [] },
             workflowJson: null })
         console.log(`[job ${job.id}] plan complet livré : ${cname}`)
+        /* Une suite livre le montage (origine + suite), pas la suite seule : celle-ci part à la
+           corbeille (30 jours, restaurable) une fois le montage écrit. Si le montage échoue, on
+           n'arrive pas ici et la suite seule reste livrée. */
+        const corbeille = path.join(CONFIG.mediaDir, '.corbeille')
+        for (const a of store.listAssetsByJob(job.id)) {
+          if (a.id === `a-${job.id}-full`) continue
+          const row = store.trashAsset(a.id)
+          if (row?.filename) {
+            try { fs.mkdirSync(corbeille, { recursive: true }); fs.renameSync(path.join(CONFIG.mediaDir, path.basename(row.filename)), path.join(corbeille, path.basename(row.filename))) }
+            catch (e) { if (e.code !== 'ENOENT') console.warn(`[job ${job.id}] corbeille ${row.filename} : ${e.message}`) }
+          }
+        }
       } catch (e) {
         console.warn(`[job ${job.id}] concat : ${String(e.message || e).slice(0, 200)}`)
       }

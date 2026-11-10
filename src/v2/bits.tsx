@@ -59,6 +59,7 @@ const IC: Record<string, React.ReactNode> = {
   folderOff: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /><path d="M2 2l20 20" /></>,
   tag: <><path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><path d="M7.5 7.5h.01" /></>,
   sound: <><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19 5a10 10 0 0 1 0 14" /></>,
+  soundOff: <><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6" /><path d="M16 9l6 6" /></>,
   wave: <><path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0" /><path d="M2 17c2-4 4-4 6 0s4 4 6 0 4-4 6 0" opacity=".5" /></>,
   columns: <><rect x="3" y="4" width="8" height="16" rx="1.5" /><rect x="13" y="4" width="8" height="16" rx="1.5" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,

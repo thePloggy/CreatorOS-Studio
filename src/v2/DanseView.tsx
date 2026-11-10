@@ -54,7 +54,7 @@ const ETAPES_HOWTO = [
   { titre: 'Reçois ta vidéo de danse', texte: 'Environ 7 minutes plus tard, la vidéo arrive dans Rendus, prête à télécharger.', fichier: 'hero-montage' },
 ]
 
-const urlDanse = (d: Danse, ext: 'webp' | 'mp4') => `/danses/${d.slug}.${ext}?v=${d.v ?? 0}`
+const urlDanse = (d: Danse, ext: 'webp' | 'mp4' | 'boucle') => ext === 'boucle' ? `/danses/${d.slug}-boucle.webp?v=${d.v ?? 0}` : `/danses/${d.slug}.${ext}?v=${d.v ?? 0}`
 const urlStudio = (x: Studio, grand = false) => `/danses/studio-${x.id}${grand ? '-grand' : ''}.webp?v=${x.v ?? 0}`
 const secondes = (d: Danse) => d.secondes ? t('{n} s', { n: Math.round(d.secondes) }) : ''
 
@@ -252,7 +252,7 @@ export function DanseView({ onOpen, goMontage }: { onOpen?: (a: Asset, list: Ass
         ) : onglet === 'danses' ? (
           <div className="dz-grille" ref={centre.racine}>
             {etat === 'charge' ? <Squelettes n={10} /> : dansesVues.map(d => (
-              <Carte key={d.slug} cle={d.slug} titre={d.titre} detail={secondes(d)} fixe={urlDanse(d, 'webp')} video={urlDanse(d, 'mp4')}
+              <Carte key={d.slug} cle={d.slug} titre={d.titre} detail={secondes(d)} fixe={urlDanse(d, 'webp')} boucle={urlDanse(d, 'boucle')} video={urlDanse(d, 'mp4')}
                 choisie={choix === d.slug} auCentre={centre.cle === d.slug} survolPossible={survolPossible} reduit={reduit} onChoisir={() => setChoix(d.slug)} />
             ))}
             {etat === 'pret' && dansesVues.length === 0 && <Aucun onEffacer={() => { setRecherche(''); setFiltre('tout') }} texte={t('Aucune danse ne correspond.')} />}

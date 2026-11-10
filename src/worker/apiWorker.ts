@@ -51,6 +51,7 @@ export interface ApiAsset {
   userDirectives?: string
   initialBrief?: string
   promptVision?: string
+  promptReecrit?: string
   videoFps?: number
   caption?: string
   captionOptions?: CaptionOption[]
@@ -117,6 +118,7 @@ export function toAsset(a: ApiAsset, job?: Partial<Job>): Asset {
       userDirectives: job?.userDirectives ?? a.userDirectives ?? '',
       initialBrief: job?.initialBrief ?? a.initialBrief ?? undefined,
       promptVision: job?.promptVision ?? a.promptVision ?? undefined,
+      promptReecrit: (job as { promptReecrit?: string } | undefined)?.promptReecrit ?? a.promptReecrit ?? undefined,
     },
     reviewStatus: a.reviewStatus,
     exportReady: a.exportReady,

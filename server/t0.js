@@ -91,6 +91,9 @@ export function t0Sexe(text) {
   // « without clothes » et ses fautes de frappe
   const sansHabits = lower.match(/\b(?:w\w{0,3}out|with out|no|not wearing any|zero)\s+(?:any\s+)?(?:clothes|clothing|clothe|outfit|garments?)\b|\b(?:clothes|clothing)\s+off\b|\bsans\s+(?:aucun\s+)?(?:vêtements?|habits?)\b/u)
   if (sansHabits) return sansHabits[0]
+  // « never owned any clothes », « owns no clothes », « wearing nothing », « clothes-free » : même sens, autre tournure
+  const jamaisHabits = lower.match(/\b(?:never|ever)\s+(?:\w+\s+){0,2}?(?:owned|owns|own|wore|worn|wears|wear|had|has|have|needed|put on)\s+(?:any\s+)?(?:clothes|clothing|garments?|outfits?)\b|\b(?:owns?|owned|has|have|had)\s+(?:no|zero|not any)\s+(?:\w+\s+){0,1}?(?:clothes|clothing|garments?)\b|\b(?:doesn'?t|does not|didn'?t|did not|don'?t|do not|can'?t|cannot)\s+(?:\w+\s+){0,2}?(?:own|wear|have|put on)\s+(?:any\s+)?(?:clothes|clothing)\b|\b(?:she|he|her|woman|women|girl|lady|man|model|person|character|they)\s+(?:\w+\s+){0,3}?(?:wears?|wearing|wore)\s+(?:absolutely\s+)?nothing\b|\b(?:dressed in|wearing|wears|wore)\s+nothing\s+but\b|\bdressed in nothing\b|\b(?:clothes|clothing)[\s-]?free\b|\bfree of (?:clothes|clothing)\b|\bwithout anything (?:on|covering)\b|\bnothing but (?:skin|her skin)\b|\bn['’]?(?:a|ont|avait) (?:jamais|aucun)\s+(?:\w+\s+){0,2}?(?:vêtements?|habits?)\b/u)
+  if (jamaisHabits) return jamaisHabits[0]
   const retrait = lower.match(RETIRER_TENUE) ?? lower.match(TENUE_REDUITE) ?? lower.match(CORPS_RETOUCHE)
   if (retrait) return retrait[0]
   const exp = T0_SEXE_EXPRESSIONS.find(e => lower.includes(e))

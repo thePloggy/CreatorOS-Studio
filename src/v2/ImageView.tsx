@@ -3,9 +3,11 @@
    création est une barre flottante par-dessus. Jobs photo en
    placeholders dans la grille.
    ============================================================ */
+import { SANS_PERSONNAGE } from '../lib/personnage'
 import { HowItWorks, howto } from './HowItWorks'
 import { useMouvementReduit } from './Galerie'
 import { useBriefHistory } from '../components/BriefHistory'
+import { Inspirations } from '../components/Inspirations'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Asset } from '../types'
 import { STATUTS_ACTIFS } from '../types'
@@ -38,6 +40,8 @@ const PRESETS_REF = [
 ]
 
 export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[]) => void; goVideo: () => void }) {
+  // arrivée sans image apportée par un clic : emplacements vides (start, end, source d'édition…)
+  useEffect(() => { useAppStore.getState().viderImagesSiArriveeLibre() }, [])
   const edition = useEdition()
   const s = useAppStore()
   const [review, setReview] = useState<ReviewFilter>(null)
@@ -79,7 +83,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
 
   useEffect(() => { if (s.mode !== 'photo') s.setMode('photo') }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = useMemo(() => applyFilters(s.assets.filter(a => a.personaId === s.personaId), 'photo', review, q), [s.assets, s.personaId, review, q])
+  const shown = useMemo(() => applyFilters(s.assets.filter(a => !s.personaId || s.personaId === SANS_PERSONNAGE || a.personaId === s.personaId), 'photo', review, q), [s.assets, s.personaId, review, q])
   const grid = useMemo(() => groupBatches(shown), [shown])
   const activeJobs = s.jobs.filter(j => j.mode !== 'video' && STATUTS_ACTIFS.includes(j.status))
   const failed = failedJobs(s.jobs, false)
@@ -161,6 +165,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                 { titre: t('Récupère la photo'), texte: t('Qwen-Image-Edit ne touche qu’à ce que tu as demandé.'), ...f.hero, repli: '/vitrine/v2-edit-b.webp' },
               ]} /></div>
           })()}
+          {task !== 'edit' && <Inspirations mode="photo" />}
           <div className="masonry"><JustifiedGrid cols={cols} items={[
           ...failed.map(j => ({ key: j.id, ratio: 9 / 16, node: <FailCard j={j} /> })),
           ...activeJobs.map(j => ({ key: j.id, ratio: (j.width && j.height ? j.width / j.height : 9 / 16),

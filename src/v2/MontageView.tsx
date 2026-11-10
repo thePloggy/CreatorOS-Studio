@@ -15,6 +15,7 @@ import { fetchAssetsDe } from '../worker/apiWorker'
 import { t, tServeur } from '../i18n'
 import { useEdition } from '../lib/proprietaire'
 import { GenererMusique } from './GenererMusique'
+import { Ic } from './bits'
 
 type Transition = 'coupe' | 'fondu' | 'noir'
 interface Plan {
@@ -562,9 +563,10 @@ export function MontageView({ onOpen, ouvrirId }: { onOpen: (a: Asset, list: Ass
                   </div>
                 )
               })}
-              <button onClick={() => setChoisir(true)}
-                style={{ width: 92, height: 92, marginLeft: d.clips.length ? 12 : 0, borderRadius: 10, border: '1px dashed var(--lv4, rgba(255,255,255,.25))', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, flex: 'none' }}>
-                ＋<br />{t('ajouter un plan')}
+              {/* le point de départ du montage : bien visible, plus large quand la frise est vide */}
+              <button className="cta montage-ajout" onClick={() => setChoisir(true)}
+                style={{ width: d.clips.length ? 120 : 220, height: 92, marginLeft: d.clips.length ? 12 : 0, flex: 'none' }}>
+                <Ic n="plus" s={20} /><span>{t('ajouter un plan')}</span>
               </button>
             </div>
           </div>

@@ -60,7 +60,7 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLi
    ce qui est verrouillé, c'est la description du studio et ses réglages.
    Choisir le personnage actif reste libre. */
 const ROUTES_PROPRIETAIRE = new Set([
-  'DELETE /api/montage/musiques/:nom',
+  'DELETE /api/montage/musiques/:nom', 'POST /api/assets/:id/retemps',
   'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id', 'PUT /api/personas/:id/voix',
   'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
@@ -242,6 +242,7 @@ const assetOut = r => r && ({
   userDirectives: r.user_directives ?? undefined,
   initialBrief: r.initial_brief ?? undefined,
   promptVision: r.prompt_vision ?? undefined,
+  promptReecrit: r.prompt_reecrit ?? undefined,
   videoFps: r.video_fps ?? undefined,
   // badges des cartes : son, plan d'ambiance (texte → vidéo), recette photo, finition
   withAudio: r.with_audio ? true : undefined,
@@ -979,7 +980,7 @@ app.post('/api/cloud/taches/:id', async req => tacheCloud(exigerCle(req), req.pa
    qu'un visiteur a déposées après contrôle (aucune personne, cf. depots.js) — jamais un
    envoi du propriétaire : jamais la photo d'une personne réelle. */
 function inputEtranger(b, proprietaire) {
-  const noms = [b.sourceImage, b.endImage, b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null, ...(Array.isArray(b.references) ? b.references : [])]
+  const noms = [b.sourceImage, b.endImage, b.contexteVideo, ...(Array.isArray(b.keyframes) ? b.keyframes.map(k => k?.image) : []), b.motionDriver, b.motionRef, b.concatFrom === 'input' ? b.concatWith : null, ...(Array.isArray(b.references) ? b.references : [])]
   const admis = n => proprietaire ? store.estInputStudio(n) : store.estInputVisiteur(n)
   return noms.find(n => typeof n === 'string' && n.trim() && !admis(path.basename(n.trim()))) ?? null
 }
@@ -987,7 +988,7 @@ app.post('/api/jobs', async (req, reply) => {
   const etranger = inputEtranger(req.body || {}, estProprietaire(req))
   if (etranger) { reply.code(400); return { error: `« ${path.basename(etranger)} » absent du dossier input/` } }
   if (req.body && !estProprietaire(req)) delete req.body.profilVram   // profil forcé : propriétaire seulement
-  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong', 'mixWanAnimate', 'motionPoseDriver', 'motionFpsNatif']) delete req.body[k]   // réglages de banc : propriétaire seulement
+  if (req.body && !estProprietaire(req)) for (const k of ['motionSansTurbo', 'motionTurbo', 'motionPas', 'motionCfg', 'motionVisionRef', 'motionPoseFin', 'swapAnimation', 'motionDistill', 'swapLong', 'mixWanAnimate', 'motionPoseDriver', 'motionFpsNatif', 'swapBlocs']) delete req.body[k]   // réglages de banc : propriétaire seulement
   // une vidéo qui part d'une photo de la bibliothèque joue le personnage de cette photo, quel que soit le choix courant
   const depart = req.body?.mode === 'video' && req.body?.selections?.task !== 't2v' && req.body?.selections?.startAssetId ? store.getAsset(String(req.body.selections.startAssetId)) : null
   if (depart?.persona_id) req.body.personaId = depart.persona_id
@@ -1895,6 +1896,23 @@ app.post('/api/assets/:id/to-input', async (req, reply) => {
   return { filename, width: row.width, height: row.height }
 })
 
+/* Inspirations (vidéo) : la photo de départ d'une carte. Les fichiers sont livrés avec le studio (public/inspirations),
+   donc rendus par lui : on les pose dans input/ comme un rendu, ce qu'un visiteur peut animer (un dépôt de visiteur,
+   lui, refuserait une photo avec une personne). Seuls les noms de la liste livrée passent. */
+const DOSSIER_INSPIRATIONS = path.join(import.meta.dirname, '..', 'public', 'inspirations')
+app.post('/api/inspirations/:id/depart', async (req, reply) => {
+  const id = String(req.params.id)
+  const src = path.join(DOSSIER_INSPIRATIONS, `${id}-depart.jpg`)
+  if (!/^[a-z0-9-]{1,80}$/.test(id) || !fs.existsSync(src)) { reply.code(404); return { error: 'inspiration inconnue' } }
+  const filename = `crs_insp_${id}.jpg`
+  fs.mkdirSync(CONFIG.comfyInput, { recursive: true })
+  fs.copyFileSync(src, path.join(CONFIG.comfyInput, filename))
+  store.noterInput(filename, 'genere')
+  const [width, height] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', src],
+    { encoding: 'utf8' }).trim().split(',').map(Number)
+  return { filename, width, height }
+})
+
 /* « Ouvrir dans ComfyUI » : le graphe exact envoyé pour ce rendu, au format API,
    à glisser dans ComfyUI ; chemins absolus réduits au nom du fichier. Avec la liste des
    modèles qu'il charge et leur licence, lue dans le manifeste de l'assistant. */
@@ -1935,6 +1953,15 @@ app.get('/api/assets/:id/provenance', async (req, reply) => {
     sourceImage: p.source_image,
     selections: parse(p.selections), injections: parse(p.injections),
     workflowJson: parse(p.workflow_json),
+    // ce que le job a réellement reçu : un clone le rejoue même sans selections (jobs lancés par l'API)
+    ...((j => j ? { videoEngine: j.videoEngine ?? null, endImage: j.endImage ?? null, videoSeconds: j.videoSeconds ?? null, withAudio: j.withAudio ?? null,
+      /* Images clés d'un plan de la table de montage, retrouvées dans la bibliothèque (crs_still_<fichier>) ;
+         une image déposée depuis l'ordinateur reste un envoi (up:<nom>). Sert à rouvrir le plan dans Movie Studio. */
+      keyframes: Array.isArray(j.keyframes) ? j.keyframes.map(k => {
+        const nom = String(k.image ?? ''), a = nom.startsWith('crs_still_') ? store.assetParFichier(nom.slice(10)) : null
+        return a ? { assetId: a.id, uri: a.uri, t: Number(k.t) } : { assetId: `up:${nom}`, uri: `/api/uploads/${encodeURIComponent(nom)}`, t: Number(k.t) }
+      }) : null } : {})(
+      (() => { try { return JSON.parse(store.getJob(p.job_id)?.payload ?? 'null') } catch { return null } })())),
   }
 })
 
@@ -2194,6 +2221,49 @@ app.post('/api/voix/clone', async (req, reply) => {
   try { return await cloner({ texte: req.body?.texte, reference: req.body?.reference, accord: req.body?.accord === true }) }
   catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
 })
+/** Retiming d'un plan de la table de montage : les images clés déplacées changent la vitesse segment par segment.
+    points = [{ src, dst }] (s) : l'instant de l'image clé dans le clip rendu, et celui voulu. Image et son suivent
+    (setpts, atempo) ; le résultat est un nouveau clip dans la bibliothèque. */
+app.post('/api/assets/:id/retemps', async (req, reply) => {
+  const a = store.getAsset(req.params.id)
+  if (!a || a.media_type !== 'video') { reply.code(404); return { error: 'clip inconnu' } }
+  const video = path.join(CONFIG.mediaDir, path.basename(a.filename ?? a.uri))
+  try {
+    const duree = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', video]).toString().trim())
+    let pts = (Array.isArray(req.body?.points) ? req.body.points : []).map(p => ({ src: Number(p.src), dst: Number(p.dst) }))
+      .filter(p => Number.isFinite(p.src) && Number.isFinite(p.dst) && p.src >= 0 && p.dst >= 0)
+    pts = [{ src: 0, dst: 0 }, ...pts.filter(p => p.src > 0.05 && p.src < duree - 0.05), { src: duree, dst: pts.find(p => p.src >= duree - 0.05)?.dst ?? null }]
+    if (pts[pts.length - 1].dst == null) pts[pts.length - 1].dst = pts[pts.length - 2].dst + (duree - pts[pts.length - 2].src)
+    pts.sort((x, y) => x.src - y.src)
+    for (let i = 1; i < pts.length; i++) if (!(pts[i].dst > pts[i - 1].dst + 0.1)) throw new Error('les images clés doivent rester dans l’ordre, à 0,1 s au moins l’une de l’autre')
+    const son = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', video]).toString().trim().length > 0
+    const atempo = r => { const f = []; while (r < 0.5) { f.push('atempo=0.5'); r /= 0.5 } while (r > 2) { f.push('atempo=2'); r /= 2 } f.push(`atempo=${r.toFixed(5)}`); return f.join(',') }
+    const parts = [], cat = []
+    for (let i = 1; i < pts.length; i++) {
+      const s0 = pts[i - 1].src, s1 = pts[i].src, k = (pts[i].dst - pts[i - 1].dst) / (s1 - s0)
+      parts.push(`[0:v]trim=start=${s0.toFixed(4)}:end=${s1.toFixed(4)},setpts=(PTS-STARTPTS)*${k.toFixed(5)}[v${i}]`)
+      if (son) parts.push(`[0:a]atrim=start=${s0.toFixed(4)}:end=${s1.toFixed(4)},asetpts=PTS-STARTPTS,${atempo(1 / k)}[a${i}]`)
+      cat.push(`[v${i}]${son ? `[a${i}]` : ''}`)
+    }
+    const graphe = `${parts.join(';')};${cat.join('')}concat=n=${pts.length - 1}:v=1:a=${son ? 1 : 0}[v]${son ? '[a]' : ''},[v]fps=24[vo]`.replace(',[v]fps=24[vo]', ';[v]fps=24[vo]')
+    const jobId = `retemps-${Date.now().toString(36)}`, sortie = `${jobId}-0.mp4`
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', video, '-filter_complex', graphe, '-map', '[vo]', ...(son ? ['-map', '[a]', '-c:a', 'aac', '-b:a', '192k'] : []),
+      '-c:v', 'libx264', '-crf', '18', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path.join(CONFIG.mediaDir, sortie)], { timeout: 300_000 })
+    const resume = pts.slice(1, -1).map(p => `${p.src.toFixed(1)} → ${p.dst.toFixed(1)} s`).join(', ')
+    store.createJob({ id: jobId, createdAt: Date.now(), status: 'rendering', personaId: a.persona_id ?? null, register: 'sfw', mode: 'video', purpose: 'creative',
+      recipeId: 'retemps@v1', workflowFile: null, seed: null, op: 'retemps', videoEngine: null, userPrompt: `vitesse retouchée (${resume})`, composedPositive: null, parentAssetId: a.id, estimatedMs: 20_000 })
+    store.markStarted(jobId, null)
+    store.createAsset(
+      { id: `a-${jobId}-0`, jobId, createdAt: Date.now(), mediaType: 'video', uri: `/media/${sortie}`, filename: sortie, bytes: fs.statSync(path.join(CONFIG.mediaDir, sortie)).size,
+        width: a.width ?? null, height: a.height ?? null, aspect: a.aspect ?? null, register: 'sfw', op: 'retemps', videoEngine: null },
+      { recipeId: 'retemps@v1', workflowFile: null, comfyPromptId: null, seed: null, composedPositive: null, composedNegative: null, userPrompt: `vitesse retouchée (${resume})`, userDirectives: null,
+        selections: null, resolvedText: null, identityPreamble: null, registerClause: null, sourceImage: null, extraLoras: null,
+        injections: { applied: [`vitesse retouchée par segments (ffmpeg setpts/atempo) depuis ${a.id} : ${resume}`], skipped: [] }, workflowJson: null })
+    store.markFinished(jobId, 0)
+    return { jobId, assetId: `a-${jobId}-0` }
+  } catch (e) { reply.code(400); return { error: String(e.stderr || e.message || e).slice(-300) } }
+})
+
 /** Changeur de voix (cf. voix.changerVoix) : un audio de la bibliothèque, ou la piste d'un clip
     qui devient un nouveau clip avec la voix changée. Réservé au propriétaire. */
 app.post('/api/voix/changer', async (req, reply) => {
@@ -2778,7 +2848,10 @@ app.post('/api/danses/scene3d', async (req, reply) => {
     fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, still))
     store.noterInput(still)
     return enqueueDanse3d({ fbx, still, decor: req.body?.decor, scene: req.body?.scene, personaId: a.persona_id, suivi: req.body?.suivi === true,
-      stageForce: estProprietaire(req) && Number.isFinite(Number(req.body?.stageForce)) ? Number(req.body.stageForce) : undefined })
+      stageForce: estProprietaire(req) && Number.isFinite(Number(req.body?.stageForce)) ? Number(req.body.stageForce) : undefined,
+      secondes: estProprietaire(req) && Number.isFinite(Number(req.body?.secondes)) ? Number(req.body.secondes) : undefined,
+      debut: estProprietaire(req) && req.body?.debut === true,
+      sansSwap: estProprietaire(req) && req.body?.sansSwap === true })
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 // le storyboard relu et corrigé part au tournage

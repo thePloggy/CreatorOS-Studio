@@ -54,44 +54,37 @@ const PersonaView = lazy(() => import('../features/persona/PersonaView').then(m 
 const ConfigView = lazy(() => import('../features/config/ConfigView').then(m => ({ default: m.ConfigView })))
 const CreateurView = lazy(() => import('../features/createur/CreateurView').then(m => ({ default: m.CreateurView })))
 
-/** Mini-barre de charge (seuils 70/90). */
-function TBar({ pct }: { pct: number }) {
-  const c = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--attention)' : 'var(--positif)'
-  return (
-    <span style={{ display: 'inline-block', width: 38, height: 4, borderRadius: 99, background: 'var(--lv3)', overflow: 'hidden', verticalAlign: 'middle' }}>
-      <span style={{ display: 'block', height: '100%', borderRadius: 99, background: c, width: `${Math.max(3, Math.min(100, pct))}%` }} />
-    </span>
-  )
-}
 
-/** GPU util · VRAM · température — CPU util · RAM (relevé toutes les 5 s). */
+/** GPU · VRAM · CPU · RAM en anneaux, températures GPU et CPU (relevé toutes les 5 s).
+ *  Version courte : anneaux et températures ; écran large : valeurs à côté des anneaux et nom de la carte. */
 function Telemetry() {
   const tel = useTelemetry()
   if (!tel?.gpu) return null
   const g = tel.gpu
   const vramPct = g.vramTotalMb ? (g.vramUsedMb / g.vramTotalMb) * 100 : 0
-  const vramGb = (g.vramUsedMb / 1024).toFixed(1).replace('.', ',')
   const ramPct = tel.ram ? (tel.ram.usedMb / tel.ram.totalMb) * 100 : 0
-  const dot = <span style={{ color: 'var(--faint)', margin: '0 6px' }}>·</span>
-  const cell = { display: 'flex', alignItems: 'center', gap: 6 } as const
-  return (<>
-    {/* version courte, toujours là : charge du GPU et mémoire vidéo */}
-    <div className="flex min-[1800px]:hidden items-center gap-1.5 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }} title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
-      GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b>
-      <span style={{ color: 'var(--faint)' }}>·</span> VRAM <Anneau pct={vramPct} titre={t('mémoire vidéo : {n} %', { n: Math.round(vramPct) })} />
+  const go = (mb: number) => (mb / 1024).toFixed(1).replace('.', ',')
+  const val = { color: 'var(--text)', fontWeight: 500 } as const
+  const jauge = (nom: string, pct: number, titre: string, detail?: string) => (
+    <span className="flex items-center gap-1" title={titre}>
+      <span>{nom}</span><Anneau pct={pct} titre={titre} taille={16} />
+      {detail && <b className="hidden min-[1800px]:inline" style={val}>{detail}</b>}
+    </span>
+  )
+  const temp = (nom: string, v: number | null, alerte: number) => v == null ? null : (
+    <span title={t('température {nom}', { nom })}><span className="hidden min-[1800px]:inline">{nom} </span><b style={{ ...val, color: v >= alerte ? 'var(--attention)' : 'var(--text)' }}>{v}°</b></span>
+  )
+  return (
+    <div className="flex items-center gap-1.5 min-[1800px]:gap-3 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
+      title={t('GPU, VRAM, CPU, RAM et températures (5 s)')}>
+      {g.nom && <b className="hidden min-[1900px]:inline" style={val}>{g.nom}</b>}
+      {jauge('GPU', g.util, t('charge GPU : {n} %', { n: g.util }), `${g.util} %`)}
+      {jauge('VRAM', vramPct, t('mémoire vidéo : {n} %', { n: Math.round(vramPct) }), `${go(g.vramUsedMb)} ${t('Go')}`)}
+      {tel.cpu.util != null && jauge('CPU', tel.cpu.util, t('charge CPU : {n} %', { n: tel.cpu.util }), `${tel.cpu.util} %`)}
+      {tel.ram && jauge('RAM', ramPct, t('mémoire vive : {n} %', { n: Math.round(ramPct) }), `${Math.round(tel.ram.usedMb / 1024)}/${Math.round(tel.ram.totalMb / 1024)} ${t('Go')}`)}
+      <span className="flex items-center gap-1 min-[1800px]:gap-2">{temp('GPU', g.temp, 80)}{temp('CPU', tel.cpu.temp, 85)}</span>
     </div>
-    <div className="hidden min-[1800px]:flex items-center font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
-      title={t('GPU util, VRAM, température — CPU util, RAM (5 s)')}>
-      {g.nom && <b style={{ color: 'var(--text)', fontWeight: 500, marginRight: 8 }}>{g.nom}</b>}
-      <span style={cell}>GPU <TBar pct={g.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{g.util} %</b></span>
-      {dot}
-      <span style={cell}>VRAM <Anneau pct={vramPct} titre={t('mémoire vidéo : {n} %', { n: Math.round(vramPct) })} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{vramGb} {t('Go')}</b></span>
-      {dot}
-      <span style={{ color: g.temp >= 80 ? 'var(--attention)' : undefined }}>{g.temp}°</span>
-      {tel.cpu.util != null && <span className="hidden min-[1900px]:flex items-center">{dot}<span style={cell}>CPU <TBar pct={tel.cpu.util} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{tel.cpu.util} %</b></span></span>}
-      {tel.ram && <span className="hidden min-[1900px]:flex items-center">{dot}<span style={cell}>RAM <TBar pct={ramPct} /> <b style={{ color: 'var(--text)', fontWeight: 500 }}>{Math.round(tel.ram.usedMb / 1024)}/{Math.round(tel.ram.totalMb / 1024)} {t('Go')}</b></span></span>}
-    </div>
-  </>)
+  )
 }
 
 const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
@@ -199,7 +192,7 @@ export default function V2App() {
             className={`nav-lien ${section === 'createur' ? 'actif' : ''}`}
             onClick={() => setSection('createur')}>{t('Créateur')}</button>
         </nav>
-        <div className="ml-auto flex items-center gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>
+        <div className="ml-auto flex items-center gap-2 min-[1800px]:gap-3 text-[12px] flex-none" style={{ color: 'var(--faint)', whiteSpace: 'nowrap' }}>
           <PastilleRendu />
           <Telemetry />
           {activeJobs > 0 && <span className="masquer-etroit" style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{t('{n} en rendu', { n: activeJobs })}</span>}

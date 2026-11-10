@@ -102,7 +102,7 @@ fs.writeFileSync(path.join(RACINE, 'docs', 'LAB.md'), `# Lab: real render times 
 
 Every recipe rendered once with the same prompt and seed (${d.le}, ${d.carte}). Before each run ComfyUI unloads every model, so the peak is the recipe alone. On a large card ComfyUI keeps the text encoder and the model resident together, so these peaks are higher than what the recipe strictly needs.
 
-The "12 GB card" rows replay the exact same graph with the light weights on a second ComfyUI started with \`--vram-headroom 18.5\` on the 32 GB card, so it only has about 11.5 GB of VRAM to work with (\`scripts/bancs/labo-petite-carte.mjs\`). Finishing there means the recipe runs on a 12 GB card.
+The "16 / 12 / 8 GB card" rows replay the exact same graph with the light weights on a second ComfyUI that is held to the size of that card (\`scripts/bancs/comfy-bride.py\`): PyTorch may not allocate more than the card holds, and ComfyUI is told only that much is free, so it offloads exactly as it would on the real card. Their peak is that ComfyUI process alone, CUDA context included. Finishing there means the recipe runs on a card of that size. On an 8 GB card the studio renders Wan video at 480p (long side 832): the Q4 weights fit, the 720p activations do not. Scripts: \`scripts/bancs/labo-petite-carte.mjs\` (photo) and \`scripts/bancs/labo-video-petite.mjs\` (video).
 
 Prompt: *${PHOTO}*. Videos start from the Krea 2 photo, 4 s: *${GESTE}*.
 
@@ -110,6 +110,6 @@ Prompt: *${PHOTO}*. Videos start from the Krea 2 photo, 4 s: *${GESTE}*.
 |---|---|---|---|
 ${lignes.join('\n')}
 
-Reproduce: \`node scripts/bancs/labo.mjs\` with the studio running. The 12 GB rows use the light weights the setup wizard installs for small cards (\`npm run setup -- --vram 12\`), which the studio swaps in automatically on a small card.
+Reproduce: \`node scripts/bancs/labo.mjs\` with the studio running. The small-card rows use the light weights the setup wizard installs for small cards (\`npm run setup -- --vram 8\`), which the studio swaps in automatically on a small card.
 `)
 console.log('docs/LAB.md écrit')

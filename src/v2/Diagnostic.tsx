@@ -63,7 +63,7 @@ export function VoyantMachine() {
       <button onClick={() => setOuvert(o => !o)} title={t('machine — {x} (cliquer pour le détail)', { x: titre })}
         className="flex items-center gap-1.5"
         style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: d && (d.bloquants || d.alertes) ? couleur : 'inherit', font: 'inherit' }}>
-        <i style={{ width: 7, height: 7, borderRadius: 99, background: couleur, display: 'inline-block' }} /> {t('machine')}
+        <i style={{ width: 7, height: 7, borderRadius: 99, background: couleur, display: 'inline-block' }} /> <span className="masquer-etroit">{t('machine')}</span>
         {redemarre && <span style={{ color: couleur }}>{t('redémarre…')}</span>}
         {d && (d.bloquants + d.alertes > 0) && <b style={{ fontWeight: 600 }}>{d.bloquants + d.alertes}</b>}
       </button>

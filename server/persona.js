@@ -187,9 +187,13 @@ const ADULTE = 'an adult woman in her mid-twenties'
 /* Le mot déclencheur n'a de sens que pour un moteur qui a une LoRA de ce personnage : ailleurs,
    c'est un mot inconnu (« ashikox » tirait Krea vers le manga). `moteur` absent : comme avant. */
 const aLoraPour = (p, moteur) => moteur === 'klein' ? p.lorasKlein.length > 0 : moteur === 'flux3' ? (p.lorasFlux3?.length ?? 0) > 0 : moteur === 'moss' ? false : moteur === 'krea' ? p.loras.length > 0 : true
-export function identityPreambleFor(id, moteur) {
-  // sans personnage : aucun visage imposé, mais la mention d'âge adulte reste (démo publique comprise)
-  if (id === SANS_PERSONNAGE) return { key: 'persona', file: null, text: 'every person shown is an adult, ' }
+/* Un prompt qui parle de quelqu'un (femme, homme, enfant, foule, portrait, il/elle…). */
+export const HUMAIN = /\b(wom[ae]n|m[ae]n|girls?|boys?|persons?|people|she|he|her|him|his|lad(y|ies)|guys?|child(ren)?|kids?|crowds?|someone|models?|dancers?|riders?|characters?|portraits?|faces?|bod(y|ies)|couples?|famil(y|ies)|femmes?|hommes?|filles?|garçons?|personnes?|gens|elle|il|enfants?|foule)\b/i
+export function identityPreambleFor(id, moteur, texte) {
+  /* Sans personnage : aucun visage imposé. La mention d'âge adulte reste quand le prompt parle de quelqu'un (démo
+     publique comprise) ; sans personne dans le prompt, elle ferait apparaître des gens (« every person shown… » a mis
+     trois promeneurs dans un paysage de neige vide, 08/11). */
+  if (id === SANS_PERSONNAGE) return typeof texte === 'string' && !HUMAIN.test(texte) ? null : { key: 'persona', file: null, text: 'every person shown is an adult, ' }
   const p = persona(id)
   const age = /\b(adult|\d{2}[- ]?(years?|yo))\b/i.test(p.preamble ?? '') ? null : ADULTE
   const trigger = aLoraPour(p, moteur) ? p.trigger : null

@@ -1,6 +1,6 @@
 """Scène 3D d'une danse : le mannequin danse dans un décor en volumes, filmé par une caméra qui l'accompagne.
 
-Usage : blender -b -P scene_danse.py -- DANSE.fbx SORTIE.mp4 [SECONDES] [STUDIO] [TEINT r,g,b]
+Usage : blender -b -P scene_danse.py -- DANSE.fbx SORTIE.mp4 [SECONDES] [STUDIO] [TEINT r,g,b] [paysage|portrait] [debut|auto]
 
 Maquette grise pour LTX-2.5 + IC-LoRA Layout-to-Render : le décor (sol à dalles, murs, quelques
 volumes) donne au modèle de quoi lire le mouvement de la caméra et le déplacement de la danseuse ;
@@ -25,6 +25,8 @@ decor = argv[3] if len(argv) > 3 else 'salon'
 teint = tuple(float(x) for x in argv[4].split(',')) if len(argv) > 4 else (0.62, 0.36, 0.25)
 # 'paysage' : une vue large du studio (vignette panoramique), 1280×704 et un objectif plus large
 paysage = len(argv) > 5 and argv[5] == 'paysage'
+# 'debut' : la danse part de sa 1re image (comparatif calé sur une vidéo source) au lieu de l'image bras baissés
+debut_force = len(argv) > 6 and argv[6] == 'debut'
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.fbx(filepath=fbx)
@@ -44,7 +46,7 @@ longueur = fin - debut
 paires = [(arm.pose.bones.get('mixamorig:' + c + 'Hand'), arm.pose.bones.get('mixamorig:' + c + 'UpLeg')) for c in ('Left', 'Right')]
 pieds = [arm.pose.bones.get('mixamorig:' + c + 'Foot') for c in ('Left', 'Right')]
 depart = debut
-if all(m and h for m, h in paires) and all(pieds):
+if not debut_force and all(m and h for m, h in paires) and all(pieds):
     vus = []
     for f in range(debut, fin):
         scene.frame_set(f)

@@ -22,6 +22,8 @@ import { CONFIG } from './config.js'
 
 /** Profils, du plus grand au plus petit (Go de VRAM visés). */
 export const PROFILS = [24, 16, 12, 8]
+/** Côté long maximal d'une vidéo Wan au profil 8 Go (480p). */
+const WAN_COTE_8GO = 832
 
 /* Les variantes viennent du manifeste de l'assistant d'installation : une seule liste
    pour ce qu'on télécharge et ce qu'on emploie. Sur l'original, `tient` = le plus petit
@@ -116,6 +118,19 @@ export async function alleger(graphe) {
     if (v.chargeur === n.class_type) n.inputs[ENTREE[n.class_type]] = v.fichier
     else if (v.chargeur === 'UnetLoaderGGUF') { n.class_type = v.chargeur; n.inputs = { unet_name: v.fichier } }
     else if (v.chargeur === 'CLIPLoaderGGUF') { n.class_type = v.chargeur; n.inputs = { clip_name: v.fichier, type: n.inputs.type } }
+  }
+  // Wan sur 8 Go : les poids Q4 tiennent, pas les activations en 720p ; la vidéo passe en 480p
+  // (côté long 832), même cadrage. À 12 Go, le 720p passe (banc docs/LAB.md).
+  if (profil <= 8 && remplaces.some(([, f]) => /^Wan2\.2-.*\.gguf$/.test(f))) {
+    for (const n of Object.values(out)) {
+      if (!/^Wan.*ToVideo$/.test(n?.class_type ?? '')) continue
+      const { width: w, height: h } = n.inputs ?? {}
+      if (typeof w !== 'number' || typeof h !== 'number') continue
+      const k = WAN_COTE_8GO / Math.max(w, h)
+      if (k >= 1) continue
+      n.inputs.width = Math.round(w * k / 16) * 16; n.inputs.height = Math.round(h * k / 16) * 16
+      remplaces.push([`${w}x${h}`, `${n.inputs.width}x${n.inputs.height}`])
+    }
   }
   return { graphe: out, remplaces }
 }

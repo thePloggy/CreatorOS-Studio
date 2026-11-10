@@ -4,6 +4,8 @@
    ============================================================ */
 import { PrisesViewer } from '../v2/Prises'
 import { resumeControle } from '../lib/controle'
+import { useNomPersonnage } from '../lib/personaNoms'
+import { useRenduTable, ouvrirDansTable } from '../v2/TableMontage'
 import { useEffect, useRef, useState } from 'react'
 import type { LoraLigne } from '../v2/Viewer'
 import { createPortal } from 'react-dom'
@@ -40,6 +42,8 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
   const navList = useRef(list.map(a => a.id))
   const idx = navList.current.indexOf(asset.id)
   const fresh = s.assets.find(a => a.id === asset.id) ?? asset
+  const nomPerso = useNomPersonnage(fresh.personaId)
+  const renduTable = useRenduTable(fresh)
   // les autres prises du même lot (× N rendus) : on les compare côte à côte
   const lots = [...(fresh.batchId ? [fresh.batchId] : []), ...(fresh.batchIds ?? [])]
   const memeLot = lots.length ? s.assets.filter(a => a.mediaType === 'video' && (lots.includes(a.batchId ?? '') || (a.batchIds ?? []).some(b => lots.includes(b)))) : []
@@ -124,6 +128,9 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           <Ic n="x" s={20} />{t('Refuser')}
         </button>
         </>}
+        {renduTable && <button className="act" onClick={() => { ouvrirDansTable(renduTable); onClose(); s.allerCinema() }}>
+          <Ic n="film" s={20} />{t('Movie Studio')}
+        </button>}
         <button className="act" onClick={() => void act('clone', () => { s.cloneFrom(fresh); onClose() })}>
           <Ic n="clone" s={20} />{t('Cloner')}
         </button>
@@ -225,6 +232,7 @@ export function MViewer({ asset, list, onGo, onClose, folders, onFoldersChanged,
           <Info k={t('Seed')} copy v={p?.seed?.value != null
             ? `${p.seed.value} · ${(p.selections as { seed?: { mode?: string } } | undefined)?.seed?.mode === 'lock' ? t('fixe') : t('aléatoire')}`
             : t('aléatoire')} />
+          <Info k={t('Personnage')} v={nomPerso === undefined ? '…' : nomPerso ?? t('aucun')} />
           <Info k={t('Recette')} v={p?.recipeId || '—'} />
           {/* La pile de LoRA telle qu'elle a tourné, lue dans le graphe : la
               recette n'en montre aucune, et `extra_loras` oublie l'identité. */}

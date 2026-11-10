@@ -10,6 +10,10 @@
 - **Demo video**: https://youtu.be/0muDKpkbcWw
 - **Run it yourself**: see [Install](#install).
 
+### Photo and video from 8 GB of VRAM
+
+Built on a 32 GB card, measured on smaller ones: photos (FLUX.2 Klein) and image to video (Wan 2.2) run on **8, 12 and 16 GB** cards with lighter weights the studio swaps in by itself. [Numbers below](#smaller-gpus).
+
 Built for the Comfy **#OpenSourceHiggsfield** challenge. Every model is open weights and runs locally: no API call, no credits, nothing leaves the machine.
 
 - **62 functions** across image, video, sound and editing, each with a *How it works* page built from real renders
@@ -145,7 +149,7 @@ Ollama (local)         prompt rewriting, captions, light vision checks
 
 ## Requirements
 
-- An NVIDIA GPU. The production machine uses a 32 GB card and the full-size recipes are sized for it; on 12 and 16 GB cards the photo recipes run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
+- An NVIDIA GPU with **8 GB of VRAM or more**. The production machine uses a 32 GB card and the full-size recipes are sized for it; on 8, 12 and 16 GB cards photos and image to video run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
 - Node.js 22.5 or newer (the server uses the built-in `node:sqlite`) and ffmpeg.
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI), recent enough to ship the Wan Animate 2, LTX-2.5 and SAM3 core nodes, plus these custom node packs:
   ComfyUI-KJNodes, ComfyUI-VideoHelperSuite, ComfyUI-GGUF, ComfyUI-CrossViewWarp (re-shoot), ComfyUI-WanVideoWrapper + ComfyUI-segment-anything-2 + comfyui_controlnet_aux + comfyui_segment_anything (Mix), ComfyUI-Frame-Interpolation (RIFE, for video refine and smoothing), RES4LYF, ComfyUI-Impact-Pack + Impact-Subpack (only for photo HD).
@@ -219,11 +223,22 @@ The model list lives in `scripts/installer/modeles.json` (target folder, URL, si
 
 ### Smaller GPUs
 
-The recipes stay the same on a smaller card; only the weights change. Below 24 GB, the studio swaps each heavy model loader for a lighter version of the same model just before the graph goes to ComfyUI: FLUX.2 Klein 4B instead of 9B, with its 4B text encoder. Video is not there yet: Wan 2.2 A14B as GGUF Q4 ran out of memory on the same 12 GB test at the recipe's resolution, so it is not listed. A variant is used only when its file is installed; otherwise the original runs and ComfyUI offloads it, more slowly. Krea 2 (13 GB) has no smaller version, so under 14 GB the default photo engine becomes FLUX.2 Klein. Character LoRAs trained on Klein 9B do not apply to the 4B, so on a 12 GB card a character keeps her look only through the prompt.
+The recipes stay the same on a smaller card; only the weights change. Below 24 GB, the studio swaps each heavy model loader for a lighter version of the same model just before the graph goes to ComfyUI: FLUX.2 Klein 4B instead of 9B with its 4B text encoder, and Wan 2.2 A14B as GGUF Q4 instead of fp8. On an 8 GB card it also renders Wan video at 480p (long side 832, same framing): the Q4 weights fit, the 720p activations do not. A variant is used only when its file is installed; otherwise the original runs and ComfyUI offloads it, more slowly.
 
-The profile (24, 16, 12 or 8 GB) comes from the card ComfyUI reports, or from `CREATOROS_VRAM`. The setup wizard reads the same profile and downloads only the light files your card needs (`npm run setup -- --vram 12` to size it for another card, `--keep-full` to also keep the originals). The machine panel shows the profile and which light weights are installed. The variants live in `scripts/installer/modeles.json` (`leger` entries), one list for the wizard and the server.
+Measured on the 32 GB card held to the size of each smaller card (PyTorch may not allocate more, ComfyUI offloads as it would on the real card), same prompt and seed, 4 s clips:
 
-Only variants that passed the lab are listed. [docs/LAB.md](docs/LAB.md) gives the real render time and peak VRAM of each recipe, full-size on a 32 GB card and light on a ComfyUI limited to about 12 GB.
+| Card | Photo · FLUX.2 Klein | Image to video · Wan 2.2 |
+|---|---|---|
+| 32 GB (full weights) | 9B: 6.7 s, peak 17.9 GB | fp8, 720p: 225 s, peak 25.3 GB |
+| 16 GB | 9B: 7.0 s, peak 15.5 GB | Q4, 720p: 280 s, peak 14.7 GB |
+| 12 GB | 4B: 7.1 s, peak 9.3 GB | Q4, 720p: 281 s, peak 11.1 GB |
+| 8 GB | 4B: 7.8 s, peak 7.8 GB | Q4, 480p: 92 s, peak 6.9 GB |
+
+On 12 and 16 GB the video frames are identical to each other: same seed, same weights, only slower than the full card. What does not fit a small card yet: Krea 2 (13 GB, so under 14 GB the default photo engine becomes FLUX.2 Klein), LTX-2.5 video with sound, Wan Animate, dance and motion control. Character LoRAs trained on Klein 9B do not apply to the 4B, so on a card under 16 GB a character keeps her look only through the prompt.
+
+The profile (24, 16, 12 or 8 GB) comes from the card ComfyUI reports, or from `CREATOROS_VRAM`. The setup wizard reads the same profile and downloads only the light files your card needs (`npm run setup -- --vram 8` to size it for another card, `--keep-full` to also keep the originals). The machine panel shows the profile and which light weights are installed. The variants live in `scripts/installer/modeles.json` (`leger` entries), one list for the wizard and the server.
+
+Only variants that passed the lab are listed. [docs/LAB.md](docs/LAB.md) gives every row with a thumbnail of the result, and how to replay it (`scripts/bancs/`).
 
 ### Configuration
 
@@ -323,7 +338,7 @@ The live demo logged about 600 daily visits and 300 visitor renders over its fir
 What people asked for, and what changed because of it:
 
 - **"Can you swap your own workflows in?"** → Settings → Recipes & texts now has an *Import an API workflow* button (see Architecture).
-- **"What about 8 GB of VRAM?"** (the most upvoted question) → lighter presets for smaller cards are the next step; until then the README says plainly that the recipes are sized for 32 GB.
+- **"What about 8 GB of VRAM?"** (the most upvoted question) → done for photos and image to video: measured on 8, 12 and 16 GB, see [Smaller GPUs](#smaller-gpus). LTX video with sound, Wan Animate and dance still need a large card.
 - **"Does it run on several GPUs?"** → one studio per GPU works today (each with its own port, data folder and ComfyUI); a single queue feeding several cards is planned.
 - **"The provenance tracking alone is a killer feature"** → every render keeps its recipe, seed, LoRAs and final prompt, and now also its automatic clip check.
 

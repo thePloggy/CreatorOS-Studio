@@ -224,13 +224,19 @@ interface AppState {
    *  section) — sans ça les réglages atterrissaient dans une console
    *  invisible. Le nonce force la prise en compte même si la cible ne
    *  change pas. Consommée par le shell (V2App). */
-  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config' | 'nouveau-personnage' | 'outil' | 'son'; nonce: number } | null
+  navRequest: { section: 'image' | 'video' | 'presets' | 'parole' | 'reshoot' | 'config' | 'nouveau-personnage' | 'outil' | 'son' | 'cinema'; nonce: number } | null
   /** « Utiliser dans… » : le média que la section cible reprend à son ouverture,
    *  puis efface. Les sections gardent leur source en état local ; ce champ est le seul pont. */
   passerelle: { cible: 'presets' | 'parole' | 'reshoot'; assetId: string } | null
   utiliserDans: (cible: 'presets' | 'parole' | 'reshoot', asset: Asset) => void
+  /** ouvre Movie Studio (la table de montage a déjà été remplie) */
+  allerCinema: () => void
   /** Images de référence de la prochaine photo (FLUX.2 Klein), 6 au plus. */
   references: { file: string; uri: string }[]
+  /** ce qu'un clic vient d'apporter (Animer, Retoucher, choix d'une frame…) : quand, et quels emplacements */
+  chargementImage: { t: number; champs: string[] }
+  /** à l'arrivée sur Image / Vidéo sans image apportée par un clic : emplacements vides */
+  viderImagesSiArriveeLibre: () => void
   ajouterReference: (asset: Asset) => Promise<void>
   /** une photo de l'ordinateur en référence (sur la démo : contrôlée, sans personne) */
   deposerReference: (f: File) => Promise<void>
@@ -309,6 +315,8 @@ interface AppState {
   pickEndFrame: (assetId: string) => Promise<void>
   /** Dépôt d'une image de départ venue du disque (hors bibliothèque). */
   uploadStartFrame: (file: File) => Promise<void>
+  /** Inspirations : la photo de départ livrée avec le studio, posée par le serveur comme un rendu. */
+  poserDepartInspiration: (id: string) => Promise<void>
   /** Dépôt de la vidéo driver du Motion Control. */
   uploadMotionDriver: (file: File) => Promise<void>
   /** Dépôt de la still du Motion Control (réf directe). */
@@ -358,6 +366,17 @@ const defaultPhoto: PhotoSelections = {
   editUploadError: '',
 }
 
+/** Un clic vient d'apporter une image dans tel emplacement : il est gardé à l'arrivée sur Image / Vidéo (4 s). */
+function marquerChargement(set: (p: { chargementImage: { t: number; champs: string[] } }) => void, get: () => { chargementImage: { t: number; champs: string[] } }, champ: string) {
+  const c = get().chargementImage, t = Date.now()
+  set({ chargementImage: { t, champs: t - c.t < 4000 ? [...c.champs, champ] : [champ] } })
+}
+/** Les navigateurs gardent l'ancien défaut caché du mouvement : on l'efface au rechargement. */
+const ANCIEN_MOUVEMENT = 'gentle breathing, hair moving slightly, a soft smile toward the camera'
+function sansAncienDefaut<T extends { motionText: string; cameraText: string }>(v: T): T {
+  if (v.motionText !== ANCIEN_MOUVEMENT) return v
+  return { ...v, motionText: '', cameraText: v.cameraText === 'slow push-in' ? '' : v.cameraText }
+}
 const defaultVideo: VideoSelections = {
   task: 'i2v',
   // Wan par défaut : muet, mais c'est lui qui rend l'image la plus propre,
@@ -375,8 +394,10 @@ const defaultVideo: VideoSelections = {
   motionSceneText: '', motionPoseStrength: 1, mixDebut: 0, mixPersonnes: [], motionRefStrength: 1, motionMode: 'animate',
   multiShot: false, draft: false, videoLoras: [],
   motionOutFps: 'origine', motionOutRes: 'origine',
-  motionText: 'gentle breathing, hair moving slightly, a soft smile toward the camera',
-  cameraText: 'slow push-in',
+  /* Vides : ces deux champs n'ont pas d'écran ; un défaut « portrait » (respiration, sourire face caméra, push-in)
+     partait en prompt dès qu'on ne tapait rien, et retournait une super-héroïne vue de dos (446-yglt). */
+  motionText: '',
+  cameraText: '',
   motionStrength: 0.3,
   durationS: 5, fps: 24, aspect: 'origine',
 }
@@ -395,6 +416,8 @@ const defaultSon: SonSelections = {
 let jobCounter = 442
 /** Moteurs à keyframes (MiniMaxH3ImageToVideo : first_frame / last_frame). */
 const H3: string[] = ['minimax']
+/** Moteurs qui savent arriver sur une frame de fin : H3 (last_frame), Wan (FirstLastFrame), LTX (guide en dernière image). */
+const FIN_OK: string[] = [...H3, 'wan', 'ltx', 'ltx_hq']
 /** Une LoRA vidéo nommée « …wan… » (paire haut / bas bruit) : identité portée par Wan. */
 const estLoraWan = (l: unknown[] | undefined) => (l ?? []).some(x => /wan/i.test(String((x as { name?: string })?.name ?? '')))
 /** Un envoi de lot est en cours (les POST partent un par un). */
@@ -599,13 +622,38 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
        callbacks (goVideo/goImage) et ignore le champ — l'ajouter ne change
        rien pour lui ; le mobile, lui, n'a que ce canal. */
     references: [],
+    chargementImage: { t: 0, champs: [] },
+    viderImagesSiArriveeLibre: () => {
+      /* On arrive sur Image ou Vidéo : seuls les emplacements qu'un clic vient de remplir (moins de 4 s : Animer → le
+         départ, « Frame fin » → la fin, Retoucher → la source…) gardent leur image ; tout le reste est vidé. Un visiteur
+         héritait d'une frame de fin d'un réglage ancien, invisible le temps que sa vignette charge (446-yglt). */
+      const c = get().chargementImage
+      const garde = new Set(Date.now() - c.t < 4000 ? c.champs : [])
+      if (garde.has('tout')) return
+      set(st => ({
+        ...(garde.has('refs') ? {} : { references: [] }),
+        photo: { ...st.photo,
+          ...(garde.has('edit') ? {} : { editSourceUri: '', editSourceName: '', editSourceFile: '', editSourceAssetId: null, editUploadState: 'idle' as const, editUploadError: '' }),
+          ...(garde.has('cn') ? {} : { cnRefUri: '', cnRefName: '', cnRefFile: '', cnUploadState: 'idle' as const, cnUploadError: '', cnRefW: 0, cnRefH: 0 }) },
+        video: { ...st.video,
+          ...(garde.has('start') ? {} : { startAssetId: null, startFrameFile: '', startFrameUri: '', startFrameError: '', startFrameW: 0, startFrameH: 0 }),
+          ...(garde.has('end') ? {} : { endAssetId: null, endFrameFile: '', endFrameError: '' }),
+          middleAssetId: null,
+          ...(garde.has('extend') ? {} : { extendVideoFile: '', extendAssetId: null, extendVideoUri: '', extendError: '', extendWarn: '', extendEndFile: '' }),
+          ...(garde.has('still') ? {} : { motionStillFile: '', motionStillUri: '', motionStillError: '', motionStillAssetId: null }),
+          ...(garde.has('driver') ? {} : { motionDriverFile: '', motionDriverError: '', motionDriverSeconds: 0, motionDriverFrames: 0, motionRefUri: '', motionRefName: '' }) },
+      }))
+    },
+
     ajouterReference: async asset => {
+      marquerChargement(set, get, 'refs')
       if (get().references.length >= 6) return
       const r = await fetch(`/api/assets/${encodeURIComponent(asset.id)}/to-input`, { method: 'POST' })
       const d = await r.json().catch(() => ({})) as { filename?: string }
       if (d.filename && !get().references.some(x => x.file === d.filename)) set({ references: [...get().references, { file: d.filename, uri: asset.uri ?? '' }], mode: 'photo' })
     },
     deposerReference: async f => {
+      marquerChargement(set, get, 'refs')
       if (get().references.length >= 6) return
       const r = await fetch(`/api/upload?name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f })
       const d = await r.json().catch(() => ({})) as { filename?: string; error?: string }
@@ -615,6 +663,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     retirerReference: file => set({ references: get().references.filter(x => x.file !== file) }),
     utiliserDans: (cible, asset) =>
       set(st => ({ passerelle: { cible, assetId: asset.id }, navRequest: { section: cible, nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
+    allerCinema: () => set(st => ({ navRequest: { section: 'cinema', nonce: (st.navRequest?.nonce ?? 0) + 1 } })),
     prendrePasserelle: cible => {
       const p = get().passerelle
       if (p?.cible !== cible) return null
@@ -623,9 +672,12 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     animateFrom: async asset => {
+      marquerChargement(set, get, 'start')
       if (asset.mediaType !== 'photo') return
       get().setMode('video')
-      get().updateVideo({ task: 'i2v' })
+      /* « Animer » part d'un plan vierge : une frame de fin (ou du milieu) laissée par un réglage précédent forçait
+         le moteur à finir sur une autre image — la super-héroïne de 446-yglt finissait en legging dans un studio. */
+      get().updateVideo({ task: 'i2v', endAssetId: null, endFrameFile: '', endFrameError: '', middleAssetId: null })
       set(st => ({ navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
       await get().pickStartFrame(asset.id)
     },
@@ -650,6 +702,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     retouchFrom: async asset => {
+      marquerChargement(set, get, 'edit')
       if (asset.mediaType !== 'photo') return
       get().setMode('photo')
       get().updatePhoto({ task: 'edit' })
@@ -658,6 +711,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     extendFrom: async asset => {
+      marquerChargement(set, get, 'extend')
       if (asset.mediaType !== 'video') return
       set(st => ({ navRequest: { section: 'video', nonce: (st.navRequest?.nonce ?? 0) + 1 } }))
       get().setMode('video')
@@ -843,6 +897,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
      *  Repli : les assets d'avant l'élargissement de `provenance` n'ont pas de
      *  `userPrompt` — on retombe sur le prompt composé pour ne rien casser. */
     cloneFrom: asset => {
+      marquerChargement(set, get, 'tout')   // un clone rejoue tout son réglage
       const p = asset.provenance
       const isVideo = asset.mediaType === 'video'
       set(s => ({
@@ -870,21 +925,35 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
         void (async () => {
           let sel = p.selections as Partial<VideoSelections> | undefined
           let source = (p as { sourceImage?: string }).sourceImage
+          type Reel = { videoEngine?: string | null; endImage?: string | null; videoSeconds?: number | null; withAudio?: boolean | null }
+          let reel: Reel = {}
           /* La provenance INLINE des vignettes n'a PAS les selections (trop
              lourdes pour la liste) : sans ce fetch, `task` ne serait jamais
              restaurée et un clone d'un rendu « Créer » laisserait la sidebar
              sur l'onglet Rejouer en cours. */
-          if (!sel || !sel.task) {
-            try {
-              const full = await (await fetch(`/api/assets/${encodeURIComponent(asset.id)}/provenance`)).json()
-              sel = (full.selections as Partial<VideoSelections> | null) ?? sel
-              source = full.sourceImage ?? source
-            } catch { /* injoignable : on garde l'inline */ }
-          }
+          /* Toujours la provenance complète : elle porte aussi ce que le job a reçu (moteur,
+             frame de fin, durée), seul repère pour un rendu lancé sans selections. */
+          try {
+            const full = await (await fetch(`/api/assets/${encodeURIComponent(asset.id)}/provenance`)).json()
+            sel = (full.selections as Partial<VideoSelections> | null) ?? sel
+            source = full.sourceImage ?? source
+            reel = full as Reel
+          } catch { /* injoignable : on garde l'inline */ }
           // Onglet + réglages du job cloné (le premier set n'avait que
           // l'inline, souvent vide). Le mode courant ne doit pas survivre.
           if (sel && Object.keys(sel).length)
             get().updateVideo(sel as Partial<VideoSelections>)
+          /* Moteur, durée et frame de fin du job cloné : sans eux, la console gardait le moteur
+             et la frame de fin du réglage précédent. */
+          const moteur = (reel.videoEngine ?? asset.videoEngine) as string | undefined
+          const patch: Partial<VideoSelections> = {}
+          if (moteur && moteur !== 'motion' && !sel?.engine) patch.engine = moteur as VideoSelections['engine']
+          if (!sel?.durationS && reel.videoSeconds) patch.durationS = reel.videoSeconds
+          if (typeof reel.withAudio === 'boolean' && sel?.withAudio === undefined) patch.withAudio = reel.withAudio
+          const finSel = sel?.endAssetId && get().assets.some(a => a.id === sel!.endAssetId) ? sel.endAssetId : null
+          if (finSel) void get().pickEndFrame(finSel)
+          else Object.assign(patch, { endAssetId: null, endFrameFile: reel.endImage ?? sel?.endFrameFile ?? '', endFrameError: '' })
+          get().updateVideo(patch)
           const startId = sel?.startAssetId
           if (startId && get().assets.some(a => a.id === startId)) { void get().pickStartFrame(startId); return }
           const file = sel?.startFrameFile || source
@@ -1069,6 +1138,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     uploadEditSource: async (file: File) => {
+      marquerChargement(set, get, 'edit')
       const { updatePhoto } = get()
       updatePhoto({ editUploadState: 'uploading', editUploadError: '', editSourceFile: '',
                     editSourceAssetId: null, editSourceName: file.name })
@@ -1088,6 +1158,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     pickEditSource: async (assetId: string) => {
+      marquerChargement(set, get, 'edit')
       const { updatePhoto } = get()
       updatePhoto({ editSourceAssetId: assetId, editSourceFile: '', editUploadError: '',
                     editUploadState: 'uploading' })
@@ -1105,6 +1176,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     pickEndFrame: async (assetId: string) => {
+      marquerChargement(set, get, 'end')
       const { updateVideo } = get()
       updateVideo({ endAssetId: assetId, endFrameFile: '', endFrameError: '' })
       try {
@@ -1118,6 +1190,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     pickStartFrame: async (assetId: string) => {
+      marquerChargement(set, get, 'start')
       const { updateVideo } = get()
       // startFrameUri vidé : sinon l'aperçu direct (clone/upload) resterait
       // peint par-dessus la nouvelle sélection (priorité d'affichage).
@@ -1180,9 +1253,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
        en DERNIÈRE FRAME côté serveur, et cette frame devient la start-frame
        i2v ordinaire (startFrameFile) — toute la chaîne existante suit. */
     uploadExtendVideo: async (file: File) => {
+      marquerChargement(set, get, 'extend')
       const { updateVideo } = get()
       updateVideo({ extendError: '', extendWarn: '', extendVideoFile: '', extendAssetId: null,
-                    startFrameFile: '', extendVideoUri: URL.createObjectURL(file) })
+                    startFrameFile: '', extendVideoUri: URL.createObjectURL(file), endAssetId: null, endFrameFile: '', endFrameError: '' })
       try {
         const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`, {
           method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file,
@@ -1196,9 +1270,12 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       }
     },
     pickExtendClip: async (assetId: string) => {
+      marquerChargement(set, get, 'extend')
       const a = get().assets.find(x => x.id === assetId)
+      /* Nouvelle suite : l'image de fin d'un réglage précédent (clone d'un autre plan) n'a rien à voir
+         avec ce clip — gardée, elle forçait LTX à finir sur une still western au milieu d'un vol de dragon. */
       get().updateVideo({ extendError: '', extendWarn: '', extendAssetId: assetId, extendVideoFile: '',
-                          startFrameFile: '', extendVideoUri: a?.uri ?? '' })
+                          startFrameFile: '', extendVideoUri: a?.uri ?? '', endAssetId: null, endFrameFile: '', endFrameError: '' })
       await get().extractExtendFrame()
     },
     setExtendPrequel: async on => {
@@ -1239,6 +1316,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     uploadMotionDriver: async (file: File) => {
+      marquerChargement(set, get, 'driver')
       const { updateVideo } = get()
       updateVideo({ motionDriverFile: '', motionDriverError: '',
                     motionRefUri: URL.createObjectURL(file), motionRefName: file.name })
@@ -1257,6 +1335,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     pickMotionStill: async (assetId: string) => {
+      marquerChargement(set, get, 'still')
       const { updateVideo } = get()
       // Aperçu immédiat via l'URI de l'asset : seul le chemin upload posait
       // motionStillUri — depuis une vignette, le slot restait vide.
@@ -1273,6 +1352,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     uploadMotionStill: async (file: File) => {
+      marquerChargement(set, get, 'still')
       const { updateVideo } = get()
       updateVideo({ motionStillFile: '', motionStillError: '', motionStillAssetId: null, motionStillUri: URL.createObjectURL(file) })
       try {
@@ -1289,7 +1369,22 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
       }
     },
 
+    poserDepartInspiration: async (id: string) => {
+      marquerChargement(set, get, 'start')
+      const { updateVideo } = get()
+      updateVideo({ startFrameFile: '', startAssetId: null, startFrameError: '', startFrameUri: '' })
+      try {
+        const res = await fetch(`/api/inspirations/${encodeURIComponent(id)}/depart`, { method: 'POST' })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(tServeur(body.error) ?? `HTTP ${res.status}`)
+        updateVideo({ startFrameFile: body.filename, startFrameUri: `/inspirations/${id}-depart.jpg`,
+                      startFrameW: body.width ?? 0, startFrameH: body.height ?? 0 })
+      } catch (e) {
+        updateVideo({ startFrameError: String((e as Error).message || e) })
+      }
+    },
     uploadStartFrame: async (file: File) => {
+      marquerChargement(set, get, 'start')
       const { updateVideo } = get()
       updateVideo({ startFrameFile: '', startAssetId: null, startFrameError: '' })
       try {
@@ -1322,6 +1417,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     },
 
     uploadCnRef: async (file: File) => {
+      marquerChargement(set, get, 'cn')
       const { updatePhoto } = get()
       updatePhoto({ cnUploadState: 'uploading', cnUploadError: '', cnRefFile: '' })
       try {
@@ -1517,7 +1613,10 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
 
         userDirectives: s.userDirectives,
         composedPositive: positive,
-        composedNegative: s.composedNegative,
+        /* Le négatif suit la même garde que le positif : celui d'un composé périmé (clone d'un autre
+           plan) partait en silence — « second horse » d'un western sur une suite de dragon (443-4sq1).
+           Vide, le serveur prend le négatif du workflow. */
+        composedNegative: fresh ? s.composedNegative : '',
         conditioningRefs: buildConditioningRefs(s.mode, selections),
         loras: s.loraPicks.filter(l => !l.off),
         // ControlNet : uniquement en Génération, et seulement si le dépôt a
@@ -1570,9 +1669,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           withAudio: audioEffective(s.video.engine, s.video.withAudio),
           sourceImage: s.video.startFrameFile || undefined,
           /* Keyframe d'arrivée : le serveur lit le fichier, pas l'id d'asset.
-             Seuls les moteurs MiniMax H3 ont une entrée last_frame. */
+             H3, Wan et LTX savent y arriver (FIN_OK). */
           endImage: prequel ? s.video.extendEndFile || undefined
-            : H3.includes(s.video.engine) ? get().video.endFrameFile || undefined : undefined,
+            : FIN_OK.includes(s.video.engine) ? get().video.endFrameFile || undefined : undefined,
           ...(prequel ? { prequel: true } : {}),
           /* Multi-plans : aucun paramètre de nœud n'existe, c'est le PROMPT
              qui pilote. Coché, on annonce la séquence ; décoché, on impose
@@ -1588,8 +1687,9 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
           videoSeconds: Math.min(s.video.durationS, engineInfo(s.video.engine).maxSeconds),
           videoFps: s.video.fps,
           videoDraft: s.video.draft && Boolean(engineInfo(s.video.engine).draft),
-          // Extension vidéo : livrer aussi le plan complet (source + continuation).
-          ...(s.video.task === 'extend' && s.video.extendConcat
+          /* Suite ou prequel : toujours le montage (origine + suite) ; le serveur met ensuite la suite
+             seule à la corbeille. */
+          ...(s.video.task === 'extend'
             ? (s.video.extendVideoFile
               ? { concatWith: s.video.extendVideoFile, concatFrom: 'input' as const }
               : s.video.extendAssetId
@@ -1719,7 +1819,7 @@ export const useAppStore = create<AppState>()(persist((set, get) => {
     return {
       ...current, ...p,
       photo: { ...current.photo, ...(p.photo ?? {}) },
-      video: { ...current.video, ...(p.video ?? {}) },
+      video: sansAncienDefaut({ ...current.video, ...(p.video ?? {}) }),
       son: { ...current.son, ...(p.son ?? {}) },
     }
   },

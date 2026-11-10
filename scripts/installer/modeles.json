@@ -382,7 +382,8 @@
     "PROD_video_wan.json",
     "PROD_video_wan_ctx.json"
    ],
-   "verifie": true
+   "verifie": true,
+   "tient": 24
   },
   {
    "chemin": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
@@ -397,7 +398,8 @@
     "PROD_video_wan.json",
     "PROD_video_wan_ctx.json"
    ],
-   "verifie": true
+   "verifie": true,
+   "tient": 24
   },
   {
    "chemin": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
@@ -1506,6 +1508,38 @@
     "recadrage"
    ],
    "recettes": [],
+   "verifie": true
+  },
+  {
+   "chemin": "Wan2.2-I2V-A14B-HighNoise-Q4_K_S.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/QuantStack/Wan2.2-I2V-A14B-GGUF/resolve/main/HighNoise/Wan2.2-I2V-A14B-HighNoise-Q4_K_S.gguf",
+   "taille": 8748151296,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan"
+   ],
+   "leger": {
+    "remplace": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+    "pour": 8,
+    "chargeur": "UnetLoaderGGUF"
+   },
+   "verifie": true
+  },
+  {
+   "chemin": "Wan2.2-I2V-A14B-LowNoise-Q4_K_S.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/QuantStack/Wan2.2-I2V-A14B-GGUF/resolve/main/LowNoise/Wan2.2-I2V-A14B-LowNoise-Q4_K_S.gguf",
+   "taille": 8748151296,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "video_wan"
+   ],
+   "leger": {
+    "remplace": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+    "pour": 8,
+    "chargeur": "UnetLoaderGGUF"
+   },
    "verifie": true
   }
  ],

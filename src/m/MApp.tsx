@@ -73,7 +73,9 @@ export default function MApp() {
      espace — c'est l'onglet Image/Vidéo du formulaire qui les distingue. */
   const navNonce = s.navRequest?.nonce ?? 0
   useEffect(() => {
-    if (navNonce) setSpace('create')
+    if (!navNonce) return
+    if (useAppStore.getState().navRequest?.section === 'cinema') { vueStudioDemandee.v = 'cinema'; setSpace('studio'); return }
+    setSpace('create')
   }, [navNonce])
 
   const active = s.jobs.filter(j => STATUTS_ACTIFS.includes(j.status)).length
@@ -126,7 +128,7 @@ export default function MApp() {
 
       {space === 'library' && <MLibrary goCreate={() => setSpace('create')} goJobs={() => setSpace('jobs')} />}
       {space === 'create' && <MCreate goJobs={() => setSpace('jobs')} goMontage={() => { vueStudioDemandee.v = 'montage'; setSpace('studio') }} />}
-      {space === 'studio' && <MStudio goVideo={() => { s.setMode('video'); setSpace('create') }} />}
+      {space === 'studio' && <MStudio key={s.navRequest?.section === 'cinema' ? navNonce : 0} goVideo={() => { s.setMode('video'); setSpace('create') }} />}
       {space === 'jobs' && <MJobs goLibrary={() => setSpace('library')} />}
       {space === 'atelier' && <MAtelier onBack={() => setSpace('library')} />}
       {parcours && <Parcours onClose={() => setParcours(false)} aller={x => {

@@ -133,9 +133,9 @@ export function PastilleRendu() {
           <span style={{ width: 46, height: 5, borderRadius: 9, background: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
             <i style={{ display: 'block', height: '100%', width: `${Math.max(4, pct)}%`, background: 'linear-gradient(90deg, #f6a961, #ea4e89)' }} />
           </span>
-          <span>{bloque ? t('semble bloqué') : j.status === 'post-process' ? t('finition') : t(j.phase ?? 'rendu')}</span>
+          <span className="pastille-phase">{bloque ? t('semble bloqué') : j.status === 'post-process' ? t('finition') : t(j.phase ?? 'rendu')}</span>
           {j.progress?.max ? <span style={{ opacity: .6 }}>{j.progress.value}/{j.progress.max}</span> : null}
-          <span style={{ opacity: .6 }}>{fmt(ecoule)}{reste != null ? ` · ${t('reste ~{t}', { t: fmt(reste) })}` : ''}</span>
+          <span className="pastille-temps" style={{ opacity: .6 }}>{fmt(ecoule)}{reste != null ? ` · ${t('reste ~{t}', { t: fmt(reste) })}` : ''}</span>
         </>) : <span style={{ opacity: .7 }}>{t('en attente')}</span>}
         {attente ? <span style={{ padding: '1px 7px', borderRadius: 9, background: 'var(--lv3)', fontSize: 11 }}>+{attente}</span> : null}
       </button>

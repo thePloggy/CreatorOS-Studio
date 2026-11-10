@@ -773,6 +773,8 @@
 
 /* barre du haut : l'état de la carte et le compteur de rendus cèdent la place aux menus sur un écran étroit */
 @media (max-width: 2200px) { .masquer-etroit { display: none !important; } }
+/* bandeau : sous 1800 px, la pastille de rendu perd ses durées (dans le menu au clic) et tronque sa phase, pour laisser la place aux jauges */
+@media (max-width: 1799px) { .pastille-temps { display: none; } .pastille-phase { max-width: 130px; overflow: hidden; text-overflow: ellipsis; } }
 @media (max-width: 1400px) { .masquer-tres-etroit { display: none !important; } header nav button { padding-left: 6px !important; padding-right: 6px !important; } }
 
 /* grand menu d'une famille d'outils : colonnes de sous-menus, vignette par outil, modèles à droite */
@@ -1094,7 +1096,7 @@
 .v2 .dz-carte:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .v2 .dz-carte::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); pointer-events: none; z-index: 3; }
 .v2 .dz-carte.choisie::after { box-shadow: inset 0 0 0 3px var(--accent); }
-.v2 .dz-carte canvas, .v2 .dz-carte .dz-anime { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.v2 .dz-carte canvas, .v2 .dz-carte .dz-anime, .v2 .dz-carte .dz-boucle { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .v2 .dz-fixe { opacity: 0; transition: opacity .3s ease; }
 .v2 .dz-fixe.prete { opacity: 1; }
 .v2 .dz-anime { opacity: 0; transition: opacity .2s ease; z-index: 1; }
@@ -1808,3 +1810,115 @@
 .v2 .dz-action .cta:not(:disabled)::after, .v2 .outil-action > .cta:not(:disabled)::after { content: ''; position: absolute; inset: 30% 8% -6px; z-index: -1; border-radius: inherit;
   background: var(--grad); filter: blur(18px); opacity: .45; transition: opacity .25s ease-out; pointer-events: none; }
 .v2 .dz-action .cta:not(:disabled):hover::after, .v2 .outil-action > .cta:not(:disabled):hover::after { opacity: .7; }
+
+/* ---------- Table de montage (Movie Studio) ---------- */
+.v2 .table-montage { padding: 16px 18px; }
+.v2 .tm-frise-cadre { overflow-x: auto; margin-top: 14px; padding: 4px 2px 6px; }
+.v2 .tm-frise { position: relative; height: 128px; min-width: 560px; margin: 0 58px; border-radius: 10px;
+  background: linear-gradient(var(--lv3), var(--lv3)) 0 92px / 100% 2px no-repeat; touch-action: pan-x; }
+.v2 .tm-grad { position: absolute; top: 86px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.v2 .tm-grad i { width: 1px; height: 12px; background: var(--lv4); }
+.v2 .tm-grad small { font-size: 10px; color: var(--faint); margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.v2 .tm-segment { position: absolute; top: 90px; height: 6px; border-radius: 99px; background: linear-gradient(90deg, #ffab5e, #ff655b, #b44bd8); opacity: .55; }
+.v2 .tm-cle { position: absolute; top: 0; transform: translateX(-50%); width: 104px; cursor: grab; touch-action: none; user-select: none;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; transition: transform .15s ease; }
+.v2 .tm-cle:active { cursor: grabbing; }
+.v2 .tm-cle img { width: 104px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--lv4); box-shadow: 0 6px 18px #0007; transition: border-color .2s ease; }
+.v2 .tm-cle:hover img { border-color: #ff8a5e; }
+.v2 .tm-cle small { position: absolute; top: 42px; padding: 1px 6px; border-radius: 6px; background: #000b; font-size: 11px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.v2 .tm-cle::after { content: ''; position: absolute; top: 62px; width: 2px; height: 30px; background: #ff8a5e; border-radius: 2px; }
+.v2 .tm-retirer { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 99px; border: 0; cursor: pointer;
+  background: var(--lv2); color: var(--muted); display: grid; place-items: center; opacity: 0; transition: opacity .15s ease; }
+.v2 .tm-cle:hover .tm-retirer, .v2 .tm-retirer:focus-visible { opacity: 1; }
+@media (hover: none) { .v2 .tm-retirer { opacity: 1; } }
+.v2 .tm-vide { position: absolute; inset: 0 0 50px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--faint); text-align: center; }
+.v2 .tm-actions { display: grid; gap: 6px; margin-top: 12px; }
+.v2 .tm-action { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.v2 .tm-action span { font-variant-numeric: tabular-nums; }
+.v2 .tm-action input, .v2 .tm-perso textarea { width: 100%; background: var(--lv2); border: 1px solid var(--lv4); border-radius: 8px; color: var(--text);
+  padding: 7px 10px; font: inherit; font-size: 13px; transition: border-color .2s ease; }
+.v2 .tm-action input:focus, .v2 .tm-perso textarea:focus { border-color: #ff8a5e; outline: none; }
+.v2 .tm-perso { display: grid; gap: 4px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) { .v2 .tm-action { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .v2 .tm-cle, .v2 .tm-cle img, .v2 .tm-retirer { transition: none; } }
+.v2 .tm-apercu { margin-top: 12px; display: grid; gap: 6px; justify-items: center; }
+.v2 .tm-apercu video { width: 100%; max-width: 720px; border-radius: 10px; background: #000; }
+.v2 .tm-attente { width: 100%; max-width: 720px; aspect-ratio: 16 / 9; border-radius: 10px; background: var(--lv2); display: grid; place-items: center; font-size: 13px; color: var(--muted); }
+.v2 .tm-apercu-aide { font-size: 12px; color: var(--muted); text-align: center; }
+.v2 .tm-tete { position: absolute; top: 58px; width: 2px; height: 46px; background: #fff; border-radius: 2px; box-shadow: 0 0 8px #fff9; pointer-events: none; transform: translateX(-1px); }
+/* Movie Studio : deux temps bien séparés, les images clés puis le plan vidéo */
+.v2 .cine-etape-tete { display: flex; align-items: flex-start; gap: 12px; }
+.v2 .cine-num { flex: 0 0 30px; height: 30px; border-radius: 99px; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff;
+  background: linear-gradient(135deg, #ffab5e, #ff655b 55%, #b44bd8); margin-top: 2px; }
+.v2 .cine-video { max-width: 1240px; margin: 34px auto 0; padding-top: 26px; border-top: 1px solid var(--lv4); display: grid; gap: 14px; }
+.v2 .tm-segment small { position: absolute; left: 50%; bottom: 9px; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; pointer-events: none; }
+.v2 .tm-vide { flex-direction: column; gap: 6px; }
+.v2 .tm-vide small { font-size: 11px; color: var(--faint); }
+.v2 .tm-cta { padding: 11px 20px; flex-direction: row; gap: 8px; font-size: 14px; }
+.v2 .tm-ajout { padding: 7px 14px; flex-direction: row; gap: 6px; font-size: 13px; }
+.v2 .tm-son { display: inline-flex; align-items: center; gap: 6px; }
+.v2 .tm-son:not(.on) { color: var(--attention); }
+.v2 .tm-rendu { width: 100%; max-width: 720px; aspect-ratio: 16 / 9; }
+.v2 .tm-rendu > * { width: 100%; height: 100%; }
+.v2 .tm-demo { width: 100%; max-width: 720px; margin: 0; display: grid; gap: 6px; }
+.v2 .tm-demo video { width: 100%; border-radius: 10px; background: var(--lv2); aspect-ratio: 16 / 9; object-fit: cover; }
+.v2 .tm-demo figcaption { font-size: 12px; color: var(--muted); text-align: center; }
+/* Cartes de rendu : un léger dégradé noir en haut (moteur, prompt) et en bas (temps, barre) rend le texte
+   lisible quel que soit l'aperçu qui se forme derrière ; texte clair avec une ombre douce. */
+.v2 .jobcard { position: relative; overflow: hidden; }
+.v2 .jobcard::before, .v2 .jobcard::after { content: ''; position: absolute; left: 0; right: 0; pointer-events: none; z-index: 1; }
+.v2 .jobcard::before { top: 0; height: 46%; background: linear-gradient(to bottom, rgba(0, 0, 0, .62), rgba(0, 0, 0, .28) 55%, transparent); }
+.v2 .jobcard::after { bottom: 0; height: 32%; background: linear-gradient(to top, rgba(0, 0, 0, .55), transparent); }
+.v2 .jobcard .jbody { position: relative; z-index: 2; }
+.v2 .jobcard .jprompt { color: rgba(255, 255, 255, .9); text-shadow: 0 1px 3px rgba(0, 0, 0, .55); }
+.v2 .jobcard .jmeta { color: rgba(255, 255, 255, .62); text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.v2 .jobcard .eta { text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.v2 .jobcard.q .eta { color: rgba(255, 255, 255, .62); }
+.v2 .cine-alerte { margin-top: 6px; padding: 8px 11px; border-radius: 8px; font-size: 12px; line-height: 1.45; color: var(--text);
+  background: rgba(255, 182, 72, .1); border: 1px solid rgba(255, 182, 72, .35); }
+.v2 .montage-ajout { flex-direction: column; justify-content: center; align-items: center; gap: 6px; border-radius: 10px; font-size: 13px; font-weight: 600; padding: 0 10px; }
+
+/* ---------- Movie Studio : films déjà tournés (sous le hero) ---------- */
+.v2 .cine-films { max-width: 1240px; margin: 18px auto 26px; }
+.v2 .cine-films-tete { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.v2 .cine-films-tete h2 { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
+.v2 .cine-films-tete span { font-size: 12.5px; color: var(--faint); }
+.v2 .cine-films-rangee { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.v2 .cine-film { position: relative; flex: 0 0 236px; scroll-snap-align: start; }
+.v2 .cine-film-carte { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; border: 1px solid var(--line, rgba(255,255,255,.08));
+  background: #15171a; padding: 0; cursor: pointer; text-align: left; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.v2 .cine-film-carte video, .v2 .cine-film-carte img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
+.v2 .cine-film-carte::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.82) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 70%); pointer-events: none; }
+.v2 .cine-film-texte { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 1; display: grid; gap: 2px; }
+.v2 .cine-film-texte b { font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v2 .cine-film-texte small { font-size: 11.5px; color: rgba(255,255,255,.72); opacity: 0; transform: translateY(3px); transition: opacity .2s ease, transform .2s ease; }
+.v2 .cine-film-carte:hover, .v2 .cine-film-carte:focus-visible { transform: translateY(-2px); border-color: rgba(255,140,110,.55); box-shadow: 0 8px 26px rgba(0,0,0,.45); outline: none; }
+.v2 .cine-film-carte:hover video, .v2 .cine-film-carte:hover img { transform: scale(1.04); }
+.v2 .cine-film-carte:hover small, .v2 .cine-film-carte:focus-visible small { opacity: 1; transform: none; }
+.v2 .cine-film-retirer { position: absolute; top: 6px; right: 6px; z-index: 2; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(0,0,0,.6); color: #fff; border: 0; cursor: pointer; opacity: 0; transition: opacity .2s ease; }
+.v2 .cine-film:hover .cine-film-retirer, .v2 .cine-film-retirer:focus-visible { opacity: 1; }
+.v2 .tm-confirmer { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); }
+@media (hover: none) { .v2 .cine-film-texte small, .v2 .cine-film-retirer { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .v2 .cine-film { flex-basis: 200px; } }
+@media (prefers-reduced-motion: reduce) { .v2 .cine-film-carte, .v2 .cine-film-carte video, .v2 .cine-film-carte img, .v2 .cine-film-texte small { transition: none; } .v2 .cine-film-carte:hover video, .v2 .cine-film-carte:hover img { transform: none; } }
+
+/* Inspirations (Image, Vidéo) : prompts tout faits avec leur rendu, cartes en portrait */
+.v2 .insp { margin: 4px 16px 18px; }
+.v2 .insp-tete { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.v2 .insp-tete h2 { font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+.v2 .insp-tete span { font-size: 12px; color: var(--faint); }
+.v2 .insp-rangee { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.v2 .insp-carte { position: relative; flex: 0 0 auto; height: 220px; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; padding: 0; cursor: pointer; scroll-snap-align: start;
+  border: 1px solid var(--line, rgba(255,255,255,.08)); background: var(--lv2); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.v2 .insp-carte video, .v2 .insp-carte img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
+.v2 .insp-carte::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.3) 40%, rgba(0,0,0,0) 65%); pointer-events: none; }
+.v2 .insp-texte { position: absolute; left: 9px; right: 9px; bottom: 8px; z-index: 1; display: grid; gap: 2px; text-align: left; }
+.v2 .insp-texte b { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.25; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.v2 .insp-texte small { font-size: 10.5px; line-height: 1.25; color: rgba(255,255,255,.72); opacity: 0; transform: translateY(3px); transition: opacity .2s ease, transform .2s ease; }
+.v2 .insp-carte:hover, .v2 .insp-carte:focus-visible { transform: translateY(-2px); border-color: rgba(255,140,110,.55); box-shadow: 0 8px 22px rgba(0,0,0,.45); outline: none; }
+.v2 .insp-carte:hover video, .v2 .insp-carte:hover img { transform: scale(1.05); }
+.v2 .insp-carte:hover small, .v2 .insp-carte:focus-visible small { opacity: 1; transform: none; }
+@media (hover: none) { .v2 .insp-texte small { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .v2 .insp-carte, .v2 .insp-carte video, .v2 .insp-carte img, .v2 .insp-texte small { transition: none; } .v2 .insp-carte:hover video, .v2 .insp-carte:hover img, .v2 .insp-carte:hover { transform: none; } }
+.v2 .insp-texte b i { font-style: normal; font-weight: 600; font-size: 10.5px; color: rgba(255,255,255,.65); margin-left: 4px; }

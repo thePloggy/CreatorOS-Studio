@@ -3,6 +3,8 @@
    revue, ponts (Animer / frames / recréer / cloner). Navigation
    ← → sur la liste FILTRÉE (useAssetNav, fix inclus).
    ============================================================ */
+import { useNomPersonnage } from '../lib/personaNoms'
+import { useRenduTable, ouvrirDansTable } from './TableMontage'
 import { telechargerWorkflow } from '../lib/workflowComfy'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Asset } from '../types'
@@ -275,6 +277,8 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
   useEffect(() => { setPointer(false) }, [asset.id])
   const [editer, setEditer] = useState(action === 'retouche' || action === 'detour' || action === 'retirer' || action === 'fond')
   const [details, setDetails] = useState(true)
+  const renduTable = useRenduTable(asset)
+  const nomPerso = useNomPersonnage(asset.personaId)
   const [plusOuvert, setPlusOuvert] = useState(action === 'looks')
   const [finMsg, setFinMsg] = useState<{ ok: boolean; txt: string } | null>(null)
   useEffect(() => { setFinMsg(null) }, [asset.id])
@@ -508,7 +512,10 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
         {p.promptVision && (
           <PromptCard titre={t('Vision VLM de la still')} texte={p.promptVision} hauteur={110} />
         )}
-        <PromptCard titre={p.promptVision || p.initialBrief ? t('Prompt composé (envoyé au moteur)') : t('Prompt composé')}
+        {p.promptReecrit && (
+          <PromptCard titre={t('Prompt réécrit (envoyé à FLUX 3)')} texte={p.promptReecrit} hauteur={150} />
+        )}
+        <PromptCard titre={p.promptReecrit ? t('Ton prompt') : p.promptVision || p.initialBrief ? t('Prompt composé (envoyé au moteur)') : t('Prompt composé')}
           texte={p.composedPositive || p.userPrompt || '—'} hauteur={130} />
         <div className="vfiche text-[12px]">
           <button className="vfiche-tete vfiche-pli" onClick={() => setDetails(v => !v)} aria-expanded={details}>
@@ -517,6 +524,7 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
           </button>
           {details && <div className="vfiche-corps">
           {([
+            ['Personnage', nomPerso === undefined ? '…' : nomPerso ?? t('aucun')],
             ['Recette', p.recipeId || '—'],
             /* La seed sert à rejouer un rendu : elle doit être lisible ET
                copiable. `verrouillée` = choix de l'opérateur avant l'envoi,
@@ -585,14 +593,17 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
               onClick={() => { void s.boucleFrom(asset); onClose(); goVideo() }}><Ic n="loop" s={14} />{t('Boucle')}</button>
           )}
           {asset.mediaType === 'video' && (<>
+            {/* plan rendu par la table de montage : on le rouvre avec ses images clés à leur instant et son prompt */}
+            {renduTable && <button className="b2" title={t('Rouvre la table de montage de Movie Studio avec les images clés à leur instant, les actions et le personnage de ce plan')}
+              onClick={() => { ouvrirDansTable(renduTable); onClose(); s.allerCinema() }}><Ic n="film" s={14} />{t('Ouvrir dans Movie Studio')}</button>}
             <button className="cta" style={{ padding: '13px', flexDirection: 'row', gap: 8 }}
               onClick={() => { s.updateVideo({ task: 'extend' }); void s.pickExtendClip(asset.id); onClose(); goVideo() }}><Ic n="extend" s={16} />{t('Étendre')}</button>
             <button className="b2" onClick={() => setEditer(true)} title={t('au pinceau ou au prompt')}><Ic n="edit" s={14} />{t('Éditer')}</button>
             <div className="flex gap-1.5">
               {!asset.withAudio && <button className="b2 flex-1" title={t('générer une piste d’ambiance (LTX-2.5) calée sur les images, sans voix ni musique')}
                 onClick={() => void finition('foley')}><Ic n="sound" s={14} />{t('Ajouter le son')}</button>}
-              {asset.postOp !== 'interpolate' && <button className="b2 flex-1" title={t('RIFE ×2 : double les images, le mouvement devient plus fluide')}
-                onClick={() => void finition('interpolate')}><Ic n="wave" s={14} />{t('Fluidité 48 i/s')}</button>}
+              {asset.postOp !== 'interpolate' && <button className="b2 flex-1" style={{ whiteSpace: 'nowrap' }} title={t('Fluidité : RIFE ×2 double les images, le mouvement passe à 48 i/s')}
+                onClick={() => void finition('interpolate')}><Ic n="wave" s={14} />{t('48 i/s')}</button>}
             </div>
           </>)}
           {/* « Utiliser dans… » : ce média ouvre une autre section, déjà choisi comme source */}
@@ -677,9 +688,11 @@ export function Viewer({ asset, list, onGo, onClose, goVideo, goImage, action }:
             </>)}
           </div>
           <div className="flex gap-1.5">
-            <button className="b2 flex-1" onClick={() => { s.cloneFrom(asset); onClose(); (asset.mediaType === 'video' ? goVideo : goImage)() }}><Ic n="copy" s={14} />{t('Cloner')}</button>
-            {asset.jobId && !asset.postOp && <button className="b2 flex-1" title={t('mêmes réglages, nouvelle graine')}
-              onClick={() => void s.encoreUne(asset).then(e => setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: t('encore une : en file') }))}><Ic n="dice" s={14} />{t('Encore une')}</button>}
+            {/* icônes seules : le nom au survol (title) et pour les lecteurs d'écran (aria-label) */}
+            <button className="b2" style={{ flex: '0 0 44px' }} title={t('Cloner : reprendre ces réglages')} aria-label={t('Cloner')}
+              onClick={() => { s.cloneFrom(asset); onClose(); (asset.mediaType === 'video' ? goVideo : goImage)() }}><Ic n="copy" s={15} /></button>
+            {asset.jobId && !asset.postOp && <button className="b2" style={{ flex: '0 0 44px' }} title={t('Encore une : mêmes réglages, nouvelle graine')} aria-label={t('Encore une')}
+              onClick={() => void s.encoreUne(asset).then(e => setFinMsg(e ? { ok: false, txt: e } : { ok: true, txt: t('encore une : en file') }))}><Ic n="dice" s={15} /></button>}
             <a className="b2 flex-1 text-center" href={asset.uri} download style={{ textDecoration: 'none' }}><Ic n="download" s={14} />{t('Télécharger')}</a>
             <button className="b2" style={{ flex: '0 0 44px' }} title={t('plus…')} onPointerDown={e => e.stopPropagation()}
               onClick={e => {
