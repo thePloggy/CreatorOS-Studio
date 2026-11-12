@@ -1,6 +1,7 @@
 /* ============================================================
    Talking avatar: a photo + a voice (file or microphone): the
-   character speaks the text, lips synced to the audio (InfiniteTalk, Wan 2.1).
+   character speaks the text, lips synced to the audio (LTX-2.5 audio to video, talking-head LoRA,
+   or MiniMax H3 with an audio guide when it is installed).
    The render goes through the regular queue and lands in the Video tab.
    ============================================================ */
 import { VoixOrbe } from './VoixOrbe'
@@ -30,19 +31,23 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
   const morceaux = useRef<Blob[]>([])
   /* Written line: LTX-2.5 produces voice and lip sync in one pass, no audio file.
      Open to visitors (only a sentence is sent); the recorded voice
-     (InfiniteTalk) is owner-only. */
+     (LTX talking-head) is owner-only. */
   const [source, setSource] = useState<'replique' | 'voix'>(edition ? 'voix' : 'replique')
   const [replique, setReplique] = useState('')
   // voice for the line: "ltx" (LTX generates the voice, single render) or a studio, character or cloned voice
   const [voixPhrase, setVoixPhrase] = useState<string>(() => (edition && useAppStore.getState().personaVoix ? 'perso' : 'ltx'))
+  // engine that syncs the lips to a given voice: LTX talking-head, or MiniMax H3 when installed (never on the demo)
+  const [moteur, setMoteur] = useState<'ltx' | 'h3'>('ltx')
+  const moteurEffectif = s.h3?.disponible ? moteur : 'ltx'
   const lancerAvecVoix = async () => {
     if (!photo || !replique.trim()) return
     setBusy(true); setErr(null); setFait(null)
     try {
       const v = await json(await fetch('/api/parole/dire', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texte: replique.trim(), voix: voixPhrase }) }))
       const r = await json(await fetch('/api/parole', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: photo.id, voix: v.fichier, texte }) }))
-      void s.adoptServerJob(r.jobId); setFait(r.jobId)
+        body: JSON.stringify({ assetId: photo.id, voix: v.fichier, texte, moteur: moteurEffectif }) }))
+      void s.adoptServerJob(r.id)
+      setFait(t('clip parlant lancé pour {d} s de voix', { d: r.duree.toFixed(1) }))
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
   }
@@ -94,9 +99,9 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
     setBusy(true); setErr(null)
     try {
       const r = await json(await fetch('/api/parole', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: photo.id, voix: voix.fichier, texte }) }))
+        body: JSON.stringify({ assetId: photo.id, voix: voix.fichier, texte, moteur: moteurEffectif }) }))
       void s.adoptServerJob(r.id)
-      setFait(t('{n} bloc(s) de rendu pour {d} s de voix', { n: r.blocs, d: r.duree.toFixed(1) }))
+      setFait(t('clip parlant lancé pour {d} s de voix', { d: r.duree.toFixed(1) }))
     } catch (e) { setErr(String((e as Error).message)) }
     setBusy(false)
   }
@@ -165,7 +170,7 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             </div>
             <span style={{ fontSize: 12, color: 'var(--faint)' }}>{voixPhrase === 'ltx'
               ? t('LTX-2.5 fait la voix et le mouvement des lèvres en un seul rendu, 4 à 8 s selon la longueur de la phrase.')
-              : t('La phrase est dite par cette voix, puis InfiniteTalk cale les lèvres dessus : le personnage garde la même voix dans le reel et l’avatar.')}</span>
+              : t('La phrase est dite par cette voix, puis LTX cale les lèvres dessus : le personnage garde la même voix dans le reel et l’avatar.')}</span>
           </>}
           {source === 'voix' && <div className="flex items-center gap-2 flex-wrap">
             {!edition && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('Sur la démo publique, la voix ne peut pas être envoyée : l’avatar parlant est réservé au propriétaire.')}</span>}
@@ -176,6 +181,16 @@ export function ParoleView({ goVideo }: { goVideo: () => void }) {
             </label></>}
             {voix && <audio src={voix.url} controls style={{ height: 32 }} />}
             {voix && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{voix.duree.toFixed(1)} s</span>}
+          </div>}
+          {s.h3?.disponible && (source === 'voix' || voixPhrase !== 'ltx') && <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12 }}>
+            <span>{t('Lèvres calées par')}</span>
+            <span className="wtabs">
+              <button className={`wtab ${moteur === 'ltx' ? 'on' : ''}`} onClick={() => setMoteur('ltx')}>LTX-2.5</button>
+              <button className={`wtab ${moteur === 'h3' ? 'on' : ''}`} onClick={() => setMoteur('h3')}>MiniMax H3</button>
+            </span>
+            <span style={{ color: 'var(--faint)' }}>{moteur === 'h3'
+              ? t('H3 : 768×1344, 12 s de voix au plus, environ 1 min 20 pour 7 s.')
+              : t('LTX : jusqu’à 20 s de voix, 1088×1920, environ 1 min pour 7 s.')}</span>
           </div>}
           <input value={texte} onChange={e => setTexte(e.target.value)} maxLength={400} placeholder={t('Optionnel : son attitude pendant qu’elle parle (en anglais, ex. « smiling, enthusiastic, holding a coffee cup »)')}
             className="champ" style={{ fontSize: 12.5 }} />

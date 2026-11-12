@@ -14,7 +14,7 @@ import { Pastille } from './bits'
 import { FramePicker } from './popups'
 import { APERCUS } from './Apercus'
 
-export type Section = 'croquis' | 'accueil' | 'image' | 'son' | 'cinema' | 'reshoot' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
+export type Section = 'croquis' | 'accueil' | 'image' | 'son' | 'cinema' | 'reshoot' | 'planlong' | 'video' | 'reel' | 'presets' | 'parole' | 'montage' | 'assets' | 'persona' | 'config' | 'createur' | 'extensions' | 'pub' | 'recadrer' | 'doublage' | 'analyse' | 'nouveau-personnage' | 'restaurer' | 'styles' | 'relight' | 'expand' | 'outil' | 'carrousel' | 'danse'
 /** Tool to open in the viewer once the media is chosen. */
 export type ActionOutil = 'objet3d' | 'retouche' | 'looks' | 'nette' | 'master' | 'detour' | 'recadrer' | 'doubler' | 'analyse' | 'profondeur'
   | 'transparent' | 'pinceau' | 'coverage' | 'suivant' | 'boucle' | 'son' | 'fluide' | 'retirer' | 'fond'
@@ -72,6 +72,7 @@ export const MENUS: Menu[] = [
       { label: 'Camera Moves', texte: 'Dolly, orbite, crash zoom, drone, bullet time : un mouvement de cinéma sur n’importe quelle photo.', section: 'presets', tache: 'camera' },
       { label: 'Effects', texte: 'Explosion, gonflement, électricité, figurine : un effet viral en un clic sur une photo.', section: 'presets', tache: 'effets' },
       { label: 'Re-shoot', texte: 'Le même moment filmé d’un autre angle.', section: 'reshoot' },
+      { label: 'Long Take', texte: 'Un clip de 17 s à une minute, validé fenêtre par fenêtre avant la fusion.', section: 'planlong', pastille: 'new' },
       { label: 'Motion Control', texte: 'Une photo reprend le geste d’une vidéo.', section: 'video', tache: 'move' },
       { label: 'Extend Video', texte: 'Le clip continue : quelques secondes de plus, dans le même mouvement.', section: 'video', tache: 'etendre' },
       { label: 'Reframe', texte: 'Le clip passe en 9:16, 16:9 ou 1:1, les bords sont générés.', section: 'recadrer', pastille: 'new' },

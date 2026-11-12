@@ -32,6 +32,7 @@ const ReelView = lazy(() => import('./ReelView').then(m => ({ default: m.ReelVie
 const PresetsView = lazy(() => import('./PresetsView').then(m => ({ default: m.PresetsView })))
 const CinemaView = lazy(() => import('./CinemaView').then(m => ({ default: m.CinemaView })))
 const ReshootView = lazy(() => import('./ReshootView').then(m => ({ default: m.ReshootView })))
+const PlanLongView = lazy(() => import('./PlanLongView').then(m => ({ default: m.PlanLongView })))
 const HomeView = lazy(() => import('./HomeView').then(m => ({ default: m.HomeView })))
 const ParoleView = lazy(() => import('./ParoleView').then(m => ({ default: m.ParoleView })))
 const VideoView = lazy(() => import('./VideoView').then(m => ({ default: m.VideoView })))
@@ -87,7 +88,7 @@ function Telemetry() {
   )
 }
 
-const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 'reshoot', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
+const SECTIONS: Section[] = ['accueil', 'croquis', 'image', 'son', 'cinema', 'reshoot', 'planlong', 'video', 'reel', 'presets', 'parole', 'montage', 'assets', 'persona', 'config', 'createur', 'extensions', 'pub', 'recadrer', 'doublage', 'analyse', 'nouveau-personnage', 'restaurer', 'styles', 'relight', 'expand', 'outil', 'carrousel', 'danse']
 // a dedicated page's tool and the Camera Moves / Effects family also come from the URL
 {
   const q = new URLSearchParams(window.location.search)
@@ -215,6 +216,7 @@ export default function V2App() {
         {section === 'image' && <ImageView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'cinema' && <CinemaView onOpen={(a, list) => setFocus({ a, list })} goVideo={() => setSection('video')} />}
         {section === 'reshoot' && <ReshootView />}
+        {section === 'planlong' && <PlanLongView />}
         {section === 'video' && <VideoView onOpen={(a, list) => setFocus({ a, list })} />}
         {section === 'son' && <SonView goMontage={() => setSection('montage')} />}
         {section === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}

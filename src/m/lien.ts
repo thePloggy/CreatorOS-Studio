@@ -1,6 +1,6 @@
 /* Shared link to a section (?s=reel, ?s=image…): the matching mobile space and view. */
 export type EspaceMobile = 'library' | 'create' | 'studio' | 'jobs' | 'atelier'
-const VUES_STUDIO = ['reel', 'danse', 'cinema', 'presets', 'styles', 'relight', 'tryon', 'dump', 'sref', 'fx', 'angles', 'loop', 'smooth', 'reshoot', 'croquis', 'parole', 'montage', 'restaurer', 'pub', 'recadrer', 'doublage', 'analyse']
+const VUES_STUDIO = ['reel', 'danse', 'cinema', 'presets', 'styles', 'relight', 'tryon', 'dump', 'sref', 'fx', 'angles', 'loop', 'smooth', 'reshoot', 'planlong', 'croquis', 'parole', 'montage', 'restaurer', 'pub', 'recadrer', 'doublage', 'analyse']
 /** Section requested by the URL (?s=…), mapped to a mobile space (and Studio view). */
 /* Tool pages (?s=outil&o=…) served by a mobile Studio view */
 const OUTIL_VERS_VUE: Record<string, string> = { 'effets-video': 'fx', 'refine-details': 'fx', 'day-to-night': 'fx', 'deblur': 'fx', 'decompression': 'fx', 'colorize': 'fx', 'restore-clip': 'fx', 'water': 'fx', 'multi-angle': 'angles', 'loop': 'loop', 'smooth': 'smooth', 'try-on': 'tryon', 'photodump': 'dump', 'style-ref': 'sref' }

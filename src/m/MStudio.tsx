@@ -11,6 +11,7 @@ import { ReelView } from '../v2/ReelView'
 import { PresetsView } from '../v2/PresetsView'
 import { CinemaView } from '../v2/CinemaView'
 import { ReshootView } from '../v2/ReshootView'
+import { PlanLongView } from '../v2/PlanLongView'
 import { ParoleView } from '../v2/ParoleView'
 import { MontageView } from '../v2/MontageView'
 import { MViewer } from './MViewer'
@@ -34,8 +35,8 @@ import type { IdOutil } from '../v2/OutilsDedies'
 const OUTILS_GALERIE_MOBILE: [IdOutil, string][] = [['inpaint', 'Inpaint'], ['remove-bg', 'Remove Background'], ['upscale', 'Upscale Image'], ['depth', 'Depth Map'],
   ['coverage', 'Coverage'], ['next-shot', 'Next Shot'], ['image-3d', 'Image to 3D'], ['retouch', 'Retouch'], ['remove-objects', 'Remove Objects'], ['change-bg', 'Change Background'],
   ['upscale-1080', 'Upscale 1080p'], ['green-screen', 'Green Screen'], ['add-sound', 'Add Sound'], ['hdr', 'HDR Masters']]
-type Vue = `o:${string}` | 'sref' | 'tryon' | 'dump' | 'reel' | 'danse' | 'cinema' | 'presets' | 'styles' | 'relight' | 'fx' | 'angles' | 'loop' | 'smooth' | 'reshoot' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
-const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['danse', 'Danse'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['styles', 'Styles'], ['relight', 'Relight'], ['sref', 'Style Reference'], ['tryon', 'Try-On'], ['dump', 'Photo Dump'], ['fx', 'Video Effects'], ['angles', 'Multi-Angle'], ['loop', 'Seamless Loop'], ['smooth', 'Smooth Motion'], ['reshoot', 'Re-shoot'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Son'], ['montage', 'Editor'],
+type Vue = `o:${string}` | 'sref' | 'tryon' | 'dump' | 'reel' | 'danse' | 'cinema' | 'presets' | 'styles' | 'relight' | 'fx' | 'angles' | 'loop' | 'smooth' | 'reshoot' | 'planlong' | 'croquis' | 'parole' | 'sons' | 'montage' | 'restaurer' | 'pub' | 'recadrer' | 'doublage' | 'analyse'
+const VUES: [Vue, string][] = [['reel', 'One-click Reel'], ['danse', 'Danse'], ['cinema', 'Movie Studio'], ['presets', 'Camera & Effects'], ['styles', 'Styles'], ['relight', 'Relight'], ['sref', 'Style Reference'], ['tryon', 'Try-On'], ['dump', 'Photo Dump'], ['fx', 'Video Effects'], ['angles', 'Multi-Angle'], ['loop', 'Seamless Loop'], ['smooth', 'Smooth Motion'], ['reshoot', 'Re-shoot'], ['planlong', 'Long Take'], ['croquis', 'Sketch to Video'], ['parole', 'Talking Avatar'], ['sons', 'Son'], ['montage', 'Editor'],
   ['restaurer', 'Restore'], ['pub', 'Product Shot'], ['recadrer', 'Extend'], ['doublage', 'Lip Sync'], ['analyse', 'Social Check'],
   ...OUTILS_GALERIE_MOBILE.map(([id, label]) => [`o:${id}`, label] as [Vue, string])]
 
@@ -70,6 +71,7 @@ export function MStudio({ goVideo }: { goVideo: () => void }) {
         {vue === 'cinema' && <CinemaView onOpen={(a, list) => setVu({ a, list })} goVideo={goVideo} />}
         {vue === 'presets' && <PresetsView goVideo={goVideo} onOpen={(a, list) => setVu({ a, list })} />}
         {vue === 'reshoot' && <ReshootView />}
+        {vue === 'planlong' && <PlanLongView />}
         {vue === 'croquis' && <Suspense fallback={null}><CroquisView /></Suspense>}
         {vue === 'parole' && <ParoleView goVideo={goVideo} />}
         {vue === 'sons' && <SonView goMontage={() => setVue('montage')} />}
