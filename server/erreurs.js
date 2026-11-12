@@ -5,6 +5,9 @@
    "nœud N (type) : message", plus advice for known failures. The raw
    detail goes to the server log, in full, for diagnosis.
    ============================================================ */
+import fs from 'node:fs'
+import path from 'node:path'
+import { CONFIG } from './config.js'
 
 /** Known failures -> what to do. First matching pattern wins. */
 const CONSEILS = [
@@ -29,7 +32,20 @@ const CONSEILS = [
   [/Connection refused|ECONNREFUSED|fetch failed/i,
     'ComfyUI ne répond plus : il a peut-être redémarré, le rendu sera repris'],
 ]
-const conseilPour = texte => CONSEILS.find(([re]) => re.test(texte))?.[1] ?? null
+/* "No such file" on a LoRA that IS in the folder: safetensors reports an
+   unreadable file that way. ComfyUI runs as another user and cannot read it;
+   saying "missing" would send the operator to retrain or redownload. */
+function conseilLoraIllisible(texte) {
+  if (!/No such file or directory|FileNotFoundError|Permission denied|PermissionError/i.test(texte)) return null
+  const m = /((?:\/[^\s:'"]+)+\.safetensors)/.exec(texte)
+  if (!m) return null
+  const f = path.resolve(m[1])
+  if (!f.startsWith(path.resolve(CONFIG.lorasDir) + path.sep) || !fs.existsSync(f)) return null
+  let mode = '?'
+  try { mode = (fs.statSync(f).mode & 0o777).toString(8).padStart(4, '0') } catch { /* stat refused: still unreadable */ }
+  return `la LoRA ${path.basename(f)} existe (mode ${mode}) mais ComfyUI, lancé sous un autre utilisateur, ne peut pas la lire : droits du fichier, pas un modèle manquant ni corrompu — lancer le diagnostic (contrôle « loras ») et réparer`
+}
+const conseilPour = texte => conseilLoraIllisible(texte) ?? CONSEILS.find(([re]) => re.test(texte))?.[1] ?? null
 const court = (s, n = 260) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t }
 
 /** EXECUTION failure, read from the ComfyUI history entry. */

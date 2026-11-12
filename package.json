@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/precompresser.mjs",
     "lint": "oxlint",
+    "test": "node --test \"server/**/*.test.js\"",
     "preview": "vite preview",
     "start": "node server/index.js",
     "setup": "node scripts/installer/setup.mjs",

@@ -721,6 +721,38 @@ async function etapeReglages() {
    Manifest URL check
    ============================================================ */
 
+/* ============================================================
+   9. Characters' LoRAs: can ComfyUI read them?
+   The studio installs LoRAs with an explicit mode (0644 by default) since
+   ComfyUI may run as another user; files installed before that, or copied
+   by hand, may be owner-only. Repair touches the characters' files only,
+   never a third-party LoRA, and only after a yes.
+   ============================================================ */
+async function etapeLoras() {
+  titre('9. Character LoRAs (permissions)')
+  const { etatLorasPersonas, reparerLorasPersonas, modeLora } = await import(pathToFileURL(path.join(REPO, 'server', 'installationLora.js')).href)
+  const { personas } = await import(pathToFileURL(path.join(REPO, 'server', 'persona.js')).href)
+  const etats = etatLorasPersonas(personas().list)
+  const mode = (modeLora() & 0o777).toString(8).padStart(4, '0')
+  info(`folder ${tilde(CONFIG.lorasDir)} · installed with mode ${mode}${CONFIG.lorasGroup ? ` group ${CONFIG.lorasGroup}` : ''} (CREATOROS_LORA_MODE, CREATOROS_LORA_GROUP)`)
+  if (!etats.length) { info('no character LoRA yet'); return }
+  for (const e of etats) {
+    if (!e.existe) ko(`${e.nom}: missing`, `import it again (Extensions > Import LoRA) or remove it from ${e.personnages.join(', ')}`)
+    else if (!e.valide) ko(`${e.nom}: not a valid .safetensors (${e.erreur})`, 'incomplete or corrupt: import it again or retrain')
+    else if (!e.lisible) ko(`${e.nom}: ${e.raison}`)
+    else ok(`${e.nom}`, `mode ${e.mode} · ${e.personnages.join(', ')}`)
+  }
+  const reparables = etats.filter(e => e.existe && e.valide && !e.lisible)
+  if (!reparables.length) return
+  if (CHECK) { bilan.manque.push(`${reparables.length} character LoRA(s) ComfyUI cannot read (run setup to repair)`); return }
+  if (!await confirmer(`Set mode ${mode} on these ${reparables.length} file(s)?`)) { bilan.manque.push(`${reparables.length} character LoRA(s) ComfyUI cannot read`); return }
+  const r = reparerLorasPersonas(personas().list, { noms: reparables.map(e => e.nom) })
+  for (const x of r.repares) ok(`${x.nom}`, `mode ${x.mode}`)
+  for (const x of r.restants) ko(`${x.nom}: ${x.erreur}`)
+  if (r.repares.length) bilan.fait.push(`${r.repares.length} character LoRA(s) made readable by ComfyUI`)
+  if (r.restants.length) bilan.manque.push(`${r.restants.length} character LoRA(s) still unreadable by ComfyUI`)
+}
+
 async function verifierUrls() {
   titre('Manifest URLs (HEAD, no download, no token)')
   let ecarts = 0
@@ -765,6 +797,7 @@ async function principal() {
   await etapeOllama()
   await etapePersona()
   await etapeReglages()
+  await etapeLoras()
 
   titre('Summary')
   if (bilan.fait.length) for (const f of bilan.fait) ok(f)

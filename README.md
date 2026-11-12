@@ -274,6 +274,8 @@ All settings are environment variables; the setup wizard writes the usual ones t
 | `COMFY_DIR` | `~/ComfyUI` | used to locate `input/` and `output/` |
 | `COMFY_INPUT` / `COMFY_OUTPUT` | `$COMFY_DIR/input` / `output` | |
 | `CREATOROS_LORAS` | `$COMFY_DIR/models/loras` | LoRA folder listed in the UI |
+| `CREATOROS_LORA_MODE` | `0644` | file mode given to every LoRA the studio installs there (training, import), so a ComfyUI running as another user or in a container can read it; `0600` only if both run as the same user |
+| `CREATOROS_LORA_GROUP` | unset | group (name or gid) given to installed LoRAs, for a tighter `CREATOROS_LORA_MODE=0640` shared with the ComfyUI user |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | |
 | `CREATOROS_LLM` / `CREATOROS_VLM_DESCRIBE` | `mistral-small:latest` / `qwen2.5vl:7b` | |
 | `CREATOROS_PHOTO_ENGINE` | `krea` | `krea` or `klein` |
