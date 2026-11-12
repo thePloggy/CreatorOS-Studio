@@ -59,7 +59,7 @@
  },
  "105:11": {
   "inputs": {
-   "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+   "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
   },
   "class_type": "VAELoader",
   "_meta": {
@@ -122,7 +122,7 @@
    "steps": 8,
    "denoise": 1,
    "model": [
-    "turbo",
+    "sparse",
     0
    ]
   },
@@ -162,7 +162,7 @@
  "105:16": {
   "inputs": {
    "model": [
-    "turbo",
+    "sparse",
     0
    ],
    "conditioning": [
@@ -177,7 +177,7 @@
  },
  "105:6": {
   "inputs": {
-   "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "unet_name": "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors",
    "weight_dtype": "default"
   },
   "class_type": "UNETLoader",
@@ -278,15 +278,49 @@
    "title": "Float (duration)"
   }
  },
- "turbo": {
-  "class_type": "LoraLoaderModelOnly",
+ "shift": {
   "inputs": {
    "model": [
     "105:6",
     0
    ],
-   "lora_name": "h3_lightx2v_turbo_rank24.safetensors",
-   "strength_model": 0.8
+   "shift_video": 10,
+   "shift_audio": 3
+  },
+  "class_type": "MiniMaxH3SigmaShift",
+  "_meta": {
+   "title": "FastH3 V2 : shift officiel 10/3"
+  }
+ },
+ "attn": {
+  "inputs": {
+   "model": [
+    "shift",
+    0
+   ],
+   "attention": "comfy kitchen attention"
+  },
+  "class_type": "ModelAttentionBackend"
+ },
+ "sparse": {
+  "inputs": {
+   "model": [
+    "attn",
+    0
+   ],
+   "selection": "vsa",
+   "selection.keep_percent": 10,
+   "start_percent": 0.2,
+   "end_percent": 1.0,
+   "dense_blocks": "",
+   "min_tokens": 12288,
+   "extra_tokens": 256,
+   "sink_conditioning": "exact_kv_and_rows",
+   "verbose": false
+  },
+  "class_type": "BlockSparseAttention",
+  "_meta": {
+   "title": "FastH3 V2 : attention VSA 10 %"
   }
  }
 }

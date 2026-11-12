@@ -11,11 +11,10 @@ export const H3_LICENCE = 'https://huggingface.co/MiniMaxAI/MiniMax-H3'
 export const H3_TERRITOIRES_EXCLUS = ['UE', 'Royaume-Uni', 'Corée du Sud', 'États-Unis']
 
 export const H3_FICHIERS = [
-  { nom: 'minimax_h3_fl2va_pruned_int8_convrot.safetensors', dossier: 'diffusion_models', chargeur: 'UNETLoader', champ: 'unet_name', role: 'modèle vidéo' },
+  { nom: 'fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors', dossier: 'diffusion_models', chargeur: 'UNETLoader', champ: 'unet_name', role: 'modèle vidéo (FastH3 V2, 8 pas)' },
   { nom: 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors', dossier: 'text_encoders', chargeur: 'CLIPLoader', champ: 'clip_name', role: 'encodeur de texte' },
-  { nom: 'minimax_h3_video_vae_fp16.safetensors', dossier: 'vae', chargeur: 'VAELoader', champ: 'vae_name', role: 'VAE vidéo' },
+  { nom: 'minimax_h3_video_vae_int8_convrot.safetensors', dossier: 'vae', chargeur: 'VAELoader', champ: 'vae_name', role: 'VAE vidéo (int8)' },
   { nom: 'minimax_h3_audio_vae_fp32.safetensors', dossier: 'vae', chargeur: 'VAELoader', champ: 'vae_name', role: 'VAE audio' },
-  { nom: 'h3_lightx2v_turbo_rank24.safetensors', dossier: 'loras', chargeur: 'LoraLoaderModelOnly', champ: 'lora_name', role: 'LoRA turbo (8 pas)' },
 ]
 
 /** Public demo: a marker file in the instance data folder. */

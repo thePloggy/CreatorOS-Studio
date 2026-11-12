@@ -31,6 +31,7 @@ import * as vision from './vision.js'
 import { t0Hit, t0Mineur } from './t0.js'
 import * as plans from './plans.js'
 import { MUSIQUES_DIR } from './montage.js'
+import * as planlong from './planlong.js'
 
 const CLIENT_ID = 'creatoros-' + crypto.randomUUID()
 
@@ -101,7 +102,8 @@ export const VIDEO_ENGINES = {
 /* MiniMax H3: optional engine, weights supplied by the owner of a local install
    (license, see h3.js). Recipe without content LoRA; arrival keyframe supported. */
 VIDEO_ENGINES.minimax = {
-  maxSeconds: 12,
+  // beyond 12 s, native context windows take over (comfy.js fenetresH3Longues)
+  maxSeconds: 16,
   file: 'PROD_video_minimax.json',
   label: 'MiniMax H3',
   force: 'le plus fluide, tient l’identité et sait tourner autour du sujet',
@@ -1225,14 +1227,26 @@ export function enqueueRecadrage({ source, format, prompt, parentAssetId, person
   const id = `rcd-${cle}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
-    mode: 'video', purpose: 'creative', recipeId: 'recadrage@v2', workflowFile: null,
+    mode: 'video', purpose: 'creative', recipeId: 'recadrage@v3', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'recadrage', videoEngine: null,
     recadrage: { source, ctrl, masque, W, H, cw, ch, Wg, Hg, fpsGen, duree, fpsOrig },
     parentAssetId: parentAssetId ?? null, userPrompt: texte, userDirectives: null, composedPositive: texte, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: 9 * 60_000,
+    selections: null, loras: [], videoLoras: [], estimatedMs: 90_000,
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
+}
+
+/* Wan 2.2 Fun VACE in 4 steps: lightx2v pair on both experts, euler, cfg 1, experts split at step 2
+   (bench of 11/11: same quality as uni_pc 20 steps cfg 3.5, about 7 times faster). */
+const VACE_LIGHTX2V = ['wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors', 'wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors']
+function vaceQuatrePas(g) {
+  g.lx_h = { class_type: 'LoraLoaderModelOnly', inputs: { model: ['uh', 0], lora_name: VACE_LIGHTX2V[0], strength_model: 1 } }
+  g.lx_l = { class_type: 'LoraLoaderModelOnly', inputs: { model: ['ul', 0], lora_name: VACE_LIGHTX2V[1], strength_model: 1 } }
+  g.mh.inputs.model = ['lx_h', 0]; g.ml.inputs.model = ['lx_l', 0]
+  Object.assign(g.kh.inputs, { steps: 4, cfg: 1, sampler_name: 'euler', start_at_step: 0, end_at_step: 2 })
+  Object.assign(g.kl.inputs, { steps: 4, cfg: 1, sampler_name: 'euler', start_at_step: 2 })
+  return g
 }
 
 function grapheRecadrage(job) {
@@ -1266,7 +1280,7 @@ function grapheRecadrage(job) {
 
 async function runRecadrage(job, t0) {
   const r = job.recadrage
-  const g = grapheRecadrage(job)
+  const g = vaceQuatrePas(grapheRecadrage(job))
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -1289,7 +1303,7 @@ async function runRecadrage(job, t0) {
   return n
 }
 
-export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer, objet, objetNom, loin }) {
+export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, prompt, strength, suivi, cible, inverser, retirer, objet, objetNom, loin, epargner }) {
   if (t0Hit(`${prompt ?? ''} ${cible ?? ''}`)) throw new Error('prompt refusé (liste T0)')
   const zoneTexte = String(cible ?? '').trim().slice(0, 80) || null
   if (!maskFile && !zoneTexte) throw new Error('rien à éditer : ni zone peinte ni élément à modifier')
@@ -1310,12 +1324,16 @@ export function enqueueInpaintVideo({ sourceFile, maskFile, parentAssetId, promp
     inpaintObjet: objet ?? null, inpaintObjetNom: objet ? String(objetNom ?? '').trim().slice(0, 80) || 'main object' : null,
     // far away: the object stays behind people, follows the camera, takes on distance blur
     inpaintLoin: !!objet && !!loin,
+    // element tracked by SAM3 and kept out of the redrawn area (e.g. the face when redrawing hair)
+    inpaintEpargne: String(epargner ?? '').trim().slice(0, 80) || null,
     inpaintDenoise: Number.isFinite(strength) ? Math.min(1, Math.max(0.3, strength)) : INPAINT_VIDEO_DENOISE,
     parentAssetId: parentAssetId ?? null,
     userPrompt: String(prompt ?? '').trim() || null, userDirectives: null,
     composedPositive: String(prompt ?? '').trim() || null, composedNegative: null,
     selections: null, loras: [], videoLoras: [],
-    estimatedMs: Math.round((objet ? 90_000 : 60_000) + m.frames * 2500),
+    // prompt edit of one element -> Ripple (runRipple): ~112 s for 5 s on the bench
+    estimatedMs: Math.round(zoneTexte && !maskFile && !inverser && !retirer && !objet && !String(epargner ?? '').trim()
+      ? 40_000 + m.seconds * 15_000 : (objet ? 90_000 : 60_000) + m.frames * 2500),
   }
   store.createJob(row)
   retenirCle(row.id)
@@ -1435,12 +1453,12 @@ export function enqueueColorisationVideo({ source, reference, masque, bordsSeuls
   const id = `couleur-${Date.now().toString(36)}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: SANS_PERSONNAGE, register: 'sfw',
-    mode: 'video', purpose: 'creative', recipeId: 'coloriser_video@v1', workflowFile: null,
+    mode: 'video', purpose: 'creative', recipeId: 'coloriser_video@v2', workflowFile: null,
     seed: Math.floor(Math.random() * 0xffffffffffff), op: 'coloriser_video', videoEngine: null,
     colSource: source, colReference: bordsSeuls ? null : reference, colMasque: masque ?? null, colBordsSeuls: bordsSeuls || undefined, origineUri: origineValide(origineUri),
     parentAssetId: parentAssetId ?? null, userPrompt: bordsSeuls ? 'bords reconstruits' : 'colorisation', userDirectives: null,
     composedPositive: bordsSeuls ? `bords de ${source} reconstruits` : `colorisation de ${source} (référence ${reference})`, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(60_000 + duree * 75_000),
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(30_000 + duree * 11_000),
   }
   store.createJob(row); retenirCle(row.id); queue.push(row); pump()
   return { id }
@@ -1498,7 +1516,7 @@ function grapheColoriser(job) {
   return { g, W, H, N }
 }
 async function runColoriserVideo(job, t0) {
-  const { g, W, H, N } = grapheColoriser(job)
+  const { g: g0, W, H, N } = grapheColoriser(job), g = vaceQuatrePas(g0)
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
@@ -1529,7 +1547,132 @@ async function runFondVace(job, t0) {
   return n
 }
 
+/* ---------- prompt edit of one element in a clip: Ripple (Paint a Plate) ----------
+   Bench of 11/11: our masked Wan pass at 0.75 did not change the dress at all;
+   this one turns it red over the whole clip in 112 s instead of 242 s.
+   1) SAM3 tracks the named element; FLUX.2 Klein redraws it on the FIRST frame
+      only (masked, at ~0.25 Mpx, then refined at full size, denoise 0.35, soft paste).
+   2) LTX-2.5 + IC-LoRA Ripple v1.1 (WepeNerd, LTX-2.x community license, 1.35)
+      propagates that first frame over the clip, the source as motion reference.
+   3) SAM3 tracks the element again on the result; the union of both mattes,
+      grown and blurred, pastes the redrawn element over the source, the rest of
+      the frame stays the source pixel for pixel. Source sound kept. */
+const RIPPLE_BUDGET = 1856 * 768 * 121   // pixels x frames of the bench (30 GB peak on the 5090)
+export function grapheRipple(job, src) {
+  const fps = 24
+  const frames = Math.max(9, Math.floor((Math.min(src.secondes * fps, 241) - 1) / 8) * 8 + 1)
+  const aire = Math.min(1856 * 768, RIPPLE_BUDGET / frames)
+  const k = Math.min(1, Math.sqrt(aire / (src.width * src.height)))
+  const r32 = x => Math.max(256, Math.round(x / 32) * 32)
+  const W = r32(src.width * k), H = r32(src.height * k)
+  const kq = Math.sqrt(0.25e6 / (W * H))
+  const qW = Math.max(256, Math.round(W * kq / 16) * 16), qH = Math.max(256, Math.round(H * kq / 16) * 16)
+  const seed = Number(job.seed) || 42
+  const cible = job.inpaintCible, change = String(job.composedPositive ?? '').trim()
+  const g = {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors', weight_dtype: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-video-vae-bf16.safetensors' } },
+    avae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-audio-vae-bf16.safetensors' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors', type: 'ltxv', device: 'default' } },
+    src: { class_type: 'VHS_LoadVideo', inputs: { video: job.inpaintVideo, force_rate: fps, custom_width: 0, custom_height: 0, frame_load_cap: frames, skip_first_frames: 0, select_every_nth: 1, format: 'None' } },
+    plate: { class_type: 'ImageScale', inputs: { image: ['src', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'disabled' } },
+    sam: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+    st: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam', 1], text: cible } },
+    trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['plate', 0], model: ['sam', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, conditioning: ['st', 0] } },
+    m: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk', 0], object_indices: '0' } },
+    m0_i: { class_type: 'MaskToImage', inputs: { mask: ['m', 0] } },
+    m0_f: { class_type: 'ImageFromBatch', inputs: { image: ['m0_i', 0], batch_index: 0, length: 1 } },
+    m0: { class_type: 'ImageToMask', inputs: { image: ['m0_f', 0], channel: 'red' } },
+    f0: { class_type: 'ImageFromBatch', inputs: { image: ['plate', 0], batch_index: 0, length: 1 } },
+    // 1) first frame redrawn by Klein
+    ku: { class_type: 'UNETLoader', inputs: { unet_name: 'flux3-image-klein-int8-convrot.safetensors', weight_dtype: 'default' } },
+    kc: { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen3vl_4b_int8_convrot.safetensors', type: 'flux3', device: 'default' } },
+    kv: { class_type: 'VAELoader', inputs: { vae_name: 'flux2-vae.safetensors' } },
+    kpos: { class_type: 'CLIPTextEncode', inputs: { clip: ['kc', 0], text: `The ${cible} becomes ${change}.` } },
+    kneg: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['kpos', 0] } },
+    qbase: { class_type: 'ImageScale', inputs: { image: ['f0', 0], upscale_method: 'lanczos', width: qW, height: qH, crop: 'disabled' } },
+    qmask_i: { class_type: 'MaskToImage', inputs: { mask: ['m0', 0] } },
+    qmask_s: { class_type: 'ImageScale', inputs: { image: ['qmask_i', 0], upscale_method: 'bilinear', width: qW, height: qH, crop: 'disabled' } },
+    qmask: { class_type: 'ImageToMask', inputs: { image: ['qmask_s', 0], channel: 'red' } },
+    qref: { class_type: 'ReferenceMultiLatent', inputs: { positive: ['kpos', 0], negative: ['kneg', 0], vae: ['kv', 0], resolution: 'keep resolution', 'images.image0': ['qbase', 0] } },
+    qgrow: { class_type: 'GrowMask', inputs: { mask: ['qmask', 0], expand: 16, tapered_corners: true } },
+    qenc: { class_type: 'VAEEncode', inputs: { pixels: ['qbase', 0], vae: ['kv', 0] } },
+    qnm: { class_type: 'SetLatentNoiseMask', inputs: { samples: ['qenc', 0], mask: ['qgrow', 0] } },
+    qk: { class_type: 'KSampler', inputs: { model: ['ku', 0], seed, steps: 16, cfg: 1, sampler_name: 'euler', scheduler: 'simple', positive: ['qref', 0], negative: ['qref', 1], latent_image: ['qnm', 0], denoise: 1 } },
+    qdec: { class_type: 'VAEDecode', inputs: { samples: ['qk', 0], vae: ['kv', 0] } },
+    qmi: { class_type: 'MaskToImage', inputs: { mask: ['qgrow', 0] } },
+    qblur: { class_type: 'ImageBlur', inputs: { image: ['qmi', 0], blur_radius: 6, sigma: 3 } },
+    qalpha: { class_type: 'ImageToMask', inputs: { image: ['qblur', 0], channel: 'red' } },
+    qres: { class_type: 'ImageCompositeMasked', inputs: { destination: ['qbase', 0], source: ['qdec', 0], x: 0, y: 0, resize_source: false, mask: ['qalpha', 0] } },
+    start: { class_type: 'ImageScale', inputs: { image: ['qres', 0], upscale_method: 'lanczos', width: W, height: H, crop: 'disabled' } },
+    fref: { class_type: 'ReferenceMultiLatent', inputs: { positive: ['kpos', 0], negative: ['kneg', 0], vae: ['kv', 0], resolution: 'keep resolution', 'images.image0': ['f0', 0] } },
+    fgrow: { class_type: 'GrowMask', inputs: { mask: ['m0', 0], expand: 39, tapered_corners: true } },
+    fenc: { class_type: 'VAEEncode', inputs: { pixels: ['start', 0], vae: ['kv', 0] } },
+    fnm: { class_type: 'SetLatentNoiseMask', inputs: { samples: ['fenc', 0], mask: ['fgrow', 0] } },
+    fk: { class_type: 'KSampler', inputs: { model: ['ku', 0], seed, steps: 8, cfg: 1, sampler_name: 'euler', scheduler: 'simple', positive: ['fref', 0], negative: ['fref', 1], latent_image: ['fnm', 0], denoise: 0.35 } },
+    fdec: { class_type: 'VAEDecode', inputs: { samples: ['fk', 0], vae: ['kv', 0] } },
+    fmi: { class_type: 'MaskToImage', inputs: { mask: ['fgrow', 0] } },
+    fblur: { class_type: 'ImageBlur', inputs: { image: ['fmi', 0], blur_radius: 12, sigma: 6 } },
+    falpha: { class_type: 'ImageToMask', inputs: { image: ['fblur', 0], channel: 'red' } },
+    fres: { class_type: 'ImageCompositeMasked', inputs: { destination: ['f0', 0], source: ['fdec', 0], x: 0, y: 0, resize_source: false, mask: ['falpha', 0] } },
+    rest: { class_type: 'ImageFromBatch', inputs: { image: ['plate', 0], batch_index: 1, length: 4096 } },
+    batch: { class_type: 'BatchImagesNode', inputs: { 'images.image0': ['fres', 0], 'images.image1': ['rest', 0] } },
+    // 2) propagation by LTX + Ripple
+    lora: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'ltx/LTX25_Ripple_v11.safetensors', strength_model: 1.35 } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: `Use the reference video for motion, timing, camera movement, framing and lighting changes; follow the edited first frame for every change of content, light and style. Changed in the first frame: the ${cible} becomes ${change}; it keeps moving naturally and stays in place on what it touches for the whole shot.` } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'blurry, low resolution, ugly, garbled mess, compression artifacts, glitch, flicker, still image' } },
+    cond: { class_type: 'LTXVConditioning', inputs: { positive: ['pos', 0], negative: ['neg', 0], frame_rate: fps } },
+    lat: { class_type: 'EmptyLTXVLatentVideo', inputs: { width: W, height: H, length: frames, batch_size: 1 } },
+    guide: { class_type: 'LTXAddVideoICLoRAGuide', inputs: { positive: ['cond', 0], negative: ['cond', 1], vae: ['vae', 0], latent: ['lat', 0], image: ['batch', 0], frame_idx: 0, strength: 1, latent_downscale_factor: 1, crop: 'disabled', use_tiled_encode: false, tile_size: 256, tile_overlap: 64, use_streaming: false, tile_frames: 97 } },
+    alat: { class_type: 'LTXVEmptyLatentAudio', inputs: { audio_vae: ['avae', 0], frames_number: frames, frame_rate: fps, batch_size: 1 } },
+    n: { class_type: 'RandomNoise', inputs: { noise_seed: seed } },
+    gd: { class_type: 'CFGGuider', inputs: { model: ['lora', 0], positive: ['guide', 0], negative: ['guide', 1], cfg: 1 } },
+    smp: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    sch: { class_type: 'BasicScheduler', inputs: { model: ['lora', 0], scheduler: 'simple', steps: 8, denoise: 1 } },
+    av: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['guide', 2], audio_latent: ['alat', 0] } },
+    k: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['n', 0], guider: ['gd', 0], sampler: ['smp', 0], sigmas: ['sch', 0], latent_image: ['av', 0] } },
+    sep: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['k', 0] } },
+    crop: { class_type: 'LTXVCropGuides', inputs: { positive: ['guide', 0], negative: ['guide', 1], latent: ['sep', 0] } },
+    dec: { class_type: 'VAEDecodeTiled', inputs: { samples: ['crop', 2], vae: ['vae', 0], tile_size: 512, overlap: 64, temporal_size: 128, temporal_overlap: 32 } },
+    // 3) paste-back through the union of both SAM3 mattes
+    st2: { class_type: 'CLIPTextEncode', inputs: { clip: ['sam', 1], text: cible } },
+    trk2: { class_type: 'SAM3_VideoTrack', inputs: { images: ['dec', 0], model: ['sam', 0], detection_threshold: 0.35, max_objects: 1, detect_interval: 1, conditioning: ['st2', 0] } },
+    m2: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['trk2', 0], object_indices: '0' } },
+    mu: { class_type: 'MaskComposite', inputs: { destination: ['m', 0], source: ['m2', 0], x: 0, y: 0, operation: 'add' } },
+    cm: { class_type: 'GrowMaskWithBlur', inputs: { mask: ['mu', 0], expand: 12, incremental_expandrate: 0, tapered_corners: true, flip_input: false, blur_radius: 19, lerp_alpha: 1, decay_factor: 1, fill_holes: false } },
+    out: { class_type: 'ImageCompositeMasked', inputs: { destination: ['plate', 0], source: ['dec', 0], x: 0, y: 0, resize_source: false, mask: ['cm', 0] } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['out', 0], fps, bit_depth: 8 } },
+    save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/ripple`, format: 'auto', codec: 'auto' } },
+  }
+  if (src.audio) {
+    g.son = { class_type: 'TrimAudioDuration', inputs: { audio: ['src', 2], start_index: 0, duration: Math.round(frames / fps * 1000) / 1000 } }
+    g.vid.inputs.audio = ['son', 0]
+  }
+  return { g, W, H, frames }
+}
+
+async function runRipple(job, t0) {
+  const fichier = path.join(CONFIG.comfyInput, path.basename(job.inpaintVideo))
+  const d = videoSize(fichier), m = driverMeta(job.inpaintVideo)
+  if (!d.width || !d.height || !m) throw new Error('vidéo illisible')
+  let audio = false
+  try { audio = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', fichier], { encoding: 'utf8' }).trim() !== '' } catch { /* no sound */ }
+  const { g, W, H, frames } = grapheRipple(job, { width: d.width, height: d.height, secondes: m.seconds, audio })
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  console.log(`[job ${job.id}] RETOUCHE VIDÉO Ripple « ${job.inpaintCible} » ${W}×${H}, ${frames} images sur ${job.inpaintVideo} prompt_id=${promptId}`)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, {
+    applied: [`édition vidéo au prompt : « ${job.inpaintCible} » suivi par SAM3, redessiné par Klein sur la 1re image, propagé par LTX-2.5 + Ripple v1.1 (${W}×${H}, ${frames} images à 24 i/s), recollé sur la source par la matte SAM3`],
+    skipped: [], finalWorkflow: g,
+  })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
 async function runInpaintVideo(job, t0) {
+  if (job.inpaintCible && !job.inpaintInverser && !job.inpaintRetirer && !job.inpaintObjet && !job.inpaintEpargne && !job.inpaintMask) return runRipple(job, t0)
   if (job.inpaintInverser && !job.inpaintObjet) return runFondVace(job, t0)
   if (job.inpaintObjet) await preparerObjet(job)
   const g = comfy.loadWorkflow(REFINE_MASKED_RECIPE)
@@ -1597,7 +1740,24 @@ async function runInpaintVideo(job, t0) {
   }
   g.inp_bord = { class_type: 'GrowMaskWithBlur', inputs: { mask: zone, expand: job.inpaintRetirer ? 40 : job.inpaintInverser ? 2 : 14, incremental_expandrate: 0, tapered_corners: true,
     flip_input: false, blur_radius: job.inpaintInverser ? 12 : 6, lerp_alpha: 1, decay_factor: 1, fill_holes: false } }
-  g.inp_colle = { class_type: 'ImageCompositeMasked', inputs: { destination: ['20', 0], source: ['14', 0], x: 0, y: 0, resize_source: false, mask: ['inp_bord', 0] } }
+  // the Wan VAE decodes 4n+1 frames: the source is cut to that count, otherwise the last redrawn frame is repeated over the moving source
+  g.inp_n = { class_type: 'GetImageSizeAndCount', inputs: { image: ['14', 0] } }
+  g.inp_src = { class_type: 'ImageFromBatch', inputs: { image: ['20', 0], batch_index: 0, length: ['inp_n', 3] } }
+  g.inp_colle = { class_type: 'ImageCompositeMasked', inputs: { destination: ['inp_src', 0], source: ['14', 0], x: 0, y: 0, resize_source: false, mask: ['inp_bord', 0] } }
+  if (job.inpaintEpargne) {
+    // the spared element is subtracted after growth, from both the redrawn latent area and the paste-back mask
+    Object.assign(g, {
+      ep_sam: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sam3.1_multiplex_fp16.safetensors' } },
+      ep_t: { class_type: 'CLIPTextEncode', inputs: { clip: ['ep_sam', 1], text: job.inpaintEpargne } },
+      ep_trk: { class_type: 'SAM3_VideoTrack', inputs: { images: ['20', 0], model: ['ep_sam', 0], detection_threshold: 0.3, max_objects: 1, detect_interval: 1, conditioning: ['ep_t', 0] } },
+      ep_m: { class_type: 'SAM3_TrackToMask', inputs: { track_data: ['ep_trk', 0], object_indices: '' } },
+      ep_g: { class_type: 'GrowMask', inputs: { mask: ['ep_m', 0], expand: 6, tapered_corners: true } },
+      ep_lat: { class_type: 'MaskComposite', inputs: { destination: ['mg', 0], source: ['ep_g', 0], x: 0, y: 0, operation: 'subtract' } },
+      ep_colle: { class_type: 'MaskComposite', inputs: { destination: ['inp_bord', 0], source: ['ep_g', 0], x: 0, y: 0, operation: 'subtract' } },
+    })
+    g.mlat.inputs.mask = ['ep_lat', 0]
+    g.inp_colle.inputs.mask = ['ep_colle', 0]
+  }
   g['15'].inputs.images = ['inp_colle', 0]
   g['16'].inputs.filename_prefix = `creatoros/${job.id}/pinceau`
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
@@ -1619,96 +1779,154 @@ async function runInpaintVideo(job, t0) {
 
 /* ---------- talking avatar ----------
    A photo + a voice audio -> the character says the text, lip-synced.
-   InfiniteTalk (MeiGen-AI, Apache-2.0) on Wan 2.1 I2V 14B 480p, ComfyUI core
-   nodes. One block renders 81 frames at 25 fps (3.24 s); the next receives the
-   whole video rendered so far, resumes the audio where it stops, and its first
-   9 frames duplicate the end of the previous one, so they are cut before
-   joining. The graph is built here, block by block, to the audio's duration. */
+   LTX-2.5 audio-to-video with the talking-head LoRA (elix3r, OpenRAIL): the voice
+   is encoded into the audio latent and frozen (noise mask 0), the video is
+   generated around it in two passes (half resolution, then x2 latent upscale),
+   distilled sigmas, cfg 1. Bench of 11/11: 80 s instead of 179 s with InfiniteTalk,
+   lips in sync.
+   Second engine when MiniMax H3 is installed (never on the public demo): the H3
+   recipe of the studio + MiniMaxH3AddGuide(audio), the voice guides the lips and
+   is decoded back as the clip's sound. Bench of 11/11: 60 s for 7.3 s of voice
+   (PDMD 4 steps), 12 s at most (context windows untested with the audio guide). */
 const PAROLE_MAX_S = 20
-const PAROLE_BLOC = 81, PAROLE_RECOUVRE = 9
-export function enqueueParole({ image, audio, texte, parentAssetId, personaId }) {
+const PAROLE_H3_MAX_S = 12
+export function enqueueParole({ image, audio, texte, parentAssetId, personaId, moteur }) {
+  const h3 = moteur === 'h3'
+  if (h3 && !h3Disponible) throw new Error(demoPublique() ? H3_MESSAGE_DEMO : 'MiniMax H3 n’est pas installé sur ce studio : Paramètres > Modèles optionnels')
   const t = String(texte ?? '').trim().slice(0, 400)
   if (t0Hit(t)) throw new Error('texte refusé (liste T0)')
   for (const f of [image, audio]) if (!f || /[\\/]/.test(f) || f.startsWith('.')) throw new Error('fichier invalide : nom nu attendu (dossier input/)')
   const duree = videoDurationOf(path.join(CONFIG.comfyInput, audio))
   if (!duree) throw new Error('audio illisible')
-  if (duree > PAROLE_MAX_S) throw new Error(`audio trop long (${duree.toFixed(1)} s) : ${PAROLE_MAX_S} s au plus`)
-  const images = Math.ceil(duree * 25) + 2
-  const blocs = Math.max(1, 1 + Math.ceil(Math.max(0, images - PAROLE_BLOC) / (PAROLE_BLOC - PAROLE_RECOUVRE)))
+  const max = h3 ? PAROLE_H3_MAX_S : PAROLE_MAX_S
+  if (duree > max) throw new Error(`audio trop long (${duree.toFixed(1)} s) : ${max} s au plus${h3 ? ' avec MiniMax H3' : ''}`)
   const id = `parole-${Date.now().toString(36)}`
   const row = {
     id, createdAt: Date.now(), status: 'queued', personaId: personaId ?? persona().id, register: 'sfw',
-    mode: 'video', purpose: 'creative', recipeId: 'parole@v1', workflowFile: null,
-    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'parole', videoEngine: 'infinitetalk',
-    sourceImage: image, paroleAudio: audio, paroleBlocs: blocs, paroleDuree: duree, parentAssetId: parentAssetId ?? null,
+    mode: 'video', purpose: 'creative', recipeId: h3 ? 'parole-h3@v1' : 'parole@v2', workflowFile: null,
+    seed: Math.floor(Math.random() * 0xffffffffffff), op: 'parole', videoEngine: h3 ? 'minimax' : 'ltx',
+    sourceImage: image, paroleAudio: audio, paroleDuree: duree, parentAssetId: parentAssetId ?? null,
     userPrompt: t || null, userDirectives: null, composedPositive: t || null, composedNegative: null,
-    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(40_000 + blocs * 75_000),
+    selections: null, loras: [], videoLoras: [], estimatedMs: Math.round(h3 ? 20_000 + duree * 8_500 : 35_000 + duree * 6_000),
   }
   store.createJob(row)
   retenirCle(row.id)
   queue.push(row)
   pump()
-  return { id, blocs, duree }
+  return { id, duree }
 }
 
+const PAROLE_SIGMAS = '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0'
+const PAROLE_SIGMAS_2 = '0.909375, 0.725, 0.421875, 0.0'
 export function grapheParole(job, w, h) {
   const texte = `She is talking to the camera with natural facial expressions and small head movements, her lips moving in sync with her words. ${job.composedPositive ?? ''}`.trim()
-  const g = {
-    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'wan2.1_i2v_480p_14B_fp8_scaled.safetensors', weight_dtype: 'default' } },
-    lx: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors', strength_model: 1 } },
-    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors', type: 'wan', device: 'default' } },
-    pos: { class_type: 'CLIPTextEncode', inputs: { text: texte, clip: ['clip', 0] } },
-    neg: { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['pos', 0] } },
-    vae: { class_type: 'VAELoader', inputs: { vae_name: 'wan_2.1_vae.safetensors' } },
-    patch: { class_type: 'ModelPatchLoader', inputs: { name: 'wan2.1_infiniteTalk_single_fp16.safetensors' } },
-    aenc: { class_type: 'AudioEncoderLoader', inputs: { audio_encoder_name: 'wav2vec2-chinese-base_fp16.safetensors' } },
-    aud: { class_type: 'LoadAudio', inputs: { audio: job.paroleAudio } },
-    aout: { class_type: 'AudioEncoderEncode', inputs: { audio_encoder: ['aenc', 0], audio: ['aud', 0] } },
+  const seed = Number(job.seed) || 42
+  const images = Math.ceil(job.paroleDuree * 24 / 8) * 8 + 1
+  const passe = (k, latent, sigmas) => ({
+    [`g${k}`]: { class_type: 'CFGGuider', inputs: { model: ['lora', 0], positive: ['cond', 0], negative: ['cond', 1], cfg: 1 } },
+    [`smp${k}`]: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler_ancestral' } },
+    [`sig${k}`]: { class_type: 'ManualSigmas', inputs: { sigmas } },
+    [`n${k}`]: { class_type: 'RandomNoise', inputs: { noise_seed: seed + k - 1 } },
+    [`k${k}`]: { class_type: 'SamplerCustomAdvanced', inputs: { noise: [`n${k}`, 0], guider: [`g${k}`, 0], sampler: [`smp${k}`, 0], sigmas: [`sig${k}`, 0], latent_image: latent } },
+    [`sep${k}`]: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: [`k${k}`, 0] } },
+  })
+  return {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors', weight_dtype: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-video-vae-bf16.safetensors' } },
+    avae: { class_type: 'VAELoader', inputs: { vae_name: 'ltx-2.5-audio-vae-bf16.safetensors' } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors', type: 'ltxv', device: 'default' } },
+    upm: { class_type: 'LatentUpscaleModelLoader', inputs: { model_name: 'ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors' } },
+    lora: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'ltx/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors', strength_model: 1 } },
     img: { class_type: 'LoadImage', inputs: { image: job.sourceImage } },
-    smp: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    aud: { class_type: 'LoadAudio', inputs: { audio: job.paroleAudio } },
+    trim: { class_type: 'TrimAudioDuration', inputs: { audio: ['aud', 0], start_index: 0, duration: Math.round(job.paroleDuree * 1000) / 1000 } },
+    aenc: { class_type: 'LTXVAudioVAEEncode', inputs: { audio: ['trim', 0], audio_vae: ['avae', 0] } },
+    m0: { class_type: 'SolidMask', inputs: { value: 0, width: 1024, height: 1024 } },
+    afz: { class_type: 'SetLatentNoiseMask', inputs: { samples: ['aenc', 0], mask: ['m0', 0] } },
+    rs: { class_type: 'ResizeImageMaskNode', inputs: { input: ['img', 0], resize_type: 'scale longer dimension', scale_method: 'lanczos', 'resize_type.longer_size': 1536 } },
+    pre: { class_type: 'LTXVPreprocess', inputs: { image: ['rs', 0], img_compression: 18 } },
+    pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: texte } },
+    neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: 'blurry, distorted face, warped mouth' } },
+    cond: { class_type: 'LTXVConditioning', inputs: { positive: ['pos', 0], negative: ['neg', 0], frame_rate: 24 } },
+    lat: { class_type: 'EmptyLTXVLatentVideo', inputs: { width: w, height: h, length: images, batch_size: 1 } },
+    i2v1: { class_type: 'LTXVImgToVideoInplace', inputs: { vae: ['vae', 0], image: ['pre', 0], latent: ['lat', 0], strength: 0.7, bypass: false } },
+    av1: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['i2v1', 0], audio_latent: ['afz', 0] } },
+    ...passe(1, ['av1', 0], PAROLE_SIGMAS),
+    up: { class_type: 'LTXVLatentUpsampler', inputs: { samples: ['sep1', 0], upscale_model: ['upm', 0], vae: ['vae', 0] } },
+    i2v2: { class_type: 'LTXVImgToVideoInplace', inputs: { vae: ['vae', 0], image: ['rs', 0], latent: ['up', 0], strength: 1, bypass: false } },
+    av2: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['i2v2', 0], audio_latent: ['afz', 0] } },
+    ...passe(2, ['av2', 0], PAROLE_SIGMAS_2),
+    dec: { class_type: 'VAEDecodeTiled', inputs: { samples: ['sep2', 0], vae: ['vae', 0], tile_size: 512, overlap: 64, temporal_size: 64, temporal_overlap: 8 } },
+    vid: { class_type: 'CreateVideo', inputs: { images: ['dec', 0], fps: 24, audio: ['trim', 0] } },
+    save: { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/parole`, format: 'auto', codec: 'auto' } },
   }
-  let acc = null
-  for (let k = 1; k <= job.paroleBlocs; k++) {
-    g[`it${k}`] = { class_type: 'WanInfiniteTalkToVideo', inputs: {
-      mode: 'single_speaker', model: ['lx', 0], model_patch: ['patch', 0], positive: ['pos', 0], negative: ['neg', 0], vae: ['vae', 0],
-      width: w, height: h, length: PAROLE_BLOC, audio_encoder_output_1: ['aout', 0], motion_frame_count: PAROLE_RECOUVRE, audio_scale: 1,
-      start_image: ['img', 0], ...(acc ? { previous_frames: acc } : {}) } }
-    g[`sch${k}`] = { class_type: 'BasicScheduler', inputs: { model: [`it${k}`, 0], scheduler: 'normal', steps: 6, denoise: 1 } }
-    g[`gd${k}`] = { class_type: 'CFGGuider', inputs: { model: [`it${k}`, 0], positive: [`it${k}`, 1], negative: [`it${k}`, 2], cfg: 1 } }
-    g[`nz${k}`] = { class_type: 'RandomNoise', inputs: { noise_seed: (Number(job.seed) || 42) + k } }
-    g[`sa${k}`] = { class_type: 'SamplerCustomAdvanced', inputs: { noise: [`nz${k}`, 0], guider: [`gd${k}`, 0], sampler: ['smp', 0], sigmas: [`sch${k}`, 0], latent_image: [`it${k}`, 3] } }
-    g[`dec${k}`] = { class_type: 'VAEDecode', inputs: { samples: [`sa${k}`, 0], vae: ['vae', 0] } }
-    if (!acc) acc = [`dec${k}`, 0]
-    else {
-      g[`trim${k}`] = { class_type: 'ImageFromBatch', inputs: { image: [`dec${k}`, 0], batch_index: PAROLE_RECOUVRE, length: 4096 } }
-      g[`acc${k}`] = { class_type: 'ImageBatch', inputs: { image1: acc, image2: [`trim${k}`, 0] } }
-      acc = [`acc${k}`, 0]
-    }
-  }
-  // the last block is full length: trim the video to the voice's duration
-  g.coupe = { class_type: 'ImageFromBatch', inputs: { image: acc, batch_index: 0, length: Math.max(1, Math.ceil(job.paroleDuree * 25)) } }
-  g.vid = { class_type: 'CreateVideo', inputs: { images: ['coupe', 0], fps: 25, audio: ['aud', 0] } }
-  g.save = { class_type: 'SaveVideo', inputs: { video: ['vid', 0], filename_prefix: `creatoros/${job.id}/parole`, format: 'auto', codec: 'auto' } }
+}
+
+/* H3 variant: the studio's H3 recipe (PDMD 4 steps, Kitchen attention, int8 VAE)
+   with the voice as an audio guide on the conditioning. */
+export function grapheParoleH3(job, w, h) {
+  const g = comfy.loadWorkflow(VIDEO_ENGINES.minimax.file)
+  const i2v = Object.keys(g).find(k => g[k].class_type === 'MiniMaxH3ImageToVideo')
+  const guide = Object.keys(g).find(k => g[k].class_type === 'BasicGuider')
+  const duree = Object.keys(g).find(k => g[k].class_type === 'PrimitiveFloat' && /duration/i.test(g[k]._meta?.title ?? ''))
+    ?? Object.keys(g).find(k => g[k].class_type === 'PrimitiveFloat')
+  const vae = g[i2v].inputs.vae
+  const avae = Object.keys(g).find(k => g[k].class_type === 'VAELoader' && /audio/.test(g[k].inputs.vae_name))
+  const img = Object.keys(g).find(k => g[k].class_type === 'LoadImage')
+  if (!i2v || !guide || !duree || !avae || !img) throw new Error('recette H3 du studio inattendue : nœuds du clip parlant introuvables')
+  g[img].inputs.image = job.sourceImage
+  Object.assign(g[i2v].inputs, { width: w, height: h,
+    prompt: `She is talking to the camera with natural facial expressions and small head movements, her lips moving in sync with her words. ${job.composedPositive ?? ''}`.trim() })
+  g[duree].inputs.value = Math.round(job.paroleDuree * 1000) / 1000
+  for (const n of Object.values(g)) if (n.class_type === 'RandomNoise') n.inputs.noise_seed = Number(job.seed) || 42
+  for (const n of Object.values(g)) if (n.class_type === 'SaveVideo') n.inputs.filename_prefix = `creatoros/${job.id}/parole`
+  g.voix = { class_type: 'LoadAudio', inputs: { audio: job.paroleAudio } }
+  g.guide_audio = { class_type: 'MiniMaxH3AddGuide', inputs: { positive: [i2v, 0], latent: [i2v, 1], vae, audio_vae: [avae, 0], audio: ['voix', 0], frame_idx: 0 } }
+  g[guide].inputs.conditioning = ['guide_audio', 0]
   return g
 }
 
 async function runParole(job, t0) {
-  // 480p: InfiniteTalk's training area; portrait, landscape or square depending on the photo
-  let w = 480, h = 832
+  if (job.videoEngine === 'minimax') return runParoleH3(job, t0)
+  // first pass at half size (x2 latent upscale after): portrait, landscape or square depending on the photo
+  let w = 544, h = 960
   try {
     const d = videoSize(path.join(CONFIG.comfyInput, job.sourceImage))
     if (d.width && d.height) {
-      if (d.width > d.height * 1.15) { w = 832; h = 480 } else if (d.width * 1.15 >= d.height) { w = 640; h = 640 }
+      if (d.width > d.height * 1.15) { w = 960; h = 544 } else if (d.width * 1.15 >= d.height) { w = 704; h = 704 }
     }
   } catch { /* portrait by default */ }
   const g = grapheParole(job, w, h)
   const promptId = await comfy.submitPrompt(g, CLIENT_ID)
   current = { jobId: job.id, promptId }
   store.markStarted(job.id, promptId)
-  console.log(`[job ${job.id}] AVATAR PARLANT ${job.paroleBlocs} bloc(s), ${job.paroleDuree.toFixed(1)} s d'audio, ${w}×${h} prompt_id=${promptId}`)
+  console.log(`[job ${job.id}] AVATAR PARLANT LTX talking-head, ${job.paroleDuree.toFixed(1)} s d'audio, ${w * 2}×${h * 2} prompt_id=${promptId}`)
   const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
   const n = await harvestJob(job, promptId, history, {
-    applied: [`avatar parlant : InfiniteTalk (Wan 2.1 I2V 480p), ${job.paroleBlocs} bloc(s) de 81 images, ${w}×${h}, audio « ${job.paroleAudio} » (${job.paroleDuree.toFixed(1)} s)`],
+    applied: [`avatar parlant : LTX-2.5 audio vers vidéo + LoRA talking-head, deux passes, ${w * 2}×${h * 2}, audio « ${job.paroleAudio} » (${job.paroleDuree.toFixed(1)} s)`],
+    skipped: [], finalWorkflow: g,
+  })
+  store.markFinished(job.id, Date.now() - t0)
+  return n
+}
+
+async function runParoleH3(job, t0) {
+  // H3 sizes (about 0.9 Mpx, multiples of 32): portrait, landscape or square depending on the photo
+  let w = 768, h = 1344
+  try {
+    const d = videoSize(path.join(CONFIG.comfyInput, job.sourceImage))
+    if (d.width && d.height) {
+      if (d.width > d.height * 1.15) { w = 1344; h = 768 } else if (d.width * 1.15 >= d.height) { w = 960; h = 960 }
+    }
+  } catch { /* portrait by default */ }
+  const g = grapheParoleH3(job, w, h)
+  const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+  current = { jobId: job.id, promptId }
+  store.markStarted(job.id, promptId)
+  console.log(`[job ${job.id}] AVATAR PARLANT MiniMax H3 + guide audio, ${job.paroleDuree.toFixed(1)} s d'audio, ${w}×${h} prompt_id=${promptId}`)
+  const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+  const n = await harvestJob(job, promptId, history, {
+    applied: [`avatar parlant : MiniMax H3 (PDMD 4 pas) + MiniMaxH3AddGuide(audio), ${w}×${h}, audio « ${job.paroleAudio} » (${job.paroleDuree.toFixed(1)} s)`],
     skipped: [], finalWorkflow: g,
   })
   store.markFinished(job.id, Date.now() - t0)
@@ -1904,7 +2122,9 @@ function grapheTransition(job) {
     bruit: { class_type: 'RandomNoise', inputs: { noise_seed: Number(job.seed) || 42 } },
     ech: { class_type: 'SamplerEulerAncestral', inputs: { eta: 0, s_noise: 1 } },
     sig: { class_type: 'ManualSigmas', inputs: { sigmas: '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0' } },
-    guide: { class_type: 'LTXVDualCFGGuider', inputs: { video_cfg: 1, audio_cfg: 1, model: ['unet', 0], positive: ['g1', 0], negative: ['g1', 1] } },
+    // LoRA trained for transitions between two shots (bench of 11/11, kept by the operator)
+    tr: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['unet', 0], lora_name: 'ltx/ltx2.3-transition.safetensors', strength_model: 1 } },
+    guide: { class_type: 'LTXVDualCFGGuider', inputs: { video_cfg: 1, audio_cfg: 1, model: ['tr', 0], positive: ['g1', 0], negative: ['g1', 1] } },
     k: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['bruit', 0], guider: ['guide', 0], sampler: ['ech', 0], sigmas: ['sig', 0], latent_image: ['av', 0] } },
     sep: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['k', 1] } },
     rogne: { class_type: 'LTXVCropGuides', inputs: { positive: ['g1', 0], negative: ['g1', 1], latent: ['sep', 0] } },
@@ -1926,6 +2146,94 @@ async function runTransition(job, t0) {
   })
   store.markFinished(job.id, Date.now() - t0)
   return n
+}
+
+/* ---------- Directed long take (see planlong.js) ----------
+   One job per action on a take: render window 1, approve (renders the next one), re-roll,
+   rewind to a window, blend. Window previews go to media/ without entering the library;
+   only the final blend becomes an asset. */
+const PL_LIBELLE = { reroll: 'rendre la fenêtre', approve: 'approuver et rendre la suivante', rewind: 'revenir à la fenêtre', blend: 'fusion finale' }
+export function enqueuePlanLong({ id, action, fenetre }) {
+  if (!h3Disponible) throw new Error(demoPublique() ? H3_MESSAGE_DEMO : 'MiniMax H3 n’est pas installé sur ce studio : Paramètres > Modèles optionnels')
+  if (!planlong.PLAN_LONG.actions.includes(action)) throw new Error('action inconnue')
+  const prise = planlong.lirePrise(id)
+  if (!prise) throw new Error('prise introuvable')
+  if (prise.jobActif) {
+    const j = store.getJob(prise.jobActif)
+    if (j && !['done', 'failed', 'blocked', 'cancelled'].includes(j.status)) throw new Error('un rendu de cette prise est déjà en cours')
+  }
+  const n = Math.max(1, Math.min(prise.fenetres, Number(fenetre) || 1))
+  const jobId = `planlong-${Date.now().toString(36)}`
+  const fusion = action === 'blend'
+  const row = {
+    id: jobId, createdAt: Date.now(), status: 'queued', personaId: prise.personaId ?? persona().id, register: 'sfw',
+    mode: 'video', purpose: 'creative', recipeId: 'planlong@v1', workflowFile: planlong.PLAN_LONG.recette,
+    seed: prise.graine, op: 'planlong', videoEngine: 'minimax',
+    planId: prise.id, planAction: action, planFenetre: n, sourceImage: prise.image, parentAssetId: prise.sourceAssetId ?? null,
+    userPrompt: `plan long : ${PL_LIBELLE[action]}${action === 'rewind' ? ` ${n}` : ''}`, userDirectives: null,
+    composedPositive: prise.prompts.join('\n— fenêtre suivante —\n'), composedNegative: null,
+    selections: null, loras: [], videoLoras: [],
+    // measured on an RTX 5090: ~100 s per window; the blend runs over the whole clip, then decodes it all
+    estimatedMs: fusion ? Math.round(60_000 + prise.fenetres * 45_000) : 105_000,
+  }
+  store.createJob(row)
+  retenirCle(row.id)
+  prise.jobActif = jobId; prise.erreur = null
+  planlong.ecrirePrise(prise)
+  queue.push(row)
+  pump()
+  return { id: jobId }
+}
+async function runPlanLong(job, t0) {
+  const prise = planlong.lirePrise(job.planId)
+  if (!prise) throw new Error('prise introuvable')
+  try {
+    const g = planlong.graphePlanLong(prise, { action: job.planAction, fenetre: job.planFenetre, jobId: job.id })
+    const promptId = await comfy.submitPrompt(g, CLIENT_ID)
+    current = { jobId: job.id, promptId }
+    store.markStarted(job.id, promptId)
+    const history = await comfy.waitForPrompt(promptId, { onPhase: p => store.setStatus(job.id, p === 'queued' ? 'queued-comfy' : p) })
+    const etat = await planlong.etatDirector(prise.id)
+    let n = 1
+    if (job.planAction === 'blend') {
+      n = await harvestJob(job, promptId, history, {
+        applied: [`plan long dirigé : ${prise.fenetres} fenêtres de ${planlong.PLAN_LONG.longueur} images (recouvrement ${planlong.PLAN_LONG.recouvrement}), première image réinjectée dans chaque fenêtre, un prompt par fenêtre, fusion sur les 2 derniers pas`],
+        skipped: [], finalWorkflow: g,
+      })
+      prise.final = `a-${job.id}-0`
+    } else {
+      const sorties = comfy.outputsOf(history)
+      if (!sorties.length) throw new Error('exécution terminée mais aucun aperçu en sortie')
+      const nom = `${job.id}-apercu${path.extname(sorties[0].filename) || '.mp4'}`
+      fs.writeFileSync(path.join(CONFIG.mediaDir, nom), await comfy.readImage(sorties[0]))
+      void ensurePoster(nom).catch(() => {})
+      const fenetre = Number(etat.pending) || 1
+      // windows beyond the one just re-made no longer exist on the Director side
+      for (const k of Object.keys(prise.apercus)) if (Number(k) > fenetre) {
+        const vieux = path.join(CONFIG.mediaDir, path.basename(String(prise.apercus[k].uri ?? '')))
+        if (prise.apercus[k].uri && fs.existsSync(vieux)) fs.rmSync(vieux, { force: true })
+        delete prise.apercus[k]
+      }
+      const avant = prise.apercus[fenetre]
+      if (avant?.uri) fs.rmSync(path.join(CONFIG.mediaDir, path.basename(avant.uri)), { force: true })
+      prise.apercus[fenetre] = { uri: `/media/${nom}`, job: job.id }
+      prise.final = null
+    }
+    prise.etat = etat
+    prise.jobActif = null
+    if (etat.all_made) prise.auto = false
+    planlong.ecrirePrise(prise)
+    store.markFinished(job.id, Date.now() - t0)
+    // "run all": keep approving while windows remain to render
+    if (prise.auto && !etat.all_made && job.planAction !== 'blend') {
+      try { enqueuePlanLong({ id: prise.id, action: 'approve' }) } catch (e) { console.warn(`[plan long] enchaînement arrêté : ${String(e.message || e)}`) }
+    }
+    return n
+  } catch (e) {
+    const p = planlong.lirePrise(job.planId)
+    if (p) { p.jobActif = null; p.auto = false; p.erreur = String(e.message || e).slice(0, 400); planlong.ecrirePrise(p) }
+    throw e
+  }
 }
 
 export function enqueueEffetLtx({ source, effet, texte, parentAssetId, personaId }) {
@@ -2634,14 +2942,31 @@ async function runMusique(job, t0) {
   const lyrics = job.musiqueBruitage || job.musiqueVoix === 'none' ? '[instrumental]' : structurerParoles(job.musiqueParoles)
   const language = lyrics === '[instrumental]' ? 'en' : job.musiqueLangue ?? langueParoles(job.musiqueParoles)
   const g = {
-    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'acestep_v1.5_turbo.safetensors', weight_dtype: 'default' } },
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'acestep_v1.5_xl_turbo_bf16.safetensors', weight_dtype: 'default' } },
     ms: { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['unet', 0], shift: 3 } },
     clip: { class_type: 'DualCLIPLoader', inputs: { clip_name1: 'qwen_0.6b_ace15.safetensors', clip_name2: 'qwen_4b_ace15.safetensors', type: 'ace', device: 'default' } },
     vae: { class_type: 'VAELoader', inputs: { vae_name: 'ace_1.5_vae.safetensors' } },
     lat: { class_type: 'EmptyAceStep1.5LatentAudio', inputs: { seconds: d, batch_size: 1 } },
   }
+  // sound effect: Stable Audio 3 small sfx (lcm 8 steps cfg 1) on the raw description; music: ACE-Step 1.5 XL turbo
+  if (job.musiqueBruitage) {
+    for (const k of Object.keys(g)) delete g[k]
+    Object.assign(g, {
+      ckpt: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'stable_audio_3_small_sfx.safetensors' } },
+      clip: { class_type: 'CLIPLoader', inputs: { clip_name: 't5gemma_b_b_ul2.safetensors', type: 'stable_audio', device: 'default' } },
+      pos: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: job.userPrompt } },
+      neg: { class_type: 'CLIPTextEncode', inputs: { clip: ['clip', 0], text: '' } },
+      lat: { class_type: 'EmptyLatentAudio', inputs: { seconds: d, batch_size: 1 } },
+    })
+    for (let p = 0; p < PRISES_MUSIQUE; p++) {
+      const sp = (s + p * 7919) % 0xffffffff
+      g[`k${p}`] = { class_type: 'KSampler', inputs: { model: ['ckpt', 0], seed: sp, steps: 8, cfg: 1, sampler_name: 'lcm', scheduler: 'simple', positive: ['pos', 0], negative: ['neg', 0], latent_image: ['lat', 0], denoise: 1 } }
+      g[`dec${p}`] = { class_type: 'VAEDecodeAudio', inputs: { samples: [`k${p}`, 0], vae: ['ckpt', 2] } }
+      g[`save${p}`] = { class_type: 'SaveAudioMP3', inputs: { audio: [`dec${p}`, 0], filename_prefix: `creatoros/${job.id}/musique_p${p + 1}`, quality: 'V0' } }
+    }
+  }
   // one branch per take: each has its own seed, hence its own audio codes
-  for (let p = 0; p < PRISES_MUSIQUE; p++) {
+  for (let p = 0; p < PRISES_MUSIQUE && !job.musiqueBruitage; p++) {
     const sp = (s + p * 7919) % 0xffffffff
     g[`txt${p}`] = { class_type: 'TextEncodeAceStepAudio1.5', inputs: { clip: ['clip', 0], tags, lyrics, seed: sp, bpm, duration: d, timesignature, language, keyscale, generate_audio_codes: true, cfg_scale: 2, temperature: 0.85, top_p: 0.9, top_k: 0, min_p: 0 } }
     g[`neg${p}`] = { class_type: 'ConditioningZeroOut', inputs: { conditioning: [`txt${p}`, 0] } }
@@ -4088,6 +4413,7 @@ async function runJob(job, isRetry = false, connRetried = false) {
     if (job.op === 'restauration_hd') return await runRestaurationHd(job, t0)
     if (job.op === 'musique') return await runMusique(job, t0)
     if (job.op === 'transition') return await runTransition(job, t0)
+    if (job.op === 'planlong') return await runPlanLong(job, t0)
     if (job.op === 'transparent') return await runTransparent(job, t0)
     if (job.op === 'profondeur') return await runProfondeur(job, t0)
     if (job.op === 'seedvr') return await runSeedvr(job, t0)

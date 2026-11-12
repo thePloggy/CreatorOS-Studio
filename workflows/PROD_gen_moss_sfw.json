@@ -52,13 +52,13 @@
     "class_type": "KSampler",
     "inputs": {
       "seed": 0,
-      "steps": 50,
-      "cfg": 3,
-      "sampler_name": "euler",
+      "steps": 25,
+      "cfg": 2.5,
+      "sampler_name": "er_sde",
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "1",
+        "2_slg",
         0
       ],
       "positive": [
@@ -96,6 +96,22 @@
         "11",
         0
       ]
+    }
+  },
+  "2_slg": {
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "double_layers": "",
+      "single_layers": "22",
+      "start_percent": 0.0,
+      "end_percent": 0.5
+    },
+    "_meta": {
+      "title": "Skip-layer guidance 22 (template MOSS)"
     }
   }
 }

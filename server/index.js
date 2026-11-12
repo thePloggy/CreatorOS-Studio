@@ -29,7 +29,7 @@ import { T0_BLOCKLIST, t0Hit, t0Mineur } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
-import { H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueueEssayage, enqueuePhotodump, enqueueStyleRef, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
+import { enqueuePlanLong, H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueueEssayage, enqueuePhotodump, enqueueStyleRef, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
 import { master } from './master.js'
@@ -44,6 +44,7 @@ import * as presets from './presets.js'
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
 import { mesures } from './carteGraphique.js'
+import * as planlong from './planlong.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
 import { lancerRestauration, etatRestauration } from './restauration.js'
 import { VOIX, changerVoix, cloner, cloneDisponible, dire, echantillon, synthetiser, voixAcceptee, voixDisponible } from './voix.js'
@@ -1051,6 +1052,7 @@ app.post('/api/jobs/:id/retry', async (req, reply) => {
   let p
   try { p = JSON.parse(row.payload || 'null') } catch { p = null }
   if (!p) { reply.code(409); return { error: 'réglages d’origine introuvables : ce job ne peut pas être relancé' } }
+  if (p.op === 'planlong') { reply.code(409); return { error: 'un plan long se relance depuis sa page : Plan long' } }
   for (const f of ['id', 'createdAt', 'status', 'estimatedMs', 'requestId', 'batchIds', 'error']) delete p[f]
   /* "One more": same settings, new seed; a variant, not a copy. */
   if (req.body?.nouvelleGraine) p.seed = { mode: 'random' }
@@ -2556,7 +2558,7 @@ app.post('/api/assets/:id/edit-video', async (req, reply) => {
   fs.copyFileSync(src, path.join(CONFIG.comfyInput, inputName))
   try {
     const { id } = deposerAvecCle(cleComfy(req), () => enqueueInpaintVideo({ sourceFile: inputName, maskFile: null, parentAssetId: a.id,
-      prompt, cible, strength, inverser: mode === 'fond', retirer: mode === 'retirer' }))
+      prompt, cible, strength, inverser: mode === 'fond', retirer: mode === 'retirer', epargner: req.body?.epargner }))
     return { jobId: id }
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
@@ -2721,7 +2723,7 @@ app.post('/api/parole', async (req, reply) => {
   const image = `crs_still_${path.basename(a.filename)}`
   fs.copyFileSync(path.join(CONFIG.mediaDir, path.basename(a.filename)), path.join(CONFIG.comfyInput, image))
   store.noterInput(image)
-  try { return deposerAvecCle(cleComfy(req), () => enqueueParole({ image, audio: voix, texte: req.body?.texte, parentAssetId: a.id, personaId: a.persona_id })) }
+  try { return deposerAvecCle(cleComfy(req), () => enqueueParole({ image, audio: voix, texte: req.body?.texte, parentAssetId: a.id, personaId: a.persona_id, moteur: req.body?.moteur === 'h3' ? 'h3' : 'ltx' })) }
   catch (e) { reply.code(400); return { error: String(e.message || e) } }
 })
 
@@ -2855,6 +2857,94 @@ app.post('/api/montage/transition', async (req, reply) => {
     const a = store.getAsset(String(b.a?.assetId ?? ''))
     return deposerAvecCle(cleComfy(req), () => enqueueTransition({ debut, fin, effet: String(b.effet ?? 'fondu'), secondes: b.secondes, format, personaId: a?.persona_id, parentAssetId: a?.id }))
   } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+/* ---------- Directed long take (planlong.js, jobs.js) ----------
+   A take = a photo, a number of windows, one prompt per window. Each action queues a render;
+   the page re-reads the take to follow progress. */
+const vuePrise = async p => {
+  const j = p.jobActif ? store.getJob(p.jobActif) : null
+  let charge = null
+  try { charge = JSON.parse(j?.payload || 'null') } catch { /* unreadable payload */ }
+  const actif = j && !['done', 'failed', 'blocked', 'cancelled'].includes(j.status)
+    ? { id: j.id, statut: j.status, action: charge?.planAction ?? null, fenetre: charge?.planFenetre ?? null } : null
+  let etat = p.etat
+  if (!actif) { try { etat = await planlong.etatDirector(p.id) } catch { /* ComfyUI unreachable: last known state */ } }
+  return { ...p, jobActif: actif, etat, secondes: planlong.secondesPour(p.fenetres), source: p.sourceAssetId ? (store.getAsset(p.sourceAssetId)?.uri ?? null) : null }
+}
+app.get('/api/planlong', async () => {
+  const h3 = await etatH3().catch(() => ({ disponible: false }))
+  const pack = h3.disponible ? await planlong.packInstalle() : false
+  return {
+    disponible: !!h3.disponible && pack,
+    raison: demoPublique() ? H3_MESSAGE_DEMO : !h3.disponible ? 'MiniMax H3 n’est pas installé sur ce studio : Paramètres > Modèles optionnels'
+      : !pack ? 'Le pack de nœuds « Geiru Context Suite » n’est pas installé dans ComfyUI (custom_nodes).' : null,
+    depotPack: 'https://github.com/roycho87/geiru_context_suite',
+    formats: Object.keys(planlong.PLAN_LONG.formats),
+    durees: Array.from({ length: planlong.PLAN_LONG.fenetresMax - planlong.PLAN_LONG.fenetresMin + 1 }, (_, i) => {
+      const n = planlong.PLAN_LONG.fenetresMin + i
+      return { fenetres: n, secondes: Math.round(planlong.secondesPour(n) * 10) / 10 }
+    }),
+    prises: await Promise.all(planlong.listerPrises().slice(0, 30).map(vuePrise)),
+  }
+})
+const promptsPlan = (bruts, n) => {
+  const liste = (Array.isArray(bruts) ? bruts : []).map(x => String(x ?? '').trim().slice(0, 4000))
+  if (!liste[0]) throw new Error('écris au moins le prompt de la première fenêtre')
+  const pleins = Array.from({ length: n }, (_, i) => liste[i] || liste.slice(0, i).reverse().find(Boolean) || liste[0])
+  for (const t of pleins) if (t0Hit(t)) throw new Error('prompt refusé (liste T0)')
+  return pleins
+}
+app.post('/api/planlong', async (req, reply) => {
+  const b = req.body ?? {}
+  const a = store.getAsset(String(b.assetId ?? ''))
+  if (!a || a.media_type !== 'photo' || !a.filename) { reply.code(400); return { error: 'choisis une photo de la bibliothèque' } }
+  const n = Math.round(Number(b.fenetres))
+  if (!(n >= planlong.PLAN_LONG.fenetresMin && n <= planlong.PLAN_LONG.fenetresMax)) { reply.code(400); return { error: 'nombre de fenêtres hors limites' } }
+  const format = planlong.PLAN_LONG.formats[b.format] ? b.format : '9:16'
+  try {
+    const prompts = promptsPlan(b.prompts, n)
+    const prise = planlong.creerPrise({ image: versInput(a, 'crs_still'), sourceAssetId: a.id, personaId: a.persona_id, fenetres: n, format, prompts })
+    prise.auto = b.auto === true
+    planlong.ecrirePrise(prise)
+    try {
+      const job = deposerAvecCle(cleComfy(req), () => enqueuePlanLong({ id: prise.id, action: 'reroll' }))
+      return { id: prise.id, job: job.id }
+    } catch (e) { planlong.supprimerPrise(prise.id); throw e }   // no orphan take if the render is refused
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.get('/api/planlong/:id', async (req, reply) => {
+  const p = planlong.lirePrise(req.params.id)
+  if (!p) { reply.code(404); return { error: 'prise introuvable' } }
+  return vuePrise(p)
+})
+app.post('/api/planlong/:id/action', async (req, reply) => {
+  const p = planlong.lirePrise(req.params.id)
+  if (!p) { reply.code(404); return { error: 'prise introuvable' } }
+  const b = req.body ?? {}
+  try {
+    // a window's prompt may change before it is re-rolled
+    if (Array.isArray(b.prompts)) p.prompts = promptsPlan(b.prompts, p.fenetres)
+    if (typeof b.auto === 'boolean') p.auto = b.auto
+    planlong.ecrirePrise(p)
+    const job = deposerAvecCle(cleComfy(req), () => enqueuePlanLong({ id: p.id, action: String(b.action ?? ''), fenetre: b.fenetre }))
+    return { job: job.id }
+  } catch (e) { reply.code(400); return { error: String(e.message || e) } }
+})
+app.post('/api/planlong/:id/arret', async (req, reply) => {
+  const p = planlong.lirePrise(req.params.id)
+  if (!p) { reply.code(404); return { error: 'prise introuvable' } }
+  p.auto = false
+  planlong.ecrirePrise(p)
+  return { ok: true }
+})
+app.delete('/api/planlong/:id', async (req, reply) => {
+  const p = planlong.lirePrise(req.params.id)
+  if (!p) { reply.code(404); return { error: 'prise introuvable' } }
+  const j = p.jobActif ? store.getJob(p.jobActif) : null
+  if (j && !['done', 'failed', 'blocked', 'cancelled'].includes(j.status)) { reply.code(409); return { error: 'un rendu de cette prise est en cours : annule-le d’abord' } }
+  await planlong.viderDirector(p.id)
+  planlong.supprimerPrise(p.id)
+  return { ok: true }
 })
 app.post('/api/montage/musiques', async (req, reply) => {
   if (Buffer.isBuffer(req.body) && req.body.length > 40 * 1024 * 1024) { reply.code(413); return { error: 'fichier > 40 Mio' } }

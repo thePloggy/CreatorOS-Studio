@@ -1921,3 +1921,8 @@
 @media (hover: none) { .v2 .insp-texte small { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .v2 .insp-carte, .v2 .insp-carte video, .v2 .insp-carte img, .v2 .insp-texte small { transition: none; } .v2 .insp-carte:hover video, .v2 .insp-carte:hover img, .v2 .insp-carte:hover { transform: none; } }
 .v2 .insp-texte b i { font-style: normal; font-weight: 600; font-size: 10.5px; color: rgba(255,255,255,.65); margin-left: 4px; }
+
+/* Long Take: the window being rendered pulses */
+@keyframes pl-pouls { 0%, 100% { opacity: 1 } 50% { opacity: .55 } }
+.pl-pouls { animation: pl-pouls 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pl-pouls { animation: none; } }

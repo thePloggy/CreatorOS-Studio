@@ -1332,6 +1332,46 @@ export async function promptKnown(promptId) {
   return null
 }
 
+/* LTX video decode in a single temporal tile for clips of 10 s or less (241 frames at 24 fps): faster and no soft
+   frame at each 64-frame seam (bench of 11/11). Longer clips keep 64-frame tiles to stay within VRAM. */
+function decodageLtxUneTuile(g) {
+  const noeuds = Object.values(g ?? {})
+  const vaeLtx = new Set(Object.entries(g ?? {}).filter(([, n]) => n?.class_type === 'VAELoader' && /ltx.*video/i.test(String(n.inputs?.vae_name ?? ''))).map(([k]) => k))
+  if (!vaeLtx.size) return
+  // a frame count may be a link to a PrimitiveInt or to a math expression of PrimitiveInts (duration × fps + 1)
+  const valeur = (x, prof = 0) => {
+    if (typeof x === 'number') return x
+    const n = Array.isArray(x) && prof < 4 ? g[x[0]] : null
+    if (!n) return null
+    if (/^Primitive(Int|Float)$/.test(n.class_type)) return Number(n.inputs?.value)
+    if (n.class_type === 'ComfyMathExpression' && /^[a-z0-9+*\/(). -]+$/.test(String(n.inputs?.expression ?? ''))) {
+      const vars = Object.fromEntries(Object.entries(n.inputs).filter(([k]) => k.startsWith('values.')).map(([k, v]) => [k.slice(7), valeur(v, prof + 1)]))
+      if (Object.values(vars).some(v => typeof v !== 'number' || !Number.isFinite(v))) return null
+      try { return Number(new Function(...Object.keys(vars), `return (${n.inputs.expression})`)(...Object.values(vars))) } catch { return null }
+    }
+    return null
+  }
+  const longueurs = noeuds.filter(n => /LTXV/.test(n?.class_type ?? '')).flatMap(n => [n.inputs?.length, n.inputs?.frames_number]).map(x => valeur(x)).filter(x => typeof x === 'number' && Number.isFinite(x))
+  if (!longueurs.length || Math.max(...longueurs) > 241) return
+  for (const n of noeuds) if (n?.class_type === 'VAEDecodeTiled' && Array.isArray(n.inputs?.vae) && vaeLtx.has(n.inputs.vae[0])) Object.assign(n.inputs, { temporal_size: 4096, temporal_overlap: 4 })
+}
+
+/* MiniMax H3 beyond 12 s: native context windows (124 frames, 39 overlap, FreeNoise, pyramid fuse) between the
+   speed LoRA / attention node and the sampler, for one continuous take (bench of 11/11: no black frames at 16 s,
+   unlike a single pass). Clips of 12 s or less keep the single pass. */
+function fenetresH3Longues(g) {
+  const i2v = Object.values(g ?? {}).find(n => n?.class_type === 'MiniMaxH3ImageToVideo')
+  // a graph that already brings its windows (native, or the hybrid windows of the directed long take) keeps them
+  if (!i2v || Object.values(g).some(n => n?.class_type === 'MiniMaxH3ContextWindows' || n?.class_type === 'H3ClownHybridWindows')) return
+  const duree = Object.values(g).find(n => n?.class_type === 'PrimitiveFloat' && /duration/i.test(n?._meta?.title ?? ''))?.inputs?.value
+  if (!(Number(duree) > 12)) return
+  const guide = Object.values(g).find(n => n?.class_type === 'BasicGuider' && Array.isArray(n.inputs?.model))
+  if (!guide) return
+  const source = guide.inputs.model
+  g.h3_fenetres = { class_type: 'MiniMaxH3ContextWindows', inputs: { model: source, context_length: 124, context_overlap: 39, fuse_method: 'pyramid', freenoise: true, split_conds_to_windows: false } }
+  for (const n of Object.values(g)) if (n !== g.h3_fenetres && (n?.class_type === 'BasicGuider' || n?.class_type === 'BasicScheduler') && Array.isArray(n.inputs?.model) && n.inputs.model[0] === source[0]) n.inputs.model = ['h3_fenetres', 0]
+}
+
 export async function submitPrompt(workflow, clientId) {
   if (sdk.surSdk()) return sdk.soumettre(workflow)
   // small GPU: heavy loaders replaced by their lightweight variants (see allege.js)
@@ -1340,6 +1380,8 @@ export async function submitPrompt(workflow, clientId) {
     workflow = a.graphe
     console.log(`[allégé] ${a.remplaces.map(([de, vers]) => `${de} → ${vers}`).join(' ; ')}`)
   }
+  decodageLtxUneTuile(workflow)
+  fenetresH3Longues(workflow)
   const res = await fetch(CONFIG.comfyUrl + '/prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
