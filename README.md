@@ -2,6 +2,8 @@
 
 **An open-source Higgsfield you run at home: one recurring character, from a one-line brief to a finished, edited reel.** Train the character, shoot photos, animate them with sound, move the camera, re-shoot an angle, restore old footage and cut it all together, on your own GPU, with open-weights models only, on top of a local [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
 
+![The studio home: Movie Studio, the tool grid for image, video, sound and editing, and the character dance block, scrolled from top to bottom](docs/screenshots/home.gif)
+
 ![Movie Studio: a lighthouse keeper shot from a camera sheet; a superhero flight over Manhattan built from start and end frames, a prequel and a sequel; a western and a dragon flight, each rendered as one shot through keyframes placed on the editing table](docs/screenshots/movie-studio.gif)
 
 ![Real renders from the studio: one-click reel, Smooth (frame interpolation for fluid motion), sketch to video, re-shoot, 3D Scene, talking avatar, text to video, restoring a 1951 film of the Statue of Liberty](docs/screenshots/renders.gif)
