@@ -151,7 +151,7 @@ Ollama (local)         prompt rewriting, captions, light vision checks
 
 ## Requirements
 
-- An NVIDIA GPU with **8 GB of VRAM or more**. The production machine uses a 32 GB card and the full-size recipes are sized for it; on 8, 12 and 16 GB cards photos and image to video run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
+- An NVIDIA GPU with **8 GB of VRAM or more**; or, on this branch and experimental, an AMD GPU with ROCm or an Apple Silicon Mac with **16 GB of unified memory or more** (see [Without CUDA](#without-cuda-amd--rocm-and-apple-silicon-experimental)). The production machine uses a 32 GB card and the full-size recipes are sized for it; on 8, 12 and 16 GB cards photos and image to video run with lighter weights (see [Smaller GPUs](#smaller-gpus)).
 - Node.js 22.5 or newer (the server uses the built-in `node:sqlite`) and ffmpeg.
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI), recent enough to ship the Wan Animate 2, LTX-2.5 and SAM3 core nodes, plus these custom node packs:
   ComfyUI-KJNodes, ComfyUI-VideoHelperSuite, ComfyUI-GGUF, ComfyUI-CrossViewWarp (re-shoot), ComfyUI-WanVideoWrapper + ComfyUI-segment-anything-2 + comfyui_controlnet_aux + comfyui_segment_anything (Mix), ComfyUI-Frame-Interpolation (RIFE, for video refine and smoothing), RES4LYF, ComfyUI-Impact-Pack + Impact-Subpack (only for photo HD).
@@ -198,7 +198,7 @@ ComfyUI is expected at `http://127.0.0.1:8188` and Ollama at `http://127.0.0.1:1
 
 `npm run setup` (plain Node, no extra dependency) walks through the machine and asks before every step that writes anything:
 
-1. **Prerequisites**: Node 22.5+, git, ffmpeg, Python 3.12 (uv if present), NVIDIA driver and VRAM, with a fix hint for each missing piece.
+1. **Prerequisites**: Node 22.5+, git, ffmpeg, Python 3.12 (uv if present), the GPU (NVIDIA driver, ROCm, or Apple Silicon) and its memory, with a fix hint for each missing piece.
 2. **ComfyUI**: found through `COMFY_DIR`, `~/ComfyUI` or a path you give. If absent, it can clone it, create a venv (uv or `python -m venv`), install a CUDA build of PyTorch matching your driver, then the requirements. It checks that ComfyUI is recent enough for the core nodes the recipes use.
 3. **Features**: pick what you want to run (photo, Klein, photo HD, edit, Wan, Wan T2V, LTX, motion, video retouch). Each group shows what is missing, its size, and an estimate of the VRAM it needs against your card (fits, tight, or likely too big).
 4. **Custom node packs** the selected groups need, cloned into `custom_nodes/` with their requirements installed into ComfyUI's venv (torch lines are skipped so your CUDA build stays).
@@ -322,6 +322,33 @@ claude mcp add creatoros-studio -- node /path/to/creatoros-studio/scripts/agent/
 ```
 
 The MCP server exposes `generate_photo`, `image_to_video`, `make_reel`, `dance` and `list_dances`, `generate_music` and `list_music`, `speak`, `list_voices` and `talking_clip`, `edit_video` (one-click LTX effects, remove or replace an element, change the background), `get_status`, `list_library`, `list_characters` and `machine_status`. `skills/creatoros-studio/SKILL.md` is a matching agent skill: copy it to `~/.claude/skills/` so Claude knows which tool fits which request. It has no dependency beyond Node. Set `STUDIO_URL` if the studio is not on `http://127.0.0.1:8787`, and `CREATOROS_OWNER_KEY` if it is locked with an owner key. Without the key, a request from the same machine is treated like any visitor.
+
+## Without CUDA: AMD / ROCm and Apple Silicon (experimental)
+
+This branch (`macos`) runs the studio on machines that have no CUDA: AMD cards through ROCm, and Apple Silicon Macs through Metal (MPS). **Neither has been tested on real hardware yet**: the detection, the memory profile and the choice of weights are covered by simulated runs only. Render times are unknown and expected to be well below an NVIDIA card. Reports are welcome in the issues.
+
+What changes on these machines:
+
+- **Detection.** The server and `npm run setup` find the GPU with `rocm-smi` on AMD, and from the machine itself on a Mac (chip name, unified memory). `CREATOROS_GPU=nvidia|amd|apple` forces it. On a Mac the gauges show memory only: GPU load and temperature are not readable without root.
+- **PyTorch.** The setup installs the ROCm build on AMD (`https://download.pytorch.org/whl/rocm7.1`) and the default PyPI build on a Mac, which carries Metal. Override with `CREATOROS_TORCH_INDEX`.
+- **Weights.** The int8-convrot files used by some recipes (FLUX 3, LTX-2.5, Wan Animate 2, MOSS, TRELLIS.2) need CUDA kernels. Without CUDA the setup downloads a replacement instead, and the server swaps the loader when it sends the recipe:
+  - the official **bf16** weights when they fit in about 85 % of the memory;
+  - otherwise a **GGUF** (Q8_0, then Q4_K_M) through ComfyUI-GGUF, for LTX-2.5 and FLUX 3.
+- **Memory profile on a Mac.** The GPU shares the system memory, so the studio plans for 55 % of it and leaves the rest to macOS, the browser and the local LLM (`CREATOROS_MAC_BUDGET=0.3` to `0.9` changes that share). The profile then works as on a small NVIDIA card (see [Smaller GPUs](#smaller-gpus)); the last column is what that profile gives on NVIDIA, not a measurement on a Mac:
+
+  | Mac unified memory | Planned for renders | Profile | What to expect |
+  |---|---|---|---|
+  | 8 GB | 4.4 GB | none | below the smallest profile: not supported |
+  | 16 to 18 GB | 9 to 10 GB | 8 GB | photos with FLUX.2 Klein 4B, Wan 2.2 video in GGUF Q4 at 480p |
+  | 24 GB | 13 GB | 12 GB | photos with FLUX.2 Klein 4B, Wan 2.2 video in GGUF Q4 at 720p |
+  | 32 to 36 GB | 18 to 20 GB | 16 GB | photos with Krea 2 or FLUX.2 Klein 9B, Wan 2.2 video in GGUF Q4 at 720p |
+  | 48 GB and more | 26 GB and more | 24 GB | the full-size recipes; LTX-2.5 with sound in GGUF Q8, in bf16 from 128 GB |
+
+  The setup wizard prints the same verdict per feature ("fits", "tight", "likely too big") before downloading anything.
+- **Starting ComfyUI.** Without `--use-sage-attention` (SageAttention is CUDA only). On a Mac, start it with `PYTORCH_ENABLE_MPS_FALLBACK=1` so an operation Metal does not implement falls back to the CPU instead of stopping the render.
+- **Not available without CUDA:** MiniMax H3 (nvfp4 text encoder) and the SCAIL 2 swap (int8 only, no bf16 release yet). Character LoRA training and the third-party node packs (SAM 3, SeedVR2, RIFE, MoGe-2) have not been tried on Metal.
+
+One studio drives one GPU. With two AMD cards, run two ComfyUI instances (`HIP_VISIBLE_DEVICES=0` and `=1`) and point one studio at each (`COMFY_URL`).
 
 ## Community
 

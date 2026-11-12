@@ -148,9 +148,42 @@ function trouverPython312(uv) {
   return null
 }
 
-function gpu() {
-  const smi = trouver('nvidia-smi')
+/* Apple Silicon (macOS, Metal / MPS): the GPU shares the system memory. The wizard sizes the
+   install for 55 % of it (CREATOROS_MAC_BUDGET changes that share), like the server does. */
+function gpuApple() {
+  if (process.arch !== 'arm64') return { fournisseur: 'apple', erreur: 'Intel Mac: the studio needs Apple Silicon (M1 or later)' }
+  const nom = lire('sysctl', ['-n', 'machdep.cpu.brand_string']).out.trim() || 'Apple Silicon'
+  const macos = lire('sw_vers', ['-productVersion']).out.trim()
+  const part = Number(process.env.CREATOROS_MAC_BUDGET)
+  const memoire = os.totalmem()
+  return { fournisseur: 'apple', nom, memoire, vram: Math.round(memoire * (part >= 0.3 && part <= 0.9 ? part : 0.55)), pilote: `macOS ${macos || '?'}, Metal` }
+}
+
+/* AMD card (ROCm): rocm-smi gives the name and the VRAM, /opt/rocm/.info/version the ROCm version. */
+function gpuAmd() {
+  const smi = trouver('rocm-smi')
   if (!smi) return null
+  const q = lire(smi, ['--showproductname', '--showmeminfo', 'vram', '--json'])
+  if (q.code !== 0 || !q.out.trim()) return { fournisseur: 'amd', erreur: (q.err || q.out).trim().split('\n')[0] }
+  try {
+    const c = Object.entries(JSON.parse(q.out)).filter(([k]) => /^card\d+$/.test(k)).map(([, v]) => v)[0] ?? {}
+    const cle = re => Object.keys(c).find(k => re.test(k))
+    const nom = String(c[cle(/card series|card model|product name/i)] ?? 'AMD GPU').trim()
+    const vram = Number(String(c[cle(/vram total memory/i)] ?? '0').replace(/[^\d]/g, '')) || 0
+    let rocm = null
+    try { rocm = fs.readFileSync('/opt/rocm/.info/version', 'utf8').trim() } catch { /* unknown version */ }
+    return { fournisseur: 'amd', nom, vram, pilote: rocm ? `ROCm ${rocm}` : 'ROCm', rocm }
+  } catch (e) { return { fournisseur: 'amd', erreur: String(e.message || e) } }
+}
+
+/** No CUDA kernels: AMD (ROCm) or Apple Silicon (MPS). The int8-convrot and nvfp4 weights cannot be loaded there. */
+const horsCuda = carte => carte?.fournisseur === 'amd' || carte?.fournisseur === 'apple'
+const NOM_BACKEND = { amd: 'ROCm', apple: 'Metal (MPS)' }
+
+function gpu() {
+  if (process.platform === 'darwin' || process.env.CREATOROS_GPU === 'apple') return gpuApple()
+  const smi = trouver('nvidia-smi')
+  if (!smi || process.env.CREATOROS_GPU === 'amd') return gpuAmd()
   const q = lire(smi, ['--query-gpu=name,memory.total,driver_version', '--format=csv,noheader,nounits'])
   if (q.code !== 0 || !q.out.trim()) return { erreur: (q.err || q.out).trim().split('\n')[0] }
   const [nom, mem, pilote] = q.out.trim().split('\n')[0].split(',').map(s => s.trim())
@@ -160,8 +193,10 @@ function gpu() {
 
 /* PyTorch wheel index for the CUDA version the driver supports: the most
    recent one the driver covers. CREATOROS_TORCH_INDEX takes precedence. */
-function indexTorch(cuda) {
+function indexTorch(cuda, carte) {
   if (process.env.CREATOROS_TORCH_INDEX) return process.env.CREATOROS_TORCH_INDEX
+  if (carte?.fournisseur === 'amd') return 'https://download.pytorch.org/whl/rocm7.1'
+  if (carte?.fournisseur === 'apple') return 'pypi'   // the default PyPI wheel carries Metal (MPS)
   const v = Number(cuda) || 0
   const tag = v >= 13.2 ? 'cu132' : v >= 13.0 ? 'cu130' : v >= 12.9 ? 'cu129' : v >= 12.6 ? 'cu126' : null
   return tag && `https://download.pytorch.org/whl/${tag}`
@@ -175,8 +210,8 @@ function prerequis() {
   else { ko(`Node ${process.versions.node} (22.5+ required, the server uses node:sqlite)`, 'install Node 22 LTS: https://nodejs.org or `nvm install 22`'); bilan.manque.push('Node ≥ 22.5') }
 
   for (const [cmd, conseil] of [
-    ['git', 'sudo apt install git'],
-    ['ffmpeg', 'sudo apt install ffmpeg'],
+    ['git', process.platform === 'darwin' ? 'xcode-select --install, or `brew install git`' : 'sudo apt install git'],
+    ['ffmpeg', process.platform === 'darwin' ? 'brew install ffmpeg' : 'sudo apt install ffmpeg'],
   ]) {
     const chemin = trouver(cmd)
     if (chemin) ok(cmd, lire(chemin, ['-version']).out.split('\n')[0].slice(0, 60) || lire(chemin, ['--version']).out.split('\n')[0])
@@ -192,8 +227,19 @@ function prerequis() {
   if (!p.uv) info('uv not found: pip/venv will be used (uv is faster: https://docs.astral.sh/uv/)')
 
   p.gpu = gpu()
-  if (!p.gpu) { ko('nvidia-smi not found: no NVIDIA driver', 'install the NVIDIA driver (Ubuntu: `sudo ubuntu-drivers install`), then reboot'); bilan.manque.push('NVIDIA driver') }
-  else if (p.gpu.erreur) { ko(`nvidia-smi fails: ${p.gpu.erreur}`, 'the driver does not match the running kernel: reinstall it or reboot'); bilan.manque.push('NVIDIA driver') }
+  if (!p.gpu) { ko('no GPU driver found (nvidia-smi or rocm-smi)', 'NVIDIA: install the driver (Ubuntu: `sudo ubuntu-drivers install`) and reboot; AMD: install ROCm (https://rocm.docs.amd.com)'); bilan.manque.push('GPU driver') }
+  else if (p.gpu.erreur && p.gpu.fournisseur === 'apple') { ko(p.gpu.erreur); bilan.manque.push('Apple Silicon') }
+  else if (p.gpu.erreur) { ko(`${p.gpu.fournisseur === 'amd' ? 'rocm-smi' : 'nvidia-smi'} fails: ${p.gpu.erreur}`, p.gpu.fournisseur === 'amd' ? 'check ROCm and that your user is in the render and video groups' : 'the driver does not match the running kernel: reinstall it or reboot'); bilan.manque.push('GPU driver') }
+  else if (p.gpu.fournisseur === 'apple') {
+    ok(`${p.gpu.nom}, ${octets(p.gpu.memoire)} unified memory`, `${p.gpu.pilote}; ${octets(p.gpu.vram)} planned for renders`)
+    alerte('Apple Silicon support is experimental', 'the recipes use bf16 or GGUF weights instead of int8-convrot / nvfp4; start ComfyUI with PYTORCH_ENABLE_MPS_FALLBACK=1 and without --use-sage-attention')
+    if (p.gpu.memoire < 15e9) { ko('less than 16 GB of unified memory: below the smallest profile of the studio'); bilan.manque.push('16 GB of memory') }
+    else if (p.gpu.memoire < 40e9) alerte('under 48 GB of unified memory: photo recipes run with lighter weights; LTX-2.5 video is likely too big, Wan 2.2 GGUF is the video path')
+  }
+  else if (p.gpu.fournisseur === 'amd') {
+    ok(`${p.gpu.nom}, ${octets(p.gpu.vram)} VRAM`, p.gpu.pilote)
+    alerte('AMD / ROCm support is experimental', 'the recipes use the official bf16 weights or GGUF instead of int8-convrot / nvfp4; start ComfyUI without --use-sage-attention')
+  }
   else {
     ok(`${p.gpu.nom}, ${octets(p.gpu.vram)} VRAM`, `driver ${p.gpu.pilote}, CUDA ${p.gpu.cuda ?? '?'}`)
     if (p.gpu.vram < 23e9) alerte('less than 24 GB of VRAM: video recipes are sized for a 32 GB card and may run out of memory')
@@ -250,10 +296,11 @@ async function preparerVenv(dir, p) {
     bilan.fait.push(`venv ${tilde(venv)}`)
   }
 
-  const idx = indexTorch(p.gpu?.cuda)
+  const idx = indexTorch(p.gpu?.cuda, p.gpu)
+  const backend = NOM_BACKEND[p.gpu?.fournisseur] ?? 'CUDA'
   if (!idx) alerte('could not pick a CUDA build of PyTorch from the driver version', 'set CREATOROS_TORCH_INDEX, e.g. https://download.pytorch.org/whl/cu130')
-  else if (await confirmer(`Install PyTorch (CUDA, ${idx.split('/').pop()}) into the venv? (~3-5 GB)`)) {
-    await pip(py, p, ['torch', 'torchvision', 'torchaudio', '--index-url', idx])
+  else if (await confirmer(`Install PyTorch (${backend}, ${idx.split('/').pop()}) into the venv? (~${idx === 'pypi' ? '1' : '3-5'} GB)`)) {
+    await pip(py, p, ['torch', 'torchvision', 'torchaudio', ...(idx === 'pypi' ? [] : ['--index-url', idx])])
     bilan.fait.push(`PyTorch (${idx.split('/').pop()})`)
   }
   if (await confirmer('Install ComfyUI requirements (requirements.txt)?')) {
@@ -316,13 +363,13 @@ async function etapeComfy(p) {
   if (!CHECK && (!py || torchAbsent)) { await preparerVenv(dir, p); py = pythonDeComfy(dir) }
   if (!py) { ko('no venv found in the ComfyUI folder (venv/ or .venv/)', 'run `npm run setup` to create it, or set COMFY_PYTHON to the Python ComfyUI runs with'); bilan.manque.push('ComfyUI venv') }
   else {
-    // Read-only: Python and torch versions, whether CUDA is visible.
-    const r = lire(py, ['-I', '-c', 'import sys\ntry:\n import torch; t=torch.__version__; c=torch.cuda.is_available()\nexcept Exception as e: t=None; c=False\nprint("PY", sys.version.split()[0], t, c)'], 120_000)
+    // Read-only: Python and torch versions, whether the GPU (CUDA, ROCm or Metal) is visible.
+    const r = lire(py, ['-I', '-c', 'import sys\ntry:\n import torch; t=torch.__version__; c=bool(torch.cuda.is_available() or (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()))\nexcept Exception as e: t=None; c=False\nprint("PY", sys.version.split()[0], t, c)'], 120_000)
     const m = r.out.match(/PY (\S+) (\S+) (True|False)/)
     if (!m) { ko(`the ComfyUI Python does not start (${tilde(py)})`, (r.err.trim().split('\n').pop() || '').slice(0, 160)); bilan.manque.push('ComfyUI Python') }
-    else if (m[2] === 'None') { ko(`torch is not installed in ${tilde(py)}`, `install a CUDA build: ${indexTorch(p.gpu?.cuda) ?? 'https://pytorch.org/get-started/locally/'}`); bilan.manque.push('torch') }
-    else if (m[3] !== 'True') { alerte(`Python ${m[1]}, torch ${m[2]}, but CUDA is not available to torch`, 'check the driver (nvidia-smi) and that torch is a CUDA build'); }
-    else ok(`Python ${m[1]}, torch ${m[2]}, CUDA ok`, tilde(py))
+    else if (m[2] === 'None') { ko(`torch is not installed in ${tilde(py)}`, p.gpu?.fournisseur === 'apple' ? 'install it: pip install torch torchvision torchaudio' : `install a ${NOM_BACKEND[p.gpu?.fournisseur] ?? 'CUDA'} build: ${indexTorch(p.gpu?.cuda, p.gpu) ?? 'https://pytorch.org/get-started/locally/'}`); bilan.manque.push('torch') }
+    else if (m[3] !== 'True') { alerte(`Python ${m[1]}, torch ${m[2]}, but the GPU is not available to torch`, p.gpu?.fournisseur === 'apple' ? 'Metal (MPS) needs an arm64 Python: check `python -c "import platform; print(platform.machine())"` prints arm64' : p.gpu?.fournisseur === 'amd' ? 'check ROCm (rocm-smi) and that torch is a ROCm build (+rocm in the version)' : 'check the driver (nvidia-smi) and that torch is a CUDA build'); }
+    else ok(`Python ${m[1]}, torch ${m[2]}, ${NOM_BACKEND[p.gpu?.fournisseur] ?? 'CUDA'} ok`, tilde(py))
   }
 
   let actifs = await objectInfo(dir)
@@ -455,8 +502,20 @@ async function choisirGroupes(modeles, vram, profil = 24) {
    makes the same substitution on submit (server/allege.js); only what will
    be used is downloaded here. Same steps as the server. */
 const profilDe = o => { const go = o / 2 ** 30; return !go ? 24 : go >= 22 ? 24 : go >= 14 ? 16 : go >= 10 ? 12 : 8 }
-function selonCarte(modeles, profil) {
+/* Weights that only load with CUDA kernels. Without CUDA they are downloaded only if --keep-full is given. */
+const DEMANDE_CUDA = /int8[-_]convrot|nvfp4/i
+function selonCarte(modeles, profil, sansCuda = false, vramCarte = 0) {
   const nom = m => m.chemin.split('/').pop()
+  /* Without CUDA (AMD, Apple Silicon): one replacement per recipe file, the bf16 weights when they fit in
+     ~85 % of the memory, else the most faithful GGUF that fits. With CUDA these files are never downloaded. */
+  const remplacables = new Set(modeles.filter(m => m.sansCuda).map(m => m.sansCuda.remplace))
+  const retenue = new Set()
+  if (sansCuda) for (const r of remplacables) {
+    const cands = modeles.filter(m => m.sansCuda?.remplace === r).sort((a, b) => (a.sansCuda.chargeur ? 1 : 0) - (b.sansCuda.chargeur ? 1 : 0) || b.taille - a.taille)
+    const v = (vramCarte ? cands.find(c => c.taille <= vramCarte * 0.85) : cands[0]) ?? cands[cands.length - 1]
+    if (v) retenue.add(nom(v))
+  }
+  modeles = modeles.filter(m => m.sansCuda ? retenue.has(nom(m)) : !(sansCuda && DEMANDE_CUDA.test(nom(m)) && !drapeau('--keep-full')))
   const tient = r => modeles.find(m => nom(m) === r)?.tient ?? 24
   const gardees = new Set()
   for (const r of new Set(modeles.filter(m => m.leger).map(m => m.leger.remplace))) {
@@ -470,7 +529,7 @@ function selonCarte(modeles, profil) {
   return modeles.filter(m => m.leger ? gardees.has(nom(m)) : drapeau('--keep-full') || !remplaces.has(nom(m)))
 }
 
-async function etapeGroupes(comfy, vram) {
+async function etapeGroupes(comfy, vram, carte = null) {
   titre('3. Features')
   const etat = etatModeles(comfy.dir)
   if (etat.extra.length) info(`extra_model_paths.yaml: ${etat.extra.map(s => `${s.nom} → ${tilde(s.base)}${s.defaut ? ' (default)' : ''}`).join(', ')}`)
@@ -478,7 +537,19 @@ async function etapeGroupes(comfy, vram) {
   const force = Number(valeur('--vram') ?? process.env.CREATOROS_VRAM)
   const profil = [24, 16, 12, 8].includes(force) ? force : profilDe(vram)
   if (force) vram = force * 1e9
-  const modeles = selonCarte(etat.modeles, profil)
+  const sansCuda = horsCuda(carte)
+  const modeles = selonCarte(etat.modeles, profil, sansCuda, vram)
+  if (sansCuda) {
+    const nom = m => m.chemin.split('/').pop()
+    const remplaces = modeles.filter(m => m.sansCuda)
+    if (remplaces.length) {
+      info(`${NOM_BACKEND[carte.fournisseur]}: ${remplaces.length} bf16 or GGUF file(s) replace the CUDA-only weights (same recipes)`)
+      for (const m of remplaces) info(`  ${m.sansCuda.remplace} → ${m.chemin}`)
+    }
+    const couverts = new Set(etat.modeles.filter(m => m.sansCuda).map(m => m.sansCuda.remplace))
+    const perdus = etat.modeles.filter(m => !m.sansCuda && DEMANDE_CUDA.test(nom(m)) && !couverts.has(nom(m)))
+    if (perdus.length) alerte(`${perdus.length} model(s) have no replacement without CUDA and are skipped: the features that need them will not run`, [...new Set(perdus.map(nom))].join(', '))
+  }
   const legers = modeles.filter(m => m.leger)
   if (legers.length) {
     info(`${profil} GB profile: ${legers.length} light model(s) replace the full-size ones (same recipes, quantized or smaller weights)`)
@@ -755,7 +826,7 @@ async function principal() {
   let groupes = null
   if (comfy) {
     // Feature choice comes first: it decides both packs AND models.
-    const etat = await etapeGroupes(comfy, p.gpu?.vram)
+    const etat = await etapeGroupes(comfy, p.gpu?.vram, p.gpu)
     groupes = etat.groupes
     await etapeNoeuds(comfy, p, groupes)
     await etapeModeles(etat)

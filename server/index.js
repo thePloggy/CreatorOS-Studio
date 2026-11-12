@@ -7,7 +7,7 @@ import { etatAllegement } from './allege.js'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
-import { execFile, execFileSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
@@ -43,6 +43,7 @@ import * as presets from './presets.js'
 // 256 MB: Motion Control drivers are videos, larger than photos.
 const brotli = promisify(zlib.brotliCompress), gzip = promisify(zlib.gzip)
 import { demoPublique, etatH3, recevoirFichierH3 } from './h3.js'
+import { mesures } from './carteGraphique.js'
 import { lancerCroquis, etatCroquis, choisirCroquis } from './croquis.js'
 import { lancerRestauration, etatRestauration } from './restauration.js'
 import { VOIX, changerVoix, cloner, cloneDisponible, dire, echantillon, synthetiser, voixAcceptee, voixDisponible } from './voix.js'
@@ -351,14 +352,14 @@ app.get('/api/health', async req => {
  *  guessed from the name): the front end can offer only those that apply to
  *  the Z-Image engine and grey out the others with an explanation. */
 /* ---------- machine telemetry ----------
-   GPU via nvidia-smi, CPU via /proc/stat (delta between two calls; the
-   first returns null) and k10temp (Tctl of AMD CPUs); elsewhere temperature
-   stays null. Lightweight poll for a topbar refresh every ~5 s. Linux only. */
+   GPU via carteGraphique.js (NVIDIA, AMD, Apple Silicon), CPU via os.cpus() (delta between
+   two calls; the first returns null) and k10temp (Tctl of AMD CPUs, Linux); elsewhere temperature
+   stays null. Lightweight poll for a topbar refresh every ~5 s. */
 let cpuPrev = null
 function cpuUtil() {
-  const line = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].trim().split(/\s+/).slice(1).map(Number)
-  const idle = line[3] + line[4]
-  const total = line.reduce((a, b) => a + b, 0)
+  // os.cpus() works on Linux and macOS alike
+  let idle = 0, total = 0
+  for (const c of os.cpus()) { for (const v of Object.values(c.times)) total += v; idle += c.times.idle }
   const prev = cpuPrev
   cpuPrev = { idle, total }
   if (!prev || total === prev.total) return null
@@ -369,19 +370,16 @@ function cpuUtil() {
    blocking the server, so open tabs do not each spawn nvidia-smi and the shared CPU delta
    stays correct. */
 let telemetrie = { quand: 0, valeur: null, enCours: null }
-const execFileAsync = promisify(execFile)
 app.get('/api/telemetry', async () => {
   if (telemetrie.valeur && Date.now() - telemetrie.quand < 4000) return telemetrie.valeur
   telemetrie.enCours ??= mesurerTelemetrie().then(v => { telemetrie = { quand: Date.now(), valeur: v, enCours: null }; return v }, e => { telemetrie.enCours = null; throw e })
   return telemetrie.enCours
 })
 async function mesurerTelemetrie() {
+  // NVIDIA (nvidia-smi), AMD (rocm-smi) or Apple Silicon: see carteGraphique.js. On a Mac, load and temperature stay null.
   let gpu = null
-  try {
-    const out = (await execFileAsync('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name',
-      '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000 })).stdout.trim().split(',').map(x => x.trim())
-    gpu = { util: Number(out[0]), temp: Number(out[1]), vramUsedMb: Number(out[2]), vramTotalMb: Number(out[3]), nom: String(out[4] ?? '').replace(/^NVIDIA\s+(GeForce\s+)?/, '') }
-  } catch { /* driver busy: the topbar keeps the last value */ }
+  const m = await mesures()
+  if (m) gpu = { util: m.util, temp: m.temp, vramUsedMb: m.memUtiliseeMo ?? 0, vramTotalMb: m.memTotaleMo, nom: String(m.nom ?? '').replace(/^(NVIDIA|AMD)\s+(GeForce\s+|Radeon\s+)?/, '') }
   let cpuTemp = null
   try {
     // k10temp = Tctl sensor of AMD CPUs.
@@ -401,7 +399,10 @@ async function mesurerTelemetrie() {
       .map(l => l.split(':')).filter(a => a.length === 2)
       .map(([k, v]) => [k.trim(), parseInt(v, 10)]))
     if (mi.MemTotal) ram = { usedMb: Math.round((mi.MemTotal - mi.MemAvailable) / 1024), totalMb: Math.round(mi.MemTotal / 1024) }
-  } catch { /* no /proc: — */ }
+  } catch {
+    // no /proc (macOS): the unified memory read for the GPU gauge is the system memory
+    if (m?.memTotaleMo && m.memUtiliseeMo != null) ram = { usedMb: m.memUtiliseeMo, totalMb: m.memTotaleMo }
+  }
   return { gpu, cpu: { util: cpuUtil(), temp: cpuTemp }, ram }
 }
 

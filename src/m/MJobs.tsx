@@ -55,12 +55,12 @@ export function MJobs({ goLibrary }: { goLibrary: () => void }) {
           </div>
           {tm?.gpu ? (
             <div className="telem">
-              <Cell k="GPU" v={`${tm.gpu.util} %`} />
+              <Cell k="GPU" v={tm.gpu.util != null ? `${tm.gpu.util} %` : t('Indisponible')} />
               <Cell k="CPU" v={tm.cpu?.util != null ? `${tm.cpu.util} %` : t('Indisponible')} />
               {/* The alert threshold is NOT derived from a mock value: until
                   the server provides one, colour only above a clear level
                   and stay factual. */}
-              <Cell k={t('Temp. GPU')} v={`${tm.gpu.temp} °C`} warn={tm.gpu.temp >= 83} />
+              {tm.gpu.temp != null && <Cell k={t('Temp. GPU')} v={`${tm.gpu.temp} °C`} warn={tm.gpu.temp >= 83} />}
               <Cell k="VRAM" v={gb(tm.gpu.vramUsedMb) ? t('{n} Go', { n: gb(tm.gpu.vramUsedMb)! }) : t('Indisponible')} />
               <Cell k="RAM" v={tm.ram ? t('{used} / {total} Go', { used: gb(tm.ram.usedMb)!, total: gb(tm.ram.totalMb)! }) : t('Indisponible')} />
               {tm.cpu?.temp != null && <Cell k={t('Temp. CPU')} v={`${tm.cpu.temp} °C`} />}

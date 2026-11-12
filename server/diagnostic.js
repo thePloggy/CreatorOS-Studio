@@ -19,6 +19,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { CONFIG } from './config.js'
+import { estAmd, identite } from './carteGraphique.js'
 
 const COMFY_DIR = CONFIG.comfyDir
 const COMFY_PY = CONFIG.comfyPython
@@ -37,14 +38,24 @@ const json = async (url, timeout = 15_000) => {
 /* ---------- checks ---------- */
 
 async function carteGraphique(p, infos) {
-  const r = await run('nvidia-smi', ['--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'])
-  if (r.code !== 0 || !r.out.trim()) {
+  const c = await identite()
+  if (!c) {
     const noyau = os.release()
-    p.push({ gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote NVIDIA ne répond pas (nvidia-smi en échec)',
-      conseil: `vérifier que le module du noyau ${noyau} est installé (paquet linux-modules-nvidia-…-${noyau}), puis « sudo modprobe nvidia » ou redémarrer` })
+    p.push(process.platform === 'darwin'
+      ? { gravite: 'bloquant', domaine: 'carte graphique', quoi: 'ce Mac n’a pas de puce Apple Silicon',
+          conseil: 'le studio demande un Mac M1 ou plus récent (Metal / MPS) ; un Mac Intel n’est pas pris en charge' }
+      : estAmd()
+      ? { gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote AMD ne répond pas (rocm-smi en échec)',
+          conseil: 'vérifier que ROCm est installé et que l’utilisateur est dans les groupes render et video, puis redémarrer' }
+      : { gravite: 'bloquant', domaine: 'carte graphique', quoi: 'le pilote NVIDIA ne répond pas (nvidia-smi en échec)',
+          conseil: `vérifier que le module du noyau ${noyau} est installé (paquet linux-modules-nvidia-…-${noyau}), puis « sudo modprobe nvidia » ou redémarrer` })
     return
   }
-  infos.carte = r.out.trim().split('\n')[0]
+  infos.carte = c.fabricant === 'apple'
+    ? `${c.nom}, ${c.pilote}, ${c.memoireGo} GiB unified memory (${c.vramGo} GiB planned for renders)`
+    : `${c.nom}, ${c.pilote ?? '?'}, ${c.vramGo} GiB${c.fabricant === 'amd' ? ' (ROCm)' : ''}`
+  if (c.fabricant === 'apple' && c.memoireGo < 16) p.push({ gravite: 'bloquant', domaine: 'carte graphique', quoi: `${c.memoireGo} Go de mémoire unifiée : en dessous du minimum`,
+    conseil: 'le plus petit profil du studio demande un Mac de 16 Go' })
 }
 
 /** Packages that ComfyUI and CreatorOS scripts actually import. */

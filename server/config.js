@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { vramGoSync } from './carteGraphique.js'
 
 const home = os.homedir()
 const repo = path.resolve(import.meta.dirname, '..')
@@ -23,14 +23,11 @@ try {
 const comfyDir = process.env.COMFY_DIR || path.join(home, 'ComfyUI')
 const dataDir = process.env.CREATOROS_DATA || path.join(home, 'creatoros-data')
 
-/** VRAM of this machine's first NVIDIA card, in GB (0 if unknown). Read once. */
+/** VRAM of this machine's first card, in GB (0 if unknown); on a Mac, the planned share of the unified memory. Read once. */
 let vramLue
 function vramLocaleGo() {
   if (vramLue === undefined) {
-    try {
-      const mo = execFileSync('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeout: 3000, encoding: 'utf8' })
-      vramLue = Math.round(Number(mo.split('\n')[0]) / 1024) || 0
-    } catch { vramLue = 0 }
+    vramLue = vramGoSync()   // NVIDIA, AMD or Apple Silicon (carteGraphique.js)
   }
   return vramLue
 }

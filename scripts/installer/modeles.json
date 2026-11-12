@@ -6,7 +6,8 @@
   "`racine: custom_nodes` : le fichier vit dans le dossier d'un pack de nœuds, pas sous models/.",
   "`taille` en octets, relevée sur l'API Hugging Face. `gated` : dépôt à accès accepté, il faut HF_TOKEN (envoyé en en-tête Authorization, jamais dans l'URL).",
   "`verifie` : l'URL a été contrôlée (fichier listé par l'API du dépôt, taille identique). `setup.mjs --verify-urls` refait le contrôle par requêtes HEAD.",
-  "`leger` : variante allégée d'un modèle lourd pour les petites cartes. `remplace` = le fichier d'origine, `pour` = le plus petit profil de VRAM (Go) où elle passe, `chargeur` = la classe de nœud qui la lit, `suit` = ne sert qu'avec ce fichier. `tient` (sur l'original) = le plus petit profil où il passe encore. Le serveur (server/allege.js) remplace les chargeurs à l'envoi ; l'assistant propose les variantes quand la carte est trop petite."
+  "`leger` : variante allégée d'un modèle lourd pour les petites cartes. `remplace` = le fichier d'origine, `pour` = le plus petit profil de VRAM (Go) où elle passe, `chargeur` = la classe de nœud qui la lit, `suit` = ne sert qu'avec ce fichier. `tient` (sur l'original) = le plus petit profil où il passe encore. Le serveur (server/allege.js) remplace les chargeurs à l'envoi ; l'assistant propose les variantes quand la carte est trop petite.",
+  "`sansCuda` : remplacement d'un fichier int8-convrot ou nvfp4 (noyaux CUDA) pour les machines sans CUDA, AMD sous ROCm et Apple Silicon. `remplace` = le fichier de la recette, `chargeur` = la classe de nœud qui le lit quand elle change (GGUF). Le serveur (server/allege.js) et l'assistant retiennent les poids bf16 s'ils tiennent dans ~85 % de la mémoire, sinon le GGUF le plus fidèle qui tient."
  ],
  "groupes": {
   "photo": {
@@ -1541,6 +1542,190 @@
     "chargeur": "UnetLoaderGGUF"
    },
    "verifie": true
+  },
+  {
+   "chemin": "ltx-2.5-22b-distilled-transformer-bf16.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors",
+   "taille": 42018190584,
+   "licence": "LTX-2.x Community License",
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true,
+   "gated": true,
+   "sansCuda": {
+    "remplace": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
+   "taille": 26263858182,
+   "licence": "LTX-2.x Community License (Gemma terms apply)",
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true,
+   "gated": true,
+   "sansCuda": {
+    "remplace": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "wan_animate_2_bf16.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/Wan-Animate-2/resolve/main/diffusion_models/wan_animate_2_bf16.safetensors",
+   "taille": 32789894104,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "motion"
+   ],
+   "recettes": [
+    "PROD_motion_480.json",
+    "PROD_motion_720.json"
+   ],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "wan_animate_2_int8_convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "moss_image_sft_bf16.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
+   "taille": 10164655808,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_moss"
+   ],
+   "recettes": [
+    "PROD_gen_moss_sfw.json"
+   ],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "moss_image_sft_int8_convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "trellis_2_bf16.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/diffusion_models/trellis_2_bf16.safetensors",
+   "taille": 10338297616,
+   "licence": "MIT",
+   "groupes": [
+    "objet3d"
+   ],
+   "recettes": [],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "trellis_2_int8_convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "flux3-image-klein-bf16.safetensors",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-bf16.safetensors",
+   "taille": 11097404512,
+   "licence": "FLUX Kommunity License",
+   "groupes": [
+    "photo_flux3"
+   ],
+   "recettes": [
+    "PROD_gen_flux3_sfw.json"
+   ],
+   "gated": true,
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "flux3-image-klein-int8-convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "qwen3vl_4b_bf16.safetensors",
+   "dossier": "text_encoders",
+   "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_bf16.safetensors",
+   "taille": 8875719408,
+   "licence": "Apache-2.0",
+   "groupes": [
+    "photo_flux3"
+   ],
+   "recettes": [
+    "PROD_gen_flux3_sfw.json"
+   ],
+   "gated": true,
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "qwen3vl_4b_int8_convrot.safetensors"
+   }
+  },
+  {
+   "chemin": "ltx-2.5-22b-distilled-Q8_0.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/distilled/ltx-2.5-22b-distilled-Q8_0.gguf",
+   "taille": 22779666816,
+   "licence": "LTX-2.x Community License",
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+    "chargeur": "UnetLoaderGGUF"
+   }
+  },
+  {
+   "chemin": "ltx-2.5-22b-distilled-Q4_K_M.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/distilled/ltx-2.5-22b-distilled-Q4_K_M.gguf",
+   "taille": 13584703872,
+   "licence": "LTX-2.x Community License",
+   "groupes": [
+    "video_ltx",
+    "reshoot"
+   ],
+   "recettes": [
+    "PROD_video_ltx_hq.json",
+    "server/jobs.js (foley)"
+   ],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+    "chargeur": "UnetLoaderGGUF"
+   }
+  },
+  {
+   "chemin": "flux-3-image-klein-Q8_0.gguf",
+   "dossier": "diffusion_models",
+   "url": "https://huggingface.co/unsloth/flux-3-image-klein-GGUF/resolve/main/flux-3-image-klein-Q8_0.gguf",
+   "taille": 6092755872,
+   "licence": "FLUX Kommunity License",
+   "groupes": [
+    "photo_flux3"
+   ],
+   "recettes": [
+    "PROD_gen_flux3_sfw.json"
+   ],
+   "verifie": true,
+   "sansCuda": {
+    "remplace": "flux3-image-klein-int8-convrot.safetensors",
+    "chargeur": "UnetLoaderGGUF"
+   }
   }
  ],
  "_exclus": [

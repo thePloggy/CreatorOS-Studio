@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { t as tr } from '../../i18n'
 
 export type Telemetry = {
-  gpu: { util: number; temp: number; vramUsedMb: number; vramTotalMb: number; nom?: string } | null
+  gpu: { util: number | null; temp: number | null; vramUsedMb: number; vramTotalMb: number; nom?: string } | null
   cpu: { util: number | null; temp: number | null }
   ram: { usedMb: number; totalMb: number } | null
 }
@@ -32,10 +32,10 @@ const gb = (mb: number) => (mb / 1024).toFixed(1)
 export function telemetryText(t: Telemetry | null) {
   if (!t?.gpu) return null
   return {
-    gpu: `GPU ${t.gpu.util} % · ${t.gpu.temp}° · ${gb(t.gpu.vramUsedMb)}/${Math.round(t.gpu.vramTotalMb / 1024)} ${tr('Go')}`,
+    gpu: `GPU ${t.gpu.util ?? '—'} % · ${t.gpu.temp ?? '—'}° · ${gb(t.gpu.vramUsedMb)}/${Math.round(t.gpu.vramTotalMb / 1024)} ${tr('Go')}`,
     cpu: `CPU ${t.cpu.util ?? '—'} % · ${t.cpu.temp ?? '—'}°`,
     ram: t.ram ? `RAM ${Math.round(t.ram.usedMb / 1024)}/${Math.round(t.ram.totalMb / 1024)} ${tr('Go')}` : 'RAM —',
-    hot: t.gpu.temp >= 80 || (t.cpu.temp ?? 0) >= 85
+    hot: (t.gpu.temp ?? 0) >= 80 || (t.cpu.temp ?? 0) >= 85
       || (t.ram ? t.ram.usedMb / t.ram.totalMb > 0.92 : false),
   }
 }

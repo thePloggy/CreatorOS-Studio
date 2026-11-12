@@ -78,7 +78,7 @@ function Telemetry() {
     <div className="flex items-center gap-1.5 min-[1800px]:gap-3 font-mono text-[12px]" style={{ color: 'var(--muted)', flexShrink: 0 }}
       title={t('GPU, VRAM, CPU, RAM et températures (5 s)')}>
       {g.nom && <b className="hidden min-[1900px]:inline" style={val}>{g.nom}</b>}
-      {jauge('GPU', g.util, t('charge GPU : {n} %', { n: g.util }), `${g.util} %`)}
+      {g.util != null && jauge('GPU', g.util, t('charge GPU : {n} %', { n: g.util }), `${g.util} %`)}
       {jauge('VRAM', vramPct, t('mémoire vidéo : {n} %', { n: Math.round(vramPct) }), `${go(g.vramUsedMb)} ${t('Go')}`)}
       {tel.cpu.util != null && jauge('CPU', tel.cpu.util, t('charge CPU : {n} %', { n: tel.cpu.util }), `${tel.cpu.util} %`)}
       {tel.ram && jauge('RAM', ramPct, t('mémoire vive : {n} %', { n: Math.round(ramPct) }), `${Math.round(tel.ram.usedMb / 1024)}/${Math.round(tel.ram.totalMb / 1024)} ${t('Go')}`)}

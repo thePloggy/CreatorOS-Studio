@@ -17,6 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { CONFIG } from './config.js'
+import { budgetMac, estApple, sansCuda } from './carteGraphique.js'
 
 /** Profiles, largest to smallest (target GB of VRAM). */
 export const PROFILS = [24, 16, 12, 8]
@@ -37,6 +38,23 @@ for (const v of MANIFESTE.modeles.filter(m => m.leger)) {
 }
 
 /* Input name of each loader, and its own inputs. */
+/* Without CUDA (AMD on ROCm, Apple Silicon on MPS) the int8-convrot and nvfp4 files cannot be
+   loaded. Each recipe file concerned has replacements in the manifest (`sansCuda`): the official
+   bf16 weights, and GGUF files (Q8_0, Q4_K_M) for smaller memories. */
+const SANS_CUDA = {}
+for (const v of MANIFESTE.modeles.filter(m => m.sansCuda))
+  (SANS_CUDA[v.sansCuda.remplace] ??= []).push({ fichier: v.chemin.split('/').pop(), taille: v.taille ?? 0, chargeur: v.sansCuda.chargeur ?? null })
+// bf16 first (the most faithful), then GGUF files from largest to smallest
+for (const l of Object.values(SANS_CUDA)) l.sort((a, b) => (a.chargeur ? 1 : 0) - (b.chargeur ? 1 : 0) || b.taille - a.taille)
+
+/** Replacement to use without CUDA: the most faithful installed one that fits in ~85 % of the memory, else the smallest installed. */
+export function choixSansCuda(candidats, vramOctets, installe) {
+  const dispo = candidats.filter(c => installe(c))
+  if (!dispo.length) return null
+  const tient = vramOctets ? dispo.find(c => !c.taille || c.taille <= vramOctets * 0.85) : dispo[0]
+  return tient ?? dispo[dispo.length - 1]
+}
+
 const ENTREE = { UNETLoader: 'unet_name', UnetLoaderGGUF: 'unet_name', CLIPLoader: 'clip_name', CLIPLoaderGGUF: 'clip_name' }
 
 /** Profile of a card with `octets` of VRAM: the largest step it reaches. */
@@ -62,7 +80,9 @@ export async function profilActuel() {
   if (Date.now() - carte.at > 600_000) {
     try {
       const d = (await comfyJson('/system_stats', 5000))?.devices?.[0]
-      carte = { at: Date.now(), vram: d?.vram_total ?? 0, profil: profilDe(d?.vram_total ?? 0) }
+      // on a Mac, ComfyUI reports the whole unified memory: the studio plans for a share of it (carteGraphique.js)
+      const vram = estApple() ? budgetMac(d?.vram_total || undefined) : (d?.vram_total ?? 0)
+      carte = { at: Date.now(), vram, profil: profilDe(vram) }
     } catch { carte = { ...carte, at: Date.now() - 540_000 } }  // ComfyUI unreachable: retry in a minute
   }
   return { profil: carte.profil ?? 24, source: 'carte', vram: carte.vram }
@@ -99,9 +119,30 @@ async function choisir(nom, profil, dejaChoisis) {
 /** Replaces heavy loaders in an API-format graph. Returns { graphe, remplaces: [[from, to]] }. */
 export async function alleger(graphe) {
   const { profil } = await profilActuel()
-  if (profil >= 24 || !graphe || typeof graphe !== 'object') return { graphe, remplaces: [] }
+  if (!graphe || typeof graphe !== 'object') return { graphe, remplaces: [] }
+  const horsCuda = sansCuda()
+  if (profil >= 24 && !horsCuda) return { graphe, remplaces: [] }
   const out = structuredClone(graphe)
   const remplaces = []
+  /* Without CUDA first: the bf16 or GGUF replacement, if installed (otherwise the original file
+     stays and ComfyUI reports that it cannot load it). */
+  if (horsCuda) {
+    const { vram } = await profilActuel()
+    for (const n of Object.values(out)) {
+      if (!(n?.class_type in ENTREE)) continue
+      const nom = n.inputs?.[ENTREE[n.class_type]]
+      const cands = typeof nom === 'string' ? SANS_CUDA[nom.split('/').pop()] : null
+      if (!cands) continue
+      const installes = new Map()
+      for (const c of cands) installes.set(c.fichier, (await fichiersDe(c.chargeur ?? n.class_type)).has(c.fichier))
+      const v = choixSansCuda(cands, vram, c => installes.get(c.fichier))
+      if (!v) continue
+      remplaces.push([nom, v.fichier])
+      if (v.chargeur === 'UnetLoaderGGUF') { n.class_type = 'UnetLoaderGGUF'; n.inputs = { unet_name: v.fichier } }
+      else n.inputs[ENTREE[n.class_type]] = v.fichier
+    }
+    if (profil >= 24) return { graphe: out, remplaces }
+  }
   const choisis = new Set()
   // diffusion models first: the encoder choice depends on them
   const noeuds = Object.values(out).filter(n => n?.class_type in ENTREE)
