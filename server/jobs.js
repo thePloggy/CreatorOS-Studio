@@ -568,7 +568,8 @@ export async function recoverQueue() {
 /** Source of a restoration, for before/after: studio paths only. */
 const origineValide = u => (typeof u === 'string' && /^\/(api\/uploads|media)\/[\w.%-]+$/.test(u) ? u : undefined)
 export function enqueue(job) {
-  if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: 'klein', workflowFile: undefined }   // only the Klein recipe accepts references
+  // references: FLUX.2 Klein by default; FLUX 3 Image Klein when it is the engine asked for (not for a face held by the first reference)
+  if (job.mode === 'photo' && Array.isArray(job.references) && job.references.length) job = { ...job, photoEngine: job.photoEngine === 'flux3' && job.refVisage !== true ? 'flux3' : 'klein', workflowFile: undefined }
   /* Submission idempotency: if the client's key ALREADY produced a job, return
      that one instead of creating a second. The mobile client generates the key
      before its first POST and reuses it on every transport retry. Uniqueness is
@@ -716,9 +717,9 @@ export function enqueue(job) {
     // Prequel: the render ENDS on the source's first frame (endImage) and is placed before it
     prequel: mode === 'video' && !isMotion && job.prequel === true,
     // requested photo recipe (Krea 2 / FLUX.2 Klein): also decides which identity LoRAs are stacked
-    photoEngine: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) && job.references.length ? 'klein'
+    photoEngine: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) && job.references.length ? (job.photoEngine === 'flux3' && job.refVisage !== true ? 'flux3' : 'klein')
       : mode === 'photo' && op !== 'edit' && RECIPES_PAR_MOTEUR[job.photoEngine] ? job.photoEngine : undefined,
-    // up to 6 reference images (FLUX.2 Klein), bare names from the input folder
+    // up to 6 reference images (FLUX.2 Klein or FLUX 3 Image Klein), bare names from the input folder
     references: mode === 'photo' && op !== 'edit' && Array.isArray(job.references) ? job.references.filter(n => typeof n === 'string' && n && !/[\\/]/.test(n) && !n.startsWith('.')).slice(0, 6) : undefined,
     // without a character, the person in the first reference is the subject (carousel from a photo)
     refVisage: mode === 'photo' && op !== 'edit' && job.refVisage === true && Array.isArray(job.references) && job.references.length > 0,
@@ -4367,10 +4368,22 @@ function visageDuPersonnage(job, g, applied) {
   return [nom]
 }
 
-function appliquerReferences(g, noms, applied) {
+function appliquerReferences(g, noms, applied, moteur = 'klein') {
   const k = Object.values(g).find(n => n.class_type === 'KSampler')
   const vae = Object.entries(g).find(([, n]) => n.class_type === 'VAELoader')?.[0]
   if (!k || !vae) throw new Error('références : la recette n’a ni KSampler ni VAE')
+  if (moteur === 'flux3') {
+    // FLUX 3 Image Klein reads its references through one node, on both conditionings (each image scaled to ~1 MP)
+    const entrees = { positive: k.inputs.positive, negative: k.inputs.negative, vae: [vae, 0], resolution: 'resize', 'resolution.megapixels': 1 }
+    noms.forEach((image, i) => {
+      g[`ref${i}`] = { class_type: 'LoadImage', inputs: { image } }
+      entrees[`images.image${i}`] = [`ref${i}`, 0]
+    })
+    g.refs_flux3 = { class_type: 'ReferenceMultiLatent', inputs: entrees }
+    k.inputs.positive = ['refs_flux3', 0]; k.inputs.negative = ['refs_flux3', 1]
+    applied.push(`${noms.length} image(s) de référence sur FLUX 3 Image Klein (ReferenceMultiLatent)`)
+    return
+  }
   let pos = k.inputs.positive
   noms.forEach((image, i) => {
     g[`ref${i}`] = { class_type: 'LoadImage', inputs: { image } }
@@ -4481,7 +4494,9 @@ async function runJob(job, isRetry = false, connRetried = false) {
        stays first. Falls back to the original text if the LLM fails, so the render still runs. */
     const flux3Photo = job.mode === 'photo' && !isEdit && (job.photoEngine === 'flux3' || /flux3/.test(String(job.workflowFile ?? '')))
     const personnageFlux3 = !!job.personaId && job.personaId !== SANS_PERSONNAGE && lorasPhoto(persona(job.personaId), 'flux3').length > 0
-    if (flux3Photo && !job.flux3Brut) {
+    // with reference images, the prompt names what each reference is ("the woman from the first reference image…"):
+    // the rewriter would describe another person and another outfit over it, and FLUX 3 would follow the text
+    if (flux3Photo && !job.flux3Brut && !job.references?.length) {
       const scene = drawn.text.startsWith(triggerTxt) ? drawn.text.slice(triggerTxt.length) : drawn.text
       if (aReecrire(scene)) {
         try {
@@ -4618,8 +4633,10 @@ async function runJob(job, isRetry = false, connRetried = false) {
     // Klein without a character LoRA: the profile photo holds the face, with or without references
     const kleinSansLora = job.mode === 'photo' && job.photoEngine === 'klein' && !isEdit
     if (job.references?.length || kleinSansLora) {
-      const refs = [...visageDuPersonnage(job, workflow, applied), ...(job.references ?? [])].slice(0, 6)
-      if (refs.length) appliquerReferences(workflow, refs, applied)
+      // the profile photo as a face reference is a Klein mechanism; on FLUX 3 only the operator's references are sent
+      const surFlux3 = job.photoEngine === 'flux3' && !isEdit
+      const refs = [...(surFlux3 ? [] : visageDuPersonnage(job, workflow, applied)), ...(job.references ?? [])].slice(0, 6)
+      if (refs.length) appliquerReferences(workflow, refs, applied, surFlux3 ? 'flux3' : 'klein')
       if (job.refVisage && job.personaId === SANS_PERSONNAGE) {
         let n = workflow[Object.values(workflow).find(x => x.class_type === 'KSampler')?.inputs.positive?.[0]]
         while (n && n.class_type !== 'CLIPTextEncode') n = workflow[Object.values(n.inputs).find(v => Array.isArray(v))?.[0]]

@@ -410,6 +410,18 @@ export function deleteJobDeep(id) {
   return { removed: r.changes > 0, assetsRemoved: n }
 }
 
+/* ---------- visitor origin ----------
+   Ids of what an Internet visitor launched on a shared studio (jobs and reels), noted by
+   visites.js when the request is answered. The purge of visitor renders starts from here. */
+db.exec(`CREATE TABLE IF NOT EXISTS origines_visiteur (id TEXT PRIMARY KEY, at INTEGER NOT NULL)`)
+const marquerVisiteurStmt = db.prepare(`INSERT OR IGNORE INTO origines_visiteur (id, at) VALUES (?, ?)`)
+export const marquerVisiteur = (id, at = Date.now()) => { marquerVisiteurStmt.run(String(id), at) }
+export const idsVisiteur = () => new Set(db.prepare(`SELECT id FROM origines_visiteur`).all().map(r => r.id))
+export const oublierVisiteur = id => db.prepare(`DELETE FROM origines_visiteur WHERE id = ?`).run(String(id))
+/** Finished jobs with what links them to others: { id, created_at, payload }. */
+export const jobsTermines = () => db.prepare(`SELECT id, created_at, payload FROM jobs WHERE status IN ('done', 'blocked')`).all()
+export const jobDeAsset = id => db.prepare(`SELECT job_id FROM assets WHERE id = ?`).get(String(id))?.job_id ?? null
+
 /* ---------- recent and starred briefs ----------
    History is not stored separately: it is the jobs' briefs. Only stars have
    their own table (a starred brief survives job deletion). */

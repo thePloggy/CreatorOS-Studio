@@ -278,6 +278,7 @@ All settings are environment variables; the setup wizard writes the usual ones t
 | `CREATOROS_LLM` / `CREATOROS_VLM_DESCRIBE` | `mistral-small:latest` / `qwen2.5vl:7b` | |
 | `CREATOROS_PHOTO_ENGINE` | `krea` | `krea` or `klein` |
 | `CREATOROS_OWNER_KEY` | unset | locks the studio for a public demo, see below |
+| `CREATOROS_PURGE_VISITEURS_JOURS` | `2` | on a shared studio, renders launched by Internet visitors are erased for good after this many days (`0` = never); a visitor render the owner approved, flagged for export or filed in a folder is kept |
 | `CREATOROS_LLM_GPU` | unset (GPU when free) | `libre`: GPU only when ComfyUI has no job from another client; `0`: always CPU |
 | `CREATOROS_CONTENU_ADULTE` | unset | `1`: adult content on text-only renders, local single-user install only (see Content policy) |
 | `CREATOROS_FILTRE_PYTHON` | `~/venvs/filtre-images/bin/python` | Python with `nudenet`, for the nudity filter on renders; absent = filter off |

@@ -57,7 +57,7 @@ function idsDe(v, out = new Set(), cle = '') {
   return out
 }
 
-export function installerVisites(app, { dataDir, estProprietaire, avecCle, profondeurFile, lireJob }) {
+export function installerVisites(app, { dataDir, estProprietaire, avecCle, profondeurFile, lireJob, marquerVisiteur = () => {} }) {
   const fichier = path.join(dataDir, 'visites.json')
   let jours = {}
   try { jours = JSON.parse(fs.readFileSync(fichier, 'utf8')) } catch { /* first day */ }
@@ -120,8 +120,12 @@ export function installerVisites(app, { dataDir, estProprietaire, avecCle, profo
     if (!req.rendusVisiteur || reply.statusCode >= 400 || typeof payload !== 'string') return payload
     let corps = null
     try { corps = JSON.parse(payload) } catch { return payload }
-    const lances = [...idsDe(corps)].map(id => lireJob(id)).filter(Boolean)
+    const ids = [...idsDe(corps)]
+    const lances = ids.map(id => lireJob(id)).filter(Boolean)
     for (const row of lances) suivis.set(row.id, { depuis: Date.now(), route: req.rendusVisiteur })
+    // kept for the purge of visitor renders: the jobs, and the reel whose shots are queued later
+    for (const row of lances) marquerVisiteur(row.id)
+    for (const id of ids) if (/^reel-[a-z0-9]+$/.test(id)) marquerVisiteur(id)
     // what the request actually launched, counted against the visitor for the coming hour
     const cout = Math.max(lances.length, COUT_MINIMUM[req.rendusVisiteur] ?? 1)
     const liste = rendus.get(req.empreinteVisiteur) ?? []

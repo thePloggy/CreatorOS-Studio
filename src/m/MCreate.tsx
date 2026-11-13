@@ -139,10 +139,10 @@ export function MCreate({ goJobs, goMontage }: { goJobs: () => void; goMontage?:
         {mode === 'photo' && imgOp === 'generate' && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0 8px' }}>
             <small className="muted">{t('Recette')}</small>
-            {(['krea', 'klein'] as const).map(e => (
+            {(['krea', 'klein', 'flux3'] as const).map(e => (
               <button key={e} className={`chip ${s.photoEngine === e ? 'on' : ''}`} onClick={() => s.setPhotoEngine(e)}
                 disabled={e === 'klein' && !s.personaKlein} style={e === 'klein' && !s.personaKlein ? { opacity: 0.4 } : undefined}>
-                {e === 'krea' ? 'Krea 2' : 'FLUX.2 Klein'}
+                {e === 'krea' ? 'Krea 2' : e === 'klein' ? 'FLUX.2 Klein' : 'FLUX 3'}
               </button>
             ))}
           </div>

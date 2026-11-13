@@ -95,7 +95,7 @@ app.addHook('onRequest', async (req, reply) => {
 })
 app.post('/api/proprietaire', async req => ({ verrou: !!CONFIG.cleProprietaire, proprietaire: estProprietaire(req) }))
 // visitors per day, render limit for Internet visitors (see visites.js)
-const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id) })
+const { refuserContenu } = installerVisites(app, { dataDir: CONFIG.dataDir, estProprietaire, avecCle: () => !!CONFIG.cleProprietaire, profondeurFile: () => queueDepth(), lireJob: id => store.getJob(id), marquerVisiteur: id => store.marquerVisiteur(id) })
 
 /* No JSON response shows the server's home directory (recipe and database
    paths, ffmpeg or ComfyUI error messages): it is replaced with "~". */
@@ -1781,6 +1781,67 @@ function purgerCorbeille(tout = false) {
 app.post('/api/corbeille/vider', async () => ({ effaces: purgerCorbeille(true) }))
 purgerCorbeille()
 setInterval(purgerCorbeille, 6 * 3600_000).unref()
+
+/* ---------- purge of visitor renders ----------
+   On a shared studio (owner key set), what Internet visitors rendered is erased for good after
+   CREATOROS_PURGE_VISITEURS_JOURS days (2 by default, 0 = never): job rows, their assets,
+   files and thumbnails. A render counts as a visitor's when the visitor launched it
+   (origines_visiteur), when it is a shot of a reel the visitor launched, or when it is the
+   montage that such a reel assembles from its own shots.
+   The owner's renders are never touched: what cannot be traced to a visitor stays, and so does
+   a visitor render the owner approved, flagged for export or filed in a folder of their own. */
+const PURGE_VISITEURS_JOURS = Number(process.env.CREATOROS_PURGE_VISITEURS_JOURS ?? 2)
+function rendusVisiteurs() {
+  const marques = store.idsVisiteur()
+  const reels = [...marques].filter(i => /^reel-/.test(i))
+  const jobs = store.jobsTermines().map(r => { let p = null; try { p = JSON.parse(r.payload || 'null') } catch { /* unreadable payload */ } return { id: r.id, at: r.created_at, p } })
+  const visiteur = new Set(jobs.filter(j => marques.has(j.id) || reels.some(r => j.id.startsWith(`${r}-`))).map(j => j.id))
+  const deVisiteur = assetId => { const j = assetId ? store.jobDeAsset(assetId) : null; return !!j && visiteur.has(j) }
+  for (let change = true; change;) {
+    change = false
+    for (const j of jobs) {
+      if (visiteur.has(j.id) || !j.p) continue
+      // the montage a reel assembles on its own at the end: every clip is a shot of a visitor reel
+      if (j.p.op !== 'montage' || !j.p.montageId) continue
+      let clips = null
+      try { clips = JSON.parse(store.db.prepare('SELECT data FROM montages WHERE id = ?').get(j.p.montageId)?.data || 'null')?.clips ?? null } catch { clips = null }
+      if (clips?.length && clips.every(c => /^a-reel-/.test(String(c.assetId ?? '')) && deVisiteur(c.assetId))) { visiteur.add(j.id); change = true }
+    }
+  }
+  return { jobs: jobs.filter(j => visiteur.has(j.id)), reels }
+}
+function purgerVisiteurs() {
+  if (!CONFIG.cleProprietaire || !(PURGE_VISITEURS_JOURS > 0)) return 0
+  const limite = Date.now() - PURGE_VISITEURS_JOURS * 86400_000
+  const { jobs, reels } = rendusVisiteurs()
+  let n = 0, fichiers = 0
+  // kept: a visitor render the owner approved, flagged for export, or filed in a folder of their own
+  // (the "visitor" folder is only the sorting bin of those renders)
+  const garde = store.db.prepare(`SELECT 1 FROM assets a WHERE a.job_id = ? AND (a.review_status = 'approved' OR a.export_ready = 1
+    OR EXISTS (SELECT 1 FROM folder_assets fa JOIN folders f ON f.id = fa.folder_id WHERE fa.asset_id = a.id AND f.name NOT LIKE '%visit%')) LIMIT 1`)
+  for (const j of jobs) {
+    if (j.at > limite || garde.get(j.id)) continue
+    for (const f of store.jobAssetFiles(j.id)) {
+      for (const p of [path.join(CONFIG.mediaDir, path.basename(f)), path.join(CONFIG.mediaDir, '.posters', `${path.basename(f)}.jpg`)])
+        try { fs.unlinkSync(p); fichiers++ } catch (e) { if (e.code !== 'ENOENT') app.log.warn(`purge visiteurs ${p} : ${e.message}`) }
+    }
+    if (j.p?.op === 'montage' && j.p.montageId) store.db.prepare('DELETE FROM montages WHERE id = ?').run(j.p.montageId)
+    if (store.deleteJobDeep(j.id).removed) n++
+    store.oublierVisiteur(j.id)
+  }
+  // a visitor reel goes once it is old enough and none of its shots is left
+  for (const r of reels) {
+    const row = store.db.prepare('SELECT created_at FROM reels WHERE id = ?').get(r)
+    if (row && row.created_at > limite) continue
+    if (store.db.prepare(`SELECT 1 FROM jobs WHERE id LIKE ? LIMIT 1`).get(`${r}-%`)) continue
+    store.db.prepare('DELETE FROM reels WHERE id = ?').run(r)
+    store.oublierVisiteur(r)
+  }
+  if (n) app.log.info(`rendus des visiteurs : ${n} job(s) de plus de ${PURGE_VISITEURS_JOURS} jours effacé(s), ${fichiers} fichier(s)`)
+  return n
+}
+setTimeout(purgerVisiteurs, 60_000).unref()
+setInterval(purgerVisiteurs, 6 * 3600_000).unref()
 
 /* ---------- video extension: last frame -> i2v start frame ----------
    A video (uploaded to input/ or a gallery clip) is extended by extracting its

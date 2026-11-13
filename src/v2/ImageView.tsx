@@ -65,7 +65,7 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
       action: () => { s.setUserPrompt(p.ajout && s.userPrompt.trim() ? `${s.userPrompt.replace(/\s*\/\S*$/, '').trim()} ${p.texte}` : p.texte); if (!s.references.length) setRefPick(true) } })),
     { id: 'enhancer', label: 'Enhancer', aide: t('le LLM local réécrit le brief'), action: () => setEnh(true) },
     { id: 'elements', label: t('Éléments'), aide: t('tenues, lieux, poses, styles'), action: () => setElm(true) },
-    { id: 'references', label: t('Images de référence'), aide: t('jusqu’à 6 images, FLUX.2 Klein'), action: () => setRefPick(true) },
+    { id: 'references', label: t('Images de référence'), aide: t('jusqu’à 6 images, FLUX.2 Klein ou FLUX 3'), action: () => setRefPick(true) },
   ] })
   const [q, setQ] = useState('')
   /* only ONE context menu open at a time */
@@ -205,11 +205,11 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
             <button className={`spill ${task === 'edit' ? 'on' : ''}`} onClick={() => s.updatePhoto({ task: 'edit' })}>✦ {t('Retouche')}</button>
             {task === 'generate' && (<>
               <span className="text-[12px] ml-3" style={{ color: 'var(--faint)' }}>{t('Recette')}</span>
-              {/* a reference image is attached: only Klein can read it, so the server renders with Klein */}
+              {/* a reference image is attached: FLUX.2 Klein and FLUX 3 can read it; any other engine falls back to Klein */}
               {(() => {
                 const refs = s.references.length > 0
-                const moteur = refs ? 'klein' : s.photoEngine
-                const bloque = t('une image de référence est jointe : seul FLUX.2 Klein sait la lire — retire-la pour utiliser ce moteur')
+                const moteur = refs && s.photoEngine !== 'flux3' ? 'klein' : s.photoEngine
+                const bloque = t('une image de référence est jointe : seuls FLUX.2 Klein et FLUX 3 savent la lire — retire-la pour utiliser ce moteur')
                 return (<>
                   <button className={`spill ${moteur === 'krea' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('krea')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
                     title={refs ? bloque : t('Krea 2 — la recette de production, identité tenue par les LoRA Krea')}>Krea 2</button>
@@ -217,9 +217,9 @@ export function ImageView({ onOpen, goVideo }: { onOpen: (a: Asset, list: Asset[
                     title={t('FLUX.2 Klein 9B — références multiples ; sans LoRA Klein, le visage vient de la photo de profil du personnage')}>FLUX.2 Klein</button>
                   <button className={`spill ${moteur === 'moss' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('moss')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
                     title={refs ? bloque : t('MOSS Image — texte vers image, Apache-2.0 ; pas de LoRA d’identité : le visage du personnage n’est pas tenu')}>MOSS Image</button>
-                  <button className={`spill ${moteur === 'flux3' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('flux3')} disabled={refs} style={refs ? { opacity: .4, cursor: 'not-allowed' } : undefined}
-                    title={refs ? bloque : s.personaFlux3 ? t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; LoRA d’identité de {nom} appliquée', { nom: s.personaName }) : t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; {nom} n’a pas de LoRA FLUX 3 : son visage n’est pas tenu', { nom: s.personaName })}>FLUX 3 Klein</button>
-                  {refs && s.photoEngine !== 'klein' && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
+                  <button className={`spill ${moteur === 'flux3' ? 'on' : ''}`} onClick={() => s.setPhotoEngine('flux3')}
+                    title={refs ? t('FLUX 3 Image Klein — lit jusqu’à 6 images de référence (personne, vêtement, objet, lieu)') : s.personaFlux3 ? t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; LoRA d’identité de {nom} appliquée', { nom: s.personaName }) : t('FLUX 3 Image Klein — texte vers image, FLUX Kommunity License ; {nom} n’a pas de LoRA FLUX 3 : son visage n’est pas tenu', { nom: s.personaName })}>FLUX 3 Klein</button>
+                  {refs && s.photoEngine !== 'klein' && s.photoEngine !== 'flux3' && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('référence jointe → FLUX.2 Klein')}</span>}
                   {!refs && moteur === 'krea' && !s.personaKrea && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{nom} n’a pas de LoRA Krea : son visage ne sera pas tenu, prends FLUX.2 Klein', { nom: s.personaName })}</span>}
                   {!refs && (moteur === 'moss' || (moteur === 'flux3' && !s.personaFlux3)) && (s.personaKrea || s.personaKlein) && <span className="text-[12px] avis" style={{ color: 'var(--muted)' }}>{t('{moteur} ne tient pas le visage de {nom}', { moteur: moteur === 'moss' ? 'MOSS' : 'FLUX 3', nom: s.personaName })}</span>}
                 </>)
