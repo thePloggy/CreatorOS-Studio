@@ -19,6 +19,8 @@ import path from 'node:path'
 import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { CONFIG } from './config.js'
+import { personas } from './persona.js'
+import { etatLorasPersonas, modeLora } from './installationLora.js'
 
 const COMFY_DIR = CONFIG.comfyDir
 const COMFY_PY = CONFIG.comfyPython
@@ -214,6 +216,24 @@ async function disque(p, infos) {
   }
 }
 
+/** The characters' LoRAs, as the ComfyUI process will find them: present, valid
+ *  safetensors, and readable by the folder's owner. CreatorOS owning a 0600 file
+ *  reads it fine, so listLoras() never notices; ComfyUI, as another user, fails
+ *  with a misleading "No such file". Only character files: third-party LoRAs
+ *  are not the studio's to judge. */
+async function loras(p, infos) {
+  let dossier = null
+  try { dossier = fs.statSync(CONFIG.lorasDir) } catch { /* reported below */ }
+  const etats = etatLorasPersonas(personas().list)
+  infos.loras = `${etats.length} LoRA de personnage · dossier ${dossier ? `uid ${dossier.uid}` : 'absent'} · mode installé ${(modeLora() & 0o777).toString(8).padStart(4, '0')}`
+  for (const e of etats) {
+    const qui = `LoRA d'identité ${e.nom} (${e.personnages.join(', ')})`
+    if (!e.existe) { p.push({ gravite: 'bloquant', domaine: 'loras', quoi: `${qui} absente du dossier des LoRA`, conseil: `la réimporter (Extensions > Import LoRA) ou la retirer du personnage — ${e.chemin}` }); continue }
+    if (!e.lisible) p.push({ gravite: 'bloquant', domaine: 'loras', quoi: `${qui} : ${e.raison}`, conseil: 'réparer (POST /api/loras/reparer, ou « npm run setup »), ou « sudo chmod 644 » sur le fichier ; CREATOROS_LORA_MODE / CREATOROS_LORA_GROUP fixent le mode des prochaines' })
+    if (!e.valide) p.push({ gravite: 'bloquant', domaine: 'loras', quoi: `${qui} n'est pas un .safetensors valide : ${e.erreur}`, conseil: 'fichier incomplet ou corrompu : la réimporter ou relancer l\'entraînement' })
+  }
+}
+
 /* ---------- orchestration ---------- */
 
 let dernier = null
@@ -233,6 +253,7 @@ export async function diagnostiquer({ recettes = [], frais = false } = {}) {
       garde('ollama', () => ollama(p, infos)),
       garde('outils', () => outils(p)),
       garde('disque', () => disque(p, infos)),
+      garde('loras', () => loras(p, infos)),
     ])
     const ordre = { bloquant: 0, alerte: 1 }
     p.sort((a, b) => ordre[a.gravite] - ordre[b.gravite] || a.domaine.localeCompare(b.domaine))

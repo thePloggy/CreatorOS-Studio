@@ -12,6 +12,7 @@ import { promisify } from 'node:util'
 import { CONFIG } from './config.js'
 import { demoPublique, etatH3 } from './h3.js'
 import { aiToolkitPret, arreterEntrainement, dureeEstimeeMs, entrainer, moteurEntrainementPret, MOTEURS_ENTRAINEMENT, preparerEntrainement } from './entrainement.js'
+import { installerLora } from './installationLora.js'
 
 export const H3_MESSAGE_DEMO = 'MiniMax H3 n’est pas disponible sur cette démo : elle est hébergée dans l’Union européenne, que la licence MiniMax H3 exclut. Installe la version GitHub chez toi, si ta région est autorisée, pour l’utiliser.'
 /* H3 availability refreshed every 30 s so enqueue stays synchronous. */
@@ -2649,13 +2650,22 @@ async function runEntrainement(job, t0) {
     if (n - dernier >= 25) { dernier = n; console.log(`[job ${job.id}] entraînement ${moteur} ${n}/${job.entrainementPas}`) }
   }).finally(() => avancementEntrainements.delete(job.id))
   const nom = `${String(job.personaId).replace(/[^a-z0-9_]/g, '')}_${moteur}_${job.id.slice(6)}.safetensors`
-  fs.copyFileSync(lora, path.join(CONFIG.lorasDir, nom))
+  /* Installation is transactional (see installationLora.js): explicit mode so a
+     ComfyUI running as another user can read the file, structural validation,
+     expected architecture, then an atomic rename. It throws otherwise: the job
+     fails, the character is untouched, and the trained file stays in the
+     training folder for a manual import. */
+  const attendu = moteur === 'krea' ? 'krea2' : moteur === 'flux3' ? 'flux3' : 'flux2'
+  const inst = installerLora(lora, nom, { remplacer: true, verifier: tmp => {
+    const { arch } = comfy.loraProbe(tmp)
+    if (arch !== attendu) throw new Error(`architecture « ${arch} » au lieu de « ${attendu} » : LoRA non attachée ; le fichier entraîné reste dans ${lora}`)
+  } })
   if (!job.entrainementEssai) {
     const p = persona(job.personaId)
     const champ = moteur === 'krea' ? 'loras' : moteur === 'flux3' ? 'lorasFlux3' : 'lorasKlein'
     enregistrerPersona({ [champ]: [...(p[champ] ?? []).filter(l => l.name !== nom), { name: nom, strength: 1 }], ...(p.trigger ? {} : { trigger: job.entrainementDeclencheur }) }, job.personaId)
   }
-  console.log(`[job ${job.id}] LoRA ${nom} prête${job.entrainementEssai ? ' (essai, non attachée)' : ', ajoutée au personnage'}`)
+  console.log(`[job ${job.id}] LoRA ${nom} prête (${inst.tenseurs} tenseurs, mode ${inst.mode})${job.entrainementEssai ? ' (essai, non attachée)' : ', ajoutée au personnage'}`)
   store.markFinished(job.id, Date.now() - t0)
   return 0
 }

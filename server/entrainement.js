@@ -6,6 +6,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { spawn } from 'node:child_process'
 import { CONFIG } from './config.js'
+import { validerSafetensors } from './installationLora.js'
 
 /* One ai-toolkit per engine: FLUX 3 needs a recent version (flux3 arch), installed separately so
    the one training Klein and Krea is untouched. */
@@ -115,7 +116,11 @@ export function entrainer({ id, config, sortie, pas, moteur }, progres) {
       if (id) processus.delete(id)
       if (code !== 0) return ko(new Error(`ai-toolkit s'est arrêté (code ${code})`))
       const f = fs.existsSync(sortie) ? fs.readdirSync(sortie).filter(x => x.endsWith('.safetensors')).sort().pop() : null
-      f ? ok(path.join(sortie, f)) : ko(new Error('LoRA non produite'))
+      if (!f) return ko(new Error('LoRA non produite'))
+      /* Exit code 0 and a .safetensors name prove nothing: the file must open as
+         safetensors (header and every tensor range) before it is installed. */
+      try { validerSafetensors(path.join(sortie, f)) } catch (e) { return ko(new Error(`LoRA produite illisible (${path.join(sortie, f)}) : ${e.message}`)) }
+      ok(path.join(sortie, f))
     })
   })
 }

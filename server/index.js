@@ -29,6 +29,7 @@ import { T0_BLOCKLIST, t0Hit, t0Mineur } from './t0.js'
 import { SANS_PERSONNAGE, persona, personas, identityPreambleFor, enregistrer as enregistrerPersona, champsFiges, creer as creerPersona, activer as activerPersona, supprimer as supprimerPersona } from './persona.js'
 import { lireCreateur, ecrireCreateur } from './createur.js'
 import { etatCloud, importerCloud, tacheCloud } from './cloud-loras.js'
+import { cheminTemporaire, finaliserLora, etatLorasPersonas, reparerLorasPersonas } from './installationLora.js'
 import { enqueuePlanLong, H3_MESSAGE_DEMO, OPS_RELANCABLES, relancerSpecial, avancementEntrainements, enqueueEntrainement, enqueueDoublage, enqueueRecadrage, enqueueObjet3d, enqueueMusique, cheminModele, enqueueParole, enqueueReshoot, enqueueCleanPlate, enqueueEffetLtx, enqueueTransition, EFFETS_TRANSITION, enqueueDanse3d, STUDIOS_DANSE, enqueueDetour, enqueueTransparent, enqueueProfondeur, enqueueSeedvr, enqueueStage, sceneReshoot, deposerAvecCle, enqueue, enqueueParPlans, enqueueInpaint, enqueueInpaintVideo, enqueueUpscale, enqueueFinition, enqueueEssayage, enqueuePhotodump, enqueueStyleRef, enqueuePhotoHd, cancelJob, promoteJob, reorderQueue, RENDER_RATES, driverMeta, recoverQueue, queueDepth, placeDansFile, RECIPES, VIDEO_ENGINES, recettesServies, DEFAULT_VIDEO_ENGINE, MOTION_RECIPES, DEPRECATED_RECIPES } from './jobs.js'
 import { diagnostiquer, figerNoeuds, resumeDiagnostic } from './diagnostic.js'
 import * as montage from './montage.js'
@@ -62,7 +63,7 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, bodyLi
 const ROUTES_PROPRIETAIRE = new Set([
   'DELETE /api/montage/musiques/:nom', 'POST /api/assets/:id/retemps',
   'PUT /api/createur', 'PUT /api/persona', 'POST /api/personas', 'PUT /api/personas/:id', 'PUT /api/personas/:id/voix',
-  'DELETE /api/personas/:id', 'POST /api/persona/lora', 'PUT /api/persona/avatar',
+  'DELETE /api/personas/:id', 'POST /api/persona/lora', 'POST /api/loras/reparer', 'PUT /api/persona/avatar',
   'PUT /api/persona/avatar/depuis-asset', 'PUT /api/workflows/:file', 'PUT /api/prompts/:file',
   'POST /api/corbeille/vider', 'POST /api/diagnostic/figer', 'GET /api/visites',
   // Public demo: the library is shared; a visitor cannot delete renders or browse the trash.
@@ -840,9 +841,11 @@ app.delete('/api/personas/:id', async (req, reply) => {
 
 /* Upload of an identity LoRA (.safetensors) into ComfyUI's LoRA folder. Raw
    streamed body (application/octet-stream): a LoRA weighs 50 MB to over 1 GB
-   and does not fit in memory. The safetensors header is checked after
-   writing; a non-safetensors file is deleted. No silent overwrite:
-   ?remplacer=1 replaces an existing file. */
+   and does not fit in memory. The stream lands in a temporary file next to
+   the destination; installationLora.js then gives it an explicit mode (the
+   process umask would otherwise decide whether ComfyUI can read it), checks
+   every tensor range, and renames it atomically. A bad file is deleted. No
+   silent overwrite: ?remplacer=1 replaces an existing file. */
 const LORA_MAX = 2 * 1024 ** 3
 app.addContentTypeParser('application/octet-stream', (req, payload, done) => done(null, payload))
 app.post('/api/persona/lora', async (req, reply) => {
@@ -850,10 +853,11 @@ app.post('/api/persona/lora', async (req, reply) => {
   const stem = brut.normalize('NFD').replace(/[^\w.-]+/g, '_').replace(/^\.+/, '').slice(0, 80)
   if (!stem) { reply.code(400); return { error: 'nom de fichier manquant' } }
   const nom = `${stem}.safetensors`, cible = path.join(CONFIG.lorasDir, nom)
-  if (fs.existsSync(cible) && req.query.remplacer !== '1') { reply.code(409); return { error: `« ${nom} » existe déjà`, nom } }
+  const remplacer = req.query.remplacer === '1'
+  if (fs.existsSync(cible) && !remplacer) { reply.code(409); return { error: `« ${nom} » existe déjà`, nom } }
   fs.mkdirSync(CONFIG.lorasDir, { recursive: true })
-  const tmp = `${cible}.part`
-  let octets = 0
+  const tmp = cheminTemporaire(cible)
+  let octets = 0, inst
   try {
     await new Promise((ok, ko) => {
       const out = fs.createWriteStream(tmp)
@@ -861,18 +865,23 @@ app.post('/api/persona/lora', async (req, reply) => {
       req.body.on('error', ko); out.on('error', ko); out.on('finish', ok)
       req.body.pipe(out)
     })
-    // safetensors: 8-byte header length (LE), then a JSON
-    const fd = fs.openSync(tmp, 'r'), tete = Buffer.alloc(9)
-    fs.readSync(fd, tete, 0, 9, 0); fs.closeSync(fd)
-    const n = Number(tete.readBigUInt64LE(0))
-    if (octets < 16 || n <= 0 || n > octets - 8 || tete[8] !== 0x7b) throw new Error('ce fichier n’est pas un .safetensors')
-    fs.renameSync(tmp, cible)
+    inst = finaliserLora(tmp, nom, { remplacer })
   } catch (e) {
     fs.rmSync(tmp, { force: true })
-    reply.code(400); return { error: String(e.message || e) }
+    reply.code(e.statusCode === 409 ? 409 : 400); return { error: String(e.message || e), nom }
   }
-  app.log.info(`LoRA déposée → ${nom} (${(octets / 1e6).toFixed(0)} Mo)`)
-  return { nom, octets, lora: comfy.listLoras().loras.find(l => l.name === nom) ?? null }
+  app.log.info(`LoRA déposée → ${nom} (${(octets / 1e6).toFixed(0)} Mo, ${inst.tenseurs} tenseurs, mode ${inst.mode})`)
+  return { nom, octets, mode: inst.mode, lora: comfy.listLoras().loras.find(l => l.name === nom) ?? null }
+})
+/* Characters' LoRAs as ComfyUI sees them (mode, owner, readable, valid), and the
+   repair the diagnostic recommends: mode and group normalized on the characters'
+   files only (never a third-party LoRA), optionally restricted to `noms`. */
+app.get('/api/loras/etat', async () => ({ dossier: CONFIG.lorasDir, loras: etatLorasPersonas(personas().list) }))
+app.post('/api/loras/reparer', async req => {
+  const noms = Array.isArray(req.body?.noms) ? req.body.noms.filter(n => typeof n === 'string') : null
+  const r = reparerLorasPersonas(personas().list, { noms })
+  for (const x of r.repares) app.log.info(`LoRA réparée → ${x.nom} (mode ${x.mode})`)
+  return { ...r, loras: etatLorasPersonas(personas().list) }
 })
 /* One photo per character: media/.persona/<id>/avatar.<ext>. Without `?id=`,
    the active character's. */

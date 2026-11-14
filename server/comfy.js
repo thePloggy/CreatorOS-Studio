@@ -1510,8 +1510,9 @@ const loraCache = new Map()
  *    `aucun`  neither (e.g. diffusers-exported LoRAs). The operator MUST enter
  *             it, otherwise the LoRA stays inert.
  *
- *  Cached by (size, mtime). */
-function loraProbe(file) {
+ *  Cached by (size, mtime). Exported for the installation step, which checks a
+ *  trained LoRA's architecture BEFORE attaching it to a character. */
+export function loraProbe(file) {
   let st
   try { st = fs.statSync(file) } catch { return { arch: 'illisible', trigger: null, triggerSource: 'aucun' } }
   const key = `${file}:${st.size}:${st.mtimeMs}`

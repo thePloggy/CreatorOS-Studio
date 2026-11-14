@@ -56,6 +56,13 @@ export const CONFIG = {
   /* LoRA folder: used to build the list offered to the front end and to
      classify each file by architecture (header read). */
   lorasDir: process.env.CREATOROS_LORAS || path.join(comfyDir, 'models/loras'),
+  /* Mode and group given to every LoRA the studio installs there (training,
+     upload). ComfyUI may run as another user or in a container: 0644 by
+     default so it can read them; CREATOROS_LORA_MODE=0640 plus
+     CREATOROS_LORA_GROUP=<shared group> for a tighter setup (see
+     server/installationLora.js). */
+  lorasMode: process.env.CREATOROS_LORA_MODE || '',
+  lorasGroup: process.env.CREATOROS_LORA_GROUP || '',
 
   /* Z-Image ControlNet patch (Fun-CN Union), loaded by ModelPatchLoader.
      Lives in models/model_patches/, not models/controlnet/: it is a model
